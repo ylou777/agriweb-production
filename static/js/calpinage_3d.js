@@ -4234,7 +4234,92 @@ class Calpinage3DViewer {
         this._solarDsmStats   = dsmStats;
         this._solarOffset     = { x: offsetX, z: offsetZ }; // Sauvegarder l'offset pour les panneaux
 
+        // ── METTRE À JOUR roofPanelsInfo avec les vraies données Solar ────────────
+        // Ceci corrige la fenêtre "Pans de toiture" et le calcul de pente des modules
+        this._updateRoofPanelsInfoFromSolar(segments, dsmStats);
+
         console.log(`🏠 Solar roof 3D (quads GPS alignés): ${nBuilt} pans depuis buildingInsights`);
+    }
+
+    /**
+     * Met à jour roofPanelsInfo avec les données réelles des segments Google Solar.
+     * Corrige l'affichage "Toit plat" parasite et fournit les pentes réelles pour addModules3D.
+     */
+    _updateRoofPanelsInfoFromSolar(segments, dsmStats) {
+        if (!segments?.length) return;
+
+        const getOrientLabel = (deg) => {
+            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+            return dirs[Math.round(((deg % 360 + 360) % 360) / 45) % 8];
+        };
+
+        // Filtrer et trier les segments par surface décroissante
+        const validSegs = segments.filter(s => s.area_m2 > 0);
+        validSegs.sort((a, b) => (b.area_m2 || 0) - (a.area_m2 || 0));
+
+        const hasSlopes = validSegs.some(s => (s.pitch_deg ?? 0) > 2);
+        const nSloped = validSegs.filter(s => (s.pitch_deg ?? 0) > 2).length;
+
+        let typeLabel;
+        if (!hasSlopes) {
+            typeLabel = 'Toit plat';
+        } else if (nSloped === 1) {
+            typeLabel = 'Mono-pente (Solar API)';
+        } else if (nSloped === 2) {
+            typeLabel = 'Bi-pan (Solar API)';
+        } else {
+            typeLabel = `${validSegs.length} pans (Solar API)`;
+        }
+
+        const panels = validSegs.map((seg, idx) => {
+            const azDeg = seg.azimuth_deg ?? 0;
+            const pitDeg = seg.pitch_deg ?? 0;
+            const area = seg.area_m2 ?? 0;
+            // Estimer longueur/largeur depuis bbox si disponible
+            let longueur = seg.seg_l_m ?? '—';
+            let largeur = seg.seg_w_m ?? '—';
+            if (longueur !== '—') longueur = Math.round(longueur * 10) / 10;
+            if (largeur !== '—') largeur = Math.round(largeur * 10) / 10;
+
+            return {
+                name: `Pan Solar ${idx + 1}`,
+                longueur: longueur,
+                largeur: largeur,
+                surface: Math.round(area * 10) / 10,
+                pente_deg: Math.round(pitDeg * 10) / 10,
+                orientation_deg: Math.round(azDeg),
+                orientation_label: getOrientLabel(azDeg),
+                sunshineAnnual: seg.irr_med_kwh ?? undefined,
+                // Données brutes pour le matching zone → segment
+                _seg_sw: seg.seg_sw,
+                _seg_ne: seg.seg_ne,
+                _height_m: seg.height_m,
+                _seg_idx: seg.orig_idx ?? (seg.id - 1),
+            };
+        });
+
+        // Préserver les infos OBB existantes si disponibles
+        const existingOBB = this.roofPanelsInfo?.buildingOBB;
+        const existingCenter = this.roofPanelsInfo?.buildingCenterGeo;
+
+        this.roofPanelsInfo = {
+            type: hasSlopes ? 'solar_multi' : 'flat',
+            typeLabel: typeLabel,
+            hauteurMurs: this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5),
+            hauterFaitageRelatif: (dsmStats?.height_faitage_m ?? 0) - (dsmStats?.height_egout_m ?? 0),
+            couverture: this._mainBldgRoofType ?? 'tile',
+            nRidges: 1,
+            panels: panels,
+            surfaceTotale: Math.round(panels.reduce((s, p) => s + (p.surface || 0), 0) * 10) / 10,
+            _source: 'google_solar',
+            buildingOBB: existingOBB,
+            buildingCenterGeo: existingCenter,
+            buildingTerrainH: this._mainBldgTerrainH,
+            buildingWallH: this._mainBldgBh,
+            buildingLocalCoords: this.roofPanelsInfo?.buildingLocalCoords,
+        };
+
+        console.log(`📐 roofPanelsInfo mis à jour (Solar): ${panels.length} pans, type="${typeLabel}"`);
     }
 
     /**
@@ -5212,13 +5297,36 @@ class Calpinage3DViewer {
         
         const panels = this.roofPanelsInfo.panels;
         const obb = this.roofPanelsInfo.buildingOBB;
+        const results = [];
+
+        // ── Si données Solar : utiliser _matchZoneToPanel (matching GPS) ──
+        if (this.roofPanelsInfo._source === 'google_solar') {
+            zones.forEach(zone => {
+                const matched = this._matchZoneToPanel(zone);
+                if (matched) {
+                    results.push({
+                        zoneId: zone.id,
+                        zoneNumero: zone.numero,
+                        panelName: matched.name,
+                        orientation: matched.orientation_deg,
+                        orientationLabel: matched.orientation_label,
+                        inclinaison: matched.pente_deg,
+                        surface: matched.surface,
+                        longueur: matched.longueur,
+                        largeur: matched.largeur,
+                        matched: true
+                    });
+                    console.log(`🎯 Zone ${zone.numero} → ${matched.name} (${matched.orientation_label}, pente ${matched.pente_deg}°)`);
+                }
+            });
+            return results;
+        }
         
+        // ── Matching OBB classique ──
         if (!obb) {
             console.warn('⚠️ Pas d\'OBB bâtiment disponible');
             return [];
         }
-        
-        const results = [];
         
         zones.forEach(zone => {
             // Centre géo de la zone
@@ -5329,12 +5437,16 @@ class Calpinage3DViewer {
             // === PENTE : détection automatique depuis la toiture 3D ===
             let penteDeg = 0;
             let penteSource = 'flat';
+            let solarHeightM = null; // Hauteur du segment Solar (relatif au sol)
             
-            if (this.roofPanelsInfo && this.roofPanelsInfo.panels && this.roofPanelsInfo.buildingOBB) {
+            if (this.roofPanelsInfo && this.roofPanelsInfo.panels) {
                 const matchResult = this._matchZoneToPanel(zone);
                 if (matchResult) {
                     penteDeg = matchResult.pente_deg;
                     penteSource = matchResult.name;
+                    if (matchResult._height_m != null) {
+                        solarHeightM = matchResult._height_m;
+                    }
                     zone.inclinaison = penteDeg;
                     zone._detectedPanel = matchResult;
                     console.log(`🏠 Zone ${zone.numero} → ${matchResult.name} : pente ${penteDeg}° auto`);
@@ -5356,12 +5468,17 @@ class Calpinage3DViewer {
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
             
             // === HAUTEUR : terrain + hauteur murs du bâtiment + 8cm au-dessus ===
-            // On utilise la hauteur des MURS (pas MNH qui inclut le faîtage)
-            // pour poser les modules à l'égout du toit ; la pente du groupe
-            // les placera naturellement le long de la pente du pan.
+            // Si Solar disponible : utiliser height_m du segment (relatif au sol)
+            // Sinon : hauteur des MURS (égout) depuis BD TOPO
             const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const roofBaseY = terrainH + wallH + 0.08; // 8cm au-dessus de l'égout
+            let roofBaseY;
+            if (solarHeightM != null) {
+                // Solar height_m est la hauteur du plan de toit au-dessus du sol
+                roofBaseY = terrainH + solarHeightM + 0.10;
+            } else {
+                const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+                roofBaseY = terrainH + wallH + 0.08;
+            }
             
             // === GROUPE : positionné au centre, SANS rotation Y ===
             // Les positions des modules (converties depuis lat/lng) encodent déjà
@@ -5468,6 +5585,44 @@ class Calpinage3DViewer {
         } else {
             return null;
         }
+
+        // ── TYPE SOLAR_MULTI : matching GPS direct vers le segment Solar le plus proche ──
+        if (this.roofPanelsInfo._source === 'google_solar') {
+            let bestPanel = null;
+            let bestDist = Infinity;
+            for (const p of panels) {
+                if (p._seg_sw && p._seg_ne) {
+                    // Vérifier si le centre de la zone est dans la bbox du segment
+                    const inLat = zoneCenterLat >= p._seg_sw.lat && zoneCenterLat <= p._seg_ne.lat;
+                    const inLon = zoneCenterLng >= p._seg_sw.lon && zoneCenterLng <= p._seg_ne.lon;
+                    if (inLat && inLon) {
+                        // Préférer le segment avec la plus grande surface (plus représentatif)
+                        if (!bestPanel || (p.surface || 0) > (bestPanel.surface || 0)) {
+                            bestPanel = p;
+                        }
+                    } else {
+                        // Distance au centre de la bbox du segment
+                        const cLat = (p._seg_sw.lat + p._seg_ne.lat) / 2;
+                        const cLon = (p._seg_sw.lon + p._seg_ne.lon) / 2;
+                        const dLat = (zoneCenterLat - cLat) * 111320;
+                        const dLon = (zoneCenterLng - cLon) * 111320 * Math.cos(zoneCenterLat * Math.PI / 180);
+                        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            if (!bestPanel) bestPanel = p; // fallback au plus proche si aucun containment
+                        }
+                    }
+                }
+            }
+            // Si aucun match par containment, prendre le plus grand segment (probable toit principal)
+            if (!bestPanel && panels.length > 0) {
+                bestPanel = panels[0]; // Déjà trié par surface décroissante
+            }
+            return bestPanel;
+        }
+        
+        // ── TYPE OBB classique : matching par projection ──
+        if (!obb) return panels.length > 0 ? panels[0] : null;
         
         const zoneLocal = this._geoToLocal(zoneCenterLat, zoneCenterLng);
         
