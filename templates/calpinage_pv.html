@@ -1143,15 +1143,45 @@
                         <button class="btn btn-sm btn-link p-0" style="color:rgba(255,255,255,0.6);font-size:1rem;line-height:1;"
                             onclick="toggleFluxHeatmap()" title="Masquer">✕</button>
                     </div>
-                    <!-- Dégradé légende + min/moy/max -->
-                    <div style="height:14px;border-radius:7px;
-                        background:linear-gradient(to right,#14006e,#003cdc,#00c8ff,#32d232,#ffe600,#ff7800,#dc0000);
-                        margin-bottom:4px;"></div>
-                    <div class="d-flex justify-content-between mb-2" style="color:rgba(255,255,255,0.8);font-size:0.78rem;">
-                        <span id="fluxLegendMin">—</span>
-                        <span id="fluxLegendMean" style="color:rgba(255,255,255,0.55);">moy: —</span>
-                        <span id="fluxLegendMax">—</span>
+                    <!-- Dégradé + double curseur plage irradiance -->
+                    <div id="fluxRangeWrap" style="position:relative;margin-bottom:20px;user-select:none;">
+                        <!-- Barre dégradée -->
+                        <div id="fluxGradBar" style="height:16px;border-radius:8px;
+                            background:linear-gradient(to right,#14006e,#003cdc,#00c8ff,#32d232,#ffe600,#ff7800,#dc0000);
+                            position:relative;cursor:crosshair;"></div>
+                        <!-- Zone sélectionnée (overlay semi-transparent blanc entre les deux poignées) -->
+                        <div id="fluxRangeSelection" style="position:absolute;top:0;height:16px;
+                            background:rgba(255,255,255,0.22);border-radius:4px;pointer-events:none;
+                            border:1px solid rgba(255,255,255,0.5);"></div>
+                        <!-- Poignée gauche (min) -->
+                        <div id="fluxHandleMin" style="position:absolute;top:-5px;width:26px;height:26px;
+                            background:#fff;border-radius:50%;border:3px solid #ffe600;
+                            box-shadow:0 2px 8px rgba(0,0,0,0.6);cursor:ew-resize;transform:translateX(-50%);
+                            touch-action:none;z-index:3;"></div>
+                        <!-- Poignée droite (max) -->
+                        <div id="fluxHandleMax" style="position:absolute;top:-5px;width:26px;height:26px;
+                            background:#fff;border-radius:50%;border:3px solid #ff4400;
+                            box-shadow:0 2px 8px rgba(0,0,0,0.6);cursor:ew-resize;transform:translateX(-50%);
+                            touch-action:none;z-index:3;"></div>
+                        <!-- Labels valeurs sous la barre -->
+                        <div style="display:flex;justify-content:space-between;margin-top:6px;
+                             color:rgba(255,255,255,0.7);font-size:0.76rem;pointer-events:none;">
+                            <span id="fluxLegendMin">—</span>
+                            <span id="fluxLegendMean" style="color:rgba(255,255,255,0.45);">moy: —</span>
+                            <span id="fluxLegendMax">—</span>
+                        </div>
+                        <!-- Tooltip poignée min -->
+                        <div id="fluxTipMin" style="position:absolute;bottom:36px;transform:translateX(-50%);
+                            background:rgba(10,10,20,0.92);color:#ffe600;padding:3px 8px;border-radius:5px;
+                            font-size:0.76rem;white-space:nowrap;pointer-events:none;display:none;"></div>
+                        <!-- Tooltip poignée max -->
+                        <div id="fluxTipMax" style="position:absolute;bottom:36px;transform:translateX(-50%);
+                            background:rgba(10,10,20,0.92);color:#ff7755;padding:3px 8px;border-radius:5px;
+                            font-size:0.76rem;white-space:nowrap;pointer-events:none;display:none;"></div>
                     </div>
+                    <!-- Inputs cachés conservés pour la compatibilité JS existante -->
+                    <input type="hidden" id="fluxIrrMin" value="0">
+                    <input type="hidden" id="fluxIrrMax" value="">
 
                     <!-- Grille 3 colonnes pleine largeur -->
                     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start;">
@@ -1223,18 +1253,9 @@
                                 title="Remplir automatiquement les pans dans la plage d'irradiance choisie">
                                 ⚡ Remplissage auto
                             </button>
-                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.6);white-space:nowrap;">Plage irradiance</span>
-                            <input type="number" id="fluxIrrMin" class="form-control form-control-sm p-0 text-center"
-                                style="width:62px;height:26px;font-size:0.74rem;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);color:#fff;"
-                                value="800" min="0" max="3000" step="50"
-                                title="Irradiance minimale (kWh/m²/an) — exclut les pans trop sombres">
-                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.4);">–</span>
-                            <input type="number" id="fluxIrrMax" class="form-control form-control-sm p-0 text-center"
-                                style="width:62px;height:26px;font-size:0.74rem;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);color:#fff;"
-                                placeholder="max" min="0" max="3000" step="50"
-                                title="Irradiance maximale (kWh/m²/an) — laisser vide pour pas de limite haute">
-                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.4);">kWh/m²/an</span>
-                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.5);margin-left:4px;">Cible</span>
+                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.6);white-space:nowrap;">Plage irradiance (curseurs sur la barre) :</span>
+                            <span id="fluxRangeLabel" style="font-size:0.75rem;color:#ffe600;font-weight:600;">—</span>
+                            <span style="font-size:0.75rem;color:rgba(255,255,255,0.5);margin-left:8px;">Cible</span>
                             <input type="number" id="fluxTargetKw" class="form-control form-control-sm p-0 text-center"
                                 style="width:58px;height:26px;font-size:0.74rem;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);color:#fff;"
                                 placeholder="kWc" min="1" max="9999" step="0.5"
@@ -7193,6 +7214,119 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             _addExclusionColor(pixel[0], pixel[1], pixel[2]);
         }
 
+        // ══════════════════════════════════════════════════════════
+         // ══════════════════════════════════════════════════════════
+        // Double curseur plage irradiance (barre dégradée interactive)
+        // Listeners document enregistrés une seule fois — pas d’accumulation
+        // ══════════════════════════════════════════════════════════
+        let _fluxRangeMin = 0, _fluxRangeMax = 3000;
+        let _fluxRenderFn = null;
+        const _fluxDrag = { active:false, isMin:false, vMin:0, vMax:3000, rMin:0, rMax:3000 };
+
+        document.addEventListener('mousemove', function _fluxMoveL(e) {
+            if (!_fluxDrag.active) return;
+            const bar = document.getElementById('fluxGradBar'); if (!bar) return;
+            const rect = bar.getBoundingClientRect();
+            const p  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const {rMin, rMax} = _fluxDrag;
+            const v = Math.round((rMin + p * (rMax - rMin)) / 10) * 10;
+            if (_fluxDrag.isMin) _fluxDrag.vMin = Math.max(rMin, Math.min(v, _fluxDrag.vMax - 10));
+            else                 _fluxDrag.vMax = Math.min(rMax, Math.max(v, _fluxDrag.vMin + 10));
+            if (_fluxRenderFn) _fluxRenderFn();
+        });
+        document.addEventListener('touchmove', function _fluxTouchMoveL(e) {
+            if (!_fluxDrag.active) return;
+            const bar = document.getElementById('fluxGradBar'); if (!bar) return;
+            const rect = bar.getBoundingClientRect();
+            const p = Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width));
+            const {rMin, rMax} = _fluxDrag;
+            const v = Math.round((rMin + p * (rMax - rMin)) / 10) * 10;
+            if (_fluxDrag.isMin) _fluxDrag.vMin = Math.max(rMin, Math.min(v, _fluxDrag.vMax - 10));
+            else                 _fluxDrag.vMax = Math.min(rMax, Math.max(v, _fluxDrag.vMin + 10));
+            if (_fluxRenderFn) _fluxRenderFn();
+            if (e.cancelable) e.preventDefault();
+        }, {passive:false});
+        document.addEventListener('mouseup',   function _fluxUpL()     { _fluxDragCommit(); });
+        document.addEventListener('touchend',  function _fluxTouchUpL(){ _fluxDragCommit(); });
+        function _fluxDragCommit() {
+            if (!_fluxDrag.active) return;
+            _fluxDrag.active = false;
+            const tm = document.getElementById('fluxTipMin'), tx = document.getElementById('fluxTipMax');
+            if (tm) tm.style.display = 'none';
+            if (tx) tx.style.display = 'none';
+            const inMin = document.getElementById('fluxIrrMin');
+            const inMax = document.getElementById('fluxIrrMax');
+            const {vMin, vMax, rMin, rMax} = _fluxDrag;
+            if (inMin) inMin.value = vMin > rMin ? vMin : 0;
+            if (inMax) inMax.value = vMax < rMax ? vMax : '';
+            if (typeof updateAllZones === 'function' && !(viewer3D?.isActive)) updateAllZones();
+        }
+
+        function _initFluxRangeSlider(rMin, rMax) {
+            _fluxRangeMin = rMin; _fluxRangeMax = rMax;
+            const bar    = document.getElementById('fluxGradBar');
+            const sel    = document.getElementById('fluxRangeSelection');
+            const hMin   = document.getElementById('fluxHandleMin');
+            const hMax   = document.getElementById('fluxHandleMax');
+            const tipMin = document.getElementById('fluxTipMin');
+            const tipMax = document.getElementById('fluxTipMax');
+            const inMin  = document.getElementById('fluxIrrMin');
+            const inMax  = document.getElementById('fluxIrrMax');
+            const rLbl   = document.getElementById('fluxRangeLabel');
+            if (!bar || !hMin || !hMax) return;
+
+            let vMin = rMin, vMax = rMax;
+            const prevMin = parseFloat(inMin?.value);
+            const prevMax = parseFloat(inMax?.value);
+            if (prevMin > rMin && prevMin < rMax) vMin = prevMin;
+            if (prevMax > rMin && prevMax < rMax) vMax = prevMax;
+            _fluxDrag.rMin = rMin; _fluxDrag.rMax = rMax;
+            _fluxDrag.vMin = vMin; _fluxDrag.vMax = vMax;
+
+            function render() {
+                const W = bar.offsetWidth || bar.getBoundingClientRect().width;
+                if (!W) return;
+                const {vMin, vMax, rMin, rMax} = _fluxDrag;
+                const pL = Math.max(0, Math.min(1, (vMin - rMin) / (rMax - rMin)));
+                const pR = Math.max(0, Math.min(1, (vMax - rMin) / (rMax - rMin)));
+                hMin.style.left   = (pL * W) + 'px';
+                hMax.style.left   = (pR * W) + 'px';
+                sel.style.left    = (pL * W) + 'px';
+                sel.style.width   = Math.max(0, (pR - pL) * W) + 'px';
+                tipMin.style.left = (pL * W) + 'px';
+                tipMax.style.left = (pR * W) + 'px';
+                tipMin.textContent = vMin + '\u00a0kWh/m\u00b2/an';
+                tipMax.textContent = vMax + '\u00a0kWh/m\u00b2/an';
+                if (rLbl) rLbl.textContent = (vMin > rMin || vMax < rMax)
+                    ? vMin + '\u00a0\u2013\u00a0' + vMax + '\u00a0kWh/m\u00b2/an'
+                    : 'Tout\u00a0(' + rMin + '\u00a0\u2013\u00a0' + rMax + ')';
+            }
+            if (_fluxRenderFn) window.removeEventListener('resize', _fluxRenderFn);
+            _fluxRenderFn = render;
+            window.addEventListener('resize', render);
+
+            hMin.onmousedown = hMin.ontouchstart = function(e) {
+                _fluxDrag.active = true; _fluxDrag.isMin = true;
+                tipMin.style.display = 'block';
+                e.preventDefault(); e.stopPropagation();
+            };
+            hMax.onmousedown = hMax.ontouchstart = function(e) {
+                _fluxDrag.active = true; _fluxDrag.isMin = false;
+                tipMax.style.display = 'block';
+                e.preventDefault(); e.stopPropagation();
+            };
+            bar.onclick = function(e) {
+                const rect = bar.getBoundingClientRect();
+                const p = (e.clientX - rect.left) / rect.width;
+                const v = Math.round((_fluxDrag.rMin + p * (_fluxDrag.rMax - _fluxDrag.rMin)) / 10) * 10;
+                const dMin = Math.abs(v - _fluxDrag.vMin), dMax = Math.abs(v - _fluxDrag.vMax);
+                if (dMin <= dMax) _fluxDrag.vMin = Math.max(rMin, Math.min(v, _fluxDrag.vMax - 10));
+                else              _fluxDrag.vMax = Math.min(rMax, Math.max(v, _fluxDrag.vMin + 10));
+                render(); _fluxDragCommit();
+            };
+            setTimeout(render, 30);
+        }
+
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
                 const b = document.getElementById(id);
@@ -7421,6 +7555,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     document.getElementById('fluxLegendMin').textContent  = `${cMin} kWh/m²/an`;
                     document.getElementById('fluxLegendMax').textContent  = `${cMax} kWh/m²/an`;
                     document.getElementById('fluxLegendMean').textContent = `moy: ${data.flux_mean} kWh/m²/an`;
+                    // Initialiser le double curseur sur la plage de la colormap
+                    _initFluxRangeSlider(cMin, cMax);
                     const d = data.imagery_date;
                     document.getElementById('fluxLegendDate').textContent =
                         d ? `Imagerie Google Solar — ${d.year || ''}/${String(d.month||'').padStart(2,'0')}` : '';
