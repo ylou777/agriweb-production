@@ -8722,12 +8722,37 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 console.log(`⚡ Calcul strings: nb_serie=${nbSerieOptimal} (max=${nbSerieMax} min=${nbSerieMin}, Voc_max=${vocMax.toFixed(1)}V, Vmpp_min=${vmppMin.toFixed(1)}V)`);
             } catch(e) { console.warn('❓ Calcul nb_serie_optimal:', e); }
 
+            // ── Injecter irradiance Google Solar dans les pans LiDAR ──────────────────
+            // Les pans BD TOPO n'ont pas sunshineAnnual → le filtre les accepte tous.
+            // On résout ça en matchant chaque pan LiDAR au segment Solar le plus proche
+            // (par azimuth + pente) et en copiant son irr_med_kwh.
+            const _fluxSegsForInject = window._fluxRoofSegments || [];
+            if (_fluxSegsForInject.length > 0 && viewer3D.roofPanelsInfo?.panels) {
+                viewer3D.roofPanelsInfo.panels.forEach(pan => {
+                    if (pan.sunshineAnnual != null) return;  // déjà renseigné
+                    const az  = pan.orientation_deg ?? pan.azimutDeg ?? 180;
+                    const pit = pan.pente_deg        ?? pan.penteDeg  ?? 15;
+                    let bestSeg = null, bestDist = Infinity;
+                    _fluxSegsForInject.forEach(s => {
+                        const da = Math.abs(((az - (s.azimuth_deg ?? 180)) + 360) % 360);
+                        const dp = Math.abs(pit  - (s.pitch_deg   ?? 15));
+                        const d  = Math.min(da, 360 - da) + dp * 2;
+                        if (d < bestDist) { bestDist = d; bestSeg = s; }
+                    });
+                    if (bestSeg) {
+                        pan.sunshineAnnual = bestSeg.irr_med_kwh ?? bestSeg.irr_max_kwh ?? null;
+                        console.log(`☀️ Pan az=${az}° pit=${pit}° → seg ${bestSeg.id} irr_med=${pan.sunshineAnnual} kWh/m²/an (Δ=${bestDist.toFixed(1)})`);
+                    }
+                });
+            }
+
             const generatedZones = viewer3D.autoFillRoofPanels(moduleW, moduleL, espacement, disposition, null, obstacleRects, {
-                maxPowerKw:          targetKw > 0 ? targetKw : Infinity,
-                sunshineThresholdH:  irrMin,
+                maxPowerKw:           targetKw > 0 ? targetKw : Infinity,
+                sunshineThresholdH:   irrMin,
                 sunshineThresholdMax: irrMax,
-                modulePowerW:        modulePuissance,
-                nbSerieOptimal:      nbSerieOptimal,  // FIX #3
+                modulePowerW:         modulePuissance,
+                nbSerieOptimal:       nbSerieOptimal,
+                rejectMissingData:    _fluxSegsForInject.length > 0,  // rejeter les pans sans irradiance ssi données Solar chargées
             });
             
             if (!generatedZones || generatedZones.length === 0) {

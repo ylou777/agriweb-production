@@ -599,11 +599,14 @@ class Calpinage3DViewer {
         indicesToProcess = [...indicesToProcess].sort((a, b) =>
             ((panels[b]?.sunshineAnnual || 0) - (panels[a]?.sunshineAnnual || 0))
         );
-        // Filtrer par plage d'irradiance min–max (pans sans donnée sunshine conservés)
+        // Filtrer par plage d'irradiance min–max
+        // Si sunshineAnnual est absent ET que rejectMissingData=true (données Solar présentes) → rejeter
+        // Si rejectMissingData=false (pas de données Solar) → conserver les pans sans irradiance
+        const rejectMissingData = opts.rejectMissingData === true;
         if (sunshineThresholdH > 0 || isFinite(sunshineThresholdMax)) {
             indicesToProcess = indicesToProcess.filter(i => {
                 const v = panels[i]?.sunshineAnnual;
-                if (v === undefined || v === null) return true; // pas de données → conserver
+                if (v === undefined || v === null) return !rejectMissingData; // selon disponibilité données Solar
                 return v >= sunshineThresholdH && v <= sunshineThresholdMax;
             });
             if (indicesToProcess.length === 0)
