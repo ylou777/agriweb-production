@@ -4827,10 +4827,10 @@
                 if (_irrFilterOn && cornersMeters._cx !== undefined) {
                     const cLL = metersToLatLng({x: cornersMeters._cx, y: cornersMeters._cy});
                     const px  = _sampleCanvas(_fluxCanvas, _fluxBbox, cLL.lat, cLL.lng);
-                    if (px && px[3] >= 10) {
-                        const irrPixel = _colorToIrr(px[0], px[1], px[2]);
-                        if (irrPixel < _irrMin || irrPixel > _irrMax) { _nbExcluded++; return; }
-                    }
+                    // Hors emprise heatmap (null) OU hors toiture (alpha < 10) → exclu
+                    if (!px || px[3] < 10) { _nbExcluded++; return; }
+                    const irrPixel = _colorToIrr(px[0], px[1], px[2]);
+                    if (irrPixel < _irrMin || irrPixel > _irrMax) { _nbExcluded++; return; }
                 }
                 _nbDrawn++;
                 const corners = cornersMeters.map(pt => metersToLatLng(pt, true));
@@ -7549,7 +7549,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         cv.getContext('2d').drawImage(_ci, 0, 0);
                         _fluxCanvas = cv;
                         console.log(`🔍 Heatmap canvas ready (always): ${cv.width}×${cv.height}px`);
-                        updateAllZones();
+                        // Redessiner uniquement en mode 2D — en 3D, les zones 2D ne sont pas affichées
+                        if (!(viewer3D?.isActive)) updateAllZones();
                     };
                     _ci.src = imgSrc;
                 })();
@@ -8408,10 +8409,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         viewer3D.applyBuildingInsightsPanels3D(panelsOk, fluxSegs, viewer3D._solarBldgCenter);
                     }
 
-                    // Supprimer les anciennes zones
+                    // Supprimer les anciennes zones (moduleGroup → map, layer → drawnItems)
                     zones.forEach(z => {
                         if (z.moduleGroup) map.removeLayer(z.moduleGroup);
-                        if (z.layer) map.removeLayer(z.layer);
+                        if (z.layer) {
+                            try { drawnItems.removeLayer(z.layer); } catch(e) {}
+                            try { map.removeLayer(z.layer); } catch(e) {}
+                        }
                     });
                     zones = [];
                     document.getElementById('zonesList').innerHTML = '';
@@ -8678,10 +8682,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             
             console.log(`⚡ Remplissage auto toiture: module ${moduleL}x${moduleW}m, esp=${espacement}m, disp=${disposition}`);
             
-            // Supprimer les anciennes zones
+            // Supprimer les anciennes zones (moduleGroup → map, layer → drawnItems)
             zones.forEach(z => {
                 if (z.moduleGroup) map.removeLayer(z.moduleGroup);
-                if (z.layer) map.removeLayer(z.layer);
+                if (z.layer) {
+                    try { drawnItems.removeLayer(z.layer); } catch(e) {}
+                    try { map.removeLayer(z.layer); } catch(e) {}
+                }
             });
             zones = [];
             document.getElementById('zonesList').innerHTML = '';
