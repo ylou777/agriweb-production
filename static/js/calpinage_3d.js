@@ -4348,14 +4348,14 @@ class Calpinage3DViewer {
             const geo  = new THREE.PlaneGeometry(pW, pH);
             const mesh = new THREE.Mesh(geo, mat);
 
-            // ── Orientation : même formule que BuildingInsightsSection.svelte ──
-            //   orientation_offset = 'PORTRAIT' ? 90° : 0°
-            //   rotation Y = azimuth + orientation_offset
-            //   rotation X = -pitch (plan incliné)
+            // Rotation Three.js (order YXZ) :
+            //   PlaneGeometry est VERTICAL par défaut (plan XY).
+            //   On le couche à plat (-π/2) puis on l'incline par le pitch.
+            //   orientOff = π/2 si PORTRAIT (long côté horizontal)
             const orientOffset = (p.orientation === 'PORTRAIT') ? Math.PI / 2 : 0;
             mesh.rotation.order = 'YXZ';
             mesh.rotation.y = -(info?.azRad ?? 0) + orientOffset + Math.PI;
-            mesh.rotation.x = -(info?.pitRad ?? 0);
+            mesh.rotation.x = (info?.pitRad ?? 0) - Math.PI / 2;
             
             // Appliquer l'offset pour l'affichage
             mesh.position.set(origX + offsetX, py, origZ + offsetZ);
