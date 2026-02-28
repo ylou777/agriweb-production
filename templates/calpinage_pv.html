@@ -7535,6 +7535,25 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 const imgSrc = `data:image/png;base64,${data.image_base64}`;
 
+                // ── Canvas heatmap TOUJOURS chargé (2D ET 3D) pour le remplissage auto ──
+                // Indépendant du mode 2D/3D : le filtre pixel-précis en a toujours besoin.
+                _fluxBbox     = data.bbox;
+                _fluxColorMin = data.color_min ?? 0;
+                _fluxColorMax = data.color_max ?? 1500;
+                _fluxCanvas   = null;
+                (() => {
+                    const _ci = new Image();
+                    _ci.onload = () => {
+                        const cv = document.createElement('canvas');
+                        cv.width = _ci.naturalWidth; cv.height = _ci.naturalHeight;
+                        cv.getContext('2d').drawImage(_ci, 0, 0);
+                        _fluxCanvas = cv;
+                        console.log(`🔍 Heatmap canvas ready (always): ${cv.width}×${cv.height}px`);
+                        updateAllZones();
+                    };
+                    _ci.src = imgSrc;
+                })();
+
                 // ── Reconstruction 3D du toit + panneaux Google Solar (quads GPS propres) ──
                 if (viewer3D?.isActive && data.roof_segments?.length > 0 && data.building_center) {
                     viewer3D.applySolarRoofFromInsights(
@@ -7558,33 +7577,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const b = data.bbox;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
                     // Fond = tuiles Google Satellite (même source que Solar) → alignement parfait.
-                    // Heatmap RGBA seule : alpha=0 hors bâtiment → seule la zone irradiée colorée.
                     _flux2DOverlay = L.imageOverlay(
                         imgSrc, [[b.south, b.west], [b.north, b.east]],
                         { opacity: 0.85, interactive: false, zIndex: 201 }
                     ).addTo(map);
-                    // Centrer et zoomer sur l'étendue de l'image Solar
                     _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
                     map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [20, 20], animate: true });
-
-                    // ── Pipette : charger l'image dans un canvas caché ────────────────────────
-                    _fluxBbox     = b;
-                    _fluxColorMin = data.color_min ?? 0;
-                    _fluxColorMax = data.color_max ?? 1500;
-                    _fluxCanvas   = null;  // réinitialiser pendant le chargement
-                    const _pipImg = new Image();
-                    _pipImg.onload = () => {
-                        const cv = document.createElement('canvas');
-                        cv.width  = _pipImg.naturalWidth;
-                        cv.height = _pipImg.naturalHeight;
-                        cv.getContext('2d').drawImage(_pipImg, 0, 0);
-                        _fluxCanvas = cv;
-                        console.log(`🔍 Pipette canvas ready: ${cv.width}×${cv.height}px`);
-                        // Redessiner toutes les zones avec le filtre irradiation maintenant actif
-                        updateAllZones();
-                    };
-                    _pipImg.crossOrigin = 'anonymous';
-                    _pipImg.src = imgSrc;
+                    // Canvas pipette déjà chargé globalement ci-dessus — réutiliser.
                     map.on('mousemove', _fluxPipetteMove);
                     map.on('mouseout',  _fluxPipetteHide);
 
@@ -8374,13 +8373,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     //   • pixel transparent (hors emprise toiture) → exclus systématiquement
                     // Aucune moyenne de segment n'est utilisée.
                     let _nPixelOk = 0, _nPixelKo = 0, _nPixelTransp = 0;
-                    const panelsOk = solarPanels.filter(p => {
+                    let panelsOk = solarPanels.filter(p => {
                         const px = _sampleCanvas(_fluxCanvas, _fluxBbox, p.lat, p.lon);
-                        if (!px || px[3] < 10) {
-                            // Hors emprise heatmap (pixel transparent) → exclus
-                            _nPixelTransp++;
-                            return false;
-                        }
+                        if (!px || px[3] < 10) { _nPixelTransp++; return false; }
                         const irrPixel = _colorToIrr(px[0], px[1], px[2]);
                         const ok = irrPixel >= irrMin && irrPixel <= irrMax;
                         ok ? _nPixelOk++ : _nPixelKo++;
@@ -8390,6 +8385,18 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     console.log(`🔍 [autoFill pixel-précis] filtre ${irrMin}–${irrMax} kWh/m²/an` +
                         ` → ✅ ${_nPixelOk} OK / ❌ ${_nPixelKo} hors-plage / ⬜ ${_nPixelTransp} hors-toiture` +
                         ` → ${panelsOk.length}/${solarPanels.length} retenus`);
+
+                    // ── Fallback segment si canvas inutilisable (>80% transparents) ──────────
+                    // Utilise l'irradiance médiane du segment (sunshineQuantiles p50)
+                    if (panelsOk.length === 0 && _nPixelTransp > solarPanels.length * 0.8) {
+                        console.warn('⚠️ Canvas hors-emprise → fallback filtre par irradiance segment (irr_med_kwh)');
+                        const segIrrMap = new Map(fluxSegs.map(s => [s.orig_idx ?? (s.id-1), s.irr_med_kwh ?? s.irr_max_kwh ?? 0]));
+                        panelsOk = solarPanels.filter(p => {
+                            const segIrr = segIrrMap.get(p.seg_idx) ?? 0;
+                            return segIrr >= irrMin && segIrr <= irrMax;
+                        });
+                        console.log(`🔄 Fallback segment → ${panelsOk.length}/${solarPanels.length} retenus`);
+                    }
 
                     if (panelsOk.length === 0 && solarPanels.length > 0) {
                         alert(`⚠️ Aucun panneau dans la plage d'irradiance ${irrMin}–${irrMax} kWh/m²/an.\nAjustez les seuils ou rechargez la carte d'irradiation.`);
