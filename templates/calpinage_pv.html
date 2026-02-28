@@ -4844,14 +4844,34 @@
                         if (px && _colorMatchesExclusion(px[0], px[1], px[2])) { _nbExcluded++; return; }
                     }
                 }
-                // ── Filtrage irradiation pixel-précis (heatmap flux) ─────────────────────
+                // ── Filtrage irradiation pixel-précis (heatmap flux) + bande sécurité 30 cm ─
                 if (_irrFilterOn && cornersMeters._cx !== undefined) {
-                    const cLL = metersToLatLng({x: cornersMeters._cx, y: cornersMeters._cy});
-                    const px  = _sampleCanvas(_fluxCanvas, _fluxBbox, cLL.lat, cLL.lng);
-                    // Hors emprise heatmap (null) OU hors toiture (alpha < 10) → exclu
-                    if (!px || px[3] < 10) { _nbExcluded++; return; }
-                    const irrPixel = _colorToIrr(px[0], px[1], px[2]);
-                    if (irrPixel < _irrMin || irrPixel > _irrMax) { _nbExcluded++; return; }
+                    const SAFETY_M = 0.30; // bande de sécurité 30 cm autour des zones exclues
+                    const cx = cornersMeters._cx, cy = cornersMeters._cy;
+                    // Points testés : centre + 4 directions cardinales à 30 cm
+                    const _testPts = [
+                        {x: cx,            y: cy},
+                        {x: cx + SAFETY_M, y: cy},
+                        {x: cx - SAFETY_M, y: cy},
+                        {x: cx,            y: cy + SAFETY_M},
+                        {x: cx,            y: cy - SAFETY_M},
+                    ];
+                    // + 4 coins du module étendus 30 cm vers l'extérieur (direction diagonale)
+                    for (const corner of cornersMeters) {
+                        const dX = corner.x - cx, dY = corner.y - cy;
+                        const norm = Math.sqrt(dX * dX + dY * dY) || 1;
+                        _testPts.push({x: corner.x + SAFETY_M * dX / norm, y: corner.y + SAFETY_M * dY / norm});
+                    }
+                    let _excluded = false;
+                    for (const pt of _testPts) {
+                        const pLL = metersToLatLng(pt);
+                        const px  = _sampleCanvas(_fluxCanvas, _fluxBbox, pLL.lat, pLL.lng);
+                        // Hors emprise heatmap (null) OU hors toiture (alpha < 10) → zone exclue
+                        if (!px || px[3] < 10) { _excluded = true; break; }
+                        const irrPixel = _colorToIrr(px[0], px[1], px[2]);
+                        if (irrPixel < _irrMin || irrPixel > _irrMax) { _excluded = true; break; }
+                    }
+                    if (_excluded) { _nbExcluded++; return; }
                 }
                 _nbDrawn++;
                 const corners = cornersMeters.map(pt => metersToLatLng(pt, true));
@@ -8508,15 +8528,28 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     // Chaque panneau est testé à sa position GPS exacte sur le canvas heatmap :
                     //   • pixel opaque  → valeur kWh/m²/an réelle décidée par _colorToIrr()
                     //   • pixel transparent (hors emprise toiture) → exclus systématiquement
+                    // Bande de sécurité 30 cm : on teste aussi 4 points à ±30cm du centre.
                     // Aucune moyenne de segment n'est utilisée.
+                    const _SAFETY_DEG = 0.30 / 111320; // ~30 cm → degrés latitude
                     let _nPixelOk = 0, _nPixelKo = 0, _nPixelTransp = 0;
                     let panelsOk = solarPanels.filter(p => {
-                        const px = _sampleCanvas(_fluxCanvas, _fluxBbox, p.lat, p.lon);
-                        if (!px || px[3] < 10) { _nPixelTransp++; return false; }
-                        const irrPixel = _colorToIrr(px[0], px[1], px[2]);
-                        const ok = irrPixel >= irrMin && irrPixel <= irrMax;
-                        ok ? _nPixelOk++ : _nPixelKo++;
-                        return ok;
+                        const _cosLat = Math.cos(p.lat * Math.PI / 180) || 1;
+                        const _safetyLng = _SAFETY_DEG / _cosLat;
+                        const _pts = [
+                            {lat: p.lat,               lng: p.lon},
+                            {lat: p.lat + _SAFETY_DEG, lng: p.lon},
+                            {lat: p.lat - _SAFETY_DEG, lng: p.lon},
+                            {lat: p.lat,               lng: p.lon + _safetyLng},
+                            {lat: p.lat,               lng: p.lon - _safetyLng},
+                        ];
+                        for (const {lat, lng} of _pts) {
+                            const px = _sampleCanvas(_fluxCanvas, _fluxBbox, lat, lng);
+                            if (!px || px[3] < 10) { _nPixelTransp++; return false; }
+                            const irrPixel = _colorToIrr(px[0], px[1], px[2]);
+                            if (irrPixel < irrMin || irrPixel > irrMax) { _nPixelKo++; return false; }
+                        }
+                        _nPixelOk++;
+                        return true;
                     });
 
                     console.log(`🔍 [autoFill pixel-précis] filtre ${irrMin}–${irrMax} kWh/m²/an` +
