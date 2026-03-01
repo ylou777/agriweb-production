@@ -440,6 +440,17 @@
         .calp-toolbar .btn { font-size: 0.78rem; }
         .calp-toolbar .btn-group .btn { font-size: 0.76rem; }
 
+        /* Nouveau footer toolbar carte */
+        #mapCard .card-footer {
+            background: var(--c-surface);
+            border-top: 2px solid var(--c-border);
+            padding: 0;
+        }
+        #mapCard .card-footer .btn { font-size: 0.76rem; padding: 3px 8px; }
+        #mapCard .card-footer .btn-group .btn { font-size: 0.74rem; }
+        #mapCard .card-footer input.form-control-sm { background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text); }
+        #mapCard .card-footer .vr { border-color: var(--c-border); opacity: 0.4; }
+
         /* Leaflet overrides */
         .leaflet-control-zoom a {
             background: var(--c-surface) !important;
@@ -1156,42 +1167,13 @@
 
                 <!-- Carte interactive -->
                 <div class="card" id="mapCard">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <strong><i class="bi bi-map"></i> Carte de calpinage</strong>
-                        <div>
-                            {% if is_admin %}
-                            <button class="btn btn-sm btn-info me-1" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">
-                                🌐 Vue 3D
-                            </button>
-                            {% endif %}
-                            <button class="btn btn-sm btn-success me-1" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture avec des modules PV">
-                                ⚡ Remplissage auto
-                            </button>
-                            <span style="font-size:0.74rem;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;" title="Paramètres du remplissage automatique">
-                                <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir">
-                                <span class="text-muted">kWc</span>
-                                <span class="text-muted ms-1">☀️≥</span>
-                                <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil irradiance min (kWh/m²/an) — exclut les pans trop ombragés">
-                                <span class="text-muted">kWh/m²</span>
-                            </span>
-                            <button class="btn btn-sm btn-light me-1" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire pixel par pixel (kWh/m²/an) — zones d'ombrage acrotères/obstacles visibles">
-                                🌡️ Irradiation
-                            </button>
-                            <button class="btn btn-sm btn-secondary me-1" id="btnLayersPanel" onclick="toggleLayersPanel()" title="Gérer la visibilité des calques et exclure des zones par couleur">
-                                🗂️ Calques
-                            </button>
-                            <button class="btn btn-sm btn-info me-1" id="toggleFullscreen" title="Plein écran">
-                                🔲 Plein écran
-                            </button>
-                            <button class="btn btn-sm btn-warning me-1" id="clearMeasurements" title="Effacer les mesures">
-                                📏 Effacer mesures
-                            </button>
-                            <button class="btn btn-sm btn-light" id="clearAllZones">Effacer tout</button>
-                        </div>
+                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                        <strong style="font-size:0.88rem;"><i class="bi bi-map"></i> Carte de calpinage</strong>
+                        <span class="text-muted small" id="currentToolInfo" style="font-size:0.76rem;">📐 Mode Zone PV — Dessinez un rectangle</span>
                     </div>
                     
-                    <!-- Barre d'outils de dessin -->
-                    <div class="card-body py-2 bg-light border-bottom">
+                    <!-- Barre d'outils de dessin (masquée — contenu déplacé dans le footer) -->
+                    <div class="card-body py-2 bg-light border-bottom" style="display:none;" id="_legacyDrawingToolbar">
                         <div class="d-flex flex-wrap align-items-center gap-2">
                             <span class="text-muted small me-2"><strong>🛠️ Outils:</strong></span>
                             <div class="btn-group btn-group-sm" role="group">
@@ -1380,11 +1362,92 @@
                         <div class="measurements-panel mt-2" id="measurementsList"></div>
                     </div>
                     
-                    <div class="card-footer">
-                        <small class="text-muted">
-                            📍 <strong>Dessinez des rectangles</strong> sur la carte pour définir vos zones PV<br>
-                            🎛️ <strong>Ajustez l'orientation et l'inclinaison</strong> de chaque zone avec les curseurs dans le panneau de droite
-                        </small>
+                    <div class="card-footer p-0" style="border-top:2px solid var(--c-border,#333);">
+
+                        <!-- ── Ligne 1 : Vues & Actions principales ── -->
+                        <div class="d-flex flex-wrap align-items-center gap-1 px-2 py-2" style="border-bottom:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02);">
+                            <span class="badge bg-secondary me-1" style="font-size:0.65rem;">🖥️ VUE</span>
+                            {% if is_admin %}
+                            <button class="btn btn-sm btn-info" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">🌐 Vue 3D</button>
+                            {% endif %}
+                            <button class="btn btn-sm btn-light" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire (kWh/m²/an)">🌡️ Irradiation</button>
+                            <button class="btn btn-sm btn-secondary" id="btnLayersPanel" onclick="toggleLayersPanel()" title="Calques">🗂️ Calques</button>
+                            <button class="btn btn-sm btn-info" id="toggleFullscreen" title="Plein écran">🔲 Plein écran</button>
+
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-success me-1" style="font-size:0.65rem;">⚡ REMPLISSAGE</span>
+                            <button class="btn btn-sm btn-success" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture">⚡ Remplissage auto</button>
+                            <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:58px;height:28px;font-size:0.76rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc)">
+                            <span class="text-muted small">kWc</span>
+                            <span class="text-muted small ms-1">☀️≥</span>
+                            <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:54px;height:28px;font-size:0.76rem;" value="900" min="0" max="2000" step="50" title="Seuil irradiance min (kWh/m²/an)">
+                            <span class="text-muted small">kWh/m²</span>
+
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-warning text-dark me-1" style="font-size:0.65rem;">🗑️ EFFACER</span>
+                            <button class="btn btn-sm btn-warning" id="clearMeasurements" title="Effacer les mesures">📏 Mesures</button>
+                            <button class="btn btn-sm btn-outline-danger" id="clearAllZones">🗑️ Tout effacer</button>
+                        </div>
+
+                        <!-- ── Ligne 2 : Dessin, Équipements, Obstacles ── -->
+                        <div class="d-flex flex-wrap align-items-center gap-1 px-2 py-2" style="border-bottom:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.01);">
+
+                            <span class="badge bg-primary me-1" style="font-size:0.65rem;">▢ ZONES PV</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-primary" id="toolRectangle" title="Dessiner une zone PV rectangulaire">▢ Zone PV</button>
+                                <button type="button" class="btn btn-outline-success" id="toolEdit" title="Modifier les zones">✏️ Modifier</button>
+                                <button type="button" class="btn btn-outline-danger" id="toolDelete" title="Supprimer des zones">🗑️ Suppr.</button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolMeasure" title="Mesurer">📏 Mesure</button>
+                            </div>
+
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-secondary me-1" style="font-size:0.65rem;">✏️ DESSIN</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" id="toolPolyline" title="Ligne">— Ligne</button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolPolygon" title="Polygone">⬡ Polygone</button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolCircle" title="Cercle">○ Cercle</button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolMarker" title="Repère">📍 Repère</button>
+                            </div>
+
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-info me-1" style="font-size:0.65rem;">⚡ ÉLEC.</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-warning" id="toolOnduleur" title="Placer onduleur">⚡ Onduleur</button>
+                                <button type="button" class="btn btn-outline-primary" id="toolTGBT" title="Placer TGBT">🔌 TGBT</button>
+                                <button type="button" class="btn btn-outline-success" id="toolInjection" title="Point d'injection">🔗 Injection</button>
+                            </div>
+
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-danger me-1" style="font-size:0.65rem;">🚧 OBSTAC.</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" id="toolObstacle" title="Obstacle rectangulaire">🚧 Rect.</button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolObstacleCircle" title="Obstacle circulaire">⊙ Rond</button>
+                                <button type="button" class="btn btn-outline-danger" id="clearObstacles" title="Supprimer obstacles">🗑️</button>
+                            </div>
+                            <span class="badge bg-secondary ms-1" id="obstacleCount" style="display:none;">0</span>
+                        </div>
+
+                        <!-- ── Ligne 3 : Distances câbles ── -->
+                        <div class="d-flex flex-wrap align-items-center gap-2 px-2 py-2" style="background:rgba(255,255,255,0.005); font-size:0.78rem;">
+                            <span class="badge bg-dark me-1" style="font-size:0.65rem;">📏 CÂBLES</span>
+                            <span class="badge bg-warning text-dark">DC</span>
+                            <span class="text-muted small">Modules→Ond :</span>
+                            <input type="number" class="form-control form-control-sm p-0 text-center" id="distanceDC" placeholder="Auto" min="0" step="0.5" style="width:58px;height:26px;font-size:0.76rem;" title="Distance DC modules→onduleur (m)">
+                            <small class="text-muted">m <span style="opacity:.5;">(auto <span id="distanceDCAuto">--</span>m)</span></small>
+
+                            <span class="badge bg-primary ms-2">AC</span>
+                            <span class="text-muted small">Ond→TGBT :</span>
+                            <input type="number" class="form-control form-control-sm p-0 text-center" id="distanceAC1" placeholder="Auto" min="0" step="0.5" style="width:58px;height:26px;font-size:0.76rem;" title="Distance AC onduleur→TGBT (m)">
+                            <small class="text-muted">m <span style="opacity:.5;">(auto <span id="distanceAC1Auto">--</span>m)</span></small>
+
+                            <span class="badge bg-success ms-2">AC</span>
+                            <span class="text-muted small">TGBT→Inject :</span>
+                            <input type="number" class="form-control form-control-sm p-0 text-center" id="distanceAC2" placeholder="Auto" min="0" step="0.5" style="width:58px;height:26px;font-size:0.76rem;" title="Distance AC TGBT→injection (m)">
+                            <small class="text-muted">m <span style="opacity:.5;">(auto <span id="distanceAC2Auto">--</span>m)</span></small>
+
+                            <small class="text-info ms-3">💡 Ajoutez les passages verticaux manuellement.</small>
+                        </div>
+
                     </div>
                 </div>
                 
@@ -2984,6 +3047,9 @@
         let tempMeasureTooltip = null;
         
         function initDrawingTools() {
+            // Supprimer l'ancien toolbar caché (IDs dupliqués) avant de bind les event listeners
+            document.getElementById('_legacyDrawingToolbar')?.remove();
+
             // Bouton Zone PV (rectangle)
             document.getElementById('toolRectangle').addEventListener('click', function() {
                 setActiveTool('rectangle');
