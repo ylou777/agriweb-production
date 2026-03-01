@@ -440,17 +440,6 @@
         .calp-toolbar .btn { font-size: 0.78rem; }
         .calp-toolbar .btn-group .btn { font-size: 0.76rem; }
 
-        /* Nouveau footer toolbar carte */
-        #mapCard .card-footer {
-            background: var(--c-surface);
-            border-top: 2px solid var(--c-border);
-            padding: 0;
-        }
-        #mapCard .card-footer .btn { font-size: 0.76rem; padding: 3px 8px; }
-        #mapCard .card-footer .btn-group .btn { font-size: 0.74rem; }
-        #mapCard .card-footer input.form-control-sm { background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text); }
-        #mapCard .card-footer .vr { border-color: var(--c-border); opacity: 0.4; }
-
         /* Leaflet overrides */
         .leaflet-control-zoom a {
             background: var(--c-surface) !important;
@@ -476,36 +465,6 @@
 
         /* Supprimer la bordure rectangulaire des image overlays Leaflet (flux heatmap, RGB) */
         .leaflet-image-layer { border: none !important; outline: none !important; box-shadow: none !important; }
-
-        /* ── Config Technique : nav-tabs dark ── */
-        #configTabs .nav-link {
-            color: var(--c-text-3);
-            border-color: transparent;
-            border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-            font-weight: 500;
-            padding: 7px 12px;
-        }
-        #configTabs .nav-link:hover {
-            color: var(--c-text);
-            border-color: transparent;
-            background: rgba(255,255,255,0.04);
-        }
-        #configTabs .nav-link.active {
-            color: var(--c-accent);
-            background: var(--c-surface);
-            border-color: var(--c-border) var(--c-border) var(--c-surface);
-            font-weight: 600;
-        }
-        #configTechCard .card-header:hover { background: var(--c-surface-2) !important; }
-        #configTechChevron.rotated { transform: rotate(180deg); }
-        /* Barre capacité onduleur */
-        .onduleur-capacity-bar { height:8px; border-radius:4px; background:var(--c-border); overflow:hidden; margin-top:4px; }
-        .onduleur-capacity-bar-fill { height:100%; border-radius:4px; transition:width 0.4s ease, background-color 0.4s ease; width:0%; background:var(--c-green); }
-        /* Panneau dimensionnement */
-        .dim-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
-        .dim-cell { background:rgba(255,255,255,0.04); border-radius:6px; padding:6px 8px; text-align:center; }
-        .dim-cell .dim-val { font-size:0.88rem; font-weight:700; color:var(--c-accent); }
-        .dim-cell .dim-lbl { font-size:0.65rem; color:var(--c-text-3); }
     </style>
 </head>
 <body>
@@ -518,261 +477,159 @@
 
         <!-- Colonne gauche : Carte -->
         <div class="calp-left">
-                <!-- ⚙️ CONFIGURATION TECHNIQUE -->
-                <div class="card mb-3" id="configTechCard">
-                    <div class="card-header d-flex justify-content-between align-items-center py-2"
-                         style="cursor:pointer;" onclick="toggleConfigTech()">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-gear-fill" style="color:var(--c-accent);font-size:0.9rem;"></i>
-                            <strong style="font-size:0.92rem;">Configuration Technique</strong>
-                        </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <span id="configTechSummary" class="badge bg-info" style="font-size:0.72rem;">Toiture · CS-550W · 550 Wc</span>
-                            <i class="bi bi-chevron-up" id="configTechChevron" style="transition:transform 0.25s;color:var(--c-text-3);font-size:0.85rem;"></i>
+                <!-- Type d'installation -->
+                <div class="module-selector mb-3">
+                    <h5>🏗️ Type d'installation</h5>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <select class="form-select" id="typeInstallation" onchange="updateTypeInstallation()">
+                                <option value="toiture" selected>🏠 Toiture</option>
+                                <option value="ombriere">🅿️ Ombrière (parking, carport)</option>
+                                <option value="sol">🌾 Au sol (centrale, agrivoltaïque)</option>
+                            </select>
+                            <small class="text-muted" id="typeInfo">Installation en toiture - Modules fixés sur la charpente existante</small>
                         </div>
                     </div>
-                    <div id="configTechBody">
-                        <!-- Onglets internes -->
-                        <ul class="nav nav-tabs nav-fill px-2 pt-2" id="configTabs" role="tablist"
-                            style="border-bottom:1px solid var(--c-border);">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active py-2" id="tab-installation-btn"
-                                        data-bs-toggle="tab" data-bs-target="#tabInstallation"
-                                        type="button" role="tab" style="font-size:0.8rem;">
-                                    🏗️ Installation
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link py-2" id="tab-modules-btn"
-                                        data-bs-toggle="tab" data-bs-target="#tabModules"
-                                        type="button" role="tab" style="font-size:0.8rem;"
-                                        onclick="updateConfigTechSummary()">
-                                    ☀️ Modules PV
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link py-2" id="tab-onduleurs-btn"
-                                        data-bs-toggle="tab" data-bs-target="#tabOnduleurs"
-                                        type="button" role="tab" style="font-size:0.8rem;">
-                                    ⚡ Onduleurs
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link py-2" id="tab-batteries-btn"
-                                        data-bs-toggle="tab" data-bs-target="#tabBatteries"
-                                        type="button" role="tab" style="font-size:0.8rem;">
-                                    🔋 Batterie
-                                </button>
-                            </li>
-                        </ul>
+                    <!-- Checkbox auto 3D inclinaison (admin uniquement) -->
+                    {% if is_admin %}
+                    <div id="auto3DInclinaisonRow" class="mt-2" style="display:block;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="auto3DInclinaisonCheck" checked
+                                   onchange="toggleAuto3DInclinaison(this.checked)">
+                            <label class="form-check-label small" for="auto3DInclinaisonCheck">
+                                🏠 Inclinaison auto depuis détection 3D LiDAR
+                                <span class="text-muted">(décochez pour ne pas écraser vos valeurs manuelles)</span>
+                            </label>
+                        </div>
+                    </div>
+                    {% endif %}
 
-                        <div class="tab-content" id="configTabContent">
+                    <!-- Bouton analyse COPC haute précision (nuage de points brut IGN) -->
+                    <!-- Boutons d'analyse (cachés, logique auto) -->
+                    <div id="copcAnalysisRow" class="mt-2" style="display:none;">
+                        <span id="copcStatus"></span>
+                        <span id="solarStatus"></span>
+                        <span id="dsmSolarStatus"></span>
+                    </div>
 
-                            <!-- ─── Onglet 1 : Type d'installation + Pose ─── -->
-                            <div class="tab-pane fade show active p-3" id="tabInstallation" role="tabpanel">
+                <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
+                <div class="module-selector" id="ombriereParams" style="display: none;">
+                    <h5>🅿️ Paramètres Ombrière de Parking</h5>
 
-                                <!-- Type d'installation -->
-                                <div class="row g-2 align-items-center mb-2">
-                                    <div class="col-md-10">
-                                        <label class="form-label mb-1"><strong>Type d'installation</strong></label>
-                                        <select class="form-select" id="typeInstallation" onchange="updateTypeInstallation()">
-                                            <option value="toiture" selected>🏠 Toiture</option>
-                                            <option value="ombriere">🅿️ Ombrière (parking, carport)</option>
-                                            <option value="sol">🌾 Au sol (centrale, agrivoltaïque)</option>
-                                        </select>
-                                        <small class="text-muted" id="typeInfo">Installation en toiture - Modules fixés sur la charpente existante</small>
-                                    </div>
-                                    <div class="col-md-2 text-center d-none d-md-block">
-                                        <div id="typeInstallationVisual" style="font-size:2rem;opacity:0.65;">🏠</div>
-                                    </div>
-                                </div>
+                    <!-- Catalogue de modèles ombrières -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label"><strong>📋 Modèle d'ombrière</strong></label>
+                            <select class="form-select" id="ombriereModele" onchange="onOmbriereModeleChange()">
+                                <option value="custom">🔧 Personnalisé (saisie libre)</option>
+                                <optgroup label="🚗 Barconnier — Ombrières VL (Véhicule Léger)">
+                                    <option value="O3D">O3D — 7.03m × 3 places — Bi-pente</option>
+                                    <option value="O3M">O3M — 7.03m × 3 places — Mono-pente</option>
+                                    <option value="O4">O4 — 9.28m × 4 places — Mono-pente</option>
+                                    <option value="O5">O5 — 11.53m × 5 places — Mono-pente</option>
+                                </optgroup>
+                            </select>
+                            <small class="text-muted" id="ombriereModeleInfo">Saisie manuelle des dimensions</small>
+                        </div>
+                        <div class="col-md-6" id="ombriereFicheResume" style="display:none;">
+                            <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:8px; padding:10px 14px; font-size:0.85rem;">
+                                <div style="font-weight:600; color:#3b82f6; margin-bottom:4px;" id="ficheModeleTitre"></div>
+                                <div id="ficheModeleDetails" style="line-height:1.6;"></div>
+                            </div>
+                        </div>
+                    </div>
 
-                                {% if is_admin %}
-                                {% endif %}
-
-                                <div id="copcAnalysisRow" class="mt-1 mb-1" style="display:none;">
-                                    <span id="copcStatus"></span>
-                                    <span id="solarStatus"></span>
-                                    <span id="dsmSolarStatus"></span>
-                                </div>
-
-                                <!-- Paramètres de pose -->
-                                <hr class="my-2">
-                                <div class="d-flex justify-content-between align-items-center mb-2"
-                                     style="cursor:pointer;" onclick="document.getElementById('poseParamsBody').classList.toggle('d-none')">
-                                    <strong style="font-size:0.85rem;">🏗️ Paramètres de pose</strong>
-                                    <span id="poseSummary" class="text-muted small">Toiture inclinée — GR 30 · FR 50 · LP 20 cm</span>
-                                </div>
-                                <div id="poseParamsBody">
-                                    <div class="row g-2 align-items-end">
-                                        <div class="col-md-3">
-                                            <label class="form-label form-label-sm mb-0">Type de pose</label>
-                                            <select class="form-select form-select-sm" id="poseProfil" onchange="updatePoseParams()">
-                                                <option value="toiture_pente" selected>🏠 Toiture inclinée (surimposition)</option>
-                                                <option value="toiture_plate_shed">🏢 Toiture plate — Shed (chevalet)</option>
-                                                <option value="toiture_plate_plat">🟦 Toiture plate — Pose à plat</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-2" id="shedInclinCol" style="display:none;">
-                                            <label class="form-label form-label-sm mb-0">Inclinaison shed (°)</label>
-                                            <input type="number" class="form-control form-control-sm" id="shedInclinaison"
-                                                   value="20" min="5" max="45" step="1" onchange="updatePoseParams()">
-                                        </div>
-                                        <div class="col-md-2" id="shedDistCol" style="display:none;">
-                                            <label class="form-label form-label-sm mb-0">
-                                                Inter-rangées (cm)
-                                                <span title="Auto-calculée : ombre nulle au solstice d'hiver" style="cursor:help;">ℹ️</span>
-                                            </label>
-                                            <input type="number" class="form-control form-control-sm" id="shedDistInterRangees" value="200" readonly
-                                                   style="background:rgba(255,255,255,0.06);color:#adf;border-color:rgba(255,255,255,0.2);">
-                                        </div>
-                                        <div class="col-md-2" id="reculPlatCol" style="display:none;">
-                                            <label class="form-label form-label-sm mb-0">Recul périmétrique (cm)</label>
-                                            <input type="number" class="form-control form-control-sm" id="reculPerim"
-                                                   value="100" min="0" max="500" step="10" onchange="updateAllZones()">
-                                        </div>
-                                        <div class="col-md-5" id="reculPenteDiv">
-                                            <div class="row g-1">
-                                                <div class="col-4">
-                                                    <label class="form-label form-label-sm mb-0 text-muted"
-                                                           title="Bas de pente — égout / gouttière">🏚️ Gouttière (cm)</label>
-                                                    <input type="number" class="form-control form-control-sm" id="reculGouttiere"
-                                                           value="30" min="0" max="300" step="5" onchange="updateAllZones()">
-                                                </div>
-                                                <div class="col-4">
-                                                    <label class="form-label form-label-sm mb-0 text-muted"
-                                                           title="Haut de pente — faîtière">🏔️ Faîtage (cm)</label>
-                                                    <input type="number" class="form-control form-control-sm" id="reculFaitage"
-                                                           value="50" min="0" max="300" step="5" onchange="updateAllZones()">
-                                                </div>
-                                                <div class="col-4">
-                                                    <label class="form-label form-label-sm mb-0 text-muted"
-                                                           title="Côtés — pignons">↔️ Pignon (cm)</label>
-                                                    <input type="number" class="form-control form-control-sm" id="reculPignon"
-                                                           value="20" min="0" max="300" step="5" onchange="updateAllZones()">
-                                                </div>
-                                            </div>
-                                        </div>
+                    <!-- Résumé travée (visible quand un modèle catalogue est sélectionné) -->
+                    <div class="row mb-3" id="ombriereTraveeInfo" style="display:none;">
+                        <div class="col-12">
+                            <div style="background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px 16px;">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#f59e0b;" id="traveeModulesCount">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">Modules / travée</div>
                                     </div>
-                                    <div id="poseParamsInfo" class="mt-1"
-                                         style="font-size:0.72rem;color:rgba(255,255,255,0.55);"></div>
-                                </div>
-
-                                <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
-                                <div id="ombriereParams" style="display: none;">
-                                    <hr class="my-3">
-                                    <h6 class="mb-3" style="color:var(--c-accent);">🅿️ Paramètres Ombrière de Parking</h6>
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label"><strong>📋 Modèle d'ombrière</strong></label>
-                                            <select class="form-select" id="ombriereModele" onchange="onOmbriereModeleChange()">
-                                                <option value="custom">🔧 Personnalisé (saisie libre)</option>
-                                                <optgroup label="🚗 Barconnier — Ombrières VL (Véhicule Léger)">
-                                                    <option value="O3D">O3D — 7.03m × 3 places — Bi-pente</option>
-                                                    <option value="O3M">O3M — 7.03m × 3 places — Mono-pente</option>
-                                                    <option value="O4">O4 — 9.28m × 4 places — Mono-pente</option>
-                                                    <option value="O5">O5 — 11.53m × 5 places — Mono-pente</option>
-                                                </optgroup>
-                                            </select>
-                                            <small class="text-muted" id="ombriereModeleInfo">Saisie manuelle des dimensions</small>
-                                        </div>
-                                        <div class="col-md-6" id="ombriereFicheResume" style="display:none;">
-                                            <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:8px; padding:10px 14px; font-size:0.85rem;">
-                                                <div style="font-weight:600; color:#3b82f6; margin-bottom:4px;" id="ficheModeleTitre"></div>
-                                                <div id="ficheModeleDetails" style="line-height:1.6;"></div>
-                                            </div>
-                                        </div>
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#3b82f6;" id="traveePuissance">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">kWc / travée</div>
                                     </div>
-                                    <div class="row mb-3" id="ombriereTraveeInfo" style="display:none;">
-                                        <div class="col-12">
-                                            <div style="background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px 16px;">
-                                                <div class="row text-center">
-                                                    <div class="col-md-3">
-                                                        <div style="font-size:1.4rem; font-weight:700; color:#f59e0b;" id="traveeModulesCount">—</div>
-                                                        <div style="font-size:0.78rem; color:#94a3b8;">Modules / travée</div>
-                                                    </div>
-                                                    <div class="col-md-3">
-                                                        <div style="font-size:1.4rem; font-weight:700; color:#3b82f6;" id="traveePuissance">—</div>
-                                                        <div style="font-size:0.78rem; color:#94a3b8;">kWc / travée</div>
-                                                    </div>
-                                                    <div class="col-md-3">
-                                                        <div style="font-size:1.4rem; font-weight:700; color:#10b981;" id="traveePlaces">—</div>
-                                                        <div style="font-size:0.78rem; color:#94a3b8;">Places couvertes</div>
-                                                    </div>
-                                                    <div class="col-md-3">
-                                                        <div style="font-size:1.4rem; font-weight:700; color:#8b5cf6;" id="traveeSurface">—</div>
-                                                        <div style="font-size:0.78rem; color:#94a3b8;">m² toiture</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#10b981;" id="traveePlaces">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">Places couvertes</div>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Largeur place (m)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereLargeurPlace" value="2.5" step="0.1" min="2.0" max="3.5">
-                                            <small class="text-muted">Standard: 2.5m, PMR: 3.3m</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Profondeur place (m)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereProfondeurPlace" value="5.0" step="0.1" min="4.5" max="6.0">
-                                            <small class="text-muted">Réglementaire: 5.0m</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Hauteur libre (m)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereHauteur" value="4.5" step="0.1" min="2.5" max="6.0">
-                                            <small class="text-muted">Min: 4.5m (utilitaires)</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Hauteur ferme (m)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereHauteurFerme" value="0.8" step="0.1" min="0.5" max="1.5">
-                                            <small class="text-muted">Pente structure</small>
-                                        </div>
-                                    </div>
-                                    <div class="row mt-2">
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Espacement travées (m)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereEspacementPiliers" value="2.25" step="0.05" min="1.5" max="5.0">
-                                            <small class="text-muted">Entre-axe longitudinal</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Entraxe piliers (m)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereEntraxePiliers" value="1.70" step="0.05" min="1.0" max="5.0">
-                                            <small class="text-muted">Entre files de piliers</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Diamètre pilier (cm)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereDiametrePilier" value="15" step="1" min="10" max="30">
-                                            <small class="text-muted">Standard: 15cm (Ø)</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Section panne (cm)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereSectionPanne" value="10" step="1" min="8" max="20">
-                                            <small class="text-muted">Poutre horizontale</small>
-                                        </div>
-                                    </div>
-                                    <div class="row mt-2">
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Section ferme (cm)</strong></label>
-                                            <input type="number" class="form-control" id="ombriereSectionFerme" value="8" step="1" min="6" max="15">
-                                            <small class="text-muted">Diagonales structure</small>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label"><strong>Type parking</strong></label>
-                                            <select class="form-select" id="ombriereTypeParking">
-                                                <option value="bataille">Bataille (90°)</option>
-                                                <option value="epi">Épi (45°)</option>
-                                                <option value="pmr">PMR (3.3m)</option>
-                                            </select>
-                                        </div>
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#8b5cf6;" id="traveeSurface">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">m² toiture</div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
 
-                            </div><!-- /tabInstallation -->
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Largeur place (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereLargeurPlace" value="2.5" step="0.1" min="2.0" max="3.5">
+                            <small class="text-muted">Standard: 2.5m, PMR: 3.3m</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Profondeur place (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereProfondeurPlace" value="5.0" step="0.1" min="4.5" max="6.0">
+                            <small class="text-muted">Réglementaire: 5.0m</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Hauteur libre (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereHauteur" value="4.5" step="0.1" min="2.5" max="6.0">
+                            <small class="text-muted">Min: 4.5m (utilitaires)</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Hauteur ferme (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereHauteurFerme" value="0.8" step="0.1" min="0.5" max="1.5">
+                            <small class="text-muted">Pente structure</small>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Espacement travées (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereEspacementPiliers" value="2.25" step="0.05" min="1.5" max="5.0">
+                            <small class="text-muted">Entre-axe longitudinal</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Entraxe piliers (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereEntraxePiliers" value="1.70" step="0.05" min="1.0" max="5.0">
+                            <small class="text-muted">Entre files de piliers</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Diamètre pilier (cm)</strong></label>
+                            <input type="number" class="form-control" id="ombriereDiametrePilier" value="15" step="1" min="10" max="30">
+                            <small class="text-muted">Standard: 15cm (Ø)</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Section panne (cm)</strong></label>
+                            <input type="number" class="form-control" id="ombriereSectionPanne" value="10" step="1" min="8" max="20">
+                            <small class="text-muted">Poutre horizontale</small>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Section ferme (cm)</strong></label>
+                            <input type="number" class="form-control" id="ombriereSectionFerme" value="8" step="1" min="6" max="15">
+                            <small class="text-muted">Diagonales structure</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Type parking</strong></label>
+                            <select class="form-select" id="ombriereTypeParking">
+                                <option value="bataille">Bataille (90°)</option>
+                                <option value="epi">Épi (45°)</option>
+                                <option value="pmr">PMR (3.3m)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
 
-                            <!-- ─── Onglet 2 : Modules PV ─── -->
-                            <div class="tab-pane fade p-3" id="tabModules" role="tabpanel">
-                                <div class="row">
+                <!-- Sélection du module -->
+                <div class="module-selector">
+                    <h5>📐 Module Photovoltaïque</h5>
+                    <div class="row">
                         <div class="col-md-4">
                             <label class="form-label"><strong>Modèle de module</strong></label>
                             <select class="form-select" id="moduleType" onchange="loadModuleSpecs()">
@@ -897,279 +754,214 @@
                             <small class="text-muted" id="modulePrix">Garantie 12 ans - Rendement: 21.2% - 📍 Chine</small>
                         </div>
                     </div>
-                            </div><!-- /tabModules -->
+                </div>
 
-                            <!-- ─── Onglet 3 : Onduleurs ─── -->
-                            <div class="tab-pane fade p-3" id="tabOnduleurs" role="tabpanel">
-                                <div class="row g-2 mb-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label"><strong>Fabricant</strong></label>
-                                        <select class="form-select" id="onduleurFabricant" onchange="filtrerOnduleurs()">
-                                            <option value="">— Tous les fabricants —</option>
-                                            <option value="Huawei">🇨🇳 Huawei SUN2000</option>
-                                            <option value="Fronius">🇦🇹 Fronius GEN24</option>
-                                            <option value="SMA">🇩🇪 SMA Sunny Boy / Tripower</option>
-                                            <option value="SolarEdge">🇺🇸 SolarEdge (optimiseurs)</option>
-                                            <option value="Enphase">🇺🇸 Enphase (micro-onduleurs)</option>
-                                        </select>
+                <!-- ─── Paramètres de pose : type de toiture, reculs, shed ─── -->
+                <div class="card mb-2" id="poseParamsCard">
+                    <div class="card-header p-2 d-flex justify-content-between align-items-center"
+                         style="cursor:pointer;" onclick="document.getElementById('poseParamsBody').classList.toggle('d-none')">
+                        <strong style="font-size:0.87rem;">🏗️ Paramètres de pose</strong>
+                        <span id="poseSummary" class="text-muted small">Toiture inclinée — GR 30 · FR 50 · LP 20 cm</span>
+                    </div>
+                    <div class="card-body p-2" id="poseParamsBody">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm mb-0">Type de pose</label>
+                                <select class="form-select form-select-sm" id="poseProfil" onchange="updatePoseParams()">
+                                    <option value="toiture_pente" selected>🏠 Toiture inclinée (surimposition)</option>
+                                    <option value="toiture_plate_shed">🏢 Toiture plate — Shed (chevalet)</option>
+                                    <option value="toiture_plate_plat">🟦 Toiture plate — Pose à plat</option>
+                                </select>
+                            </div>
+                            <!-- Inclinaison + distance inter-rangées (shed uniquement) -->
+                            <div class="col-md-2" id="shedInclinCol" style="display:none;">
+                                <label class="form-label form-label-sm mb-0">Inclinaison shed (°)</label>
+                                <input type="number" class="form-control form-control-sm" id="shedInclinaison"
+                                       value="20" min="5" max="45" step="1" onchange="updatePoseParams()">
+                            </div>
+                            <div class="col-md-2" id="shedDistCol" style="display:none;">
+                                <label class="form-label form-label-sm mb-0">
+                                    Inter-rangées (cm)
+                                    <span title="Auto-calculée : ombre nulle au solstice d'hiver" style="cursor:help;">ℹ️</span>
+                                </label>
+                                <input type="number" class="form-control form-control-sm" id="shedDistInterRangees" value="200" readonly
+                                       style="background:rgba(255,255,255,0.06);color:#adf;border-color:rgba(255,255,255,0.2);">
+                            </div>
+                            <!-- Recul périmétrique (toiture plate) -->
+                            <div class="col-md-2" id="reculPlatCol" style="display:none;">
+                                <label class="form-label form-label-sm mb-0">Recul périmétrique (cm)</label>
+                                <input type="number" class="form-control form-control-sm" id="reculPerim"
+                                       value="100" min="0" max="500" step="10" onchange="updateAllZones()">
+                            </div>
+                            <!-- Reculs par côté (toiture inclinée) -->
+                            <div class="col-md-5" id="reculPenteDiv">
+                                <div class="row g-1">
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm mb-0 text-muted"
+                                               title="Bas de pente — égout / gouttière">🏚️ Gouttière (cm)</label>
+                                        <input type="number" class="form-control form-control-sm" id="reculGouttiere"
+                                               value="30" min="0" max="300" step="5" onchange="updateAllZones()">
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label"><strong>Réseau</strong></label>
-                                        <select class="form-select" id="onduleurReseau" onchange="filtrerOnduleurs()">
-                                            <option value="">Tous</option>
-                                            <option value="Monophasé">Monophasé</option>
-                                            <option value="Triphasé">Triphasé</option>
-                                        </select>
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm mb-0 text-muted"
+                                               title="Haut de pente — faîtière">🏔️ Faîtage (cm)</label>
+                                        <input type="number" class="form-control form-control-sm" id="reculFaitage"
+                                               value="50" min="0" max="300" step="5" onchange="updateAllZones()">
                                     </div>
-                                    <div class="col-md-5">
-                                        <label class="form-label"><strong>Modèle</strong></label>
-                                        <select class="form-select" id="onduleurModeleSelect" onchange="loadOnduleurSpecs()">
-                                            <option value="">— Sélectionner un modèle —</option>
-                                            <optgroup label="🇨🇳 Huawei SUN2000 — Monophasé">
-                                                <option value="HUAWEI-3KTL-L1">SUN2000-3KTL-L1 · 3 kW · 1φ</option>
-                                                <option value="HUAWEI-5KTL-L1">SUN2000-5KTL-L1 · 5 kW · 1φ</option>
-                                            </optgroup>
-                                            <optgroup label="🇨🇳 Huawei SUN2000 — Triphasé">
-                                                <option value="HUAWEI-6KTL-M1">SUN2000-6KTL-M1 · 6 kW · 3φ</option>
-                                                <option value="HUAWEI-8KTL-M1">SUN2000-8KTL-M1 · 8 kW · 3φ</option>
-                                                <option value="HUAWEI-10KTL-M1">SUN2000-10KTL-M1 · 10 kW · 3φ</option>
-                                                <option value="HUAWEI-12KTL-M2">SUN2000-12KTL-M2 · 12 kW · 3φ</option>
-                                                <option value="HUAWEI-15KTL-M2">SUN2000-15KTL-M2 · 15 kW · 3φ</option>
-                                                <option value="HUAWEI-20KTL-M2">SUN2000-20KTL-M2 · 20 kW · 3φ</option>
-                                                <option value="HUAWEI-25KTL-M3">SUN2000-25KTL-M3 · 25 kW · 3φ</option>
-                                                <option value="HUAWEI-30KTL-M3">SUN2000-30KTL-M3 · 30 kW · 3φ</option>
-                                            </optgroup>
-                                            <optgroup label="🇦🇹 Fronius GEN24 — Monophasé">
-                                                <option value="FRONIUS-PRIMO-3.0">Primo GEN24 3.0 · 3 kW · 1φ</option>
-                                                <option value="FRONIUS-PRIMO-5.0">Primo GEN24 5.0 · 5 kW · 1φ</option>
-                                            </optgroup>
-                                            <optgroup label="🇦🇹 Fronius GEN24 — Triphasé">
-                                                <option value="FRONIUS-SYMO-10.0">Symo GEN24 10.0 · 10 kW · 3φ</option>
-                                            </optgroup>
-                                            <optgroup label="🇩🇪 SMA">
-                                                <option value="SMA-SB-3.0">Sunny Boy 3.0 · 3 kW · 1φ</option>
-                                            </optgroup>
-                                            <optgroup label="🇺🇸 SolarEdge">
-                                                <option value="SOLAREDGE-SE5K">SE5K + P401 · 5 kW · 3φ</option>
-                                            </optgroup>
-                                            <optgroup label="🇺🇸 Enphase">
-                                                <option value="ENPHASE-IQ8PLUS">IQ8+ · Micro-onduleur (1/module)</option>
-                                            </optgroup>
-                                            <optgroup label="⚙️ Saisie libre">
-                                                <option value="custom">Onduleur personnalisé</option>
-                                            </optgroup>
-                                        </select>
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm mb-0 text-muted"
+                                               title="Côtés — pignons">↔️ Pignon (cm)</label>
+                                        <input type="number" class="form-control form-control-sm" id="reculPignon"
+                                               value="20" min="0" max="300" step="5" onchange="updateAllZones()">
                                     </div>
                                 </div>
-
-                                <!-- Fiche technique onduleur -->
-                                <div id="onduleurFiche" style="display:none;">
-                                    <div style="background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.25); border-radius:8px; padding:12px 14px;">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <div>
-                                                <strong id="onduleurNom" style="color:var(--c-orange); font-size:0.95rem;">—</strong>
-                                                <span id="onduleurTypeBadge" class="badge ms-2" style="font-size:0.7rem; background:var(--c-accent-light); color:var(--c-accent);"></span>
-                                            </div>
-                                            <span id="onduleurRendBadge" class="badge bg-success" style="font-size:0.72rem;"></span>
-                                        </div>
-                                        <div class="row g-2 text-center mb-2">
-                                            <div class="col-3">
-                                                <div style="font-size:1.15rem;font-weight:700;color:var(--c-accent);" id="onduleurPac">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Pac (kW)</div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div style="font-size:1.15rem;font-weight:700;color:var(--c-green);" id="onduleurNbMPPT">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">MPPT</div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div style="font-size:1.15rem;font-weight:700;color:var(--c-orange);" id="onduleurVdcMax">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Vdc max (V)</div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div style="font-size:1.15rem;font-weight:700;color:var(--c-purple);" id="onduleurNbStrings">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Strings max</div>
-                                            </div>
-                                        </div>
-                                        <div style="font-size:0.75rem;color:var(--c-text-2);border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;">
-                                            <span id="onduleurInfoLine">—</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Panneau dimensionnement NF C 15-712 -->
-                                <div id="dimensionnementPanel" style="display:none; margin-top:10px;">
-                                    <div style="background:rgba(99,102,241,0.07); border:1px solid rgba(99,102,241,0.25); border-radius:8px; padding:10px 12px;">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span style="font-size:0.78rem; font-weight:600; color:var(--c-purple);">⚡ Dimensionnement NF C 15-712</span>
-                                            <span id="dimDcAcRatio" class="badge" style="background:rgba(99,102,241,0.15);color:var(--c-purple);font-size:0.7rem;">DC/AC —</span>
-                                        </div>
-                                        <div class="dim-grid">
-                                            <div class="dim-cell">
-                                                <div class="dim-val" id="dimNmin">—</div>
-                                                <div class="dim-lbl">N min/string<br><span style="font-size:0.6rem;opacity:0.6;">(T=70°C)</span></div>
-                                            </div>
-                                            <div class="dim-cell">
-                                                <div class="dim-val" style="color:var(--c-green);" id="dimNmax">—</div>
-                                                <div class="dim-lbl">N max/string<br><span style="font-size:0.6rem;opacity:0.6;">(T=-10°C)</span></div>
-                                            </div>
-                                            <div class="dim-cell">
-                                                <div class="dim-val" style="color:var(--c-orange);" id="dimNopt">—</div>
-                                                <div class="dim-lbl">Optimal</div>
-                                            </div>
-                                            <div class="dim-cell">
-                                                <div class="dim-val" id="dimStrings">—</div>
-                                                <div class="dim-lbl">Strings<br>disponibles</div>
-                                            </div>
-                                            <div class="dim-cell">
-                                                <div class="dim-val" id="dimMaxMod">—</div>
-                                                <div class="dim-lbl">Modules max</div>
-                                            </div>
-                                            <div class="dim-cell">
-                                                <div class="dim-val" style="color:var(--c-green);" id="dimMaxKw">—</div>
-                                                <div class="dim-lbl">Puissance DC max</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Champs saisie libre onduleur -->
-                                <div id="onduleurCustomFields" style="display:none;">
-                                    <div class="row g-2 mt-2">
-                                        <div class="col-md-3">
-                                            <label class="form-label form-label-sm">Fabricant</label>
-                                            <input type="text" class="form-control form-control-sm" id="onduleurCustomFabricant" placeholder="ex: GoodWe">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label form-label-sm">Modèle</label>
-                                            <input type="text" class="form-control form-control-sm" id="onduleurCustomModele" placeholder="ex: GW5000D-NS">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label form-label-sm">Pac (kW)</label>
-                                            <input type="number" class="form-control form-control-sm" id="onduleurCustomPac" step="0.5" min="1" max="1000">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label form-label-sm">Vdc max (V)</label>
-                                            <input type="number" class="form-control form-control-sm" id="onduleurCustomVdcMax" step="10" min="100" max="1500" value="1000">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label form-label-sm">Nb MPPT</label>
-                                            <input type="number" class="form-control form-control-sm" id="onduleurCustomNbMPPT" min="1" max="12" value="2">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <small class="text-muted d-block mt-3">
-                                    💡 L'onduleur sélectionné sera utilisé pour le schéma unifilaire NF C 15-712 et l'optimisation des strings.
-                                </small>
-                            </div><!-- /tabOnduleurs -->
-
-                            <!-- ─── Onglet 4 : Batterie ─── -->
-                            <div class="tab-pane fade p-3" id="tabBatteries" role="tabpanel">
-                                <div class="row g-2 mb-3">
-                                    <div class="col-md-5">
-                                        <label class="form-label"><strong>Fabricant</strong></label>
-                                        <select class="form-select" id="batterieFabricant" onchange="filtrerBatteries()">
-                                            <option value="">— Tous les fabricants —</option>
-                                            <option value="Huawei">🇨🇳 Huawei LUNA2000</option>
-                                            <option value="BYD">🇨🇳 BYD Battery-Box</option>
-                                            <option value="Enphase">🇺🇸 Enphase IQ Battery</option>
-                                            <option value="SolarEdge">🇺🇸 SolarEdge Energy Bank</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-7">
-                                        <label class="form-label"><strong>Modèle</strong></label>
-                                        <select class="form-select" id="batterieModeleSelect" onchange="loadBatterieSpecs()">
-                                            <option value="">— Sélectionner un modèle —</option>
-                                            <optgroup label="🇨🇳 Huawei LUNA2000">
-                                                <option value="HUAWEI-LUNA2000-5">LUNA2000-5-E0 · 5 kWh · LFP</option>
-                                                <option value="HUAWEI-LUNA2000-10">LUNA2000-10-E0 · 10 kWh · LFP</option>
-                                                <option value="HUAWEI-LUNA2000-15">LUNA2000-15-E0 · 15 kWh · LFP</option>
-                                            </optgroup>
-                                            <optgroup label="🇨🇳 BYD Battery-Box HVS">
-                                                <option value="BYD-HVS-5.1">HVS 5.1 · 5.1 kWh · LFP</option>
-                                                <option value="BYD-HVS-7.7">HVS 7.7 · 7.7 kWh · LFP</option>
-                                            </optgroup>
-                                            <optgroup label="🇨🇳 BYD Battery-Box HVM">
-                                                <option value="BYD-HVM-8.3">HVM 8.3 · 8.3 kWh · LFP</option>
-                                                <option value="BYD-HVM-11.0">HVM 11.0 · 11 kWh · LFP</option>
-                                            </optgroup>
-                                            <optgroup label="🇺🇸 Enphase">
-                                                <option value="ENPHASE-IQ5P">IQ Battery 5P · 5 kWh · LFP</option>
-                                            </optgroup>
-                                            <optgroup label="🇺🇸 SolarEdge">
-                                                <option value="SOLAREDGE-BANK-10">Energy Bank 10 kWh · LFP</option>
-                                            </optgroup>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <!-- Fiche technique batterie -->
-                                <div id="batterieFiche" style="display:none;">
-                                    <div style="background:rgba(34,197,94,0.07); border:1px solid rgba(34,197,94,0.25); border-radius:8px; padding:12px 14px;">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <strong id="batterieNom" style="color:var(--c-green); font-size:0.95rem;">—</strong>
-                                            <span id="batterieChimie" class="badge" style="background:rgba(34,197,94,0.15);color:var(--c-green);font-size:0.72rem;">—</span>
-                                        </div>
-                                        <div class="row g-2 text-center mb-2">
-                                            <div class="col-3">
-                                                <div style="font-size:1.1rem;font-weight:700;color:var(--c-accent);" id="batterieCapacite">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Capacité</div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div style="font-size:1.1rem;font-weight:700;color:var(--c-green);" id="batteriePuissance">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Puissance</div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div style="font-size:1.1rem;font-weight:700;color:var(--c-orange);" id="batterieCycles">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Cycles</div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div style="font-size:1.1rem;font-weight:700;color:var(--c-purple);" id="batterieGarantie">—</div>
-                                                <div style="font-size:0.68rem;color:var(--c-text-3);">Garantie</div>
-                                            </div>
-                                        </div>
-                                        <div style="font-size:0.75rem;color:var(--c-text-2);border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;">
-                                            Compatible : <span id="batterieCompatibles">—</span>
-                                        </div>
-                                        <div id="batterieCompatOnduleur" style="display:none;"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Dimensionnement auto -->
-                                <div class="mt-3" id="batterieDimensionnement">
-                                    <label class="form-label form-label-sm"><strong>Dimensionnement autoconsommation</strong></label>
-                                    <div class="row g-2">
-                                        <div class="col-md-6">
-                                            <label class="form-label form-label-sm">Consommation annuelle (kWh)</label>
-                                            <input type="number" class="form-control form-control-sm" id="consoAnnuelle" step="100" min="0" placeholder="ex: 5000" oninput="calcDimBatterie()">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label form-label-sm">Taux autoconso visé (%)</label>
-                                            <input type="number" class="form-control form-control-sm" id="tauxAutoconso" step="5" min="0" max="100" value="70" oninput="calcDimBatterie()">
-                                        </div>
-                                    </div>
-                                    <div id="batterieDimResult" class="mt-2" style="display:none;">
-                                        <div style="background:rgba(255,255,255,0.04);border-radius:6px;padding:8px 10px;font-size:0.8rem;color:var(--c-text-2);">
-                                            💡 Capacité recommandée : <strong id="batterieCapaReco" style="color:var(--c-green);">—</strong>
-                                            &nbsp;·&nbsp; Nombre de modules : <strong id="batterieNbModulesReco" style="color:var(--c-accent);">—</strong>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <small class="text-muted d-block mt-3">
-                                    💡 La batterie sélectionnée sera intégrée dans le schéma unifilaire et la proposition commerciale.
-                                </small>
-                            </div><!-- /tabBatteries -->
-
-                        </div><!-- /tab-content -->
-                    </div><!-- /configTechBody -->
-                </div><!-- /configTechCard -->
+                            </div>
+                        </div>
+                        <div id="poseParamsInfo" class="mt-1"
+                             style="font-size:0.72rem;color:rgba(255,255,255,0.55);"></div>
+                    </div>
+                </div>
 
                 <!-- Carte interactive -->
                 <div class="card" id="mapCard">
-                    <div class="card-header d-flex justify-content-between align-items-center py-2">
-                        <strong style="font-size:0.88rem;"><i class="bi bi-map"></i> Carte de calpinage</strong>
-                        <span class="text-muted small" id="currentToolInfo" style="font-size:0.76rem;">📐 Mode Zone PV — Dessinez un rectangle</span>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong><i class="bi bi-map"></i> Carte de calpinage</strong>
+                        <div>
+                            {% if is_admin %}
+                            <button class="btn btn-sm btn-info me-1" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">
+                                🌐 Vue 3D
+                            </button>
+                            {% endif %}
+                            <button class="btn btn-sm btn-success me-1" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture avec des modules PV">
+                                ⚡ Remplissage auto
+                            </button>
+                            <span style="font-size:0.74rem;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;" title="Paramètres du remplissage automatique">
+                                <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir">
+                                <span class="text-muted">kWc</span>
+                                <span class="text-muted ms-1">☀️≥</span>
+                                <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil irradiance min (kWh/m²/an) — exclut les pans trop ombragés">
+                                <span class="text-muted">kWh/m²</span>
+                            </span>
+                            <button class="btn btn-sm btn-light me-1" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire pixel par pixel (kWh/m²/an) — zones d'ombrage acrotères/obstacles visibles">
+                                🌡️ Irradiation
+                            </button>
+                            <button class="btn btn-sm btn-secondary me-1" id="btnLayersPanel" onclick="toggleLayersPanel()" title="Gérer la visibilité des calques et exclure des zones par couleur">
+                                🗂️ Calques
+                            </button>
+                            <button class="btn btn-sm btn-info me-1" id="toggleFullscreen" title="Plein écran">
+                                🔲 Plein écran
+                            </button>
+                            <button class="btn btn-sm btn-warning me-1" id="clearMeasurements" title="Effacer les mesures">
+                                📏 Effacer mesures
+                            </button>
+                            <button class="btn btn-sm btn-light" id="clearAllZones">Effacer tout</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Barre d'outils de dessin -->
+                    <div class="card-body py-2 bg-light border-bottom">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="text-muted small me-2"><strong>🛠️ Outils:</strong></span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-primary" id="toolRectangle" title="Zone PV (rectangle)">
+                                    ▢ Zone PV
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolMeasure" title="Mesurer une distance">
+                                    📏 Mesure
+                                </button>
+                            </div>
+                            <div class="btn-group btn-group-sm me-2" role="group">
+                                <button type="button" class="btn btn-outline-success" id="toolEdit" title="Modifier les zones PV">
+                                    ✏️ Modifier
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="toolDelete" title="Supprimer des zones">
+                                    🗑️ Supprimer
+                                </button>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" id="toolPolyline" title="Dessiner une ligne">
+                                    — Ligne
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolPolygon" title="Dessiner un polygone">
+                                    ⬡ Polygone
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolCircle" title="Dessiner un cercle">
+                                    ○ Cercle
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolMarker" title="Placer un repère">
+                                    📍 Repère
+                                </button>
+                            </div>
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-info">⚡ Équipements électriques:</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-warning" id="toolOnduleur" title="Placer onduleur(s)">
+                                    ⚡ Onduleur
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" id="toolTGBT" title="Placer TGBT">
+                                    🔌 TGBT
+                                </button>
+                                <button type="button" class="btn btn-outline-success" id="toolInjection" title="Placer point d'injection">
+                                    🔗 Injection
+                                </button>
+                            </div>
+                            <div class="vr mx-2"></div>
+                            <span class="badge bg-danger">🚧 Obstacles:</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" id="toolObstacle" title="Dessiner un obstacle sur la toiture (cheminée, acrotère, trappe...)">
+                                    🚧 Obstacle
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolObstacleCircle" title="Obstacle circulaire (cheminée ronde)">
+                                    ⊙ Rond
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="clearObstacles" title="Supprimer tous les obstacles">
+                                    🗑️
+                                </button>
+                            </div>
+                            <span class="badge bg-secondary ms-1" id="obstacleCount" style="display:none;">0</span>
+                            <div class="vr mx-2"></div>
+                            <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
+                        </div>
+                        
+                        <!-- Saisie manuelle distances câbles -->
+                        <div class="border-top pt-3 mt-2">
+                            <div class="d-flex align-items-center mb-2">
+                                <strong class="me-2">📏 Distances câbles (manuelles):</strong>
+                                <small class="text-muted">⚠️ Saisie manuelle nécessaire pour bâtiments multi-étages</small>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">
+                                        <span class="badge bg-warning text-dark">DC</span> Modules → Onduleur (m)
+                                    </label>
+                                    <input type="number" class="form-control form-control-sm" id="distanceDC" 
+                                           placeholder="Auto" min="0" step="0.5" 
+                                           title="Distance totale câbles DC depuis les modules jusqu'à l'onduleur (incluant passages verticaux)">
+                                    <small class="text-muted">Auto: <span id="distanceDCAuto">--</span> m</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">
+                                        <span class="badge bg-primary">AC</span> Onduleur → TGBT (m)
+                                    </label>
+                                    <input type="number" class="form-control form-control-sm" id="distanceAC1" 
+                                           placeholder="Auto" min="0" step="0.5"
+                                           title="Distance câble AC entre onduleur et TGBT (incluant passages verticaux)">
+                                    <small class="text-muted">Auto: <span id="distanceAC1Auto">--</span> m</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">
+                                        <span class="badge bg-success">AC</span> TGBT → Injection (m)
+                                    </label>
+                                    <input type="number" class="form-control form-control-sm" id="distanceAC2" 
+                                           placeholder="Auto" min="0" step="0.5"
+                                           title="Distance câble AC entre TGBT et point d'injection réseau">
+                                    <small class="text-muted">Auto: <span id="distanceAC2Auto">--</span> m</small>
+                                </div>
+                            </div>
+                            <small class="text-info d-block mt-1">
+                                💡 <strong>Astuce:</strong> Distances 2D calculées automatiquement. Ajoutez passages verticaux (étages, combles) manuellement.
+                            </small>
+                        </div>
                     </div>
                     
                     <div class="card-body p-0">
@@ -1256,92 +1048,11 @@
                         <div class="measurements-panel mt-2" id="measurementsList"></div>
                     </div>
                     
-                    <div class="card-footer p-0" style="border-top:2px solid var(--c-border,#333);">
-
-                        <!-- ── Ligne 1 : Vues & Actions principales ── -->
-                        <div class="d-flex flex-wrap align-items-center gap-1 px-2 py-2" style="border-bottom:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02);">
-                            <span class="badge bg-secondary me-1" style="font-size:0.65rem;">🖥️ VUE</span>
-                            {% if is_admin %}
-                            <button class="btn btn-sm btn-info" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">🌐 Vue 3D</button>
-                            {% endif %}
-                            <button class="btn btn-sm btn-light" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire (kWh/m²/an)">🌡️ Irradiation</button>
-                            <button class="btn btn-sm btn-secondary" id="btnLayersPanel" onclick="toggleLayersPanel()" title="Calques">🗂️ Calques</button>
-                            <button class="btn btn-sm btn-info" id="toggleFullscreen" title="Plein écran">🔲 Plein écran</button>
-
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-success me-1" style="font-size:0.65rem;">⚡ REMPLISSAGE</span>
-                            <button class="btn btn-sm btn-success" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture">⚡ Remplissage auto</button>
-                            <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:58px;height:28px;font-size:0.76rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc)">
-                            <span class="text-muted small">kWc</span>
-                            <span class="text-muted small ms-1">☀️≥</span>
-                            <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:54px;height:28px;font-size:0.76rem;" value="900" min="0" max="2000" step="50" title="Seuil irradiance min (kWh/m²/an)">
-                            <span class="text-muted small">kWh/m²</span>
-
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-warning text-dark me-1" style="font-size:0.65rem;">🗑️ EFFACER</span>
-                            <button class="btn btn-sm btn-warning" id="clearMeasurements" title="Effacer les mesures">📏 Mesures</button>
-                            <button class="btn btn-sm btn-outline-danger" id="clearAllZones">🗑️ Tout effacer</button>
-                        </div>
-
-                        <!-- ── Ligne 2 : Dessin, Équipements, Obstacles ── -->
-                        <div class="d-flex flex-wrap align-items-center gap-1 px-2 py-2" style="border-bottom:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.01);">
-
-                            <span class="badge bg-primary me-1" style="font-size:0.65rem;">▢ ZONES PV</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-primary" id="toolRectangle" title="Dessiner une zone PV rectangulaire">▢ Zone PV</button>
-                                <button type="button" class="btn btn-outline-success" id="toolEdit" title="Modifier les zones">✏️ Modifier</button>
-                                <button type="button" class="btn btn-outline-danger" id="toolDelete" title="Supprimer des zones">🗑️ Suppr.</button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolMeasure" title="Mesurer">📏 Mesure</button>
-                            </div>
-
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-secondary me-1" style="font-size:0.65rem;">✏️ DESSIN</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-secondary" id="toolPolyline" title="Ligne">— Ligne</button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolPolygon" title="Polygone">⬡ Polygone</button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolCircle" title="Cercle">○ Cercle</button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolMarker" title="Repère">📍 Repère</button>
-                            </div>
-
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-info me-1" style="font-size:0.65rem;">⚡ ÉLEC.</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-warning" id="toolOnduleur" title="Placer onduleur">⚡ Onduleur</button>
-                                <button type="button" class="btn btn-outline-primary" id="toolTGBT" title="Placer TGBT">🔌 TGBT</button>
-                                <button type="button" class="btn btn-outline-success" id="toolInjection" title="Point d'injection">🔗 Injection</button>
-                            </div>
-
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-danger me-1" style="font-size:0.65rem;">🚧 OBSTAC.</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-secondary" id="toolObstacle" title="Obstacle rectangulaire">🚧 Rect.</button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolObstacleCircle" title="Obstacle circulaire">⊙ Rond</button>
-                                <button type="button" class="btn btn-outline-danger" id="clearObstacles" title="Supprimer obstacles">🗑️</button>
-                            </div>
-                            <span class="badge bg-secondary ms-1" id="obstacleCount" style="display:none;">0</span>
-                        </div>
-
-                        <!-- ── Ligne 3 : Distances câbles ── -->
-                        <div class="d-flex flex-wrap align-items-center gap-2 px-2 py-2" style="background:rgba(255,255,255,0.005); font-size:0.78rem;">
-                            <span class="badge bg-dark me-1" style="font-size:0.65rem;">📏 CÂBLES</span>
-                            <span class="badge bg-warning text-dark">DC</span>
-                            <span class="text-muted small">Modules→Ond :</span>
-                            <input type="number" class="form-control form-control-sm p-0 text-center" id="distanceDC" placeholder="Auto" min="0" step="0.5" style="width:58px;height:26px;font-size:0.76rem;" title="Distance DC modules→onduleur (m)">
-                            <small class="text-muted">m <span style="opacity:.5;">(auto <span id="distanceDCAuto">--</span>m)</span></small>
-
-                            <span class="badge bg-primary ms-2">AC</span>
-                            <span class="text-muted small">Ond→TGBT :</span>
-                            <input type="number" class="form-control form-control-sm p-0 text-center" id="distanceAC1" placeholder="Auto" min="0" step="0.5" style="width:58px;height:26px;font-size:0.76rem;" title="Distance AC onduleur→TGBT (m)">
-                            <small class="text-muted">m <span style="opacity:.5;">(auto <span id="distanceAC1Auto">--</span>m)</span></small>
-
-                            <span class="badge bg-success ms-2">AC</span>
-                            <span class="text-muted small">TGBT→Inject :</span>
-                            <input type="number" class="form-control form-control-sm p-0 text-center" id="distanceAC2" placeholder="Auto" min="0" step="0.5" style="width:58px;height:26px;font-size:0.76rem;" title="Distance AC TGBT→injection (m)">
-                            <small class="text-muted">m <span style="opacity:.5;">(auto <span id="distanceAC2Auto">--</span>m)</span></small>
-
-                            <small class="text-info ms-3">💡 Ajoutez les passages verticaux manuellement.</small>
-                        </div>
-
+                    <div class="card-footer">
+                        <small class="text-muted">
+                            📍 <strong>Dessinez des rectangles</strong> sur la carte pour définir vos zones PV<br>
+                            🎛️ <strong>Ajustez l'orientation et l'inclinaison</strong> de chaque zone avec les curseurs dans le panneau de droite
+                        </small>
                     </div>
                 </div>
                 
@@ -1356,10 +1067,10 @@
                                     ⚡ Remplissage auto
                                 </button>
                                 <span style="font-size:0.74rem;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;">
-                                    <input type="number" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir" oninput="const _t=document.getElementById('targetPowerKw');if(_t)_t.value=this.value;">
+                                    <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir">
                                     <span class="text-muted">kWc</span>
                                     <span class="text-muted ms-1">☀️≥</span>
-                                    <input type="number" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil ensoleillement min (h/an) — exclut les pans trop orientés nord" oninput="const _s=document.getElementById('sunshineThreshold');if(_s)_s.value=this.value;">
+                                    <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil ensoleillement min (h/an) — exclut les pans trop orientés nord">
                                     <span class="text-muted">h/an</span>
                                 </span>
                                 <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
@@ -1584,16 +1295,6 @@
                         </div>
                     </div>
                     <small id="productibleDetails" class="d-block text-center mt-2" style="color:var(--c-text-3);"></small>
-                    <!-- Barre capacité onduleur -->
-                    <div id="onduleurCapacityBar" style="display:none; padding-top:8px;">
-                        <div class="d-flex justify-content-between align-items-center" style="font-size:0.7rem; color:var(--c-text-3); margin-bottom:2px;">
-                            <span>Charge onduleur DC</span>
-                            <span id="onduleurCapacityLabel" style="font-size:0.7rem;"></span>
-                        </div>
-                        <div class="onduleur-capacity-bar">
-                            <div class="onduleur-capacity-bar-fill" id="onduleurCapacityBarFill"></div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Localisation -->
@@ -2132,9 +1833,6 @@
                 onOmbriereModeleChange();
             }
             
-            // Mettre à jour le badge résumé config technique
-            updateConfigTechSummary();
-
             console.log(`✅ Module chargé: ${module.fabricant} ${module.modele} - ${module.puissance}Wc (Voc: ${module.voc}V, Vmpp: ${module.vmpp}V, Isc: ${module.isc}A, Impp: ${module.impp}A)`);
         }
 
@@ -5438,13 +5136,8 @@
                 'ombriere': 'Ombrière de parking - Structure métallique surélevée',
                 'sol': 'Installation au sol - Centrale photovoltaïque ou agrivoltaïque'
             };
-            const typeEmojis = { 'toiture': '🏠', 'ombriere': '🅿️', 'sol': '🌾' };
             
             document.getElementById('typeInfo').textContent = typeInfos[type] || '';
-
-            // Mettre à jour l'icône visuelle
-            const visual = document.getElementById('typeInstallationVisual');
-            if (visual) visual.textContent = typeEmojis[type] || '🏗️';
             
             // Afficher/masquer la checkbox auto3D inclinaison (uniquement toiture)
             const auto3DRow = document.getElementById('auto3DInclinaisonRow');
@@ -5468,317 +5161,11 @@
             if (viewer3D && viewer3D.isActive) {
                 update3DFromZones();
             }
-
-            // Mettre à jour le badge résumé
-            updateConfigTechSummary();
             
             console.log('✅ Type d\'installation: ' + type);
         }
-
-        // ─── Configuration Technique : toggle collapse ───
-        function toggleConfigTech() {
-            const body = document.getElementById('configTechBody');
-            const chevron = document.getElementById('configTechChevron');
-            if (!body) return;
-            const collapsed = body.style.display === 'none';
-            body.style.display = collapsed ? '' : 'none';
-            chevron.classList.toggle('rotated', !collapsed);
-        }
-
-        // ─── Configuration Technique : mise à jour du badge résumé ───
-        function updateConfigTechSummary() {
-            const badge = document.getElementById('configTechSummary');
-            if (!badge) return;
-            const typeEl = document.getElementById('typeInstallation');
-            const modeleEl = document.getElementById('moduleType');
-            const puissEl = document.getElementById('modulePuissance');
-            const typeLabels = { 'toiture': '🏠 Toiture', 'ombriere': '🅿️ Ombrière', 'sol': '🌾 Sol' };
-            const type = typeEl ? (typeLabels[typeEl.value] || typeEl.value) : '';
-            const modele = modeleEl ? modeleEl.value.split('-').slice(0, 2).join('-') : '';
-            const puiss = puissEl ? puissEl.value + ' Wc' : '';
-            badge.textContent = [type, modele, puiss].filter(Boolean).join(' · ');
-        }
-
-        // ─── Onduleurs : données catalogue ───
-        const ONDULEURS_DATA = {
-            'HUAWEI-3KTL-L1':   { nom:'SUN2000-3KTL-L1', fabricant:'Huawei', reseau:'Monophasé', pac:3,   vdc_max:560,  nb_mppt:2, strings:2,  rend:97.6,  ip:'IP65', garantie:10, batterie:false },
-            'HUAWEI-5KTL-L1':   { nom:'SUN2000-5KTL-L1', fabricant:'Huawei', reseau:'Monophasé', pac:5,   vdc_max:560,  nb_mppt:2, strings:2,  rend:97.8,  ip:'IP65', garantie:10, batterie:false },
-            'HUAWEI-6KTL-M1':   { nom:'SUN2000-6KTL-M1', fabricant:'Huawei', reseau:'Triphasé',  pac:6,   vdc_max:980,  nb_mppt:2, strings:2,  rend:98.4,  ip:'IP65', garantie:10, batterie:true },
-            'HUAWEI-8KTL-M1':   { nom:'SUN2000-8KTL-M1', fabricant:'Huawei', reseau:'Triphasé',  pac:8,   vdc_max:980,  nb_mppt:2, strings:2,  rend:98.4,  ip:'IP65', garantie:10, batterie:true },
-            'HUAWEI-10KTL-M1':  { nom:'SUN2000-10KTL-M1', fabricant:'Huawei', reseau:'Triphasé', pac:10,  vdc_max:980,  nb_mppt:2, strings:2,  rend:98.4,  ip:'IP65', garantie:10, batterie:true },
-            'HUAWEI-12KTL-M2':  { nom:'SUN2000-12KTL-M2', fabricant:'Huawei', reseau:'Triphasé', pac:12,  vdc_max:980,  nb_mppt:2, strings:2,  rend:98.5,  ip:'IP65', garantie:10, batterie:true },
-            'HUAWEI-15KTL-M2':  { nom:'SUN2000-15KTL-M2', fabricant:'Huawei', reseau:'Triphasé', pac:15,  vdc_max:980,  nb_mppt:2, strings:2,  rend:98.5,  ip:'IP65', garantie:10, batterie:true },
-            'HUAWEI-20KTL-M2':  { nom:'SUN2000-20KTL-M2', fabricant:'Huawei', reseau:'Triphasé', pac:20,  vdc_max:980,  nb_mppt:2, strings:2,  rend:98.5,  ip:'IP65', garantie:10, batterie:true },
-            'HUAWEI-25KTL-M3':  { nom:'SUN2000-25KTL-M3', fabricant:'Huawei', reseau:'Triphasé', pac:25,  vdc_max:980,  nb_mppt:3, strings:3,  rend:98.6,  ip:'IP66', garantie:10, batterie:true },
-            'HUAWEI-30KTL-M3':  { nom:'SUN2000-30KTL-M3', fabricant:'Huawei', reseau:'Triphasé', pac:30,  vdc_max:980,  nb_mppt:3, strings:3,  rend:98.6,  ip:'IP66', garantie:10, batterie:true },
-            'FRONIUS-PRIMO-3.0':{ nom:'Primo GEN24 3.0 Plus', fabricant:'Fronius', reseau:'Monophasé', pac:3,  vdc_max:1000, nb_mppt:2, strings:2, rend:97.2, ip:'IP66', garantie:10, batterie:true },
-            'FRONIUS-PRIMO-5.0':{ nom:'Primo GEN24 5.0 Plus', fabricant:'Fronius', reseau:'Monophasé', pac:5,  vdc_max:1000, nb_mppt:2, strings:2, rend:97.4, ip:'IP66', garantie:10, batterie:true },
-            'FRONIUS-SYMO-10.0':{ nom:'Symo GEN24 10.0 Plus', fabricant:'Fronius', reseau:'Triphasé',  pac:10, vdc_max:1000, nb_mppt:2, strings:2, rend:98.0, ip:'IP66', garantie:10, batterie:true },
-            'SMA-SB-3.0':       { nom:'Sunny Boy 3.0 Smart Energy', fabricant:'SMA', reseau:'Monophasé', pac:3, vdc_max:600, nb_mppt:2, strings:2, rend:97.0, ip:'IP65', garantie:10, batterie:false },
-            'SOLAREDGE-SE5K':   { nom:'SE5K + Optimiseurs P401', fabricant:'SolarEdge', reseau:'Triphasé', pac:5, vdc_max:820, nb_mppt:2, strings:2, rend:99.2, ip:'IP65', garantie:12, batterie:false },
-            'ENPHASE-IQ8PLUS':  { nom:'IQ8+ Micro-onduleur', fabricant:'Enphase', reseau:'Monophasé', pac:0.295, vdc_max:60, nb_mppt:1, strings:1, rend:97.0, ip:'IP67', garantie:25, batterie:true }
-        };
-
-        // ─── Onduleurs : filtrage par fabricant/réseau ───
-        function filtrerOnduleurs() {
-            const fab = document.getElementById('onduleurFabricant').value;
-            const res = document.getElementById('onduleurReseau').value;
-            const sel = document.getElementById('onduleurModeleSelect');
-            const current = sel.value;
-            // Reconstruire les options selon le filtre
-            const groups = {};
-            for (const [key, d] of Object.entries(ONDULEURS_DATA)) {
-                if (fab && d.fabricant !== fab) continue;
-                if (res && d.reseau !== res) continue;
-                const grp = `${d.fabricant} — ${d.reseau}`;
-                if (!groups[grp]) groups[grp] = [];
-                const kwLabel = d.pac >= 1 ? d.pac + ' kW' : Math.round(d.pac * 1000) + ' W';
-                const phLabel = d.reseau === 'Monophasé' ? '1φ' : '3φ';
-                groups[grp].push({ key, label: `${d.nom} · ${kwLabel} · ${phLabel}` });
-            }
-            sel.innerHTML = '<option value="">— Sélectionner un modèle —</option>';
-            for (const [grp, opts] of Object.entries(groups)) {
-                const og = document.createElement('optgroup');
-                og.label = grp;
-                opts.forEach(o => {
-                    const opt = document.createElement('option');
-                    opt.value = o.key;
-                    opt.textContent = o.label;
-                    if (o.key === current) opt.selected = true;
-                    og.appendChild(opt);
-                });
-                sel.appendChild(og);
-            }
-            // Option saisie libre toujours présente
-            const ogCustom = document.createElement('optgroup');
-            ogCustom.label = '⚙️ Saisie libre';
-            const optCustom = document.createElement('option');
-            optCustom.value = 'custom'; optCustom.textContent = 'Onduleur personnalisé';
-            ogCustom.appendChild(optCustom);
-            sel.appendChild(ogCustom);
-            // Re-afficher la fiche si sélection toujours valide
-            loadOnduleurSpecs();
-        }
-
-        // ─── Onduleurs : affichage de la fiche technique ───
-        function loadOnduleurSpecs() {
-            const ref = document.getElementById('onduleurModeleSelect').value;
-            const fiche = document.getElementById('onduleurFiche');
-            const customFields = document.getElementById('onduleurCustomFields');
-            if (!ref || ref === '') {
-                fiche.style.display = 'none';
-                customFields.style.display = 'none';
-                return;
-            }
-            if (ref === 'custom') {
-                fiche.style.display = 'none';
-                customFields.style.display = '';
-                return;
-            }
-            const d = ONDULEURS_DATA[ref];
-            if (!d) { fiche.style.display = 'none'; customFields.style.display = 'none'; return; }
-            fiche.style.display = '';
-            customFields.style.display = 'none';
-            document.getElementById('onduleurNom').textContent = d.nom;
-            const typeBadge = document.getElementById('onduleurTypeBadge');
-            typeBadge.textContent = d.reseau;
-            typeBadge.style.background = d.reseau === 'Monophasé' ? 'rgba(59,130,246,0.15)' : 'rgba(167,139,250,0.15)';
-            typeBadge.style.color = d.reseau === 'Monophasé' ? '#60a5fa' : '#a78bfa';
-            document.getElementById('onduleurRendBadge').textContent = `η ${d.rend}%`;
-            const kwLabel = d.pac >= 1 ? d.pac + ' kW' : Math.round(d.pac * 1000) + ' W';
-            document.getElementById('onduleurPac').textContent = kwLabel;
-            document.getElementById('onduleurNbMPPT').textContent = d.nb_mppt;
-            document.getElementById('onduleurVdcMax').textContent = d.vdc_max + ' V';
-            document.getElementById('onduleurNbStrings').textContent = d.strings;
-            const extras = [
-                d.ip, `${d.garantie} ans`, d.batterie ? '🔋 Compatible batterie' : null
-            ].filter(Boolean).join(' · ');
-            document.getElementById('onduleurInfoLine').textContent = extras;
-            // Stocker dans le state global pour le schéma unifilaire
-            window._selectedOnduleur = { ref, ...d };
-            updateDimensionnementPanel();
-        }
-
-        // ─── Batteries : données catalogue ───
-        const BATTERIES_DATA = {
-            'HUAWEI-LUNA2000-5':  { nom:'LUNA2000-5-E0',         fabricant:'Huawei',    capacite_kwh:5.0,  puissance_kw:2.5,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Huawei'] },
-            'HUAWEI-LUNA2000-10': { nom:'LUNA2000-10-E0',        fabricant:'Huawei',    capacite_kwh:10.0, puissance_kw:5.0,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Huawei'] },
-            'HUAWEI-LUNA2000-15': { nom:'LUNA2000-15-E0',        fabricant:'Huawei',    capacite_kwh:15.0, puissance_kw:5.0,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Huawei'] },
-            'BYD-HVS-5.1':        { nom:'Battery-Box HVS 5.1',  fabricant:'BYD',       capacite_kwh:5.1,  puissance_kw:5.0,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Fronius','SMA','Victron'] },
-            'BYD-HVS-7.7':        { nom:'Battery-Box HVS 7.7',  fabricant:'BYD',       capacite_kwh:7.7,  puissance_kw:5.0,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Fronius','SMA','Victron'] },
-            'BYD-HVM-8.3':        { nom:'Battery-Box HVM 8.3',  fabricant:'BYD',       capacite_kwh:8.3,  puissance_kw:5.0,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Fronius','SMA','Victron'] },
-            'BYD-HVM-11.0':       { nom:'Battery-Box HVM 11.0', fabricant:'BYD',       capacite_kwh:11.0, puissance_kw:5.0,  chimie:'LFP', cycles:6000, garantie:10, compatibles:['Fronius','SMA','Victron'] },
-            'ENPHASE-IQ5P':       { nom:'IQ Battery 5P',        fabricant:'Enphase',   capacite_kwh:5.0,  puissance_kw:3.84, chimie:'LFP', cycles:4000, garantie:15, compatibles:['Enphase'] },
-            'SOLAREDGE-BANK-10':  { nom:'Energy Bank 10 kWh',   fabricant:'SolarEdge', capacite_kwh:10.0, puissance_kw:5.0,  chimie:'LFP', cycles:4000, garantie:10, compatibles:['SolarEdge'] }
-        };
-
-        // ─── Batteries : filtrage par fabricant ───
-        function filtrerBatteries() {
-            const fab = document.getElementById('batterieFabricant').value;
-            const sel = document.getElementById('batterieModeleSelect');
-            const current = sel.value;
-            sel.innerHTML = '<option value="">— Sélectionner un modèle —</option>';
-            const groups = {};
-            for (const [key, d] of Object.entries(BATTERIES_DATA)) {
-                if (fab && d.fabricant !== fab) continue;
-                if (!groups[d.fabricant]) groups[d.fabricant] = [];
-                groups[d.fabricant].push({ key, label: `${d.nom} · ${d.capacite_kwh} kWh · ${d.chimie}` });
-            }
-            for (const [grp, opts] of Object.entries(groups)) {
-                const og = document.createElement('optgroup');
-                og.label = grp;
-                opts.forEach(o => {
-                    const opt = document.createElement('option');
-                    opt.value = o.key;
-                    opt.textContent = o.label;
-                    if (o.key === current) opt.selected = true;
-                    og.appendChild(opt);
-                });
-                sel.appendChild(og);
-            }
-            loadBatterieSpecs();
-        }
-
-        // ─── Batteries : affichage fiche technique ───
-        function loadBatterieSpecs() {
-            const ref = document.getElementById('batterieModeleSelect').value;
-            const fiche = document.getElementById('batterieFiche');
-            if (!ref) { fiche.style.display = 'none'; window._selectedBatterie = null; return; }
-            const d = BATTERIES_DATA[ref];
-            if (!d) { fiche.style.display = 'none'; window._selectedBatterie = null; return; }
-            fiche.style.display = '';
-            document.getElementById('batterieNom').textContent = d.nom;
-            document.getElementById('batterieCapacite').textContent = d.capacite_kwh + ' kWh';
-            document.getElementById('batteriePuissance').textContent = d.puissance_kw + ' kW';
-            document.getElementById('batterieCycles').textContent = d.cycles.toLocaleString();
-            document.getElementById('batterieGarantie').textContent = d.garantie + ' ans';
-            document.getElementById('batterieChimie').textContent = d.chimie;
-            document.getElementById('batterieCompatibles').textContent = d.compatibles.join(', ');
-            window._selectedBatterie = { ref, ...d };
-            // Vérifier compatibilité avec onduleur sélectionné
-            const ondBadge = document.getElementById('batterieCompatOnduleur');
-            if (ondBadge && window._selectedOnduleur) {
-                const compat = d.compatibles.includes(window._selectedOnduleur.fabricant);
-                ondBadge.style.display = '';
-                ondBadge.textContent = compat ? '✅ Compatible avec l\'onduleur sélectionné' : '⚠️ Vérifier la compatibilité onduleur/batterie';
-                ondBadge.className = `badge ${compat ? 'bg-success' : 'bg-warning text-dark'} mt-2 d-block`;
-            }
-        }
-
-        // ─── Batterie : calcul dimensionnement autoconso ───
-        function calcDimBatterie() {
-            const conso = parseFloat(document.getElementById('consoAnnuelle')?.value) || 0;
-            const taux  = parseFloat(document.getElementById('tauxAutoconso')?.value) || 70;
-            const result = document.getElementById('batterieDimResult');
-            if (!result || conso <= 0) { if (result) result.style.display = 'none'; return; }
-            // Besoin stockage journalier ≈ conso × taux% / 365 (kWh/j) × facteur saisonnalité 1.2
-            const capaReco = (conso * (taux / 100) / 365 * 1.2).toFixed(1);
-            // Nb modules PV recommandé pour atteindre le taux (règle: 1 kWc ≈ 1000 kWh/an)
-            const nbModReco = Math.ceil(conso / 1000);
-            document.getElementById('batterieCapaReco').textContent = capaReco + ' kWh';
-            document.getElementById('batterieNbModulesReco').textContent = nbModReco + ' kWc min';
-            result.style.display = '';
-        }
-
-        // ─── Config électrique NF C 15-712 : calcul strings ───
-        function computeStringConfig() {
-            const ond     = window._selectedOnduleur;
-            const voc     = parseFloat(document.getElementById('moduleVoc')?.value) || 0;
-            const vmpp    = parseFloat(document.getElementById('moduleVmpp')?.value) || 0;
-            const puissWc = parseFloat(document.getElementById('modulePuissance')?.value) || 550;
-            const coeff   = parseFloat(document.getElementById('moduleCoeffTempVoc')?.value) || -0.27; // %/°C
-            if (!voc || !vmpp) return null;
-            const T_min = -10, T_max = 70, T_STC = 25;
-            // Voc monte quand T baisse → Voc max à T_min (contrainte Vdc_max onduleur)
-            const voc_tmin  = voc  * (1 + coeff / 100 * (T_min - T_STC));
-            // Vmpp baisse quand T monte → Vmpp min à T_max (contrainte V_mppt_min)
-            const vmpp_tmax = vmpp * (1 + coeff / 100 * (T_max - T_STC));
-            const vdc_max    = ond ? ond.vdc_max   : 1000;
-            const v_mppt_min = ond ? (ond.v_mppt_min || Math.round(vdc_max * 0.14)) : 140;
-            const nb_mppt    = ond ? ond.nb_mppt    : 2;
-            const strings    = ond ? ond.strings    : 2;
-            // N max modules/string (limite Vdc max NF C 15-712 §6.1)
-            const n_max = Math.floor(vdc_max / voc_tmin);
-            // N min modules/string (limite Vmpp min)
-            const n_min = Math.max(1, Math.ceil(v_mppt_min / vmpp_tmax));
-            // N optimal : cibler n_max pour puissance maximale
-            const n_opt = Math.max(n_min, Math.min(n_max, 20));
-            const max_strings      = nb_mppt * strings;
-            const max_modules_total = max_strings * n_max;
-            const max_power_dc_kw  = (max_modules_total * puissWc) / 1000;
-            const pac = ond ? ond.pac : 0;
-            const dc_ac_ratio = pac > 0 ? (max_power_dc_kw / pac) : null;
-            return { n_min, n_max, n_opt, max_strings, max_modules_total, max_power_dc_kw, dc_ac_ratio, voc_tmin, vmpp_tmax };
-        }
-
-        // ─── Dimensionnement : mise à jour du panneau onduleur ───
-        function updateDimensionnementPanel() {
-            const panel = document.getElementById('dimensionnementPanel');
-            if (!panel) return;
-            const cfg = computeStringConfig();
-            if (!cfg) { panel.style.display = 'none'; return; }
-            panel.style.display = '';
-            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-            setVal('dimNmin',    cfg.n_min  + ' mod.');
-            setVal('dimNmax',    cfg.n_max  + ' mod.');
-            setVal('dimNopt',    cfg.n_opt  + ' mod./str.');
-            setVal('dimStrings', cfg.max_strings + ' strings');
-            setVal('dimMaxMod',  cfg.max_modules_total + ' mod.');
-            setVal('dimMaxKw',   cfg.max_power_dc_kw.toFixed(1) + ' kWc');
-            const ratioEl = document.getElementById('dimDcAcRatio');
-            if (ratioEl) {
-                const ratio = cfg.dc_ac_ratio;
-                ratioEl.textContent = ratio ? `DC/AC ${ratio.toFixed(2)}` : '—';
-                ratioEl.style.background = ratio && ratio >= 1.0 && ratio <= 1.35
-                    ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)';
-                ratioEl.style.color = ratio && ratio >= 1.0 && ratio <= 1.35
-                    ? 'var(--c-green)' : 'var(--c-orange)';
-            }
-            // Pré-remplir targetPowerKw si champ vide
-            const tpEl = document.getElementById('targetPowerKw');
-            if (tpEl && (!tpEl.value || parseFloat(tpEl.value) === 0)) {
-                tpEl.value = cfg.max_power_dc_kw.toFixed(1);
-            }
-        }
-
-        // ─── Auto-sélection onduleur depuis puissance installée ───
-        function autoSelectOnduleur(powerKw) {
-            if (window._selectedOnduleur) return; // déjà sélectionné
-            if (powerKw <= 0) return;
-            // Trouver le plus petit onduleur compatible (ratio DC/AC entre 1.0 et 1.35)
-            const candidates = Object.entries(ONDULEURS_DATA)
-                .filter(([k, d]) => d.pac >= powerKw / 1.35 && d.pac <= powerKw * 1.05)
-                .sort((a, b) => a[1].pac - b[1].pac);
-            if (candidates.length > 0) {
-                const sel = document.getElementById('onduleurModeleSelect');
-                if (sel && sel.value === '') {
-                    sel.value = candidates[0][0];
-                    loadOnduleurSpecs();
-                    console.log(`🔌 Auto-sélection onduleur: ${candidates[0][0]} pour ${powerKw.toFixed(1)} kWc`);
-                }
-            }
-        }
-
-        // ─── Barre de capacité onduleur dans le panneau stats ───
-        function updateOnduleurCapacityBar(puissanceKw) {
-            const barContainer = document.getElementById('onduleurCapacityBar');
-            const barFill      = document.getElementById('onduleurCapacityBarFill');
-            const barLabel     = document.getElementById('onduleurCapacityLabel');
-            if (!barContainer) return;
-            const cfg = computeStringConfig();
-            if (!cfg || !window._selectedOnduleur) { barContainer.style.display = 'none'; return; }
-            barContainer.style.display = '';
-            const pct   = Math.min(100, (puissanceKw / cfg.max_power_dc_kw) * 100);
-            const color = pct > 100 ? '#ef4444' : pct > 85 ? '#f59e0b' : '#22c55e';
-            if (barFill) { barFill.style.width = pct.toFixed(1) + '%'; barFill.style.background = color; }
-            if (barLabel) {
-                const ond = window._selectedOnduleur;
-                barLabel.textContent = `${puissanceKw.toFixed(1)} / ${cfg.max_power_dc_kw.toFixed(1)} kWc (${pct.toFixed(0)}%)`;
-                barLabel.style.color = color;
-            }
-        }
-
-
+        
+        // Mettre à jour toutes les zones quand on change les paramètres globaux
         function updateAllZones() {
             zones.forEach(zone => {
                 // Les zones CAS A (positions GPS Solar exactes) ont leurs propres règles
@@ -5955,9 +5342,6 @@
                     ratioPvgisEl.textContent = '-- kWh/kWc/an';
                 }
             }
-            // Mise à jour barre de capacité onduleur + auto-sélection
-            updateOnduleurCapacityBar(puissanceTotale);
-            autoSelectOnduleur(puissanceTotale);
         }
 
         // Effacer toutes les zones
@@ -6290,19 +5674,6 @@
                     };
                 })(),
                 typeInstallation: document.getElementById('typeInstallation').value,
-                onduleur_config: (function() {
-                    const ref = document.getElementById('onduleurModeleSelect')?.value;
-                    if (!ref || ref === '') return null;
-                    if (ref === 'custom') return {
-                        ref: 'custom',
-                        fabricant: document.getElementById('onduleurCustomFabricant')?.value || '',
-                        modele: document.getElementById('onduleurCustomModele')?.value || '',
-                        pac_kw: parseFloat(document.getElementById('onduleurCustomPac')?.value) || null,
-                        vdc_max: parseFloat(document.getElementById('onduleurCustomVdcMax')?.value) || 1000,
-                        nb_mppt: parseInt(document.getElementById('onduleurCustomNbMPPT')?.value) || 2
-                    };
-                    return window._selectedOnduleur || { ref };
-                })(),
                 ombriere_config: {
                     modele: document.getElementById('ombriereModele')?.value || 'custom',
                     largeurPlace: parseFloat(document.getElementById('ombriereLargeurPlace')?.value) || 2.5,
@@ -9089,10 +8460,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     const irrMaxRaw = document.getElementById('fluxIrrMax')?.value;
                     const irrMax    = irrMaxRaw && irrMaxRaw.trim() !== '' ? parseFloat(irrMaxRaw) : Infinity;
                     const targetKw  = parseFloat(document.getElementById('fluxTargetKw')?.value) || 0;
-                    // Limiter à la capacité DC max de l'onduleur sélectionné (NF C 15-712)
-                    const _scfg = computeStringConfig();
-                    const _maxDcKw = _scfg ? _scfg.max_power_dc_kw : Infinity;
-                    const effectiveTargetKw = (targetKw > 0) ? Math.min(targetKw, _maxDcKw) : _maxDcKw;
                     const modPuissF = parseFloat(document.getElementById('modulePuissance').value) || 0;
                     const dispF     = document.getElementById('moduleOrientation').value;
                     const _modL     = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
@@ -9267,7 +8634,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         });
 
                         bySegment.forEach((panels, segIdx) => {
-                            if (totalKwAccum >= effectiveTargetKw) return;
+                            if (targetKw > 0 && totalKwAccum >= targetKw) return;
                             const az  = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
                             const pit = seg?.pitch_deg ?? 15;
@@ -9377,7 +8744,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const _mVh   = dispF === 'paysage' ? _modW : _modL;
                         let totalKwAccum = 0;
                         eligibleSegs.forEach((seg, i) => {
-                            if (totalKwAccum >= effectiveTargetKw) return;
+                            if (targetKw > 0 && totalKwAccum >= targetKw) return;
                             const sw = seg.seg_sw, ne = seg.seg_ne;
                             const zoneBounds = L.latLngBounds([sw.lat, sw.lon], [ne.lat, ne.lon]);
                             const zoneLayer = L.rectangle(zoneBounds, {
@@ -9479,10 +8846,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             // Lire la plage d'irradiance depuis le panneau irradiance, avec fallback sur le header 3D
             const targetKw   = parseFloat(document.getElementById('fluxTargetKw')?.value)
                              || parseFloat(document.getElementById('targetPowerKw')?.value) || 0;
-            // Limiter à la capacité DC max de l'onduleur sélectionné (NF C 15-712)
-            const _scfg3D = computeStringConfig();
-            const _maxDcKw3D = _scfg3D ? _scfg3D.max_power_dc_kw : Infinity;
-            const effectiveTargetKw = (targetKw > 0) ? Math.min(targetKw, _maxDcKw3D) : _maxDcKw3D;
             const irrMin     = parseFloat(document.getElementById('fluxIrrMin')?.value)
                              || parseFloat(document.getElementById('sunshineThreshold')?.value) || 0;
             const irrMaxRaw  = document.getElementById('fluxIrrMax')?.value;
@@ -9532,7 +8895,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }
 
             const generatedZones = viewer3D.autoFillRoofPanels(moduleW, moduleL, espacement, disposition, null, obstacleRects, {
-                maxPowerKw:           effectiveTargetKw,
+                maxPowerKw:           targetKw > 0 ? targetKw : Infinity,
                 sunshineThresholdH:   irrMin,
                 sunshineThresholdMax: irrMax,
                 modulePowerW:         modulePuissance,
@@ -9819,7 +9182,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         
         // Initialiser le module sélectionné (charger les specs)
         loadModuleSpecs();
-        updateConfigTechSummary();
         
         // Charger le calpinage sauvegardé s'il existe
         if (savedCalpinage && savedCalpinage.zones && savedCalpinage.zones.length > 0) {
@@ -9869,23 +9231,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 document.getElementById('moduleLargeur').value = savedCalpinage.module.largeur || 1048;
                 document.getElementById('modulePuissance').value = savedCalpinage.module.puissance || 450;
                 updateModulePreview();
-            }
-
-            // Restaurer l'onduleur sélectionné (Config Technique)
-            if (savedCalpinage.onduleur_config) {
-                const oc = savedCalpinage.onduleur_config;
-                const selEl = document.getElementById('onduleurModeleSelect');
-                if (selEl && oc.ref) {
-                    selEl.value = oc.ref;
-                    if (oc.ref === 'custom') {
-                        if (oc.fabricant) document.getElementById('onduleurCustomFabricant').value = oc.fabricant;
-                        if (oc.modele) document.getElementById('onduleurCustomModele').value = oc.modele;
-                        if (oc.pac_kw) document.getElementById('onduleurCustomPac').value = oc.pac_kw;
-                        if (oc.vdc_max) document.getElementById('onduleurCustomVdcMax').value = oc.vdc_max;
-                        if (oc.nb_mppt) document.getElementById('onduleurCustomNbMPPT').value = oc.nb_mppt;
-                    }
-                    loadOnduleurSpecs();
-                }
             }
             
             // Recréer chaque zone sauvegardée
