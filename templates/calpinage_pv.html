@@ -1172,112 +1172,6 @@
                         <span class="text-muted small" id="currentToolInfo" style="font-size:0.76rem;">📐 Mode Zone PV — Dessinez un rectangle</span>
                     </div>
                     
-                    <!-- Barre d'outils de dessin (masquée — contenu déplacé dans le footer) -->
-                    <div class="card-body py-2 bg-light border-bottom" style="display:none;" id="_legacyDrawingToolbar">
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span class="text-muted small me-2"><strong>🛠️ Outils:</strong></span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-primary" id="toolRectangle" title="Zone PV (rectangle)">
-                                    ▢ Zone PV
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolMeasure" title="Mesurer une distance">
-                                    📏 Mesure
-                                </button>
-                            </div>
-                            <div class="btn-group btn-group-sm me-2" role="group">
-                                <button type="button" class="btn btn-outline-success" id="toolEdit" title="Modifier les zones PV">
-                                    ✏️ Modifier
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" id="toolDelete" title="Supprimer des zones">
-                                    🗑️ Supprimer
-                                </button>
-                            </div>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-secondary" id="toolPolyline" title="Dessiner une ligne">
-                                    — Ligne
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolPolygon" title="Dessiner un polygone">
-                                    ⬡ Polygone
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolCircle" title="Dessiner un cercle">
-                                    ○ Cercle
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolMarker" title="Placer un repère">
-                                    📍 Repère
-                                </button>
-                            </div>
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-info">⚡ Équipements électriques:</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-warning" id="toolOnduleur" title="Placer onduleur(s)">
-                                    ⚡ Onduleur
-                                </button>
-                                <button type="button" class="btn btn-outline-primary" id="toolTGBT" title="Placer TGBT">
-                                    🔌 TGBT
-                                </button>
-                                <button type="button" class="btn btn-outline-success" id="toolInjection" title="Placer point d'injection">
-                                    🔗 Injection
-                                </button>
-                            </div>
-                            <div class="vr mx-2"></div>
-                            <span class="badge bg-danger">🚧 Obstacles:</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-secondary" id="toolObstacle" title="Dessiner un obstacle sur la toiture (cheminée, acrotère, trappe...)">
-                                    🚧 Obstacle
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolObstacleCircle" title="Obstacle circulaire (cheminée ronde)">
-                                    ⊙ Rond
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" id="clearObstacles" title="Supprimer tous les obstacles">
-                                    🗑️
-                                </button>
-                            </div>
-                            <span class="badge bg-secondary ms-1" id="obstacleCount" style="display:none;">0</span>
-                            <div class="vr mx-2"></div>
-                            <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
-                        </div>
-                        
-                        <!-- Saisie manuelle distances câbles -->
-                        <div class="border-top pt-3 mt-2">
-                            <div class="d-flex align-items-center mb-2">
-                                <strong class="me-2">📏 Distances câbles (manuelles):</strong>
-                                <small class="text-muted">⚠️ Saisie manuelle nécessaire pour bâtiments multi-étages</small>
-                            </div>
-                            <div class="row g-2">
-                                <div class="col-md-4">
-                                    <label class="form-label small mb-1">
-                                        <span class="badge bg-warning text-dark">DC</span> Modules → Onduleur (m)
-                                    </label>
-                                    <input type="number" class="form-control form-control-sm" id="distanceDC" 
-                                           placeholder="Auto" min="0" step="0.5" 
-                                           title="Distance totale câbles DC depuis les modules jusqu'à l'onduleur (incluant passages verticaux)">
-                                    <small class="text-muted">Auto: <span id="distanceDCAuto">--</span> m</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label small mb-1">
-                                        <span class="badge bg-primary">AC</span> Onduleur → TGBT (m)
-                                    </label>
-                                    <input type="number" class="form-control form-control-sm" id="distanceAC1" 
-                                           placeholder="Auto" min="0" step="0.5"
-                                           title="Distance câble AC entre onduleur et TGBT (incluant passages verticaux)">
-                                    <small class="text-muted">Auto: <span id="distanceAC1Auto">--</span> m</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label small mb-1">
-                                        <span class="badge bg-success">AC</span> TGBT → Injection (m)
-                                    </label>
-                                    <input type="number" class="form-control form-control-sm" id="distanceAC2" 
-                                           placeholder="Auto" min="0" step="0.5"
-                                           title="Distance câble AC entre TGBT et point d'injection réseau">
-                                    <small class="text-muted">Auto: <span id="distanceAC2Auto">--</span> m</small>
-                                </div>
-                            </div>
-                            <small class="text-info d-block mt-1">
-                                💡 <strong>Astuce:</strong> Distances 2D calculées automatiquement. Ajoutez passages verticaux (étages, combles) manuellement.
-                            </small>
-                        </div>
-                    </div>
-                    
                     <div class="card-body p-0">
                         <div id="map"></div>
 
@@ -1462,10 +1356,10 @@
                                     ⚡ Remplissage auto
                                 </button>
                                 <span style="font-size:0.74rem;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;">
-                                    <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir">
+                                    <input type="number" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir" oninput="const _t=document.getElementById('targetPowerKw');if(_t)_t.value=this.value;">
                                     <span class="text-muted">kWc</span>
                                     <span class="text-muted ms-1">☀️≥</span>
-                                    <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil ensoleillement min (h/an) — exclut les pans trop orientés nord">
+                                    <input type="number" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil ensoleillement min (h/an) — exclut les pans trop orientés nord" oninput="const _s=document.getElementById('sunshineThreshold');if(_s)_s.value=this.value;">
                                     <span class="text-muted">h/an</span>
                                 </span>
                                 <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
@@ -3047,9 +2941,6 @@
         let tempMeasureTooltip = null;
         
         function initDrawingTools() {
-            // Supprimer l'ancien toolbar caché (IDs dupliqués) avant de bind les event listeners
-            document.getElementById('_legacyDrawingToolbar')?.remove();
-
             // Bouton Zone PV (rectangle)
             document.getElementById('toolRectangle').addEventListener('click', function() {
                 setActiveTool('rectangle');
