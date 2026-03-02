@@ -5022,9 +5022,11 @@
                     const _zi = zone, _mi = _moduleIdx;
                     modulePolygon.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
+                        e.originalEvent && e.originalEvent.stopPropagation();
+                        _zi._skipNextZoneClick = true;  // empêche le handler zone de re-ajouter
                         _zi._deletedModuleIndices.add(_mi);
                         updateManualModuleCount(_zi);
-                        dessinerModulesDansZone(_zi, true);
+                        dessinerModulesDansZone(_zi);
                     });
                     modulePolygon.on('mouseover', function() {
                         this.setStyle({ fillColor: '#ff4444', fillOpacity: 0.8 });
@@ -5048,9 +5050,11 @@
                     const _zi = zone, _ai = addIdx;
                     mp.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
+                        e.originalEvent && e.originalEvent.stopPropagation();
+                        _zi._skipNextZoneClick = true;  // empêche le handler zone de ré-ajouter
                         _zi._manualAdditions.splice(_ai, 1);
                         updateManualModuleCount(_zi);
-                        dessinerModulesDansZone(_zi, true);
+                        dessinerModulesDansZone(_zi);
                     });
                     mp.on('mouseover', function() { this.setStyle({ fillColor: '#ff4444', fillOpacity: 0.8, color: '#aa0000' }); });
                     mp.on('mouseout',  function() { this.setStyle({ fillColor: '#4ade80', fillOpacity: 0.75, color: '#166534' }); });
@@ -5069,6 +5073,9 @@
             }
             if (_moduleEditMode) {
                 zone._addModuleHandler = function(e) {
+                    // Bug fix 1 : si un module manuel vient d'être supprimé, on ignore ce clic
+                    if (zone._skipNextZoneClick) { zone._skipNextZoneClick = false; return; }
+
                     const rxRaw = (e.latlng.lng - center.lng) / metersPerDegreeLng;
                     const ryRaw = (e.latlng.lat - center.lat) / metersPerDegreeLat;
                     let rx = rxRaw, ry = ryRaw;
@@ -5077,15 +5084,26 @@
                         rx =  rxRaw * Math.cos(a) + ryRaw * Math.sin(a);
                         ry = -rxRaw * Math.sin(a) + ryRaw * Math.cos(a);
                     }
-                    const hw = moduleHorizontal / 2, hv = moduleVertical / 2;
+
+                    // Bug fix 2 : aligner le module ajouté sur la grille
+                    const stepH = moduleHorizontal + pose.spacingH;
+                    const stepV = moduleVertical   + pose.spacingV;
+                    const col   = Math.round((rx - fieldStartX) / stepH);
+                    const row   = Math.round((ry - fieldStartY) / stepV);
+                    const snappedX = fieldStartX + col * stepH;
+                    const snappedY = fieldStartY + row * stepV;
+
                     const addCorners = [
-                        {x: rx - hw, y: ry - hv}, {x: rx + hw, y: ry - hv},
-                        {x: rx + hw, y: ry + hv}, {x: rx - hw, y: ry + hv}
+                        {x: snappedX,                    y: snappedY},
+                        {x: snappedX + moduleHorizontal, y: snappedY},
+                        {x: snappedX + moduleHorizontal, y: snappedY + moduleVertical},
+                        {x: snappedX,                    y: snappedY + moduleVertical}
                     ];
-                    addCorners._cx = rx; addCorners._cy = ry;
+                    addCorners._cx = snappedX + moduleHorizontal / 2;
+                    addCorners._cy = snappedY + moduleVertical   / 2;
                     zone._manualAdditions.push(addCorners);
                     updateManualModuleCount(zone);
-                    dessinerModulesDansZone(zone, true);
+                    dessinerModulesDansZone(zone);
                 };
                 zone.layer.on('click', zone._addModuleHandler);
             }
