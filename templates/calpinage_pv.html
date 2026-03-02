@@ -2978,34 +2978,27 @@
             // Bouton Supprimer zones
             document.getElementById('toolDelete').addEventListener('click', function() {
                 setActiveTool('delete');
-                if (activeDrawHandler) activeDrawHandler.disable();
+                if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
                 if (editHandler) editHandler.disable();
-                
-                // Activer le mode suppression
-                if (!deleteHandler) {
-                    deleteHandler = new L.EditToolbar.Delete(map, {
-                        featureGroup: drawnItems
-                    });
-                }
-                deleteHandler.enable();
-                
-                // Rendre les rectangles visibles pour la suppression
+
+                // ── Clic direct sur zone → suppression immédiate ───────────────────
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0.7;
-                        layer._path.style.fillOpacity = 0.3;
-                        layer._path.style.stroke = '#dc3545';
-                    }
-                });
-                
-                // Écouter l'événement de sauvegarde de la suppression
-                deleteHandler.save = function() {
-                    this._deletableLayers.eachLayer(function(layer) {
-                        supprimerZone(layer._leaflet_id);
+                    // Rendre visible pour indiquer la zone cliquable
+                    layer.setStyle({ color: '#dc3545', weight: 2, opacity: 0.8, fillOpacity: 0.25 });
+                    layer.on('mouseover.delete', function() {
+                        this.setStyle({ fillColor: '#dc3545', fillOpacity: 0.5 });
+                        if (this._path) this._path.style.cursor = 'pointer';
                     });
-                    this._deletableLayers = new L.LayerGroup();
-                    this.disable();
-                };
+                    layer.on('mouseout.delete', function() {
+                        this.setStyle({ fillColor: '#ff7800', fillOpacity: 0.25 });
+                    });
+                    layer.on('click.delete', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        supprimerZone(this._leaflet_id);
+                        // Quitter le mode delete s'il n'y a plus de zones
+                        if (zones.length === 0) setActiveTool('rectangle');
+                    });
+                });
             });
             
             // Bouton effacer mesures
@@ -3085,6 +3078,7 @@
         });
         
         function setActiveTool(tool) {
+            const previousTool = currentTool;
             currentTool = tool;
             
             // Désactiver les handlers d'édition et suppression si actifs
@@ -3153,15 +3147,14 @@
                     dragUpdateInterval = null;
                 }
             }
-            if (deleteHandler && tool !== 'delete') {
-                deleteHandler.disable();
-                // Remettre les rectangles invisibles
+            if (previousTool === 'delete' && tool !== 'delete') {
+                // Désattacher les listeners de suppression directe et remettre les zones invisibles
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0;
-                        layer._path.style.fillOpacity = 0;
-                        layer._path.style.stroke = '#ff7800';
-                    }
+                    layer.off('click.delete');
+                    layer.off('mouseover.delete');
+                    layer.off('mouseout.delete');
+                    layer.setStyle({ color: '#ff7800', weight: 2, opacity: 0, fillOpacity: 0 });
+                    if (layer._path) layer._path.style.cursor = '';
                 });
             }
             
