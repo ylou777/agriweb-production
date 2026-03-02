@@ -64,8 +64,8 @@
         }
         
         #map { 
-            height: calc(100vh - 320px); 
-            min-height: 400px;
+            height: calc(100vh - 190px); 
+            min-height: 450px;
             border: 1px solid var(--c-border);
             border-radius: 0 0 var(--radius) var(--radius);
         }
@@ -463,6 +463,89 @@
         /* VR divider */
         .vr { border-color: var(--c-border); opacity: 0.5; }
 
+        /* ── Sidebar verticale moderne ── */
+        #vtoolbar {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            z-index: 1000;
+            background: rgba(12, 14, 22, 0.91);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.13);
+            border-radius: 13px;
+            box-shadow: 0 6px 28px rgba(0,0,0,0.55);
+            width: 192px;
+            transition: width 0.22s ease;
+            overflow: hidden;
+            user-select: none;
+            font-family: inherit;
+        }
+        #vtoolbar.vtb-collapsed { width: 46px; }
+        #vtoolbar.vtb-collapsed .vtb-label { max-width: 0 !important; opacity: 0; }
+        #vtoolbar.vtb-collapsed .vtb-section-hdr,
+        #vtoolbar.vtb-collapsed #vtbTitle { opacity: 0; pointer-events: none; }
+        #vtoolbar.vtb-collapsed #vtbToggleIcon { transform: rotate(180deg); }
+        .vtb-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        #vtbTitle {
+            color: rgba(255,255,255,0.60);
+            font-size: 0.60rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+        }
+        #vtbToggleIcon { transition: transform 0.22s ease; }
+        .vtb-toggle-btn {
+            background: none; border: none;
+            color: rgba(255,255,255,0.38);
+            cursor: pointer; font-size: 0.75rem;
+            line-height: 1; padding: 3px 4px; border-radius: 5px;
+            transition: color 0.15s, background 0.15s;
+            flex-shrink: 0;
+        }
+        .vtb-toggle-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .vtb-section { padding: 5px 7px 7px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .vtb-section-hdr {
+            font-size: 0.57rem; font-weight: 800; letter-spacing: 0.09em;
+            padding: 4px 2px 3px;
+            transition: opacity 0.2s; white-space: nowrap;
+        }
+        .vtb-btn {
+            display: flex; align-items: center; gap: 7px; width: 100%;
+            background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.09);
+            color: rgba(255,255,255,0.82); border-radius: 7px; padding: 5px 8px;
+            font-size: 0.73rem; cursor: pointer; margin: 2px 0;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            white-space: nowrap; overflow: hidden; text-align: left;
+        }
+        .vtb-btn:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.22); }
+        .vtb-btn.active {
+            background: rgba(96,165,250,0.22);
+            border-color: rgba(96,165,250,0.55);
+            color: #93c5fd;
+        }
+        .vtb-btn-danger { color: rgba(252,129,129,0.85) !important; border-color: rgba(248,113,113,0.2) !important; }
+        .vtb-btn-danger:hover { background: rgba(248,113,113,0.18) !important; border-color: rgba(248,113,113,0.45) !important; }
+        .vtb-btn-muted { color: rgba(255,255,255,0.38); }
+        .vtb-label { transition: max-width 0.22s ease, opacity 0.18s; max-width: 160px; display: inline-block; overflow: hidden; }
+        .vtb-actions { padding: 5px 7px 7px; }
+        #vtbStatus {
+            border-top: 1px solid rgba(255,255,255,0.07);
+            padding: 5px 9px 7px;
+            color: rgba(255,255,255,0.42);
+            font-size: 0.62rem;
+            line-height: 1.35;
+            text-align: center;
+            min-height: 28px;
+        }
+
         /* Supprimer la bordure rectangulaire des image overlays Leaflet (flux heatmap, RGB) */
         .leaflet-image-layer { border: none !important; outline: none !important; box-shadow: none !important; }
     </style>
@@ -845,116 +928,23 @@
                     </div>
                     
                     <!-- Barre d'outils de dessin -->
-                    <div class="card-body py-2 bg-light border-bottom" id="mainToolbar">
-
-                        <!-- ── Ligne 1 : Zones PV • Remplissage auto • Dessin libre • Actions ── -->
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-
-                            <!-- Zones PV -->
-                            <span class="text-muted small fw-semibold">Zones&nbsp;PV&nbsp;:</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-primary" id="toolRectangle" title="Dessiner une zone PV rectangle">
-                                    ▢ Nouvelle zone
-                                </button>
-                                <button type="button" class="btn btn-outline-success" id="toolEdit" title="Modifier les zones PV">
-                                    ✏️ Modifier
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" id="toolDelete" title="Supprimer des zones PV">
-                                    🗑️ Supprimer
-                                </button>
-                                <button type="button" class="btn btn-outline-warning" id="toolEditModules"
-                                        onclick="toggleModuleEditMode()"
-                                        title="Mode édition modules ▸ clic sur module = supprimer ▸ clic sur zone = ajouter">
-                                    🖱️ Édit&nbsp;modules
-                                </button>
-                            </div>
-
-                            <div class="vr"></div>
-
-                            <!-- Dessin libre -->
-                            <span class="text-muted small fw-semibold">Dessin&nbsp;:</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-secondary" id="toolMeasure" title="Mesurer une distance">
-                                    📏 Mesure
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolPolyline" title="Dessiner une ligne">
-                                    — Ligne
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolPolygon" title="Dessiner un polygone">
-                                    ⬡ Polygone
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolCircle" title="Dessiner un cercle">
-                                    ○ Cercle
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolMarker" title="Placer un repère">
-                                    📍 Repère
-                                </button>
-                            </div>
-
-                            <div class="vr"></div>
-
-                            <!-- Actions destructives -->
-                            <button class="btn btn-sm btn-outline-secondary" id="clearMeasurements" title="Effacer toutes les mesures">
-                                📏 Effacer mesures
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" id="clearAllZones" title="Effacer toutes les zones PV">
-                                🗑️ Tout effacer
-                            </button>
-                        </div>
-
-                        <!-- ── Ligne 2 : Équipements électriques • Obstacles • Statut outil ── -->
-                        <div class="d-flex flex-wrap align-items-center gap-2 pt-1 border-top">
-
-                            <!-- Équipements électriques -->
-                            <span style="font-size:0.76rem;font-weight:600;color:#0d6efd;">⚡ Électrique&nbsp;:</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-warning" id="toolOnduleur" title="Placer onduleur(s)">
-                                    ⚡ Onduleur
-                                </button>
-                                <button type="button" class="btn btn-outline-primary" id="toolTGBT" title="Placer TGBT">
-                                    🔌 TGBT
-                                </button>
-                                <button type="button" class="btn btn-outline-success" id="toolInjection" title="Placer point d'injection">
-                                    🔗 Injection
-                                </button>
-                            </div>
-
-                            <div class="vr"></div>
-
-                            <!-- Obstacles toiture -->
-                            <span style="font-size:0.76rem;font-weight:600;color:#dc3545;">🚧 Obstacles&nbsp;:</span>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-secondary" id="toolObstacle" title="Dessiner un obstacle sur la toiture (cheminée, acrotère, trappe...)">
-                                    🚧 Obstacle
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="toolObstacleCircle" title="Obstacle circulaire (cheminée ronde)">
-                                    ⊙ Rond
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" id="clearObstacles" title="Supprimer tous les obstacles">
-                                    🗑️
-                                </button>
-                            </div>
-                            <span class="badge bg-secondary" id="obstacleCount" style="display:none;">0</span>
-
-                            <div class="vr"></div>
-
-                            <!-- Statut outil courant -->
-                            <span class="text-muted small" id="currentToolInfo">◐ Mode Zone PV — Dessinez un rectangle</span>
-                        </div>
-
-                        <!-- ── Distances câbles ── -->
-                        <div class="border-top pt-2 mt-2">
-                            <div class="d-flex align-items-center mb-2">
-                                <strong class="me-2">📏 Distances câbles (manuelles):</strong>
-                                <small class="text-muted">⚠️ Saisie manuelle nécessaire pour bâtiments multi-étages</small>
-                            </div>
+                    <!-- ── Distances câbles (collapsible) ── -->
+                    <div id="mainToolbar" class="border-bottom" style="background:var(--c-surface);">
+                        <button onclick="var b=this.nextElementSibling; b.style.display=(b.style.display==='none'?'block':'none'); this.querySelector('#distToggleIcon').textContent=(b.style.display==='none'?'▶ Afficher':'▼ Réduire');"
+                                style="width:100%; background:none; border:none; padding:5px 14px;
+                                       display:flex; justify-content:space-between; align-items:center;
+                                       font-size:0.79rem; cursor:pointer; color:inherit; gap:8px;">
+                            <span>📏 <strong>Distances câbles</strong> <small class="text-muted ms-1">— saisie manuelle (bâtiments multi-étages)</small></span>
+                            <span id="distToggleIcon" style="font-size:0.7rem; color:rgba(100,100,100,0.55); flex-shrink:0;">▶ Afficher</span>
+                        </button>
+                        <div style="display:none; padding:8px 16px 12px; border-top:1px solid var(--c-border);">
                             <div class="row g-2">
                                 <div class="col-md-4">
                                     <label class="form-label small mb-1">
                                         <span class="badge bg-warning text-dark">DC</span> Modules → Onduleur (m)
                                     </label>
-                                    <input type="number" class="form-control form-control-sm" id="distanceDC" 
-                                           placeholder="Auto" min="0" step="0.5" 
+                                    <input type="number" class="form-control form-control-sm" id="distanceDC"
+                                           placeholder="Auto" min="0" step="0.5"
                                            title="Distance totale câbles DC depuis les modules jusqu'à l'onduleur (incluant passages verticaux)">
                                     <small class="text-muted">Auto: <span id="distanceDCAuto">--</span> m</small>
                                 </div>
@@ -962,7 +952,7 @@
                                     <label class="form-label small mb-1">
                                         <span class="badge bg-primary">AC</span> Onduleur → TGBT (m)
                                     </label>
-                                    <input type="number" class="form-control form-control-sm" id="distanceAC1" 
+                                    <input type="number" class="form-control form-control-sm" id="distanceAC1"
                                            placeholder="Auto" min="0" step="0.5"
                                            title="Distance câble AC entre onduleur et TGBT (incluant passages verticaux)">
                                     <small class="text-muted">Auto: <span id="distanceAC1Auto">--</span> m</small>
@@ -971,7 +961,7 @@
                                     <label class="form-label small mb-1">
                                         <span class="badge bg-success">AC</span> TGBT → Injection (m)
                                     </label>
-                                    <input type="number" class="form-control form-control-sm" id="distanceAC2" 
+                                    <input type="number" class="form-control form-control-sm" id="distanceAC2"
                                            placeholder="Auto" min="0" step="0.5"
                                            title="Distance câble AC entre TGBT et point d'injection réseau">
                                     <small class="text-muted">Auto: <span id="distanceAC2Auto">--</span> m</small>
@@ -982,8 +972,59 @@
                             </small>
                         </div>
                     </div>
-                    
-                    <div class="card-body p-0">
+
+                    <div class="card-body p-0 position-relative">
+                        <!-- ── Sidebar verticale moderne ── -->
+                        <div id="vtoolbar">
+                            <div class="vtb-head">
+                                <span id="vtbTitle">OUTILS</span>
+                                <button class="vtb-toggle-btn" onclick="toggleVToolbar()" title="Réduire / étendre">
+                                    <span id="vtbToggleIcon">◀</span>
+                                </button>
+                            </div>
+                            <!-- Zones PV -->
+                            <div class="vtb-section">
+                                <div class="vtb-section-hdr" style="color:#60a5fa;">▢ ZONES PV</div>
+                                <button id="toolRectangle" class="vtb-btn active" title="Dessiner une zone PV rectangle">▢ <span class="vtb-label">Nouvelle zone</span></button>
+                                <button id="toolEdit" class="vtb-btn" title="Modifier les zones PV">✏️ <span class="vtb-label">Modifier</span></button>
+                                <button id="toolDelete" class="vtb-btn" title="Supprimer des zones PV">🗑️ <span class="vtb-label">Supprimer</span></button>
+                                <button id="toolEditModules" class="vtb-btn" onclick="toggleModuleEditMode()" title="Mode édition modules ▸ clic sur module = supprimer ▸ clic sur zone = ajouter">🖱️ <span class="vtb-label">Édit modules</span></button>
+                            </div>
+                            <!-- Dessin libre -->
+                            <div class="vtb-section">
+                                <div class="vtb-section-hdr" style="color:#a78bfa;">✏ DESSIN</div>
+                                <button id="toolMeasure" class="vtb-btn" title="Mesurer une distance">📏 <span class="vtb-label">Mesure</span></button>
+                                <button id="toolPolyline" class="vtb-btn" title="Dessiner une ligne">― <span class="vtb-label">Ligne</span></button>
+                                <button id="toolPolygon" class="vtb-btn" title="Dessiner un polygone">⬡ <span class="vtb-label">Polygone</span></button>
+                                <button id="toolCircle" class="vtb-btn" title="Dessiner un cercle">○ <span class="vtb-label">Cercle</span></button>
+                                <button id="toolMarker" class="vtb-btn" title="Placer un repère">📍 <span class="vtb-label">Repère</span></button>
+                            </div>
+                            <!-- Équipements électriques -->
+                            <div class="vtb-section">
+                                <div class="vtb-section-hdr" style="color:#fbbf24;">⚡ ÉLECTRIQUE</div>
+                                <button id="toolOnduleur" class="vtb-btn" title="Placer onduleur(s)">⚡ <span class="vtb-label">Onduleur</span></button>
+                                <button id="toolTGBT" class="vtb-btn" title="Placer TGBT">🔌 <span class="vtb-label">TGBT</span></button>
+                                <button id="toolInjection" class="vtb-btn" title="Placer point d'injection">🔗 <span class="vtb-label">Injection</span></button>
+                            </div>
+                            <!-- Obstacles toiture -->
+                            <div class="vtb-section">
+                                <div class="vtb-section-hdr" style="color:#f87171;">🚧 OBSTACLES</div>
+                                <button id="toolObstacle" class="vtb-btn" title="Dessiner un obstacle sur la toiture">🚧 <span class="vtb-label">Obstacle</span></button>
+                                <button id="toolObstacleCircle" class="vtb-btn" title="Obstacle circulaire (cheminée ronde)">⊙ <span class="vtb-label">Rond</span></button>
+                                <button id="clearObstacles" class="vtb-btn vtb-btn-danger" title="Supprimer tous les obstacles">🗑️ <span class="vtb-label">Eff. obstacles</span></button>
+                                <span class="badge bg-secondary" id="obstacleCount" style="display:none; font-size:0.6rem; margin-left:4px;">0</span>
+                            </div>
+                            <!-- Actions -->
+                            <div class="vtb-actions">
+                                <button id="clearMeasurements" class="vtb-btn vtb-btn-muted" title="Effacer toutes les mesures">📏 <span class="vtb-label">Eff. mesures</span></button>
+                                <button id="clearAllZones" class="vtb-btn vtb-btn-danger" title="Tout effacer (zones PV + dessin)">🗑️ <span class="vtb-label">Tout effacer</span></button>
+                            </div>
+                            <!-- Statut outil courant -->
+                            <div id="vtbStatus">
+                                <span id="currentToolInfo">◐ Mode Zone PV</span>
+                            </div>
+                        </div>
+
                         <div id="map"></div>
 
                         <!-- ── Panneau calques / exclusion couleur (position:fixed, ancré par JS) ── -->
@@ -2662,6 +2703,12 @@
         // MODE ÉDITION MANUELLE DES MODULES (supprimer / ajouter)
         // ─────────────────────────────────────────────────────────────
 
+        /** Collapse / expand la sidebar verticale */
+        function toggleVToolbar() {
+            const tb = document.getElementById('vtoolbar');
+            tb.classList.toggle('vtb-collapsed');
+        }
+
         /**
          * Bascule le mode édition manuelle des modules.
          * En mode actif : clic sur un module → suppression ; clic sur la zone vide → ajout.
@@ -2670,8 +2717,7 @@
             _moduleEditMode = !_moduleEditMode;
             const btn = document.getElementById('toolEditModules');
             if (btn) {
-                btn.classList.toggle('btn-warning',   _moduleEditMode);
-                btn.classList.toggle('btn-outline-warning', !_moduleEditMode);
+                btn.classList.toggle('active', _moduleEditMode);
                 btn.title = _moduleEditMode
                     ? '✅ Mode édition actif — clic sur module = supprimer | clic sur zone = ajouter | cliquer à nouveau pour quitter'
                     : 'Mode édition modules ▸ clic sur un module = supprimer ▸ clic sur zone vide = ajouter';
@@ -3119,30 +3165,14 @@
                 });
             }
             
-            // Retirer la classe active de tous les boutons
+            // Retirer la classe active de tous les boutons d'outils
             document.querySelectorAll('[id^="tool"]').forEach(btn => {
-                btn.classList.remove('active', 'btn-primary', 'btn-success', 'btn-danger');
-                if (btn.id === 'toolEdit') {
-                    btn.classList.add('btn-outline-success');
-                } else if (btn.id === 'toolDelete') {
-                    btn.classList.add('btn-outline-danger');
-                } else {
-                    btn.classList.add('btn-outline-secondary');
-                }
+                btn.classList.remove('active');
             });
             // Activer le bouton sélectionné
             const btn = document.getElementById('tool' + tool.charAt(0).toUpperCase() + tool.slice(1));
             if (btn) {
-                if (tool === 'edit') {
-                    btn.classList.remove('btn-outline-success');
-                    btn.classList.add('active', 'btn-success');
-                } else if (tool === 'delete') {
-                    btn.classList.remove('btn-outline-danger');
-                    btn.classList.add('active', 'btn-danger');
-                } else {
-                    btn.classList.remove('btn-outline-secondary');
-                    btn.classList.add('active', 'btn-primary');
-                }
+                btn.classList.add('active');
             }
             
             // Mettre à jour l'info
