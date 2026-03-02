@@ -20236,23 +20236,26 @@ def admin_dashboard():
 @require_admin
 def admin_view_user(user_id):
     """Voir les détails d'un utilisateur"""
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("""
-        SELECT id, email, username, subscription_status, created_at, last_login, trial_end_date
+        SELECT id, email, name, subscription_status, created_at, last_login, trial_end_date
         FROM users WHERE id = ?
     """, (user_id,))
     
     user = c.fetchone()
     if not user:
+        conn.close()
         return "Utilisateur non trouvé", 404
     
     # Sessions de l'utilisateur
     c.execute("""
         SELECT created_at, ip_address, user_agent, expires_at
-        FROM sessions WHERE user_id = ?
+        FROM user_sessions WHERE user_id = ?
         ORDER BY created_at DESC LIMIT 10
     """, (user_id,))
     sessions = c.fetchall()
+    conn.close()
     
     return render_template_string("""
     <!DOCTYPE html>
@@ -20426,20 +20429,23 @@ def admin_create_user():
 @require_admin
 def admin_delete_user(user_id):
     """Supprimer un utilisateur"""
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     
     # Vérifier que ce n'est pas un compte admin/demo
     c.execute("SELECT email FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
     
     if user and user[0] in ['admin@test.com', 'demo@test.com']:
+        conn.close()
         return jsonify({'error': 'Impossible de supprimer les comptes système'}), 400
     
     # Supprimer les sessions
-    c.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    c.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
     # Supprimer l'utilisateur
     c.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     
     return jsonify({'success': True, 'message': 'Utilisateur supprimé'})
 
@@ -20459,9 +20465,11 @@ def admin_reset_password(user_id):
     hashed_password = pbkdf2_sha256.hash(new_password)
     
     # Mettre à jour en base
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user_id))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     
     return jsonify({
         'success': True, 
@@ -20478,13 +20486,15 @@ def admin_extend_trial(user_id):
     # Nouvelle date de fin d'essai (+7 jours)
     new_trial_end = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
     
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("""
         UPDATE users 
         SET trial_end_date = ?, subscription_status = 'trial'
         WHERE id = ?
     """, (new_trial_end, user_id))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     
     return jsonify({
         'success': True,
@@ -20498,9 +20508,10 @@ def admin_export_users():
     import csv
     from io import StringIO
     
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("""
-        SELECT email, username, subscription_status, subscription_plan, created_at, last_login, stripe_customer_id
+        SELECT email, name, subscription_status, subscription_plan, created_at, last_login, stripe_customer_id
         FROM users ORDER BY created_at DESC
     """)
     
@@ -20646,9 +20657,11 @@ def admin_system_check():
     
     try:
         # Test base de données
-        c = get_db_connection().cursor()
+        conn = get_auth_db()
+        c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM users")
         c.fetchone()
+        conn.close()
     except:
         status['database'] = 'Erreur'
         status['status'] = 'ERREUR'
@@ -20670,14 +20683,16 @@ def admin_logs():
 # Fonction pour créer un utilisateur admin au démarrage
 def create_admin_user():
     """Créer un utilisateur admin si nécessaire"""
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     
     # Vérifier si admin existe déjà
     c.execute("SELECT id FROM users WHERE email = 'admin@test.com'")
     if c.fetchone():
         # Mettre à jour pour s'assurer qu'il est admin
         c.execute("UPDATE users SET is_admin = 1 WHERE email = 'admin@test.com'")
-        c.connection.commit()
+        conn.commit()
+        conn.close()
         return
     
     # Créer l'utilisateur admin
@@ -20685,10 +20700,11 @@ def create_admin_user():
     admin_password = pbkdf2_sha256.hash('admin123')
     
     c.execute("""
-        INSERT INTO users (email, username, password_hash, subscription_status, is_admin, created_at)
+        INSERT INTO users (email, name, password_hash, subscription_status, is_admin, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
     """, ('admin@test.com', 'Administrateur', admin_password, 'active', 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
 
 # Template pour la page de sélection des plans
