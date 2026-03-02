@@ -1,5 +1,5 @@
 """
-Routes CRM pour AgriWeb - Adaptées pour Railway avec PostgreSQL
+Routes CRM pour HeliaPV - Adaptées pour Railway avec PostgreSQL
 Toutes les connexions SQLite ont été converties pour utiliser database_adapter
 Multi-tenant: chaque utilisateur ne voit que ses propres prospects/projets (admin voit tout)
 """
@@ -122,7 +122,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             # Créer les 11 étapes du workflow
             # L'étape 1 (Rapport) est marquée comme terminée car l'export provient d'un rapport
             etapes_autoconso = [
-                ('Rapport de recherche AgriWeb', 1),
+                ('Rapport de recherche HeliaPV', 1),
                 ('Visite technique', 2),
                 ('Calepinage', 3),
                 ('Étude d\'autoconsommation', 4),
@@ -197,7 +197,7 @@ def register_crm_routes(app):
     
     @app.route('/crm')
     def crm_dashboard():
-        """Page de lancement du CRM AgriWeb - Version web"""
+        """Page de lancement du CRM HeliaPV - Version web"""
         user_id, is_admin = get_current_crm_user()
         return render_template('crm_web.html', is_admin=is_admin)
 
@@ -211,7 +211,7 @@ def register_crm_routes(app):
 
     @app.route('/crm/desktop')
     def crm_desktop():
-        """Page de lancement du CRM AgriWeb - Version desktop (Tkinter)"""
+        """Page de lancement du CRM HeliaPV - Version desktop (Tkinter)"""
         return render_template('crm_redirect.html')
 
     @app.route('/crm/calendrier')
@@ -467,7 +467,7 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/launch', methods=['POST'])
     def crm_launch():
-        """Lance l'application CRM AgriWeb (désactivé sur Railway)"""
+        """Lance l'application CRM HeliaPV (désactivé sur Railway)"""
         return jsonify({
             'success': False,
             'message': 'Fonctionnalité disponible uniquement en version desktop'
@@ -1145,7 +1145,7 @@ def register_crm_routes(app):
                     ))
                     print(f"✅ [PROJECT UPDATE] Fiche projet {project_id} mise à jour avec le rapport")
                     
-                    # Marquer l'étape "Rapport de recherche AgriWeb" comme terminée
+                    # Marquer l'étape "Rapport de recherche HeliaPV" comme terminée
                     execute_query('''
                         UPDATE project_etapes 
                         SET statut = 'termine', 
@@ -1183,7 +1183,7 @@ def register_crm_routes(app):
                         
                         # Créer les étapes du workflow pour ce nouveau projet
                         etapes_autoconso = [
-                            ('Rapport de recherche AgriWeb', 1),
+                            ('Rapport de recherche HeliaPV', 1),
                             ('Visite technique', 2),
                             ('Calepinage', 3),
                             ('Étude d\'autoconsommation', 4),
@@ -1565,7 +1565,7 @@ def register_crm_routes(app):
             
             # Créer les étapes du workflow autoconsommation
             etapes_autoconso = [
-                ('Rapport de recherche AgriWeb', 1),
+                ('Rapport de recherche HeliaPV', 1),
                 ('Visite technique', 2),
                 ('Calepinage', 3),
                 ('Étude d\'autoconsommation', 4),
@@ -2494,7 +2494,7 @@ def register_crm_routes(app):
                     
                     # Créer les étapes
                     etapes_autoconso = [
-                        ('Rapport de recherche AgriWeb', 1),
+                        ('Rapport de recherche HeliaPV', 1),
                         ('Visite technique', 2),
                         ('Calepinage', 3),
                         ('Étude d\'autoconsommation', 4),
@@ -2679,7 +2679,7 @@ def register_crm_routes(app):
                         
                         # Créer les étapes du workflow
                         etapes_autoconso = [
-                            ('Rapport de recherche AgriWeb', 1),
+                            ('Rapport de recherche HeliaPV', 1),
                             ('Visite technique', 2),
                             ('Calepinage', 3),
                             ('Étude d\'autoconsommation', 4),
@@ -2969,7 +2969,7 @@ def register_crm_routes(app):
             
             # Pied de page
             c.setFont("Helvetica-Oblique", 8)
-            c.drawString(2*cm, 1.5*cm, "AgriWeb - Étude de faisabilité photovoltaïque")
+            c.drawString(2*cm, 1.5*cm, "HeliaPV - Étude de faisabilité photovoltaïque")
             c.drawString(width - 6*cm, 1.5*cm, f"Page 1/1")
             
             # Finaliser le PDF
@@ -4128,7 +4128,7 @@ def register_autoconso_routes(app):
             url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
             headers = {
                 'Accept': 'application/json',
-                'User-Agent': 'AgriWeb/1.0'
+                'User-Agent': 'HeliaPV/1.0'
             }
             
             response = requests.get(url, headers=headers, timeout=5)
@@ -4176,7 +4176,7 @@ def register_autoconso_routes(app):
             url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
             headers = {
                 'Accept': 'application/json',
-                'User-Agent': 'AgriWeb/1.0'
+                'User-Agent': 'HeliaPV/1.0'
             }
             
             response = requests.get(url, headers=headers, timeout=5)
@@ -4242,7 +4242,7 @@ def register_autoconso_routes(app):
             }
             headers = {
                 'Accept': 'application/json',
-                'User-Agent': 'AgriWeb/2.0'
+                'User-Agent': 'HeliaPV/2.0'
             }
             
             response = requests.get(url, params=params, headers=headers, timeout=10)

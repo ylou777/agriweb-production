@@ -1,5 +1,5 @@
 """
-Gestionnaire d'utilisateurs CRM pour AgriWeb
+Gestionnaire d'utilisateurs CRM pour HeliaPV
 Gestion hiérarchique avec rôles admin, directeur commercial, commercial
 """
 

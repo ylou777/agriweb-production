@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Système d'authentification amélioré avec confirmation par email
-AgriWeb 2025 - Version Production
+HeliaPV 2025 - Version Production
 """
 
 import smtplib
@@ -108,7 +108,7 @@ class AuthSystem:
             
             # Configuration du message
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = "🌱 Confirmez votre compte AgriWeb Pro"
+            msg['Subject'] = "🌱 Confirmez votre compte HeliaPV"
             msg['From'] = f"{EMAIL_CONFIG['from_name']} <{EMAIL_CONFIG['email']}>"
             msg['To'] = email
             
@@ -134,12 +134,12 @@ class AuthSystem:
             <body>
                 <div class="container">
                     <div class="header">
-                        <h1>🌱 AgriWeb Pro</h1>
+                        <h1>🌱 HeliaPV</h1>
                         <p>Plateforme Géospatiale Professionnelle</p>
                     </div>
                     <div class="content">
                         <h2>Bonjour {user_name} ! 👋</h2>
-                        <p>Bienvenue sur AgriWeb Pro ! Pour activer votre compte et commencer votre essai gratuit de 7 jours, veuillez confirmer votre adresse email.</p>
+                        <p>Bienvenue sur HeliaPV ! Pour activer votre compte et commencer votre essai gratuit de 7 jours, veuillez confirmer votre adresse email.</p>
                         
                         <div style="text-align: center;">
                             <a href="{verification_url}" class="btn">
@@ -160,7 +160,7 @@ class AuthSystem:
                         </p>
                     </div>
                     <div class="footer">
-                        <p>AgriWeb Pro - Solution géospatiale pour l'agriculture moderne</p>
+                        <p>HeliaPV - Solution géospatiale pour l'agriculture moderne</p>
                         <p>Si le bouton ne fonctionne pas, copiez ce lien : {verification_url}</p>
                     </div>
                 </div>
@@ -172,7 +172,7 @@ class AuthSystem:
             text_content = f"""
             Bonjour {user_name},
             
-            Bienvenue sur AgriWeb Pro !
+            Bienvenue sur HeliaPV !
             
             Pour activer votre compte et commencer votre essai gratuit de 7 jours, 
             veuillez confirmer votre adresse email en cliquant sur ce lien :
@@ -188,7 +188,7 @@ class AuthSystem:
             Ce lien expire dans 24h.
             
             Cordialement,
-            L'équipe AgriWeb Pro
+            L'équipe HeliaPV
             """
             
             # Attacher les deux versions
@@ -260,7 +260,7 @@ class AuthSystem:
                 <div class="container">
                     <div class="header">
                         <h1>🎉 Nouvelle Inscription</h1>
-                        <p>AgriWeb Pro - Administration</p>
+                        <p>HeliaPV - Administration</p>
                     </div>
                     <div class="content">
                         <h2>Un nouveau compte a été créé</h2>
@@ -290,7 +290,7 @@ class AuthSystem:
                         </p>
                     </div>
                     <div class="footer">
-                        <p>AgriWeb Pro - Notification automatique</p>
+                        <p>HeliaPV - Notification automatique</p>
                         <p>Cet email a été généré automatiquement suite à une nouvelle inscription</p>
                     </div>
                 </div>
@@ -300,7 +300,7 @@ class AuthSystem:
             
             # Version texte de l'email
             text_content = f"""
-            Nouvelle inscription sur AgriWeb Pro
+            Nouvelle inscription sur HeliaPV
             
             Un nouveau compte a été créé :
             
@@ -313,7 +313,7 @@ class AuthSystem:
             L'utilisateur dispose de 7 jours d'essai gratuit.
             
             ---
-            AgriWeb Pro - Notification automatique
+            HeliaPV - Notification automatique
             """
             
             # Attacher les deux versions
@@ -593,14 +593,14 @@ class AuthSystem:
             reset_url = f"https://ample-manifestation-production-7b1a.up.railway.app/auth/new-password?token={reset_token}"
             
             # Contenu de l'email
-            subject = "🔐 Réinitialisation de votre mot de passe AgriWeb"
+            subject = "🔐 Réinitialisation de votre mot de passe HeliaPV"
             
             html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Réinitialisation mot de passe AgriWeb</title>
+    <title>Réinitialisation mot de passe HeliaPV</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
         .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
@@ -617,13 +617,13 @@ class AuthSystem:
     <div class="container">
         <div class="header">
             <h1 class="title">🔐 Réinitialisation de mot de passe</h1>
-            <p class="subtitle">AgriWeb Pro - Plateforme Agricole</p>
+            <p class="subtitle">HeliaPV - Plateforme Agricole</p>
         </div>
         
         <div class="content">
             <p>Bonjour,</p>
             
-            <p>Vous avez demandé la réinitialisation de votre mot de passe pour votre compte AgriWeb (<strong>{email}</strong>).</p>
+            <p>Vous avez demandé la réinitialisation de votre mot de passe pour votre compte HeliaPV (<strong>{email}</strong>).</p>
             
             <p>Cliquez sur le bouton ci-dessous pour créer un nouveau mot de passe :</p>
             
@@ -647,7 +647,7 @@ class AuthSystem:
         </div>
         
         <div class="footer">
-            <p>© 2025 AgriWeb Pro - Plateforme Agricole Intelligente</p>
+            <p>© 2025 HeliaPV - Plateforme Agricole Intelligente</p>
             <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
         </div>
     </div>
@@ -754,7 +754,7 @@ auth_system = AuthSystem()
 
 def setup_email_config():
     """Configuration et test de l'email"""
-    print("\n=== Configuration Email AgriWeb ===")
+    print("\n=== Configuration Email HeliaPV ===")
     print(f"SMTP Server: {EMAIL_CONFIG['smtp_server']}")
     print(f"Email From: {EMAIL_CONFIG['email']}")
     

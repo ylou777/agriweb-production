@@ -20,7 +20,7 @@ AUTH_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% if mode == 'login' %}Connexion{% else %}Inscription{% endif %} - AgriWeb Pro</title>
+    <title>{% if mode == 'login' %}Connexion{% else %}Inscription{% endif %} - HeliaPV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>
@@ -35,7 +35,7 @@ AUTH_TEMPLATE = """
             <div class="col-md-6 col-lg-5">
                 <div class="auth-card p-5">
                     <div class="text-center mb-4">
-                        <h1 class="brand-logo">🌱 AgriWeb Pro</h1>
+                        <h1 class="brand-logo">🌱 HeliaPV</h1>
                         <h3>{% if mode == 'login' %}Connexion{% else %}Inscription{% endif %}</h3>
                     </div>
                     

@@ -118,7 +118,7 @@ INSERT INTO parametrage_entreprise (
     siret, rge_numero, qualibat_numero,
     couleur_primaire, couleur_secondaire, couleur_accent
 ) VALUES (
-    'AgriWeb Photovoltaïque', 
+    'HeliaPV Photovoltaïque', 
     '123 Avenue du Soleil', 
     '75001', 
     'Paris', 

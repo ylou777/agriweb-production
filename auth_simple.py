@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🔐 SYSTÈME D'AUTHENTIFICATION SIMPLE pour AgriWeb 2.0
+🔐 SYSTÈME D'AUTHENTIFICATION SIMPLE pour HeliaPV
 Ajoute une page de connexion basique à votre application existante
 """
 
@@ -190,7 +190,7 @@ def add_auth_to_app(app):
                     response = response.replace("<body>", f"<body>{user_info}")
             return response
         else:
-            return "Application AgriWeb chargée !"
+            return "Application HeliaPV chargée !"
 
 # Template HTML pour la page d'authentification
 AUTH_TEMPLATE = '''
@@ -199,7 +199,7 @@ AUTH_TEMPLATE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgriWeb 2.0 - Connexion</title>
+    <title>HeliaPV - Connexion</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -285,7 +285,7 @@ AUTH_TEMPLATE = '''
 <body>
     <div class="auth-container">
         <div class="auth-header">
-            <h1>🌾 AgriWeb 2.0</h1>
+            <h1>🌾 HeliaPV</h1>
             <p>Géolocalisation Agricole Professionnelle</p>
         </div>
         
@@ -295,7 +295,7 @@ AUTH_TEMPLATE = '''
             <p><strong>Nom:</strong> <span id="user-name"></span></p>
             <p><strong>Email:</strong> <span id="user-email"></span></p>
             <p><strong>Accès jusqu'au:</strong> <span id="user-expires"></span></p>
-            <button class="btn btn-primary" onclick="goToApp()">🚀 Accéder à AgriWeb</button>
+            <button class="btn btn-primary" onclick="goToApp()">🚀 Accéder à HeliaPV</button>
             <button class="btn btn-secondary" onclick="logout()">Se Déconnecter</button>
         </div>
         

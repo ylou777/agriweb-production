@@ -2122,7 +2122,7 @@ class DeclarationPrealableGenerator:
             y_tile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
             
             tile_url = f"https://tile.openstreetmap.org/{zoom}/{x_tile}/{y_tile}.png"
-            headers = {'User-Agent': 'AgriWeb-DP-Generator/1.0'}
+            headers = {'User-Agent': 'HeliaPV-DP-Generator/1.0'}
             resp = requests.get(tile_url, headers=headers, timeout=10)
             if resp.status_code == 200:
                 img = PILImage.open(io.BytesIO(resp.content))

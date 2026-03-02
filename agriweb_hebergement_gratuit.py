@@ -610,8 +610,8 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # Force pas de cache pour les templ
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
 # Marqueur de version diagnostic pour vérifier que ce fichier (avec la route /api/hta-lignes) est bien chargé
-AGRIWEB_HTA_VERSION = "fix-N-is-not-defined-v4-2026-01-18"
-print(f"🔧 [HTA] Chargement serveur avec version: {AGRIWEB_HTA_VERSION}")
+HeliaPV_HTA_VERSION = "fix-N-is-not-defined-v4-2026-01-18"
+print(f"🔧 [HTA] Chargement serveur avec version: {HeliaPV_HTA_VERSION}")
 print(f"🔧 [TEMPLATE] Templates auto-reload activé, cache désactivé")
 
 # Cookies de session sécurisés (Railway/Prod)
@@ -4728,7 +4728,7 @@ def api_hta_diagnostic():
         "timestamp": datetime.now().isoformat(),
         "department_requested": department,
         "enedis_module_status": ENEDIS_MODULE_OK,
-        "api_version": AGRIWEB_HTA_VERSION
+        "api_version": HeliaPV_HTA_VERSION
     }
     
     if not ENEDIS_MODULE_OK:
@@ -4854,7 +4854,7 @@ def create_demo_accounts():
         {
             'email': 'admin@test.com',
             'name': 'Administrateur',
-            'company': 'AgriWeb Demo',
+            'company': 'HeliaPV Demo',
             'password': 'admin123',
             'subscription_status': 'active'
         },
@@ -5238,7 +5238,7 @@ def health_check():
     """Endpoint de santé pour Railway"""
     return jsonify({
         "status": "healthy",
-        "service": "AgriWeb",
+        "service": "HeliaPV",
         "timestamp": datetime.now().isoformat(),
         "geoserver_url": GEOSERVER_URL
     }), 200
@@ -5588,7 +5588,7 @@ LOGIN_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌾 AgriWeb 2.0 - Connexion</title>
+    <title>🌾 HeliaPV - Connexion</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -5652,7 +5652,7 @@ LOGIN_TEMPLATE = """
 <body>
     <div class="container">
         <div class="logo">
-            <h1>🌾 AgriWeb 2.0</h1>
+            <h1>🌾 HeliaPV</h1>
             <p>Solution d'analyse agricole professionnelle</p>
         </div>
         
@@ -5696,7 +5696,7 @@ REGISTER_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📝 Inscription - AgriWeb 2.0</title>
+    <title>📝 Inscription - HeliaPV</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -5755,7 +5755,7 @@ REGISTER_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>📝 Inscription AgriWeb 2.0</h1>
+        <h1>📝 Inscription HeliaPV</h1>
         
         <div class="trial-info">
             <h3>🆓 Essai Gratuit Inclus</h3>
@@ -5883,7 +5883,7 @@ def register_legacy():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Inscription - AgriWeb 2.0</title>
+    <title>🚀 Inscription - HeliaPV</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -5969,7 +5969,7 @@ def register_legacy():
 </head>
 <body>
     <div class="register-container">
-        <div class="logo">🚀 AgriWeb 2.0</div>
+        <div class="logo">🚀 HeliaPV</div>
         <h2 style="text-align: center; color: #333; margin-bottom: 2rem;">Créer un compte</h2>
         
         <form method="POST" action="/register">
@@ -6088,7 +6088,7 @@ def login_legacy():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Connexion - AgriWeb 2.0</title>
+    <title>🔐 Connexion - HeliaPV</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -6175,7 +6175,7 @@ def login_legacy():
 </head>
 <body>
     <div class="login-container">
-        <div class="logo">🔐 AgriWeb 2.0</div>
+        <div class="logo">🔐 HeliaPV</div>
         <h2 style="text-align: center; color: #333; margin-bottom: 2rem;">Connexion</h2>
         
         <form method="POST" action="/login">
@@ -6358,7 +6358,7 @@ def profile():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Profil - AgriWeb 2.0</title>
+        <title>Profil - HeliaPV</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     </head>
     <body>
@@ -6381,7 +6381,7 @@ def profile():
                             <p><strong>Fin d'essai:</strong> {{ user.trial_end_date[:10] }}</p>
                             <div class="alert alert-warning">
                                 <h5>🎯 Votre essai se termine bientôt !</h5>
-                                <p>Souscrivez à un abonnement pour continuer à utiliser AgriWeb 2.0.</p>
+                                <p>Souscrivez à un abonnement pour continuer à utiliser HeliaPV.</p>
                                 <a href="/subscribe" class="btn btn-primary">Voir les abonnements</a>
                             </div>
                             {% endif %}
@@ -6437,17 +6437,17 @@ def create_checkout_session():
         prices = {
             'basic': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Basic',
+                'name': 'HeliaPV - Plan Basic',
                 'amount': 3500,  # 35€ en centimes
             },
             'professional': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Professionnel',
+                'name': 'HeliaPV - Plan Professionnel',
                 'amount': 19900,  # 199€ en centimes
             },
             'team': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Team',
+                'name': 'HeliaPV - Plan Team',
                 'amount': 29900,  # 299€ en centimes
             }
         }
@@ -6470,7 +6470,7 @@ def create_checkout_session():
                         'currency': 'eur',
                         'product_data': {
                             'name': plan_config['name'],
-                            'description': 'Accès mensuel à la plateforme AgriWeb Pro'
+                            'description': 'Accès mensuel à la plateforme HeliaPV'
                         },
                         'unit_amount': plan_config['amount'],
                     },
@@ -6865,7 +6865,7 @@ def qr_code_page():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code - AgriWeb</title>
+    <title>QR Code - HeliaPV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -6900,7 +6900,7 @@ def qr_code_page():
         <div class="qr-card">
             <div class="mb-4">
                 <h1 class="text-success mb-2">
-                    <i class="fas fa-seedling me-2"></i>AgriWeb
+                    <i class="fas fa-seedling me-2"></i>HeliaPV
                 </h1>
                 <p class="text-muted">Partagez votre application facilement</p>
             </div>
@@ -6908,7 +6908,7 @@ def qr_code_page():
             <div class="mb-4">
                 <img src="data:image/png;base64,{{ qr_code }}" 
                      class="qr-image" 
-                     alt="QR Code AgriWeb">
+                     alt="QR Code HeliaPV">
             </div>
             
             <div class="mb-4">
@@ -6917,7 +6917,7 @@ def qr_code_page():
                     <li class="mb-2">📱 <strong>Ouvrez l'appareil photo</strong> de votre téléphone</li>
                     <li class="mb-2">🎯 <strong>Pointez vers le QR code</strong> ci-dessus</li>
                     <li class="mb-2">🔗 <strong>Appuyez sur la notification</strong> qui apparaît</li>
-                    <li class="mb-2">🌾 <strong>Accédez directement</strong> à AgriWeb !</li>
+                    <li class="mb-2">🌾 <strong>Accédez directement</strong> à HeliaPV !</li>
                 </ol>
             </div>
             
@@ -6951,8 +6951,8 @@ def qr_code_page():
         function shareQR() {
             if (navigator.share) {
                 navigator.share({
-                    title: 'AgriWeb - Application Agricole',
-                    text: 'Découvrez AgriWeb, l\\'application pour l\\'agriculture moderne',
+                    title: 'HeliaPV - Application Agricole',
+                    text: 'Découvrez HeliaPV, l\\'application pour l\\'agriculture moderne',
                     url: '{{ app_url }}'
                 });
             } else {
@@ -6965,7 +6965,7 @@ def qr_code_page():
         
         function downloadQR() {
             const link = document.createElement('a');
-            link.download = 'AgriWeb_QRCode.png';
+            link.download = 'HeliaPV_QRCode.png';
             link.href = 'data:image/png;base64,{{ qr_code }}';
             link.click();
         }
@@ -7046,11 +7046,11 @@ def index_original():
                          is_admin=is_admin,
                          current_user=current_user)
 
-# Interface complète AgriWeb (après authentification)
+# Interface complète HeliaPV (après authentification)
 @app.route("/app")
 @require_auth
 def app_interface():
-    """Interface complète AgriWeb - Nécessite authentification
+    """Interface complète HeliaPV - Nécessite authentification
     
     Accepte les paramètres d'URL suivants pour zoom automatique:
     - lat: latitude du point à centrer
@@ -7126,7 +7126,7 @@ def auth():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🔐 Connexion - AgriWeb</title>
+        <title>🔐 Connexion - HeliaPV</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
@@ -7202,7 +7202,7 @@ def auth():
     </head>
     <body>
         <div class="login-container">
-            <div class="logo">🔐 AgriWeb</div>
+            <div class="logo">🔐 HeliaPV</div>
             
             <div class="demo-notice">
                 💡 <strong>En développement :</strong> L'authentification sera bientôt disponible. 
@@ -11917,7 +11917,7 @@ def search_by_commune():
         import os
         from flask import request as _r
         debug_stack = (
-            os.environ.get("AGRIWEB_DEBUG_STACK", "0") == "1" or
+            os.environ.get("HeliaPV_DEBUG_STACK", "0") == "1" or
             _r.args.get("debug_stack") == "1"
         )
     except Exception:
@@ -11928,7 +11928,7 @@ def search_by_commune():
         for line in lines:
             pass # print("    " + line.strip())  # Optimisé pour performance
     # else:
-        # #  print(f"📞 [CALL  # Optimisé pour performance #{call_id}] Stack trace désactivée (set AGRIWEB_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")  # Optimisé pour performance
+        # #  print(f"📞 [CALL  # Optimisé pour performance #{call_id}] Stack trace désactivée (set HeliaPV_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")  # Optimisé pour performance
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
     # ║                    CIRCUIT BREAKER ANTI-LOOP ULTRA-ROBUSTE              ║
@@ -17777,7 +17777,7 @@ def init_crm_database():
     conn = sqlite3.connect(crm_db_path)
     cursor = conn.cursor()
     
-    # Créer la table pour les prospects AgriWeb dans la base KPI
+    # Créer la table pour les prospects HeliaPV dans la base KPI
     print(f"📊 [CRM] Initialisation table agriweb_prospects dans {crm_db_path}")
     
     cursor.execute('''
@@ -20714,7 +20714,7 @@ SUBSCRIPTION_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plans d'abonnement - AgriWeb Pro</title>
+    <title>Plans d'abonnement - HeliaPV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -20743,7 +20743,7 @@ SUBSCRIPTION_TEMPLATE = """
 <body>
     <div class="container py-5">
         <div class="text-center mb-5 text-white">
-            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan AgriWeb Pro</h1>
+            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan HeliaPV</h1>
             <p class="lead mb-4">Accédez à l'analyse territoriale la plus avancée pour vos projets agricoles et énergétiques</p>
             <div class="trial-badge d-inline-block">
                 <i class="fas fa-gift me-2"></i>7 jours d'essai gratuit sur tous les plans
@@ -20872,7 +20872,7 @@ ADMIN_STRIPE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Stripe - AgriWeb Pro Admin</title>
+    <title>Dashboard Stripe - HeliaPV Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -21459,7 +21459,7 @@ def send_to_kpi():
                 "risques_detail": risques
             },
             "date_collecte": datetime.now().isoformat(),
-            "source": "AgriWeb Prospection"
+            "source": "HeliaPVspection"
         }
         
         # ÉTAPE 4: Créer un résumé texte
@@ -21510,7 +21510,7 @@ CONTRAINTES:
 - Risques identifiés: {sum([len(v) if isinstance(v, list) else (1 if v else 0) for v in dossier['contraintes_environnementales']['risques'].values()])}
 - Zones protégées: ZNIEFF1={dossier['contraintes_environnementales']['zones_protegees']['znieff_type1']}, ZNIEFF2={dossier['contraintes_environnementales']['zones_protegees']['znieff_type2']}
 
-Source: AgriWeb - Collecte automatique le {datetime.now().strftime('%d/%m/%Y %H:%M')}
+Source: HeliaPV - Collecte automatique le {datetime.now().strftime('%d/%m/%Y %H:%M')}
 Coordonnées: {lat}, {lon}
 """
             }
@@ -21604,7 +21604,7 @@ def kpi_sync_page():
 @app.route("/api/get_agriweb_prospects")
 def get_agriweb_prospects():
     """
-    Récupère tous les prospects depuis AgriWeb (éleveurs + entreprises)
+    Récupère tous les prospects depuis HeliaPV (éleveurs + entreprises)
     Format standardisé pour envoi vers KPI
     """
     try:
@@ -22488,7 +22488,7 @@ if __name__ == "__main__":
         if host == "127.0.0.1":
             Timer(1, open_browser).start()
             
-        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
+        print(f"🚀 Démarrage HeliaPV sur {host}:{port}")
         
         # Lancer le serveur Flask
         app.run(host=host, port=port, debug=False)

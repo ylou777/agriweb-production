@@ -671,7 +671,7 @@ def _generer_pdf_formulaire(data):
     # Pied de page
     story.append(HRFlowable(width="100%", thickness=1, color=colors.lightgrey))
     story.append(Paragraph(
-        f"Document généré par AgriWeb – {datetime.now().strftime('%d/%m/%Y %H:%M')} – "
+        f"Document généré par HeliaPV – {datetime.now().strftime('%d/%m/%Y %H:%M')} – "
         f"AO PPE2 PV Bâtiment, Appel d'offres CRE, Période {PERIODE_ACTUELLE}",
         style_note
     ))
