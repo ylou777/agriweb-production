@@ -102,19 +102,93 @@ class PlanMasseGenerator:
     def __init__(self, prospect_data, calpinage_data=None):
         self.data = prospect_data
         self.calpinage = calpinage_data
-        self.width, self.height = A3  # Format A3 pour plus de d├®tails
-        self.label_manager = LabelManager()  # Gestionnaire d'├®tiquettes
-        
+        self.width, self.height = A3  # Format A3 pour plus de détails
+        self.label_manager = LabelManager()  # Gestionnaire d'étiquettes
+        self.computed_scale = 500          # Echelle par défaut
+        self.computed_meters_per_cm = 5.0  # 1cm = 5m par défaut
+
+    def _compute_best_scale(self, plan_width_cm, plan_height_cm):
+        """Calcule l'échelle optimale en fonction de l'étendue réelle des zones PV.
+        Choisit dans les échelles cadastrales standards: 1/200, 1/500, 1/1000, 1/2000, 1/5000.
+        Ajoute une marge de 40% autour du bâtiment pour ne pas le tronquer.
+        """
+        all_lats, all_lons = [], []
+        if self.calpinage and 'zones' in self.calpinage:
+            for z in self.calpinage['zones']:
+                for coord in z.get('coordinates', []):
+                    all_lats.append(coord['lat'])
+                    all_lons.append(coord['lng'])
+                if not z.get('coordinates'):
+                    b = z.get('bounds', {})
+                    for k in ('_southWest', '_northEast'):
+                        pt = b.get(k, {})
+                        if pt.get('lat'):
+                            all_lats.append(pt['lat'])
+                            all_lons.append(pt['lng'])
+
+        if not all_lats or not all_lons:
+            # Pas de zones PV : échelle 1/500 par défaut
+            print("[PLAN] ℹ️ Pas de zones PV → échelle 1/500 par défaut")
+            return 500
+
+        # Facteurs de conversion GPS→mètres
+        lat_c = (min(all_lats) + max(all_lats)) / 2
+        gps_conv = None
+        if self.calpinage:
+            gps_conv = self.calpinage.get('gpsConversion')
+            if not gps_conv and self.calpinage.get('zones'):
+                gps_conv = self.calpinage['zones'][0].get('gpsConversion')
+        if gps_conv and 'metersPerDegreeLat' in gps_conv:
+            mpd_lat = gps_conv['metersPerDegreeLat']
+            mpd_lng = gps_conv['metersPerDegreeLng']
+        else:
+            import math as _math
+            mpd_lat = 1 / 111320.0
+            mpd_lng = 1 / (111320.0 * _math.cos(lat_c * _math.pi / 180))
+
+        # Dimensions réelles du bâtiment en mètres (+ 40% de marge)
+        lat_extent_m = (max(all_lats) - min(all_lats)) / mpd_lat * 1.4
+        lon_extent_m = (max(all_lons) - min(all_lons)) / mpd_lng * 1.4
+
+        print(f"[PLAN] 📐 Étendue bâtiment: {lon_extent_m:.1f}m × {lat_extent_m:.1f}m (avec marge 40%)")
+
+        # Échelles cadastrales standards (plus précis → moins précis)
+        standard_scales = [200, 500, 1000, 2000, 5000]
+        for scale in standard_scales:
+            mpc = scale / 100.0  # mètres par cm sur le plan
+            req_w = lon_extent_m / mpc
+            req_h = lat_extent_m / mpc
+            if req_w <= plan_width_cm and req_h <= plan_height_cm:
+                print(f"[PLAN] ✅ Échelle retenue: 1/{scale} "
+                      f"(bâtiment {req_w:.1f}cm × {req_h:.1f}cm dans cadre {plan_width_cm:.1f}cm × {plan_height_cm:.1f}cm)")
+                return scale
+
+        # Trop grand pour toutes les échelles : calculer une échelle personnalisée
+        import math as _math
+        min_mpc = max(lon_extent_m / plan_width_cm, lat_extent_m / plan_height_cm)
+        raw_scale = min_mpc * 100
+        custom_scale = int(_math.ceil(raw_scale / 500) * 500)
+        print(f"[PLAN] ⚠️ Échelle personnalisée: 1/{custom_scale} (bâtiment trop grand pour les échelles standards)")
+        return custom_scale
+
     def generate(self):
-        """G├®n├¿re le plan de masse PDF"""
+        """Génère le plan de masse PDF"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
-        
+
         # Réinitialiser le gestionnaire d'étiquettes avec centre de l'image
         # Le centre sera défini après calcul de la bbox du plan
         self.label_manager = None
-        
-        # En-t├¬te
+
+        # ─── Calcul de l'échelle optimale AVANT le dessin ───
+        _plan_w = self.width - 4*cm
+        _plan_h = self.height - 18*cm
+        self.computed_scale = self._compute_best_scale(_plan_w / cm, _plan_h / cm)
+        self.computed_meters_per_cm = self.computed_scale / 100.0
+        print(f"[PLAN] 🔍 Échelle sélectionnée: 1/{self.computed_scale} ("
+              f"{self.computed_meters_per_cm:.2f} m/cm)")
+
+        # En-tête
         self._draw_header(c)
         
         # Zone principale : plan cadastral + calpinage
@@ -144,10 +218,11 @@ class PlanMasseGenerator:
         adresse = self.data.get('adresse', '')
         c.drawString(3*cm, y, f"{adresse}, {commune}")
         
-        # Echelle reglementaire
+        # Echelle réelle (calculée dynamiquement selon la taille du bâtiment)
+        scale_label = f"Echelle 1/{self.computed_scale:,}".replace(',', ' ')
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(colors.HexColor('#D32F2F'))
-        c.drawRightString(self.width - 3*cm, y, "Echelle 1/500")
+        c.drawRightString(self.width - 3*cm, y, scale_label)
         c.setFillColor(colors.black)
         
     def _draw_plan_cadastral(self, c):
@@ -228,20 +303,15 @@ class PlanMasseGenerator:
             meters_per_degree_lng = 1 / (111320 * math.cos(lat_rad))
             print(f"[PLAN] ÔÜá´©Å Facteurs GPS approximatifs (gpsConversion manquant)")
         
-        # ­ƒöÑ ├ëCHELLE 1/500 OBLIGATOIRE pour plan cadastral
-        # 1 cm sur le plan = 500 cm (5 m) dans la r├®alit├®
-        # Calculer la bbox en m├¿tres selon la taille du cadre PDF
+        # Échelle adaptée dynamiquement (calculée dans generate())
+        mpc = self.computed_meters_per_cm  # mètres par cm sur le plan
         plan_width_cm = plan_width / cm
         plan_height_cm = plan_height / cm
-        
-        bbox_width_meters = plan_width_cm * 5  # 1cm = 5m ├á l'├®chelle 1/500
-        bbox_height_meters = plan_height_cm * 5
-        
-        # ­ƒöÑ ├ëCHELLE 1/500 RESPECT├ëE: correspondance exacte entre cadre PDF et terrain
-        # L'image satellite doit couvrir EXACTEMENT les dimensions calcul├®es
-        # Si cadre = 30cm × 20cm, alors image = 150m × 100m (1cm = 5m)
-        
-        print(f"[PLAN] ├ëchelle 1/500 EXACTE: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m r├®els")
+
+        bbox_width_meters = plan_width_cm * mpc
+        bbox_height_meters = plan_height_cm * mpc
+
+        print(f"[PLAN] Échelle 1/{self.computed_scale}: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m réels")
         
         # Convertir en degr├®s avec les BONS facteurs - DIMENSIONS EXACTES pour 1/500
         # Demi-dimensions (rayon) pour centrer autour du point GPS
@@ -318,7 +388,7 @@ class PlanMasseGenerator:
             if not self.screenshot_used:
                 print(f"[PLAN] 🔙 Tentative téléchargement image satellite...")
                 print(f"[PLAN]   GPS: lat={lat}, lon={lon}")
-                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (échelle 1/500)")
+                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (échelle 1/{self.computed_scale})")
                 
                 # 🔑 CORRECTION: Utiliser les dimensions EXACTES du plan (pas de bbox élargie)
                 # L'élargissement causait un décalage d'échelle entre l'image satellite et les modules PV
@@ -333,7 +403,7 @@ class PlanMasseGenerator:
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
                               preserveAspectRatio=False, mask='auto')  # False = remplit tout
-                    print(f"[PLAN] Ô£à Image satellite affich├®e (recadr├®e ├á l'├®chelle 1/500)")
+                    print(f"[PLAN] ✅ Image satellite affichée (recadrée à l'échelle 1/{self.computed_scale})")
                 else:
                     print(f"[PLAN] ÔØî ERREUR: Image satellite = None, pas d'image charg├®e !")
                 self.screenshot_used = False  # Image satellite, pas de screenshot
@@ -347,8 +417,11 @@ class PlanMasseGenerator:
             'height': plan_height,
             'lat_center': lat,
             'lon_center': lon,
-            'meters_per_cm': 5.0  # ├ëCHELLE 1/500 EXACTE: 1cm = 5m
+            'meters_per_cm': self.computed_meters_per_cm  # Échelle adaptée dynamiquement
         }
+
+        # ── Barre d'échelle graphique (en bas à droite du cadre plan) ──
+        self._draw_scale_bar(c, plan_x, plan_y, plan_width)
         
         # Initialiser le LabelManager avec le centre du plan
         center_x = plan_x + plan_width / 2
@@ -381,6 +454,58 @@ class PlanMasseGenerator:
         # 5. ROSE DES VENTS - OBLIGATOIRE pour plan cadastral
         self._draw_compass(c, plan_x, plan_y, plan_width, plan_height)
         
+    def _draw_scale_bar(self, c, plan_x, plan_y, plan_width):
+        """Dessine une barre d'échelle graphique en bas à droite du cadre plan."""
+        mpc = self.computed_meters_per_cm
+        scale = self.computed_scale
+
+        # Choisir une longueur de barre «propre» (multiple rond de mètres)
+        # On veut la barre ≈ 4 cm sur le plan
+        target_cm = 4.0
+        target_meters = target_cm * mpc  # mètres réels représentés par 4 cm
+        # Arrondir au chiffre «propre» le plus proche
+        magnitudes = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]
+        bar_meters = min(magnitudes, key=lambda v: abs(v - target_meters))
+        bar_cm_pdf = (bar_meters / mpc) * cm  # taille en points PDF
+
+        # Position : coin inférieur droit du cadre plan, avec marge
+        bar_x = plan_x + plan_width - bar_cm_pdf - 0.5*cm
+        bar_y = plan_y + 0.4*cm
+        bar_h = 0.25*cm
+
+        # Rectangle de fond blanc
+        c.setFillColor(colors.white)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(0.5)
+        c.rect(bar_x - 0.1*cm, bar_y - 0.05*cm,
+               bar_cm_pdf + 0.2*cm, bar_h + 0.5*cm, fill=1, stroke=0)
+
+        # Segments alternés noir/blanc
+        nb_seg = 4
+        seg_w = bar_cm_pdf / nb_seg
+        for i in range(nb_seg):
+            c.setFillColor(colors.black if i % 2 == 0 else colors.white)
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(0.5)
+            c.rect(bar_x + i * seg_w, bar_y, seg_w, bar_h, fill=1, stroke=1)
+
+        # Étiquettes de la barre
+        c.setFont("Helvetica", 6)
+        c.setFillColor(colors.black)
+        # 0 m
+        c.drawCentredString(bar_x, bar_y - 0.25*cm, "0")
+        # Demi
+        c.drawCentredString(bar_x + bar_cm_pdf / 2, bar_y - 0.25*cm,
+                            f"{bar_meters // 2}m")
+        # Total
+        c.drawCentredString(bar_x + bar_cm_pdf, bar_y - 0.25*cm,
+                            f"{bar_meters}m")
+
+        # Texte échelle
+        c.setFont("Helvetica-Bold", 7)
+        scale_str = f"1/{scale:,}".replace(',', ' ')
+        c.drawCentredString(bar_x + bar_cm_pdf / 2, bar_y + bar_h + 0.15*cm, scale_str)
+
     def _draw_compass(self, c, plan_x, plan_y, plan_width, plan_height):
         """Dessine la rose des vents (Nord/Sud/Est/Ouest) - OBLIGATOIRE"""
         # Position : coin sup├®rieur gauche du plan
@@ -1146,10 +1271,11 @@ class PlanMasseGenerator:
             info_y -= 0.3*cm
             c.drawString(x + 0.5*cm, info_y, f"- {len(self.calpinage['zones'])} zone(s) PV")
         
-        # Date et signature
+        # Date, echelle et signature
         info_y = y + 0.5*cm
         c.setFont("Helvetica", 8)
-        c.drawString(x + 0.3*cm, info_y, "Date : _______________")
+        scale_str = f"1/{self.computed_scale:,}".replace(',', ' ')
+        c.drawString(x + 0.3*cm, info_y, f"Date : _______________   Echelle : {scale_str}")
         c.drawString(x + w/2 + 0.3*cm, info_y, "Signature :")
     
     def _fetch_satellite_image(self, lat, lon, zoom=19, width=1200, height=1000):
@@ -1249,7 +1375,7 @@ class PlanMasseGenerator:
             
             bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
             
-            print(f"[PLAN] 🖼️ Téléchargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (échelle 1/500), {width}x{height}px")
+            print(f"[PLAN] 🖼️ Téléchargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (échelle 1/{self.computed_scale}), {width}x{height}px")
             print(f"[PLAN] 📌 GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
             # ========================================
