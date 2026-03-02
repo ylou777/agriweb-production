@@ -86,22 +86,26 @@
 
     /* === SIDEBAR HEADER === */
     .sidebar-header {
-      padding: 20px 24px 16px;
+      padding: 10px 16px 10px;
       border-bottom: 1px solid var(--c-border);
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: space-between;
+      gap: 8px;
       flex-shrink: 0;
+      background: #0A0512;
     }
     .sidebar-brand {
-      font-size: 1.15rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      color: var(--c-text);
       flex-grow: 1;
+      display: flex;
+      align-items: center;
     }
-    .sidebar-brand span {
-      color: var(--c-accent);
+    .sidebar-brand img {
+      height: 64px;
+      width: auto;
+      max-width: 260px;
+      object-fit: contain;
+      display: block;
     }
 
     /* === NAVIGATION PILLS === */
@@ -446,8 +450,10 @@
     <div id="sidebar">
       <!-- Header -->
       <div class="sidebar-header">
-        <div class="sidebar-brand"><span>Helia</span>PV</div>
-        <button id="closeSidebarBtn" class="btn-close text-reset" type="button"></button>
+        <div class="sidebar-brand">
+          <img src="/static/images/logo_helia_goddess_banner.svg" alt="HeliaPV" />
+        </div>
+        <button id="closeSidebarBtn" class="btn-close text-reset" type="button" style="filter:invert(1);opacity:0.6;"></button>
       </div>
 
       <!-- Navigation pills -->

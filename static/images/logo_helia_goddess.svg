@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <radialGradient id="bgCircle" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#F5A623"/>
+      <stop offset="70%" stop-color="#E8900A"/>
+      <stop offset="100%" stop-color="#C8700A"/>
+    </radialGradient>
+    <radialGradient id="innerCircle" cx="50%" cy="48%" r="50%">
+      <stop offset="0%"  stop-color="#3A1A6E"/>
+      <stop offset="60%" stop-color="#2A0E5A"/>
+      <stop offset="100%" stop-color="#1A0840"/>
+    </radialGradient>
+    <radialGradient id="faceGrad" cx="50%" cy="40%" r="55%">
+      <stop offset="0%"  stop-color="#4ECDC4"/>
+      <stop offset="50%" stop-color="#2EBDB5"/>
+      <stop offset="100%" stop-color="#1A8F88"/>
+    </radialGradient>
+    <linearGradient id="hairLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFD700"/>
+      <stop offset="40%" stop-color="#F5A623"/>
+      <stop offset="70%" stop-color="#4ECDC4"/>
+      <stop offset="100%" stop-color="#2A0E5A"/>
+    </linearGradient>
+    <linearGradient id="hairRight" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#FFD700"/>
+      <stop offset="40%" stop-color="#F5A623"/>
+      <stop offset="70%" stop-color="#E91E8C"/>
+      <stop offset="100%" stop-color="#2A0E5A"/>
+    </linearGradient>
+    <linearGradient id="hairTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFE566"/>
+      <stop offset="60%" stop-color="#4ECDC4"/>
+      <stop offset="100%" stop-color="#FFD700"/>
+    </linearGradient>
+    <linearGradient id="neckGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#2EBDB5"/>
+      <stop offset="100%" stop-color="#E91E8C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ═══ RAYONS SOLAIRES ═══ -->
+  <g transform="translate(250,250)">
+    <!-- 12 rayons triangulaires dorés alternés longs/courts -->
+    <!-- Rayon 1 - haut -->
+    <polygon points="0,-240 -22,-155 22,-155" fill="#FFD700"/>
+    <polygon points="0,-240 -22,-155 22,-155" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 2 - haut-droite 1 -->
+    <polygon points="115,-210 56,-138 100,-105" fill="#FFD700"/>
+    <polygon points="115,-210 56,-138 100,-105" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 3 - haut-droite 2 -->
+    <polygon points="210,-115 138,-56 105,-100" fill="#FFD700"/>
+    <polygon points="210,-115 138,-56 105,-100" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 4 - droite -->
+    <polygon points="240,0 155,-22 155,22" fill="#FFD700"/>
+    <polygon points="240,0 155,-22 155,22" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 5 - bas-droite 1 -->
+    <polygon points="210,115 105,100 138,56" fill="#FFD700"/>
+    <polygon points="210,115 105,100 138,56" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 6 - bas-droite 2 -->
+    <polygon points="115,210 100,105 56,138" fill="#FFD700"/>
+    <polygon points="115,210 100,105 56,138" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 7 - bas -->
+    <polygon points="0,240 -22,155 22,155" fill="#FFD700"/>
+    <polygon points="0,240 -22,155 22,155" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 8 - bas-gauche 2 -->
+    <polygon points="-115,210 -56,138 -100,105" fill="#FFD700"/>
+    <polygon points="-115,210 -56,138 -100,105" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 9 - bas-gauche 1 -->
+    <polygon points="-210,115 -105,100 -138,56" fill="#FFD700"/>
+    <polygon points="-210,115 -105,100 -138,56" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 10 - gauche -->
+    <polygon points="-240,0 -155,22 -155,-22" fill="#FFD700"/>
+    <polygon points="-240,0 -155,22 -155,-22" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 11 - haut-gauche 2 -->
+    <polygon points="-210,-115 -138,-56 -105,-100" fill="#FFD700"/>
+    <polygon points="-210,-115 -138,-56 -105,-100" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+    <!-- Rayon 12 - haut-gauche 1 -->
+    <polygon points="-115,-210 -100,-105 -56,-138" fill="#FFD700"/>
+    <polygon points="-115,-210 -100,-105 -56,-138" fill="none" stroke="#C8700A" stroke-width="1.5"/>
+  </g>
+
+  <!-- ═══ CERCLE EXTÉRIEUR blanc ═══ -->
+  <circle cx="250" cy="250" r="165" fill="white" stroke="#2A0E5A" stroke-width="5"/>
+
+  <!-- ═══ CERCLE INTÉRIEUR fond sombre ═══ -->
+  <circle cx="250" cy="250" r="158" fill="url(#innerCircle)"/>
+  <!-- Touches orange/ambre au bas du cercle (fond clair) -->
+  <ellipse cx="250" cy="360" rx="130" ry="60" fill="#F5A623" opacity="0.35"/>
+
+  <!-- ═══ CHEVEUX - couche arrière (derrière le visage) ═══ -->
+
+  <!-- Cheveux qui partent à gauche -->
+  <path d="M160,200 Q120,170 90,140 Q70,110 80,80 Q100,120 115,150 Q130,170 155,190 Z"
+        fill="url(#hairLeft)" stroke="#2A0E5A" stroke-width="2"/>
+  <path d="M150,230 Q105,210 70,195 Q45,185 30,170 Q60,178 90,185 Q120,195 148,218 Z"
+        fill="#FFD700" stroke="#2A0E5A" stroke-width="2"/>
+  <path d="M155,265 Q115,258 85,270 Q60,278 45,295 Q70,282 100,278 Q125,272 152,272 Z"
+        fill="url(#hairLeft)" stroke="#2A0E5A" stroke-width="1.5" opacity="0.9"/>
+
+  <!-- Cheveux qui partent à droite -->
+  <path d="M340,200 Q380,170 410,140 Q430,110 420,80 Q400,120 385,150 Q370,170 345,190 Z"
+        fill="url(#hairRight)" stroke="#2A0E5A" stroke-width="2"/>
+  <path d="M350,230 Q395,210 430,195 Q455,185 470,170 Q440,178 410,185 Q380,195 352,218 Z"
+        fill="#FFD700" stroke="#2A0E5A" stroke-width="2"/>
+  <path d="M345,265 Q385,258 415,270 Q440,278 455,295 Q430,282 400,278 Q375,272 348,272 Z"
+        fill="url(#hairRight)" stroke="#2A0E5A" stroke-width="1.5" opacity="0.9"/>
+
+  <!-- Cheveux du haut (coulant vers les côtés) -->
+  <path d="M200,130 Q210,90 250,75 Q290,90 300,130
+           Q285,120 275,115 Q260,108 250,108 Q240,108 225,115 Q215,120 200,130 Z"
+        fill="url(#hairTop)" stroke="#2A0E5A" stroke-width="2"/>
+
+  <!-- Mèches ondulées gauche - par-dessus -->
+  <path d="M168,195 Q148,180 128,158 Q118,144 122,128 Q134,152 142,165 Q154,182 168,200 Z"
+        fill="#FFD700" stroke="#2A0E5A" stroke-width="1.5"/>
+  <path d="M155,248 Q130,238 108,240 Q90,244 75,258 Q95,250 118,248 Q138,245 158,255 Z"
+        fill="#4ECDC4" stroke="#2A0E5A" stroke-width="1.5"/>
+
+  <!-- Mèches ondulées droite - par-dessus -->
+  <path d="M332,195 Q352,180 372,158 Q382,144 378,128 Q366,152 358,165 Q346,182 332,200 Z"
+        fill="#FFD700" stroke="#2A0E5A" stroke-width="1.5"/>
+  <path d="M345,248 Q370,238 392,240 Q410,244 425,258 Q405,250 382,248 Q362,245 342,255 Z"
+        fill="#F5A623" stroke="#2A0E5A" stroke-width="1.5"/>
+
+  <!-- ═══ COU / DÉCOLLETÉ ═══ -->
+  <path d="M222,360 Q230,390 250,400 Q270,390 278,360 L272,320 Q261,330 250,332 Q239,330 228,320 Z"
+        fill="url(#neckGrad)" stroke="#2A0E5A" stroke-width="2"/>
+  <!-- Vêtement / épaules-->
+  <path d="M195,380 Q210,370 230,365 Q250,362 270,365 Q290,370 305,380
+           Q295,390 278,395 Q264,400 250,400 Q236,400 222,395 Q205,390 195,380 Z"
+        fill="#E91E8C" stroke="#2A0E5A" stroke-width="2"/>
+  <!-- Reflet vêtement -->
+  <path d="M210,375 Q230,369 250,367 Q270,369 290,375"
+        fill="none" stroke="#FF6EBD" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- ═══ VISAGE PRINCIPAL ═══ -->
+  <!-- Ombres du visage gauche -->
+  <path d="M175,230 Q170,255 172,280 Q175,300 185,315 Q193,290 192,265 Q190,245 188,228 Z"
+        fill="#1A8F88" opacity="0.5"/>
+  <!-- Ombres du visage droite -->
+  <path d="M325,230 Q330,255 328,280 Q325,300 315,315 Q307,290 308,265 Q310,245 312,228 Z"
+        fill="#1A8F88" opacity="0.5"/>
+
+  <!-- Visage principal -->
+  <ellipse cx="250" cy="265" rx="85" ry="100" fill="url(#faceGrad)" stroke="#2A0E5A" stroke-width="3.5"/>
+
+  <!-- Plans du visage (style géométrique/vector art) -->
+  <!-- Front central -->
+  <path d="M220,175 Q250,168 280,175 Q275,195 250,198 Q225,195 220,175 Z"
+        fill="#3ABDB5" opacity="0.7"/>
+  <!-- Pommettes -->
+  <path d="M178,252 Q185,240 200,248 Q190,268 182,272 Q176,265 178,252 Z"
+        fill="#3ABDB5" opacity="0.6"/>
+  <path d="M322,252 Q315,240 300,248 Q310,268 318,272 Q324,265 322,252 Z"
+        fill="#3ABDB5" opacity="0.6"/>
+  <!-- Menton -->
+  <path d="M218,330 Q250,340 282,330 Q275,350 250,357 Q225,350 218,330 Z"
+        fill="#2EBDB5" opacity="0.6"/>
+
+  <!-- Point lumineux (bindi/highlight) front -->
+  <circle cx="250" cy="200" r="5" fill="#E91E8C"/>
+  <circle cx="250" cy="200" r="2.5" fill="#FFFFFF" opacity="0.8"/>
+
+  <!-- ═══ SOURCILS ═══ -->
+  <path d="M205,225 Q218,218 233,222" fill="none" stroke="#2A0E5A" stroke-width="5" stroke-linecap="round"/>
+  <path d="M267,222 Q282,218 295,225" fill="none" stroke="#2A0E5A" stroke-width="5" stroke-linecap="round"/>
+  <path d="M205,226 Q218,219 233,223" fill="none" stroke="#E91E8C" stroke-width="2" stroke-linecap="round"/>
+  <path d="M267,223 Q282,219 295,226" fill="none" stroke="#E91E8C" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- ═══ YEUX ═══ -->
+  <!-- Œil gauche -->
+  <ellipse cx="222" cy="248" rx="20" ry="13" fill="#2A0E5A" stroke="#2A0E5A" stroke-width="2"/>
+  <ellipse cx="222" cy="249" rx="11" ry="10" fill="#8B4513"/>
+  <ellipse cx="222" cy="249" rx="7" ry="7" fill="#3D1A00"/>
+  <circle cx="226" cy="245" r="3" fill="#FFFFFF" opacity="0.85"/>
+  <circle cx="215" cy="252" r="1.5" fill="#FFFFFF" opacity="0.5"/>
+  <!-- Cils gauche -->
+  <path d="M202,240 Q205,235 210,238" fill="none" stroke="#2A0E5A" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M205,238 Q208,233 213,237" fill="none" stroke="#2A0E5A" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M238,240 Q236,235 231,238" fill="none" stroke="#2A0E5A" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M240,244 Q238,239 234,242" fill="none" stroke="#2A0E5A" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Œil droit -->
+  <ellipse cx="278" cy="248" rx="20" ry="13" fill="#2A0E5A" stroke="#2A0E5A" stroke-width="2"/>
+  <ellipse cx="278" cy="249" rx="11" ry="10" fill="#8B4513"/>
+  <ellipse cx="278" cy="249" rx="7" ry="7" fill="#3D1A00"/>
+  <circle cx="282" cy="245" r="3" fill="#FFFFFF" opacity="0.85"/>
+  <circle cx="271" cy="252" r="1.5" fill="#FFFFFF" opacity="0.5"/>
+  <!-- Cils droit -->
+  <path d="M262,240 Q260,235 266,238" fill="none" stroke="#2A0E5A" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M260,244 Q258,239 264,242" fill="none" stroke="#2A0E5A" stroke-width="2" stroke-linecap="round"/>
+  <path d="M294,240 Q296,235 291,238" fill="none" stroke="#2A0E5A" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M296,238 Q299,233 293,237" fill="none" stroke="#2A0E5A" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ═══ NEZ ═══ -->
+  <path d="M244,258 Q243,278 240,290 Q248,296 256,296 Q260,290 257,278 Q254,258 250,258 Z"
+        fill="#1A8F88" opacity="0.7" stroke="#2A0E5A" stroke-width="1"/>
+  <!-- Narines -->
+  <ellipse cx="243" cy="293" rx="7" ry="4" fill="#1A8F88" stroke="#2A0E5A" stroke-width="1.2"/>
+  <ellipse cx="257" cy="293" rx="7" ry="4" fill="#1A8F88" stroke="#2A0E5A" stroke-width="1.2"/>
+
+  <!-- ═══ BOUCHE ═══ -->
+  <!-- Lèvre supérieure -->
+  <path d="M226,310 Q237,303 250,305 Q263,303 274,310 Q266,315 254,314 Q246,314 236,315 Z"
+        fill="#E91E8C" stroke="#2A0E5A" stroke-width="1.5"/>
+  <!-- Arc de cupidon -->
+  <path d="M232,309 Q241,304 250,306 Q259,304 268,309"
+        fill="none" stroke="#2A0E5A" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Lèvre inférieure -->
+  <path d="M226,312 Q238,322 250,324 Q262,322 274,312 Q266,318 250,320 Q234,318 226,312 Z"
+        fill="#E91E8C" stroke="#2A0E5A" stroke-width="1.5"/>
+  <!-- Reflet lèvre -->
+  <path d="M236,316 Q250,322 264,316" fill="none" stroke="#FF6EBD" stroke-width="1.5" opacity="0.7"/>
+
+  <!-- ═══ OREILLES / BOUCLES ═══ -->
+  <!-- Oreille gauche entrevue sous les cheveux -->
+  <ellipse cx="177" cy="268" rx="10" ry="14" fill="#2EBDB5" stroke="#2A0E5A" stroke-width="2"/>
+  <!-- Boucle d'oreille gauche -->
+  <circle cx="177" cy="285" r="5" fill="none" stroke="#FFD700" stroke-width="2.5"/>
+  <circle cx="177" cy="285" r="2" fill="#FFD700"/>
+  <!-- Oreille droite -->
+  <ellipse cx="323" cy="268" rx="10" ry="14" fill="#2EBDB5" stroke="#2A0E5A" stroke-width="2"/>
+  <!-- Boucle d'oreille droite -->
+  <circle cx="323" cy="285" r="5" fill="none" stroke="#FFD700" stroke-width="2.5"/>
+  <circle cx="323" cy="285" r="2" fill="#FFD700"/>
+
+  <!-- ═══ CHEVEUX AVANT PLAN (mèches par-dessus le visage) ═══ -->
+  <!-- Mèche front gauche -->
+  <path d="M216,175 Q195,190 188,215 Q194,210 202,208 Q210,200 218,188 Z"
+        fill="url(#hairTop)" stroke="#2A0E5A" stroke-width="1.5"/>
+  <!-- Mèche front droite -->
+  <path d="M284,175 Q305,190 312,215 Q306,210 298,208 Q290,200 282,188 Z"
+        fill="#F5A623" stroke="#2A0E5A" stroke-width="1.5"/>
+  <!-- Petites mèches devant -->
+  <path d="M232,175 Q228,188 232,205" fill="none" stroke="#4ECDC4" stroke-width="3" stroke-linecap="round"/>
+  <path d="M240,172 Q236,186 238,202" fill="none" stroke="#FFD700" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M268,175 Q272,188 268,205" fill="none" stroke="#4ECDC4" stroke-width="3" stroke-linecap="round"/>
+  <path d="M260,172 Q264,186 262,202" fill="none" stroke="#FFD700" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M250,170 Q250,185 250,200" fill="none" stroke="#FFE566" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- ═══ ANNEAU CERCLE BLANC (séparateur entre rayons et visage) ═══ -->
+  <circle cx="250" cy="250" r="165" fill="none" stroke="white" stroke-width="8"/>
+  <circle cx="250" cy="250" r="160" fill="none" stroke="#2A0E5A" stroke-width="3"/>
+</svg>
