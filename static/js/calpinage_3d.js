@@ -617,6 +617,19 @@ class Calpinage3DViewer {
         let modulesRemaining = isFinite(maxPowerKw) ? Math.floor(maxPowerKw * 1000 / modulePowerW) : Infinity;
         let powerLimitReached = false;
 
+        // === Grille d'occupation inter-panneaux ===
+        // Évite les superpositions de modules entre panneaux Solar dont les polygon_2d
+        // se chevauchent ou sont adjacents. La résolution de cellule = demi-dimension
+        // minimale du module → deux modules à des positions identiques ou très proches
+        // partagent la même clé et seul le premier (meilleur pan en ensoleillement) est conservé.
+        const _occCellSize = Math.min(modAlong, modAcross) * 0.5;
+        const _occGrid = new Set();
+        const _occKey = (wx, wz) => {
+            const gx = Math.round(wx / _occCellSize);
+            const gz = Math.round(wz / _occCellSize);
+            return `${gx},${gz}`;
+        };
+
         indicesToProcess.forEach(pi => {
             if (powerLimitReached) return;
             const panel = panels[pi];
@@ -845,6 +858,11 @@ class Calpinage3DViewer {
                         }
                         if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
+
+                    // === Vérification anti-superposition inter-panneaux ===
+                    const _key = _occKey(worldX, worldZ);
+                    if (_occGrid.has(_key)) continue; // Cellule déjà occupée par un autre pan → skip
+                    _occGrid.add(_key);
 
                     // === Position et rotation du module 3D ===
                     const panel3d = new THREE.Mesh(
