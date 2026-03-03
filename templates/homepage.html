@@ -1,715 +1,809 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HeliaPV - Solution Intelligente pour Développeurs Photovoltaïques</title>
+    <title>HeliaPV &mdash; Outil territorial solaire gratuit pour les 35 000 communes de France</title>
+    <meta name="description" content="HeliaPV met à disposition des communes de France un outil d'analyse territoriale complet et gratuit : potentiel solaire, LiDAR IGN, cadastre, réseau Enedis, RPG, PLU.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --green:     #1a7c4f;
+            --green2:    #25a870;
+            --green-lt:  #e6f4ef;
+            --gold:      #f0b429;
+            --gold-lt:   #fff8e1;
+            --dark:      #0f1923;
+            --grey:      #f5f7fa;
+            --border:    #e2e8f0;
+            --text:      #1a202c;
+            --muted:     #64748b;
+            --radius:    14px;
+            --shadow:    0 8px 32px rgba(0,0,0,.09);
+            --shadow-lg: 0 20px 60px rgba(0,0,0,.14);
         }
-        
-        body {
-            background: #0a0e27;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        
-        .animated-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 25%, #2d1b4e 50%, #1a1f3a 75%, #0a0e27 100%);
-            background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
-            z-index: 0;
-        }
-        
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        
-        .particle {
-            position: absolute;
-            width: 3px;
-            height: 3px;
-            background: rgba(255, 183, 0, 0.6);
-            border-radius: 50%;
-            animation: float 20s infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
-        }
-        
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; color: var(--text); background: #fff; line-height: 1.65; overflow-x: hidden; }
+
+        /* ── NAV ── */
         .top-nav {
-            background: rgba(10, 14, 39, 0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255, 183, 0, 0.1);
-            padding: 20px 0;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(255,255,255,.97);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: .85rem 0;
         }
-        
-        .top-nav .navbar-brand {
-            font-size: 1.6rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #FFB700 0%, #FFA000 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -0.5px;
-        }
-        
-        .top-nav .user-info {
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.7);
-            font-weight: 500;
-        }
-        
-        .top-nav .btn {
-            margin-left: 12px;
-            font-weight: 600;
-            border-radius: 8px;
-            padding: 10px 24px;
-            transition: all 0.3s ease;
-        }
-        
-        .top-nav .btn-warning {
-            background: linear-gradient(135deg, #FFB700 0%, #FFA000 100%);
-            border: none;
-            color: #0a0e27;
-        }
-        
-        .top-nav .btn-warning:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(255, 183, 0, 0.4);
-        }
-        
-        .top-nav .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-        }
-        
-        .top-nav .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        
-        .top-nav .btn-outline-secondary {
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .top-nav .btn-outline-secondary:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-        
-        .top-nav .btn-outline-primary {
-            border: 1px solid rgba(255, 183, 0, 0.4);
-            color: #FFB700;
-        }
-        
-        .top-nav .btn-outline-primary:hover {
-            background: rgba(255, 183, 0, 0.1);
-            border-color: #FFB700;
-            color: #FFB700;
-        }
-        
+        .nav-logo { font-weight: 800; font-size: 1.3rem; color: var(--green); text-decoration: none; display: inline-flex; align-items: center; gap: .45rem; }
+        .nav-logo span { color: var(--gold); }
+        .nav-pill { background: var(--green-lt); color: var(--green); border: 1px solid #b8dece; border-radius: 20px; padding: .3rem .9rem; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+        .btn-nav-commune { background: var(--green); color: #fff !important; border: none; border-radius: 9px; padding: .55rem 1.3rem; font-size: .9rem; font-weight: 700; text-decoration: none; transition: background .2s, transform .15s; display: inline-flex; align-items: center; gap: .45rem; }
+        .btn-nav-commune:hover { background: var(--green2); transform: translateY(-1px); }
+        .btn-nav-login { color: var(--green) !important; border: 2px solid var(--green); border-radius: 9px; padding: .5rem 1.2rem; font-size: .9rem; font-weight: 600; text-decoration: none; transition: all .2s; display: inline-flex; align-items: center; gap: .45rem; }
+        .btn-nav-login:hover { background: var(--green-lt); }
+
+        /* ── HERO ── */
         .hero-section {
-            position: relative;
-            padding: 180px 0 120px 0;
-            color: white;
-            text-align: center;
-            z-index: 1;
+            padding: 7.5rem 0 4.5rem;
+            background: linear-gradient(160deg, #f0faf5 0%, #fffdf0 60%, #f0faf5 100%);
+            position: relative; overflow: hidden;
         }
-        
-        .badge-pro {
-            display: inline-block;
-            background: rgba(255, 183, 0, 0.15);
-            border: 1px solid rgba(255, 183, 0, 0.3);
-            color: #FFB700;
-            padding: 8px 20px;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            margin-bottom: 30px;
-        }
-        
-        .hero-section h1 {
-            font-size: 4.5rem;
-            font-weight: 900;
-            margin-bottom: 2rem;
-            line-height: 1.1;
-            letter-spacing: -2px;
-        }
-        
-        .gradient-text {
-            background: linear-gradient(135deg, #FFB700 0%, #FF8C00 50%, #FFB700 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-size: 200% auto;
-            animation: shimmer 3s linear infinite;
-        }
-        
-        @keyframes shimmer {
-            to { background-position: 200% center; }
-        }
-        
-        .subtitle {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            opacity: 0.9;
-            font-weight: 500;
-            line-height: 1.6;
-        }
-        
-        .highlight {
-            color: #FFB700;
-            font-weight: 700;
-        }
-        
-        .cta-button {
-            padding: 18px 45px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .cta-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-            transition: left 0.5s ease;
-        }
-        
-        .cta-button:hover::before {
-            left: 100%;
-        }
-        
-        .cta-primary {
-            background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);
-            color: #0a0e27;
-            border: none;
-            box-shadow: 0 8px 25px rgba(255, 183, 0, 0.3);
-        }
-        
-        .cta-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(255, 183, 0, 0.5);
-            color: #0a0e27;
-        }
-        
-        .cta-secondary {
-            background: transparent;
-            color: white;
-            border: 2px solid rgba(255, 183, 0, 0.5);
-        }
-        
-        .cta-secondary:hover {
-            background: rgba(255, 183, 0, 0.1);
-            border-color: #FFB700;
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(255, 183, 0, 0.3);
-            color: white;
-        }
-        
-        .trust-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 12px 24px;
-            border-radius: 50px;
-            border: 1px solid rgba(255, 183, 0, 0.2);
-            margin: 0 10px;
-        }
-        
-        .trust-indicator i {
-            color: #FFB700;
-            font-size: 1.2rem;
-        }
-        
-        .trust-indicator span {
-            color: rgba(255, 255, 255, 0.9);
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        
-        .features-section {
-            position: relative;
-            background: linear-gradient(180deg, rgba(10, 14, 39, 0.95) 0%, rgba(20, 25, 50, 0.98) 100%);
-            padding: 80px 0;
-            margin-top: 60px;
-            z-index: 1;
-        }
-        
-        .section-title {
-            font-size: 3rem;
-            font-weight: 800;
-            text-align: center;
-            margin-bottom: 1rem;
-            color: white;
-            letter-spacing: -1px;
-        }
-        
-        .section-subtitle {
-            text-align: center;
-            font-size: 1.2rem;
-            color: rgba(255, 255, 255, 0.6);
-            margin-bottom: 60px;
-            font-weight: 400;
-        }
-        
-        .feature-card {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 183, 0, 0.1);
-            border-radius: 20px;
-            padding: 40px;
-            height: 100%;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, rgba(255, 183, 0, 0.05) 0%, transparent 100%);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-12px) scale(1.02);
-            border-color: rgba(255, 183, 0, 0.4);
-            box-shadow: 0 25px 50px rgba(255, 183, 0, 0.2);
-        }
-        
-        .feature-card:hover::before {
-            opacity: 1;
-        }
-        
-        .feature-icon {
-            font-size: 3.5rem;
-            margin-bottom: 25px;
-            display: inline-block;
-            filter: drop-shadow(0 0 20px rgba(255, 183, 0, 0.3));
-        }
-        
-        .feature-card h3 {
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin-bottom: 18px;
-            color: white;
-            letter-spacing: -0.5px;
-        }
-        
-        .feature-card p {
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 25px;
-            line-height: 1.7;
-            font-size: 0.95rem;
-        }
-        
-        .tech-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            background: rgba(255, 183, 0, 0.1);
-            border: 1px solid rgba(255, 183, 0, 0.2);
-            border-radius: 20px;
-            margin: 5px;
-            font-size: 0.85rem;
-            color: #FFB700;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .tech-badge:hover {
-            background: rgba(255, 183, 0, 0.2);
-            border-color: rgba(255, 183, 0, 0.4);
-            transform: translateY(-2px);
-        }
-        
-        .stats-row {
-            background: linear-gradient(135deg, rgba(255, 183, 0, 0.1) 0%, rgba(255, 140, 0, 0.1) 100%);
-            border: 1px solid rgba(255, 183, 0, 0.2);
-            color: white;
-            padding: 40px;
-            border-radius: 20px;
-            margin: 40px 0;
-        }
-        
-        .stat-item {
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 3rem;
-            font-weight: 700;
-            display: block;
-            color: #FFB700;
-        }
-        
-        .stat-label {
-            font-size: 1.1rem;
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .workflow-section {
-            background: rgba(10, 14, 39, 0.95);
-            position: relative;
-            z-index: 1;
-            padding: 60px 0;
-        }
-        
-        .workflow-step {
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .workflow-number {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin: 0 auto 20px;
-            color: white;
-        }
-        
-        .workflow-step h5 {
-            color: white;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-        
-        .workflow-step p {
-            color: rgba(255, 255, 255, 0.6);
-        }
+        .hero-section::before { content:''; position:absolute; top:-80px; right:-120px; width:600px; height:600px; background:radial-gradient(circle,rgba(26,124,79,.07) 0%,transparent 70%); pointer-events:none; }
+        .hero-section::after  { content:''; position:absolute; bottom:-60px; left:-80px; width:400px; height:400px; background:radial-gradient(circle,rgba(240,180,41,.06) 0%,transparent 70%); pointer-events:none; }
+        .hero-badge { display:inline-flex; align-items:center; gap:.45rem; background:var(--green-lt); color:var(--green); border:1px solid #b8dece; border-radius:25px; padding:.45rem 1.1rem; font-size:.83rem; font-weight:700; margin-bottom:1.6rem; }
+        .hero-section h1 { font-size:clamp(2.1rem,5.5vw,3.5rem); font-weight:900; line-height:1.15; color:var(--dark); letter-spacing:-1.5px; margin-bottom:1.3rem; }
+        .hero-section h1 .accent { color: var(--green); }
+        .hero-lead { font-size:clamp(1rem,2vw,1.15rem); color:var(--muted); max-width:580px; margin-bottom:2.2rem; line-height:1.7; }
+        .hero-actions { display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:2rem; }
+        .btn-hero-primary { background:var(--green); color:#fff !important; border:none; border-radius:var(--radius); padding:.95rem 2.1rem; font-size:1.05rem; font-weight:700; text-decoration:none; box-shadow:0 6px 24px rgba(26,124,79,.32); transition:background .2s,transform .15s; display:inline-flex; align-items:center; gap:.5rem; }
+        .btn-hero-primary:hover { background:var(--green2); transform:translateY(-2px); }
+        .btn-hero-secondary { background:#fff; color:var(--green) !important; border:2px solid var(--green); border-radius:var(--radius); padding:.9rem 2rem; font-size:1.05rem; font-weight:600; text-decoration:none; transition:all .2s; display:inline-flex; align-items:center; gap:.5rem; }
+        .btn-hero-secondary:hover { background:var(--green-lt); }
+
+        /* Recherche commune */
+        .commune-search-bar { background:#fff; border-radius:var(--radius); padding:1.4rem 1.6rem; box-shadow:var(--shadow); border:1px solid var(--border); max-width:560px; margin-bottom:2rem; }
+        .commune-search-bar label { font-size:.82rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:.45rem; display:block; }
+        .search-row { display:flex; gap:.5rem; }
+        .search-input { flex:1; padding:.72rem 1rem; border:2px solid var(--border); border-radius:9px; font-size:.95rem; font-family:inherit; outline:none; transition:border-color .2s; }
+        .search-input:focus { border-color:var(--green); }
+        .btn-search { background:var(--green); color:#fff; border:none; border-radius:9px; padding:.72rem 1.4rem; font-weight:700; font-size:.93rem; font-family:inherit; cursor:pointer; transition:background .2s; white-space:nowrap; }
+        .btn-search:hover { background:var(--green2); }
+        .search-hint { font-size:.78rem; color:var(--muted); margin-top:.45rem; }
+        .search-wrap { position:relative; flex:1; }
+        #commune-dropdown { position:absolute; z-index:500; background:#fff; border:1.5px solid var(--border); border-top:none; border-radius:0 0 9px 9px; width:100%; max-height:220px; overflow-y:auto; display:none; top:100%; left:0; }
+        #commune-dropdown li { list-style:none; padding:.6rem 1rem; cursor:pointer; font-size:.9rem; border-bottom:1px solid #f1f5f9; transition:background .15s; }
+        #commune-dropdown li:hover { background:var(--green-lt); }
+        #commune-dropdown li small { color:var(--muted); font-size:.78rem; }
+
+        /* Carte hero */
+        .hero-map-frame { border-radius:18px; overflow:hidden; box-shadow:var(--shadow-lg); border:3px solid #fff; position:relative; }
+        .hero-map-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(0deg,rgba(0,0,0,.75) 0%,transparent 100%); padding:1.2rem 1.4rem; color:#fff; }
+        .layer-chips { display:flex; flex-wrap:wrap; gap:.35rem; }
+        .layer-chip { background:rgba(255,255,255,.15); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,.25); border-radius:15px; padding:.22rem .7rem; font-size:.72rem; font-weight:600; color:#fff; }
+        .layer-chip.green { background:rgba(26,124,79,.5); border-color:rgba(37,168,112,.6); }
+        .layer-chip.gold  { background:rgba(240,180,41,.45); border-color:rgba(240,180,41,.6); }
+        .layer-chip.blue  { background:rgba(59,130,246,.45); border-color:rgba(59,130,246,.6); }
+        .layer-chip.red   { background:rgba(220,38,38,.45); border-color:rgba(220,38,38,.6); }
+
+        /* ── STATS ── */
+        .stats-bar { background:var(--dark); padding:2rem 0; }
+        .stat-item { text-align:center; padding:.5rem 0; }
+        .stat-num { font-size:2.3rem; font-weight:900; color:var(--gold); display:block; letter-spacing:-1px; }
+        .stat-label { font-size:.78rem; color:#94a3b8; text-transform:uppercase; letter-spacing:.07em; }
+
+        /* ── SECTIONS ── */
+        .section-outer { padding:5.5rem 0; }
+        .section-outer.bg-grey { background:var(--grey); }
+        .section-tag { color:var(--green); font-weight:800; font-size:.78rem; text-transform:uppercase; letter-spacing:.1em; margin-bottom:.5rem; }
+        .section-h2 { font-size:clamp(1.7rem,3.5vw,2.5rem); font-weight:900; color:var(--dark); line-height:1.2; margin-bottom:1rem; letter-spacing:-.8px; }
+        .section-lead { color:var(--muted); font-size:1rem; max-width:580px; line-height:1.7; }
+
+        /* Capacité cards */
+        .cap-card { background:#fff; border-radius:var(--radius); padding:2rem; border:1.5px solid var(--border); height:100%; transition:box-shadow .22s,transform .22s,border-color .22s; }
+        .cap-card:hover { box-shadow:var(--shadow); transform:translateY(-4px); border-color:#b8dece; }
+        .cap-icon { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:1.1rem; }
+        .cap-icon.green { background:var(--green-lt); }
+        .cap-icon.gold  { background:var(--gold-lt); }
+        .cap-icon.blue  { background:#eff6ff; }
+        .cap-icon.red   { background:#fef2f2; }
+        .cap-icon.purple{ background:#f5f3ff; }
+        .cap-card h3 { font-size:1rem; font-weight:800; color:var(--dark); margin-bottom:.55rem; }
+        .cap-card p  { font-size:.88rem; color:var(--muted); line-height:1.65; margin-bottom:.9rem; }
+        .cap-tags { display:flex; flex-wrap:wrap; gap:.35rem; }
+        .cap-tag { background:var(--grey); border:1px solid var(--border); border-radius:12px; padding:.2rem .65rem; font-size:.72rem; font-weight:700; color:var(--muted); }
+        .cap-tag.green  { background:var(--green-lt); border-color:#b8dece; color:var(--green); }
+        .cap-tag.gold   { background:var(--gold-lt); border-color:#f0c040; color:#92600a; }
+        .cap-tag.blue   { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+        .cap-tag.red    { background:#fef2f2; border-color:#fecaca; color:#dc2626; }
+        .cap-tag.purple { background:#f5f3ff; border-color:#ddd6fe; color:#7c3aed; }
+
+        /* Data specs */
+        .data-spec { background:#fff; border-radius:var(--radius); padding:1.3rem 1.5rem; border:1px solid var(--border); display:flex; align-items:flex-start; gap:1rem; height:100%; }
+        .data-spec-icon { width:42px; height:42px; min-width:42px; border-radius:10px; background:var(--green-lt); display:flex; align-items:center; justify-content:center; font-size:1.2rem; }
+        .data-spec h5 { font-size:.93rem; font-weight:700; color:var(--dark); margin-bottom:.2rem; }
+        .data-spec p  { font-size:.82rem; color:var(--muted); margin:0; line-height:1.5; }
+
+        /* Steps */
+        .step-card { text-align:center; padding:1.5rem 1rem; position:relative; }
+        .step-num { width:60px; height:60px; border-radius:50%; background:var(--green); color:#fff; font-size:1.5rem; font-weight:900; display:inline-flex; align-items:center; justify-content:center; margin-bottom:1rem; box-shadow:0 6px 20px rgba(26,124,79,.28); }
+        .step-connector { position:absolute; top:2.3rem; left:60%; width:80%; height:2px; background:linear-gradient(90deg,#b8dece,transparent); }
+        .step-card h5 { font-weight:800; color:var(--dark); margin-bottom:.4rem; }
+        .step-card p  { font-size:.88rem; color:var(--muted); }
+
+        /* Source badges */
+        .source-grid { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1.5rem; }
+        .source-badge { background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:.45rem 1rem; font-size:.82rem; font-weight:700; color:var(--text); display:inline-flex; align-items:center; gap:.4rem; transition:border-color .2s,box-shadow .2s; }
+        .source-badge:hover { border-color:var(--green); box-shadow:0 2px 10px rgba(26,124,79,.12); }
+        .source-dot { width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0; }
+        .source-dot.gold   { background:var(--gold); }
+        .source-dot.blue   { background:#3b82f6; }
+        .source-dot.red    { background:#ef4444; }
+        .source-dot.orange { background:#f97316; }
+
+        /* ── SPONSOR ── */
+        .sponsor-section { background:var(--dark); padding:5rem 0; text-align:center; }
+        .sponsor-h2 { color:#fff; font-size:clamp(1.6rem,3vw,2.2rem); font-weight:900; margin-bottom:.8rem; }
+        .sponsor-lead { color:#94a3b8; margin-bottom:3rem; max-width:620px; margin-left:auto; margin-right:auto; font-size:1rem; }
+        .sponsor-logos-row { display:flex; flex-wrap:wrap; gap:1.2rem; justify-content:center; align-items:center; margin-bottom:3.5rem; }
+        .sponsor-slot { background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.12); border-radius:12px; padding:1rem 2rem; color:#cbd5e1; font-weight:700; font-size:.85rem; letter-spacing:.04em; min-width:140px; text-align:center; transition:background .2s,border-color .2s; }
+        .sponsor-slot:hover { background:rgba(255,255,255,.1); border-color:rgba(240,180,41,.35); }
+        .sponsor-slot.active { background:rgba(240,180,41,.1); border-color:rgba(240,180,41,.35); color:var(--gold); }
+        .sponsor-cta-box { background:rgba(240,180,41,.1); border:1px solid rgba(240,180,41,.3); border-radius:var(--radius); padding:2.5rem 3rem; max-width:680px; margin:0 auto; color:#fff; }
+        .sponsor-cta-box h3 { font-size:1.3rem; font-weight:800; color:var(--gold); margin-bottom:.7rem; }
+        .sponsor-cta-box p { color:#94a3b8; font-size:.93rem; margin-bottom:1.5rem; line-height:1.7; }
+        .sponsor-benefits { display:flex; flex-wrap:wrap; gap:.5rem; justify-content:center; margin-bottom:1.5rem; }
+        .sponsor-benefit { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:.35rem .85rem; font-size:.82rem; color:#e2e8f0; font-weight:600; }
+        .btn-sponsor { display:inline-flex; align-items:center; gap:.4rem; background:var(--gold); color:var(--dark) !important; border:none; border-radius:10px; padding:.85rem 2rem; font-weight:800; font-size:.98rem; text-decoration:none; transition:opacity .2s,transform .15s; }
+        .btn-sponsor:hover { opacity:.88; transform:translateY(-2px); }
+
+        /* ── INSCRIPTION MAIRIE ── */
+        .mairie-section { background:linear-gradient(135deg,var(--green-lt) 0%,#f0faf5 100%); padding:5.5rem 0; }
+        .mairie-inner { max-width:720px; margin:0 auto; text-align:center; padding: 0 1rem; }
+        .mairie-form { background:#fff; border-radius:18px; box-shadow:var(--shadow-lg); padding:2.5rem 2rem; margin-top:2.5rem; border:1px solid #b8dece; text-align:left; }
+        .form-group { margin-bottom:1rem; }
+        .form-label-custom { font-size:.82rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:.35rem; display:block; }
+        .form-control-custom { width:100%; padding:.75rem 1rem; border:2px solid var(--border); border-radius:9px; font-size:.93rem; font-family:inherit; outline:none; transition:border-color .2s; background:#fff; }
+        .form-control-custom:focus { border-color:var(--green); }
+        .btn-submit { width:100%; background:var(--green); color:#fff; border:none; border-radius:10px; padding:1rem 2rem; font-size:1.02rem; font-weight:800; cursor:pointer; transition:background .2s,transform .15s; display:flex; align-items:center; justify-content:center; gap:.5rem; font-family:inherit; margin-top:.5rem; }
+        .btn-submit:hover { background:var(--green2); transform:translateY(-1px); }
+        .form-note { font-size:.78rem; color:var(--muted); margin-top:.6rem; text-align:center; }
+        .free-badge { display:inline-flex; align-items:center; gap:.4rem; background:#fff; border:2px solid var(--green); color:var(--green); border-radius:20px; padding:.4rem 1rem; font-weight:800; font-size:.85rem; margin-bottom:1rem; }
+
+        /* ── FOOTER ── */
+        .footer-bar { background:#fff; border-top:1px solid var(--border); padding:1.5rem 0; text-align:center; color:var(--muted); font-size:.83rem; }
+        .footer-bar a { color:var(--green); text-decoration:none; font-weight:600; }
+        .footer-bar a:hover { text-decoration:underline; }
+
+        @media (max-width: 991px) { .hero-visual { margin-top: 2.5rem; } }
+        @media (max-width: 600px) { .step-connector { display:none; } .sponsor-cta-box { padding:1.8rem 1.2rem; } }
     </style>
 </head>
 <body>
-    <div class="animated-bg"></div>
-    
-    <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
-    <div class="particle" style="left: 20%; animation-delay: 2s;"></div>
-    <div class="particle" style="left: 30%; animation-delay: 4s;"></div>
-    <div class="particle" style="left: 40%; animation-delay: 1s;"></div>
-    <div class="particle" style="left: 50%; animation-delay: 3s;"></div>
-    <div class="particle" style="left: 60%; animation-delay: 5s;"></div>
-    <div class="particle" style="left: 70%; animation-delay: 2.5s;"></div>
-    <div class="particle" style="left: 80%; animation-delay: 4.5s;"></div>
-    <div class="particle" style="left: 90%; animation-delay: 1.5s;"></div>
-    
-    <nav class="top-nav">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="navbar-brand">
-                    <i class="bi bi-sun"></i> HeliaPV
+
+<!-- ══════════════════════ NAV ══════════════════════ -->
+<nav class="top-nav">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <a href="/" class="nav-logo">
+                <i class="bi bi-sun-fill"></i> Helia<span>PV</span>
+            </a>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="nav-pill d-none d-md-inline-flex">
+                    <i class="bi bi-building"></i>&nbsp;Gratuit pour les communes
+                </span>
+                <a href="#sponsors" class="text-decoration-none d-none d-lg-block"
+                   style="color:var(--muted);font-size:.88rem;font-weight:600;">
+                    Partenaires &eacute;nergie
+                </a>
+                <a href="#inscription" class="btn-nav-commune">
+                    <i class="bi bi-building-fill-add"></i> Inscrire ma commune
+                </a>
+                {% if current_user %}
+                    <a href="/app" class="btn-nav-login">
+                        <i class="bi bi-app-indicator"></i> Application
+                    </a>
+                {% else %}
+                    <a href="/login" class="btn-nav-login">
+                        <i class="bi bi-box-arrow-in-right"></i> Connexion
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- ══════════════════════ HERO ══════════════════════ -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center g-5">
+
+            <!-- Colonne gauche -->
+            <div class="col-lg-6">
+                <div class="hero-badge">
+                    <i class="bi bi-check-circle-fill"></i>
+                    Gratuit &middot; Officiel &middot; Sans engagement
                 </div>
-                <div class="d-flex align-items-center">
-                    {% if current_user.is_authenticated %}
-                        <span class="user-info">Bienvenue, {{ current_user.email }}</span>
-                        <a href="/admin" class="btn btn-warning">Administration</a>
-                        <a href="/app" class="btn btn-primary">Application</a>
-                        <a href="/logout" class="btn btn-outline-secondary">Déconnexion</a>
-                    {% else %}
-                        <a href="/login" class="btn btn-outline-primary">Se connecter</a>
-                    {% endif %}
+
+                <h1>
+                    Votre territoire<br>
+                    <span class="accent">cartographi&eacute;</span> et analys&eacute;<br>
+                    pour l&rsquo;&eacute;nergie solaire
+                </h1>
+
+                <p class="hero-lead">
+                    HeliaPV met &agrave; disposition de toutes les
+                    <strong>communes de France</strong> un outil d&rsquo;analyse territoriale
+                    avanc&eacute;&nbsp;: potentiel solaire, donn&eacute;es LiDAR IGN, cadastre,
+                    r&eacute;seau Enedis, zones RPG&hellip;
+                    <strong>100&nbsp;% gratuit</strong>, financ&eacute; par nos partenaires
+                    de l&rsquo;&eacute;nergie.
+                </p>
+
+                <!-- Barre de recherche commune -->
+                <div class="commune-search-bar">
+                    <label>Acc&eacute;der au tableau de bord de votre commune</label>
+                    <div class="search-row">
+                        <div class="search-wrap">
+                            <input type="text" class="search-input" id="commune-input"
+                                   placeholder="Nom ou code postal de la commune&hellip;"
+                                   autocomplete="off">
+                            <ul id="commune-dropdown"></ul>
+                        </div>
+                        <button class="btn-search" onclick="launchCommune()">
+                            <i class="bi bi-arrow-right-circle-fill"></i> Explorer
+                        </button>
+                    </div>
+                    <p class="search-hint">
+                        <i class="bi bi-geo-alt"></i>
+                        Acc&egrave;s direct &agrave; la carte territoriale de votre commune
+                    </p>
+                </div>
+
+                <div class="hero-actions">
+                    <a href="#capacites" class="btn-hero-secondary">
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Voir toutes les capacit&eacute;s
+                    </a>
+                </div>
+            </div>
+
+            <!-- Colonne droite — illustration carte -->
+            <div class="col-lg-6 hero-visual">
+                <div class="hero-map-frame">
+                    <div style="width:100%;aspect-ratio:4/3;background:linear-gradient(160deg,#0f2d1f 0%,#1a4a30 30%,#0d3320 60%,#1a3d2b 100%);position:relative;overflow:hidden;">
+                        <svg width="100%" height="100%" style="position:absolute;top:0;left:0;opacity:.25" xmlns="http://www.w3.org/2000/svg">
+                            <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#4ade80" stroke-width="0.5"/></pattern></defs>
+                            <rect width="100%" height="100%" fill="url(#grid)"/>
+                        </svg>
+                        <svg width="100%" height="100%" style="position:absolute;top:0;left:0" xmlns="http://www.w3.org/2000/svg">
+                            <polygon points="120,80 200,60 230,130 160,155" fill="rgba(255,215,0,.35)" stroke="#ffd700" stroke-width="2" opacity=".8"/>
+                            <polygon points="250,70 340,55 370,120 290,140" fill="rgba(255,215,0,.25)" stroke="#ffd700" stroke-width="2" opacity=".8"/>
+                            <polygon points="80,170 170,155 195,230 105,240" fill="rgba(37,168,112,.5)" stroke="#25a870" stroke-width="2"/>
+                            <polygon points="200,160 290,145 310,210 220,225" fill="rgba(37,168,112,.35)" stroke="#25a870" stroke-width="2"/>
+                            <polygon points="340,150 430,140 440,210 355,220" fill="rgba(59,130,246,.4)" stroke="#3b82f6" stroke-width="2"/>
+                            <line x1="50" y1="200" x2="480" y2="140" stroke="#ef4444" stroke-width="2.5" stroke-dasharray="8,4" opacity=".85"/>
+                            <circle cx="160" cy="135" r="7" fill="#ffd700" opacity=".9"/>
+                            <circle cx="300" cy="100" r="5" fill="#ef4444" opacity=".9"/>
+                            <circle cx="380" cy="175" r="5" fill="#60a5fa" opacity=".9"/>
+                            <text x="15" y="20" fill="rgba(255,255,255,.4)" font-size="9" font-family="monospace">LiDAR HD IGN &bull; 25 cm &bull; 20 pts/m&sup2;</text>
+                        </svg>
+                        <div class="hero-map-overlay">
+                            <div style="font-size:.78rem;font-weight:700;color:rgba(255,255,255,.65);margin-bottom:.5rem;">
+                                Couches actives
+                            </div>
+                            <div class="layer-chips">
+                                <span class="layer-chip gold">&#127807; RPG 2024</span>
+                                <span class="layer-chip green">&#127968; Cadastre</span>
+                                <span class="layer-chip blue">&#9889; Enedis HTA</span>
+                                <span class="layer-chip red">&#128308; Postes HTA</span>
+                                <span class="layer-chip">&#128208; LiDAR IGN</span>
+                                <span class="layer-chip">&#128506; PLU / GPU</span>
+                                <span class="layer-chip green">&#127807; Natura 2000</span>
+                                <span class="layer-chip gold">&#9728; Irradiation</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </nav>
+    </div>
+</section>
 
-    <div class="hero-section">
-        <div class="container">
-            <div class="badge-pro">
-                <i class="bi bi-lightning-charge-fill"></i> Plateforme Professionnelle
+<!-- ══════════════════════ STATS BAR ══════════════════════ -->
+<div class="stats-bar">
+    <div class="container">
+        <div class="row g-3 justify-content-center text-center">
+            <div class="col-6 col-lg-2 stat-item">
+                <span class="stat-num">35&nbsp;000</span>
+                <span class="stat-label">Communes couvertes</span>
             </div>
-            <h1>
-                La solution <span class="gradient-text">tout-en-un</span><br>
-                pour développeurs photovoltaïques
-            </h1>
-            <p class="subtitle">
-                De la <span class="highlight">prospection géolocalisée</span> au <span class="highlight">suivi de chantier</span> :<br>
-                pilotez vos projets solaires avec une efficacité maximale
+            <div class="col-6 col-lg-2 stat-item">
+                <span class="stat-num">20&nbsp;pts/m&sup2;</span>
+                <span class="stat-label">Pr&eacute;cision LiDAR IGN</span>
+            </div>
+            <div class="col-6 col-lg-2 stat-item">
+                <span class="stat-num">18+</span>
+                <span class="stat-label">Couches SIG disponibles</span>
+            </div>
+            <div class="col-6 col-lg-2 stat-item">
+                <span class="stat-num">30s</span>
+                <span class="stat-label">Rapport territoire PDF</span>
+            </div>
+            <div class="col-6 col-lg-2 stat-item">
+                <span class="stat-num">100&nbsp;%</span>
+                <span class="stat-label">Gratuit pour les mairies</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════ CAPACITÉS ══════════════════════ -->
+<section class="section-outer" id="capacites">
+    <div class="container">
+        <div class="row align-items-end mb-5">
+            <div class="col-lg-8">
+                <div class="section-tag">Capacit&eacute;s techniques</div>
+                <h2 class="section-h2">
+                    Ce que HeliaPV analyse<br>sur votre territoire
+                </h2>
+                <p class="section-lead">
+                    Une plateforme b&acirc;tie sur des donn&eacute;es officielles (IGN, Enedis,
+                    G&eacute;orisques, cadastre, PVGIS) pour donner &agrave; chaque commune
+                    une vision pr&eacute;cise de son potentiel solaire.
+                </p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <a href="#inscription" class="btn-hero-primary">
+                    <i class="bi bi-send-fill"></i> Acc&eacute;der gratuitement
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+
+            <!-- Carte SIG -->
+            <div class="col-md-6 col-xl-4">
+                <div class="cap-card h-100">
+                    <div class="cap-icon green">
+                        <i class="bi bi-map-fill" style="color:var(--green)"></i>
+                    </div>
+                    <h3>Cartographie SIG multi-couches</h3>
+                    <p>Visualisez la totalit&eacute; du territoire communal avec superposition de donn&eacute;es&nbsp;: parcelles cadastrales, zones PLU, agriculture (RPG 2024), occupation du sol, b&acirc;timents IGN BD&nbsp;TOPO.</p>
+                    <div class="cap-tags">
+                        <span class="cap-tag green">Cadastre DGFiP</span>
+                        <span class="cap-tag green">RPG 2024 IGN</span>
+                        <span class="cap-tag green">BD TOPO</span>
+                        <span class="cap-tag blue">PLU / GPU</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LiDAR -->
+            <div class="col-md-6 col-xl-4">
+                <div class="cap-card h-100">
+                    <div class="cap-icon gold">
+                        <i class="bi bi-layers-fill" style="color:#a06b00"></i>
+                    </div>
+                    <h3>Analyse LiDAR IGN haute pr&eacute;cision</h3>
+                    <p>Exploitation du nuage de points LiDAR HD IGN (r&eacute;solution 25&nbsp;cm, 20&nbsp;pts/m&sup2;). D&eacute;tection automatique des pentes de toiture, orientations, surfaces disponibles et hauteurs de b&acirc;timent par algorithme RANSAC multi-plan.</p>
+                    <div class="cap-tags">
+                        <span class="cap-tag gold">LiDAR HD 25 cm</span>
+                        <span class="cap-tag gold">RANSAC multi-plan</span>
+                        <span class="cap-tag">MNH IGN</span>
+                        <span class="cap-tag">Nuage COPC</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Réseau Enedis -->
+            <div class="col-md-6 col-xl-4">
+                <div class="cap-card h-100">
+                    <div class="cap-icon blue">
+                        <i class="bi bi-lightning-charge-fill" style="color:#1d4ed8"></i>
+                    </div>
+                    <h3>R&eacute;seau &eacute;lectrique Enedis</h3>
+                    <p>Cartographie compl&egrave;te des lignes HTA a&eacute;riennes et souterraines, postes de transformation HTA/BTA et points d&rsquo;injection Enedis. Estimation des capacit&eacute;s d&rsquo;accueil pour vos projets solaires.</p>
+                    <div class="cap-tags">
+                        <span class="cap-tag blue">Lignes HTA</span>
+                        <span class="cap-tag blue">Postes HTA/BTA</span>
+                        <span class="cap-tag blue">Enedis Open Data</span>
+                        <span class="cap-tag blue">Capacit&eacute; injection</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risques -->
+            <div class="col-md-6 col-xl-4">
+                <div class="cap-card h-100">
+                    <div class="cap-icon red">
+                        <i class="bi bi-shield-exclamation" style="color:#dc2626"></i>
+                    </div>
+                    <h3>Risques &amp; contraintes r&eacute;glementaires</h3>
+                    <p>Zones Natura 2000, ZNIEFF, ICPE, plans de pr&eacute;vention des risques naturels (PPR inondation, s&eacute;isme, retrait-gonflement argile). Identifiez imm&eacute;diatement les contraintes avant toute &eacute;tude.</p>
+                    <div class="cap-tags">
+                        <span class="cap-tag red">G&eacute;oRisques API</span>
+                        <span class="cap-tag red">Natura 2000</span>
+                        <span class="cap-tag red">ZNIEFF</span>
+                        <span class="cap-tag red">PPRn</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulation solaire -->
+            <div class="col-md-6 col-xl-4">
+                <div class="cap-card h-100">
+                    <div class="cap-icon gold">
+                        <i class="bi bi-sun-fill" style="color:#a06b00"></i>
+                    </div>
+                    <h3>Simulation solaire &amp; irradiation</h3>
+                    <p>Carte d&rsquo;irradiation annuelle pixel par pixel (heatmap), simulation de production par PVGIS, potentiel photovolta&iuml;que par m&sup2; de toiture, autoconsommation simul&eacute;e sur 25&nbsp;ans. Google Solar API int&eacute;gr&eacute;e.</p>
+                    <div class="cap-tags">
+                        <span class="cap-tag gold">PVGIS API</span>
+                        <span class="cap-tag gold">Google Solar</span>
+                        <span class="cap-tag gold">Heatmap flux</span>
+                        <span class="cap-tag">kWh/kWc/an</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rapports PDF -->
+            <div class="col-md-6 col-xl-4">
+                <div class="cap-card h-100">
+                    <div class="cap-icon purple">
+                        <i class="bi bi-file-earmark-pdf-fill" style="color:#7c3aed"></i>
+                    </div>
+                    <h3>Rapports territoriaux exportables</h3>
+                    <p>Export PDF complet en 30 secondes&nbsp;: synth&egrave;se du potentiel solaire communal, surfaces disponibles par cat&eacute;gorie (toitures, parkings, terrain agricole), contraintes, r&eacute;seau et pr&eacute;conisations.</p>
+                    <div class="cap-tags">
+                        <span class="cap-tag">Export PDF</span>
+                        <span class="cap-tag">Rapport complet</span>
+                        <span class="cap-tag">Donn&eacute;es IGN</span>
+                        <span class="cap-tag purple">Partage mairie</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Spécifications données officielles -->
+        <div class="row g-3 mt-4">
+            <div class="col-12">
+                <div class="section-tag mt-2">Pr&eacute;cision des donn&eacute;es</div>
+                <h3 class="section-h2" style="font-size:1.55rem;">Donn&eacute;es de r&eacute;f&eacute;rence officielles</h3>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="data-spec">
+                    <div class="data-spec-icon">&#128225;</div>
+                    <div>
+                        <h5>LiDAR IGN HD</h5>
+                        <p>R&eacute;solution 25&nbsp;cm &middot; 20&nbsp;pts/m&sup2; &middot; Couverture nationale progressive</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="data-spec">
+                    <div class="data-spec-icon">&#127968;</div>
+                    <div>
+                        <h5>Cadastre DGFiP</h5>
+                        <p>Donn&eacute;es parcellaires actualis&eacute;es en continu &middot; Acc&egrave;s API officiel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="data-spec">
+                    <div class="data-spec-icon">&#9889;</div>
+                    <div>
+                        <h5>Enedis Open Data</h5>
+                        <p>R&eacute;seau HTA/BTA &middot; Postes &middot; Capacit&eacute;s d&rsquo;accueil actualis&eacute;es</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="data-spec">
+                    <div class="data-spec-icon">&#9728;</div>
+                    <div>
+                        <h5>PVGIS Europe</h5>
+                        <p>Base Copernicus SARAH-3 &middot; 40&nbsp;ans de donn&eacute;es m&eacute;t&eacute;o &middot; &plusmn;5&nbsp;%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════ SOURCES TECHNIQUES ══════════════════════ -->
+<section class="section-outer bg-grey">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-5 mb-4 mb-lg-0">
+                <div class="section-tag">Stack &amp; sources</div>
+                <h2 class="section-h2">Connect&eacute; aux meilleures<br>donn&eacute;es open data</h2>
+                <p class="section-lead">
+                    HeliaPV agr&egrave;ge en temps r&eacute;el les APIs des organismes officiels
+                    fran&ccedil;ais et europ&eacute;ens pour fournir une analyse territoriale toujours &agrave; jour.
+                </p>
+                <div class="mt-4">
+                    <a href="#inscription" class="btn-hero-primary" style="font-size:.93rem;padding:.75rem 1.7rem;">
+                        <i class="bi bi-building-check"></i> Acc&egrave;s gratuit pour ma commune
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="source-grid">
+                    <span class="source-badge"><span class="source-dot"></span>LiDAR HD IGN</span>
+                    <span class="source-badge"><span class="source-dot"></span>BD TOPO IGN</span>
+                    <span class="source-badge"><span class="source-dot gold"></span>PVGIS (JRC)</span>
+                    <span class="source-badge"><span class="source-dot blue"></span>Enedis Open Data</span>
+                    <span class="source-badge"><span class="source-dot"></span>Cadastre DGFiP</span>
+                    <span class="source-badge"><span class="source-dot red"></span>G&eacute;oRisques API</span>
+                    <span class="source-badge"><span class="source-dot"></span>RPG 2024 (ASP)</span>
+                    <span class="source-badge"><span class="source-dot blue"></span>API GPU Urbanisme</span>
+                    <span class="source-badge"><span class="source-dot"></span>OSM / Overpass</span>
+                    <span class="source-badge"><span class="source-dot gold"></span>Google Solar API</span>
+                    <span class="source-badge"><span class="source-dot orange"></span>API Adresse BAN</span>
+                    <span class="source-badge"><span class="source-dot"></span>SIRENE INSEE</span>
+                    <span class="source-badge"><span class="source-dot red"></span>Natura 2000 (INPN)</span>
+                    <span class="source-badge"><span class="source-dot"></span>GeoServer PostGIS</span>
+                    <span class="source-badge"><span class="source-dot blue"></span>Leaflet.js</span>
+                    <span class="source-badge"><span class="source-dot orange"></span>Flask / PostgreSQL</span>
+                    <span class="source-badge"><span class="source-dot"></span>COPC Streaming</span>
+                    <span class="source-badge"><span class="source-dot gold"></span>COPERNICUS SARAH-3</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════ COMMENT ÇA MARCHE ══════════════════════ -->
+<section class="section-outer">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-tag">D&eacute;marrage en 3 &eacute;tapes</div>
+            <h2 class="section-h2">Simple, rapide,<br>sans installation</h2>
+            <p class="section-lead mx-auto">
+                Du premier acc&egrave;s &agrave; l&rsquo;export de rapport, HeliaPV fonctionne enti&egrave;rement
+                dans le navigateur. Aucun logiciel &agrave; installer.
             </p>
-            <div class="mt-5">
-                <a href="/register" class="cta-button cta-primary me-3">
-                    <i class="bi bi-lightning-fill"></i> Essai gratuit 7 jours
-                </a>
-                <a href="/login" class="cta-button cta-secondary">
-                    <i class="bi bi-box-arrow-in-right"></i> Se connecter
-                </a>
-            </div>
-            <div class="mt-5 pt-4">
-                <div class="trust-indicator">
-                    <i class="bi bi-shield-check"></i>
-                    <span>Données cadastrales officielles</span>
-                </div>
-                <div class="trust-indicator">
-                    <i class="bi bi-speedometer2"></i>
-                    <span>Rapports en 30 secondes</span>
-                </div>
-                <div class="trust-indicator">
-                    <i class="bi bi-database-check"></i>
-                    <span>36 000 communes référencées</span>
-                </div>
-            </div>
         </div>
-    </div>
-
-    <div class="features-section">
-        <div class="container">
-            <h2 class="section-title">Votre arsenal complet de développement PV</h2>
-            <p class="section-subtitle">Chaque fonctionnalité pensée pour gagner du temps et signer plus de contrats</p>
-
-            <div class="row g-4 mb-5">
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">🗺️</div>
-                        <h3>Prospection géographique intelligente</h3>
-                        <p>Identifiez instantanément les toitures commerciales, parkings ombrières, friches industrielles et terrains agricoles valorisables. Données cadastrales + OSM + RPG intégrées.</p>
-                        <div>
-                            <span class="tech-badge">Leaflet.js</span>
-                            <span class="tech-badge">GeoServer</span>
-                            <span class="tech-badge">PostGIS</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">📊</div>
-                        <h3>Études de faisabilité automatisées</h3>
-                        <p>Générez en 30 secondes un rapport complet : contraintes PLU, zones protégées, risques naturels, capacité d'accueil Enedis. Présentez-vous chez vos prospects avec toutes les réponses.</p>
-                        <div>
-                            <span class="tech-badge">API Géorisques</span>
-                            <span class="tech-badge">API GPU</span>
-                            <span class="tech-badge">Enedis ODR</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">👥</div>
-                        <h3>Pipeline commercial structuré</h3>
-                        <p>Workflow en 11 étapes de la prospection à la mise en service Consuel. Suivez chaque projet, partagez avec votre équipe, ne laissez plus aucune opportunité s'échapper.</p>
-                        <div>
-                            <span class="tech-badge">Flask</span>
-                            <span class="tech-badge">PostgreSQL</span>
-                            <span class="tech-badge">Dashboard KPI</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">☀️</div>
-                        <h3>Calepinage sur mesure en direct</h3>
-                        <p>Dessinez vos zones d'implantation directement sur la carte. Le système calcule automatiquement puissance crête, nombre de modules, orientation optimale. Impressionnez vos clients en RDV.</p>
-                        <div>
-                            <span class="tech-badge">Leaflet.draw</span>
-                            <span class="tech-badge">PVGIS API</span>
-                            <span class="tech-badge">Calculs auto</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">📄</div>
-                        <h3>Propositions commerciales clés en main</h3>
-                        <p>Générez un PDF pro de 12 pages : devis conforme NF C 15-752-1, étude autoconso personnalisée, ROI sur 25 ans, planning, garanties. Signez plus vite avec des documents qui rassurent.</p>
-                        <div>
-                            <span class="tech-badge">ReportLab</span>
-                            <span class="tech-badge">Matplotlib</span>
-                            <span class="tech-badge">NF C 15-752-1</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
-                        <h3>Simulations énergétiques précises</h3>
-                        <p>Powered by PVGIS : production mensuelle réelle, courbes autoconsommation, calcul économique sur 25 ans. Argumentez avec des données scientifiques, pas des promesses.</p>
-                        <div>
-                            <span class="tech-badge">PVGIS</span>
-                            <span class="tech-badge">Graphiques</span>
-                            <span class="tech-badge">ROI 25 ans</span>
-                        </div>
-                    </div>
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-4 position-relative">
+                <div class="step-card">
+                    <div class="step-connector d-none d-md-block"></div>
+                    <div class="step-num">1</div>
+                    <h5>Inscrivez votre commune</h5>
+                    <p>Renseignez simplement votre commune et votre email. Votre acc&egrave;s gratuit est cr&eacute;&eacute; instantan&eacute;ment, aucune CB requise.</p>
                 </div>
             </div>
-
-            <div class="stats-row">
-                <div class="row">
-                    <div class="col-md-3 stat-item">
-                        <span class="stat-number">11</span>
-                        <span class="stat-label">Étapes de pipeline</span>
-                    </div>
-                    <div class="col-md-3 stat-item">
-                        <span class="stat-number">30s</span>
-                        <span class="stat-label">Génération rapport</span>
-                    </div>
-                    <div class="col-md-3 stat-item">
-                        <span class="stat-number">15+</span>
-                        <span class="stat-label">Couches SIG</span>
-                    </div>
-                    <div class="col-md-3 stat-item">
-                        <span class="stat-number">24/7</span>
-                        <span class="stat-label">Accessible cloud</span>
-                    </div>
+            <div class="col-md-4 position-relative">
+                <div class="step-card">
+                    <div class="step-connector d-none d-md-block"></div>
+                    <div class="step-num">2</div>
+                    <h5>Explorez votre territoire</h5>
+                    <p>La carte s&rsquo;ouvre centr&eacute;e sur votre commune. Activez les couches&nbsp;: cadastre, LiDAR, Enedis, RPG, risques naturels&hellip;</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="step-card">
+                    <div class="step-num">3</div>
+                    <h5>Exportez votre rapport</h5>
+                    <p>G&eacute;n&eacute;rez en 30 secondes un rapport PDF territorial &agrave; partager avec &eacute;lus, partenaires ou d&eacute;veloppeurs ENR.</p>
                 </div>
             </div>
         </div>
     </div>
+</section>
 
-    <div class="workflow-section">
-        <div class="container">
-            <h2 class="section-title">Votre méthode structurée, de A à Z</h2>
-            <p class="section-subtitle">Un processus éprouvé qui transforme les prospects en centrales installées</p>
-
-            <div class="row g-4">
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">1</div>
-                        <h5>Prospection terrain</h5>
-                        <p>Rapport automatique urbanisme + faisabilité</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">2</div>
-                        <h5>Visite technique</h5>
-                        <p>Check-list métier + photos géolocalisées</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">3</div>
-                        <h5>Calepinage précis</h5>
-                        <p>Modules, puissance, orientation auto</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">4</div>
-                        <h5>Simulation PVGIS</h5>
-                        <p>Production réelle + autoconso</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">5</div>
-                        <h5>Proposition pro</h5>
-                        <p>PDF 12 pages conforme NF</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">6-8</div>
-                        <h5>Démarches admin</h5>
-                        <p>DP, PC, DDR Enedis trackés</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">9-10</div>
-                        <h5>Installation</h5>
-                        <p>Commande matériel + chantier</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">11</div>
-                        <h5>Mise en service</h5>
-                        <p>Consuel + Activation Enedis</p>
-                    </div>
-                </div>
-            </div>
+<!-- ══════════════════════ SPONSORS ══════════════════════ -->
+<section class="sponsor-section" id="sponsors">
+    <div class="container">
+        <div class="sponsor-h2">
+            Mod&egrave;le gratuit pour les communes,<br>financ&eacute; par les acteurs de l&rsquo;&eacute;nergie
         </div>
-    </div>
-
-    <div class="container py-5" style="position: relative; z-index: 1;">
-        <div class="text-center mb-4">
-            <h2 class="section-title" style="font-size: 2.5rem;">Stack technique professionnel</h2>
-            <p class="section-subtitle">Des API fiables, des données officielles, zéro approximation</p>
-        </div>
-        <div class="text-center">
-            <span class="tech-badge"><i class="bi bi-server"></i> Flask + PostgreSQL</span>
-            <span class="tech-badge"><i class="bi bi-map"></i> Leaflet + GeoServer</span>
-            <span class="tech-badge"><i class="bi bi-database"></i> PostGIS</span>
-            <span class="tech-badge"><i class="bi bi-file-pdf"></i> ReportLab</span>
-            <span class="tech-badge"><i class="bi bi-cloud"></i> Railway</span>
-            <span class="tech-badge"><i class="bi bi-sun"></i> PVGIS</span>
-            <span class="tech-badge"><i class="bi bi-building"></i> GPU</span>
-            <span class="tech-badge"><i class="bi bi-exclamation-triangle"></i> Géorisques</span>
-            <span class="tech-badge"><i class="bi bi-lightning"></i> Enedis</span>
-            <span class="tech-badge"><i class="bi bi-geo-alt"></i> API Adresse</span>
-            <span class="tech-badge"><i class="bi bi-map-fill"></i> OSM</span>
-            <span class="tech-badge"><i class="bi bi-diagram-3"></i> Cadastre</span>
-        </div>
-    </div>
-
-    <div class="container text-center py-5 mb-5" style="position: relative; z-index: 1;">
-        <h2 class="section-title" style="font-size: 3.5rem; margin-bottom: 1.5rem;">
-            Arrêtez de perdre du temps.<br>Développez plus vite.
-        </h2>
-        <p class="section-subtitle" style="font-size: 1.3rem; margin-bottom: 3rem;">
-            Rejoignez les développeurs PV qui transforment leur prospection en pipeline structuré
+        <p class="sponsor-lead">
+            HeliaPV est enti&egrave;rement gratuit pour les 35&nbsp;000 communes de France gr&acirc;ce au soutien
+            de partenaires industriels &eacute;nerg&eacute;tiques qui co-financent la plateforme en &eacute;change
+            d&rsquo;une visibilit&eacute; territoriale cible&eacute;e.
         </p>
-        <div class="mt-4">
-            <a href="/register" class="cta-button cta-primary me-3" style="font-size: 1.3rem; padding: 22px 50px;">
-                <i class="bi bi-lightning-charge-fill"></i> Essai gratuit 7 jours
-            </a>
-            <a href="/login" class="cta-button cta-secondary" style="font-size: 1.3rem; padding: 22px 50px;">
-                <i class="bi bi-box-arrow-in-right"></i> Se connecter
+
+        <div class="sponsor-logos-row">
+            <div class="sponsor-slot active"><i class="bi bi-star-fill"></i>&nbsp;Partenaire principal</div>
+            <div class="sponsor-slot">Annonceur &eacute;nergie</div>
+            <div class="sponsor-slot">Annonceur &eacute;nergie</div>
+            <div class="sponsor-slot">Annonceur &eacute;nergie</div>
+            <div class="sponsor-slot">Annonceur &eacute;nergie</div>
+            <div class="sponsor-slot">Annonceur &eacute;nergie</div>
+        </div>
+
+        <div class="sponsor-cta-box">
+            <h3><i class="bi bi-lightning-charge-fill"></i> Devenez partenaire &eacute;nergie</h3>
+            <p>
+                Votre marque visible sur une plateforme utilis&eacute;e par des &eacute;lus, directeurs de travaux
+                et charg&eacute;s d&rsquo;urbanisme de toutes les communes de France.
+                Un acc&egrave;s direct aux territoires l&agrave; o&ugrave; les projets ENR se d&eacute;cident.
+            </p>
+            <div class="sponsor-benefits">
+                <span class="sponsor-benefit"><i class="bi bi-geo-alt-fill"></i> Visibilit&eacute; territoriale cible&eacute;e</span>
+                <span class="sponsor-benefit"><i class="bi bi-people-fill"></i> Audience d&eacute;cisionnaires publics</span>
+                <span class="sponsor-benefit"><i class="bi bi-bar-chart-fill"></i> Reporting mensuel d&rsquo;audience</span>
+                <span class="sponsor-benefit"><i class="bi bi-patch-check-fill"></i> Co-branding sur rapports PDF</span>
+                <span class="sponsor-benefit"><i class="bi bi-map-fill"></i> Dashboard sponsor d&eacute;di&eacute;</span>
+            </div>
+            <a href="mailto:contact@heliapv.fr?subject=Partenariat%20sponsor%20HeliaPV" class="btn-sponsor">
+                <i class="bi bi-envelope-fill"></i> Nous contacter pour un partenariat
             </a>
         </div>
-        <p style="color: rgba(255, 255, 255, 0.5); margin-top: 30px; font-size: 0.9rem;">
-            <i class="bi bi-check-circle"></i> Sans engagement · <i class="bi bi-credit-card"></i> Aucune CB requise · <i class="bi bi-calendar-check"></i> 7 jours d'essai offerts
+    </div>
+</section>
+
+<!-- ══════════════════════ INSCRIPTION MAIRIE ══════════════════════ -->
+<section class="mairie-section" id="inscription">
+    <div class="mairie-inner">
+        <div class="free-badge">
+            <i class="bi bi-gift-fill"></i> 100&nbsp;% Gratuit pour les communes
+        </div>
+        <div class="section-tag">Rejoindre HeliaPV</div>
+        <h2 class="section-h2">Inscrivez votre commune<br>d&egrave;s aujourd&rsquo;hui</h2>
+        <p class="section-lead mx-auto mt-2">
+            Aucune installation, aucune carte bancaire.
+            Votre acc&egrave;s est activ&eacute; en quelques secondes.
+        </p>
+
+        <div class="mairie-form">
+            <form action="/register" method="GET" onsubmit="handleRegister(event)">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="form-label-custom">Pr&eacute;nom</label>
+                        <input type="text" class="form-control-custom" name="prenom"
+                               placeholder="Jean" required>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label-custom">Nom</label>
+                        <input type="text" class="form-control-custom" name="nom"
+                               placeholder="Dupont" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label-custom">Commune</label>
+                        <input type="text" class="form-control-custom" name="commune"
+                               placeholder="Nom de votre commune" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label-custom">Email professionnel</label>
+                        <input type="email" class="form-control-custom" name="email"
+                               placeholder="jean.dupont@mairie-xxx.fr" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label-custom">Fonction</label>
+                        <select class="form-control-custom" name="fonction">
+                            <option value="">S&eacute;lectionnez votre fonction</option>
+                            <option>Maire</option>
+                            <option>Directeur(trice) g&eacute;n&eacute;ral(e) des services</option>
+                            <option>Directeur(trice) des travaux</option>
+                            <option>Charg&eacute;(e) d&rsquo;urbanisme</option>
+                            <option>&Eacute;lu(e) d&eacute;l&eacute;gu&eacute;(e) &agrave; l&rsquo;&eacute;nergie</option>
+                            <option>Agent territorial</option>
+                            <option>Autre</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn-submit">
+                            <i class="bi bi-building-fill-add"></i>
+                            Cr&eacute;er mon acc&egrave;s gratuit
+                        </button>
+                        <p class="form-note mt-2">
+                            <i class="bi bi-shield-lock"></i> Donn&eacute;es confidentielles
+                            &nbsp;&middot;&nbsp;
+                            <i class="bi bi-check-circle"></i> Sans engagement
+                            &nbsp;&middot;&nbsp;
+                            <i class="bi bi-x-circle"></i> Aucune CB requise
+                        </p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════ FOOTER ══════════════════════ -->
+<footer class="footer-bar">
+    <div class="container">
+        <p>
+            <strong style="color:var(--green)">HeliaPV</strong>
+            &mdash; Outil territorial solaire gratuit pour les communes de France
+            &nbsp;&middot;&nbsp;
+            <a href="/login">Connexion</a>
+            &nbsp;&middot;&nbsp;
+            <a href="#sponsors">Partenaires</a>
+            &nbsp;&middot;&nbsp;
+            <a href="mailto:contact@heliapv.fr">Contact</a>
+        </p>
+        <p class="mt-1" style="font-size:.75rem;color:#94a3b8;">
+            Donn&eacute;es&nbsp;: IGN &middot; Enedis Open Data &middot; DGFiP &middot;
+            G&eacute;oRisques &middot; PVGIS (JRC) &middot; Copernicus
+            &nbsp;|&nbsp; &copy; 2026 HeliaPV
         </p>
     </div>
+</footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Autocomplete communes via API geo.gouv.fr ──
+const communeInput = document.getElementById('commune-input');
+const communeDropdown = document.getElementById('commune-dropdown');
+let debounceTimer = null;
+let selectedCommune = null;
+
+communeInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = communeInput.value.trim();
+    if (q.length < 2) { communeDropdown.style.display = 'none'; return; }
+    debounceTimer = setTimeout(() => fetchCommunes(q), 260);
+});
+
+async function fetchCommunes(q) {
+    try {
+        const url = 'https://geo.api.gouv.fr/communes?nom=' + encodeURIComponent(q) +
+                    '&fields=nom,code,departement,population&boost=population&limit=8';
+        const res = await fetch(url);
+        const data = await res.json();
+        renderCommuneDropdown(data);
+    } catch (e) {
+        communeDropdown.style.display = 'none';
+    }
+}
+
+function renderCommuneDropdown(communes) {
+    if (!communes || !communes.length) {
+        communeDropdown.style.display = 'none'; return;
+    }
+    communeDropdown.innerHTML = '';
+    communes.forEach(function(c) {
+        const li = document.createElement('li');
+        const dept = c.departement ? c.departement.nom : '';
+        li.innerHTML = '<strong>' + c.nom + '</strong> <small>&nbsp;(' + c.code + ') \u2014 ' + dept + '</small>';
+        li.addEventListener('click', function() {
+            communeInput.value = c.nom;
+            selectedCommune = c;
+            communeDropdown.style.display = 'none';
+        });
+        communeDropdown.appendChild(li);
+    });
+    communeDropdown.style.display = 'block';
+}
+
+document.addEventListener('click', function(e) {
+    if (!communeInput.contains(e.target)) communeDropdown.style.display = 'none';
+});
+
+communeInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); launchCommune(); }
+});
+
+function launchCommune() {
+    const val = communeInput.value.trim();
+    if (!val) { communeInput.focus(); return; }
+    if (selectedCommune) {
+        window.location.href = '/app?address=' + encodeURIComponent(selectedCommune.nom + ', France') +
+                               '&commune=' + selectedCommune.code;
+    } else {
+        window.location.href = '/app?address=' + encodeURIComponent(val + ', France');
+    }
+}
+
+// ── Formulaire d'inscription mairie ──
+function handleRegister(e) {
+    e.preventDefault();
+    const form = e.target;
+    const params = new URLSearchParams({
+        name:     form.prenom.value + ' ' + form.nom.value,
+        email:    form.email.value,
+        company:  'Mairie de ' + form.commune.value,
+        commune:  form.commune.value,
+        fonction: form.fonction.value,
+        plan:     'commune_gratuit'
+    });
+    window.location.href = '/register?' + params.toString();
+}
+</script>
 </body>
 </html>
