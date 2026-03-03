@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeliaPV — Propositions de Logos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: #0A0A0F;
+      color: #F0E6C8;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    header h1 {
+      font-size: 2.8em;
+      color: #FFD700;
+      letter-spacing: 8px;
+      text-shadow: 0 0 30px rgba(255,215,0,0.4);
+    }
+
+    header p {
+      color: #F5A623;
+      font-style: italic;
+      margin-top: 10px;
+      font-size: 1.1em;
+      opacity: 0.8;
+    }
+
+    .separator {
+      width: 200px;
+      margin: 15px auto;
+      border: none;
+      border-top: 1px solid #F5A623;
+      opacity: 0.4;
+    }
+
+    .logos-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 50px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .logo-card {
+      background: #111118;
+      border-radius: 16px;
+      border: 1px solid rgba(255,215,0,0.15);
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .logo-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 60px rgba(255,215,0,0.15);
+    }
+
+    .logo-card .badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px 0;
+    }
+
+    .logo-number {
+      background: #FFD700;
+      color: #1A1A2E;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.9em;
+      flex-shrink: 0;
+    }
+
+    .logo-title {
+      font-size: 1.3em;
+      color: #FFD700;
+      letter-spacing: 3px;
+    }
+
+    .logo-subtitle {
+      font-size: 0.85em;
+      color: #F5A623;
+      font-style: italic;
+      opacity: 0.8;
+    }
+
+    .logo-display {
+      padding: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0D0D14;
+      margin: 16px 0;
+      min-height: 160px;
+    }
+
+    /* Fond alternatif pour logos clairs (v4) */
+    .logo-display.light-bg {
+      background: #F5F0E8;
+    }
+
+    .logo-display img,
+    .logo-display object,
+    .logo-display embed {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .logo-description {
+      padding: 20px 24px 24px;
+      border-top: 1px solid rgba(255,215,0,0.1);
+    }
+
+    .logo-description h3 {
+      color: #F5A623;
+      font-size: 0.9em;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .logo-description p {
+      color: #C8B89A;
+      font-size: 0.9em;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75em;
+      letter-spacing: 1px;
+      font-family: Arial, sans-serif;
+    }
+
+    .tag.mythologie  { background: rgba(255,215,0,0.15);  color: #FFD700; border: 1px solid rgba(255,215,0,0.3); }
+    .tag.solaire     { background: rgba(245,166,35,0.15); color: #F5A623; border: 1px solid rgba(245,166,35,0.3); }
+    .tag.agricole    { background: rgba(39,174,96,0.15);  color: #2ECC71; border: 1px solid rgba(39,174,96,0.3); }
+    .tag.moderne     { background: rgba(52,152,219,0.15); color: #5DADE2; border: 1px solid rgba(52,152,219,0.3); }
+    .tag.antique     { background: rgba(139,69,19,0.2);   color: #D4956A; border: 1px solid rgba(139,69,19,0.4); }
+    .tag.dark        { background: rgba(100,100,150,0.15);color: #AAA; border: 1px solid rgba(100,100,150,0.3); }
+
+    .logo-display-double {
+      padding: 20px 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .variant {
+      text-align: center;
+    }
+
+    .variant-label {
+      font-size: 0.7em;
+      color: #888;
+      letter-spacing: 2px;
+      margin-top: 8px;
+      font-family: Arial, sans-serif;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      color: #555;
+      font-size: 0.8em;
+      font-family: Arial, sans-serif;
+      letter-spacing: 2px;
+    }
+
+    /* Badge de fichier -->
+    .file-info {
+      font-family: 'Courier New', monospace;
+      font-size: 0.75em;
+      color: #27AE60;
+      opacity: 0.7;
+      margin-top: 8px;
+    }
+
+    .file-info::before { content: "📄 "; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>✦ HELIA ✦</h1>
+  <p>Propositions de logo — HeliaPV · AgriWeb</p>
+  <hr class="separator">
+  <p style="font-size:0.85em; opacity:0.6; font-family:Arial; letter-spacing:2px;">5 CONCEPTS INSPIRÉS DE LA MYTHOLOGIE SOLAIRE</p>
+</header>
+
+<div class="logos-grid">
+
+  <!-- Logo 1 -->
+  <div class="logo-card">
+    <div class="badge">
+      <div class="logo-number">1</div>
+      <div>
+        <div class="logo-title">CLASSIQUE SOLAIRE</div>
+        <div class="logo-subtitle">Disque rayonnant avec grille PV</div>
+      </div>
+    </div>
+    <div class="logo-display">
+      <img src="/static/images/logo_helia_v1_classique.svg" alt="Logo Helia Classique" width="400" height="160"/>
+    </div>
+    <div class="logo-description">
+      <h3>Concept</h3>
+      <p>
+        Un grand disque solaire doré, évocation directe d'<strong>Hélios</strong> le dieu du Soleil,
+        avec une grille de cellules photovoltaïques incrustée dans le disque.
+        Les rayons multiples symbolisent l'énergie rayonnante. Fond bleu nuit profond.
+      </p>
+      <p>
+        Idéal pour : entête d'application, rapport PDF, présentation professionnelle.
+      </p>
+      <div class="tags">
+        <span class="tag mythologie">Mythologie</span>
+        <span class="tag solaire">Solaire</span>
+        <span class="tag dark">Fond sombre</span>
+      </div>
+      <div class="file-info">logo_helia_v1_classique.svg</div>
+    </div>
+  </div>
+
+  <!-- Logo 2 -->
+  <div class="logo-card">
+    <div class="badge">
+      <div class="logo-number">2</div>
+      <div>
+        <div class="logo-title">DÉESSE HELIA</div>
+        <div class="logo-subtitle">Silhouette divine et couronne solaire</div>
+      </div>
+    </div>
+    <div class="logo-display">
+      <img src="/static/images/logo_helia_v2_mythologie.svg" alt="Logo Helia Mythologie" width="400" height="160"/>
+    </div>
+    <div class="logo-description">
+      <h3>Concept</h3>
+      <p>
+        Une silhouette féminine stylisée portant la <strong>couronne solaire</strong> d'Hélios.
+        Inspiré des représentations antiques de déesses lumineuses. Palette ambrée et dorée sur fond brun chaud.
+        L'ornement grec (méandre) renforce l'ancrage dans l'antiquité.
+      </p>
+      <p>
+        Idéal pour : identité de marque, interface IA Helia, splash screen.
+      </p>
+      <div class="tags">
+        <span class="tag mythologie">Mythologie</span>
+        <span class="tag antique">Antiquité grecque</span>
+        <span class="tag dark">Fond sombre</span>
+      </div>
+      <div class="file-info">logo_helia_v2_mythologie.svg</div>
+    </div>
+  </div>
+
+  <!-- Logo 3 -->
+  <div class="logo-card">
+    <div class="badge">
+      <div class="logo-number">3</div>
+      <div>
+        <div class="logo-title">ART DÉCO SOLAIRE</div>
+        <div class="logo-subtitle">Géométrie hexagonale + végétation</div>
+      </div>
+    </div>
+    <div class="logo-display">
+      <img src="/static/images/logo_helia_v3_artdeco.svg" alt="Logo Helia Art Déco" width="400" height="160"/>
+    </div>
+    <div class="logo-description">
+      <h3>Concept</h3>
+      <p>
+        Style <strong>Art Déco</strong> avec un soleil hexagonal à 12 branches triangulaires,
+        rappelant les mosaïques antiques. La tige végétale en bas symbolise l'agriculture.
+        Le badge "PV" vert et le fond nuit étoilé lui donnent une modernité tech.
+      </p>
+      <p>
+        Idéal pour : sidebar, favicon, badge d'application, email professionnel.
+      </p>
+      <div class="tags">
+        <span class="tag mythologie">Mythologie</span>
+        <span class="tag moderne">Art Déco</span>
+        <span class="tag agricole">Agriculture</span>
+        <span class="tag solaire">PV</span>
+      </div>
+      <div class="file-info">logo_helia_v3_artdeco.svg</div>
+    </div>
+  </div>
+
+  <!-- Logo 4 -->
+  <div class="logo-card">
+    <div class="badge">
+      <div class="logo-number">4</div>
+      <div>
+        <div class="logo-title">CHAR D'HÉLIOS</div>
+        <div class="logo-subtitle">Scène mythologique · Parchemin doré</div>
+      </div>
+    </div>
+    <div class="logo-display light-bg">
+      <img src="/static/images/logo_helia_v4_char.svg" alt="Logo Helia Char" width="400" height="160"/>
+    </div>
+    <div class="logo-description">
+      <h3>Concept</h3>
+      <p>
+        Une scène narrative représentant le <strong>char d'Hélios</strong> traversant le ciel,
+        avec panneau solaire fusionné dans le disque. Style parchemin antique (fond crème).
+        La frise méandre grec renforce l'identité mythologique. Très distinctif et narratif.
+      </p>
+      <p>
+        Idéal pour : documentation, rapports PDF, entête institutionnel, landing page.
+      </p>
+      <div class="tags">
+        <span class="tag mythologie">Char d'Hélios</span>
+        <span class="tag antique">Antiquité</span>
+        <span class="tag solaire">Solaire</span>
+      </div>
+      <div class="file-info">logo_helia_v4_char.svg</div>
+    </div>
+  </div>
+
+  <!-- Logo 5 -->
+  <div class="logo-card">
+    <div class="badge">
+      <div class="logo-number">5</div>
+      <div>
+        <div class="logo-title">NATUREL & AGRICOLE</div>
+        <div class="logo-subtitle">Soleil · Feuilles · Badge PV vert</div>
+      </div>
+    </div>
+    <div class="logo-display">
+      <img src="/static/images/logo_helia_v5_naturel.svg" alt="Logo Helia Naturel" width="400" height="160"/>
+    </div>
+    <div class="logo-description">
+      <h3>Concept</h3>
+      <p>
+        Alliance du <strong>solaire et de l'agriculture</strong> : disque solaire avec grille PV
+        entouré de feuilles vertes, fond vert forêt. Le badge "PV" vert vif souligne
+        l'aspect photovoltaïque. Citation poétique inspirée du mythe d'Hélios.
+        Le plus "écologique" des cinq.
+      </p>
+      <p>
+        Idéal pour : sidebar actuelle, interface principale, communication RSE.
+      </p>
+      <div class="tags">
+        <span class="tag agricole">Agriculture</span>
+        <span class="tag solaire">Photovoltaïque</span>
+        <span class="tag mythologie">Hélios</span>
+        <span class="tag moderne">Moderne</span>
+      </div>
+      <div class="file-info">logo_helia_v5_naturel.svg</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>HeliaPV · AgriWeb · Tous les logos sont disponibles en SVG dans /static/images/</p>
+  <p style="margin-top:8px; opacity:0.5;">Pour utiliser un logo, remplacez la balise img dans templates/ par le path correspondant</p>
+</footer>
+
+</body>
+</html>
