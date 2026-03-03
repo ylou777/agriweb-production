@@ -701,6 +701,14 @@ def lidar_plan_view():
     return render_template('lidar_plan.html')
 
 # ──────────────────────────────────────────────────────────────
+# Showcase logos Helia (prévisualisation des propositions)
+# ──────────────────────────────────────────────────────────────
+@app.route('/logos')
+def logos_showcase():
+    """Affiche les propositions de logos HeliaPV"""
+    return render_template('logos_showcase.html')
+
+# ──────────────────────────────────────────────────────────────
 # HELPERS : Segmentation planaire RANSAC multi-plan
 # Standard : Vosselman & Maas (2010) Airborne and Terrestrial
 # Laser Scanning — Chapter 5 : Planar surface detection.
@@ -20335,7 +20343,7 @@ def admin_view_user(user_id):
             }
             
             function extendTrial() {
-                if (confirm('Prolonger l\'essai de 7 jours ?')) {
+                if (confirm("Prolonger l'essai de 7 jours ?")) {
                     fetch('/admin/user/{{ user[0] }}/extend-trial', {method: 'POST'})
                     .then(response => response.json())
                     .then(data => {
