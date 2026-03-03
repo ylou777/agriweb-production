@@ -609,6 +609,12 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # Force pas de cache pour les templates
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
+# ProxyFix : Railway/Gunicorn est derrière un reverse proxy HTTPS.
+# Sans ça, Flask génère des URLs en http:// → "Non sécurisé" dans le navigateur.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+
 # Marqueur de version diagnostic pour vérifier que ce fichier (avec la route /api/hta-lignes) est bien chargé
 HeliaPV_HTA_VERSION = "fix-N-is-not-defined-v4-2026-01-18"
 print(f"🔧 [HTA] Chargement serveur avec version: {HeliaPV_HTA_VERSION}")
@@ -620,6 +626,16 @@ COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')  # 'Lax' or 'None' for cro
 app.config['SESSION_COOKIE_SECURE'] = COOKIE_SECURE
 app.config['SESSION_COOKIE_SAMESITE'] = COOKIE_SAMESITE
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+
+# Forcer HTTPS en production (redirection HTTP → HTTPS)
+@app.before_request
+def force_https():
+    """Redirige HTTP → HTTPS en production (Railway)."""
+    from flask import request, redirect
+    if os.getenv('ENVIRONMENT', '').lower() == 'production':
+        if request.headers.get('X-Forwarded-Proto', 'https') == 'http':
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
 
 # Intégration du système d'authentification (Blueprint)
 try:
