@@ -7676,9 +7676,17 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const lons = bCoords.map(c => c[0]);
                         heatLat = lats.reduce((a, b) => a + b, 0) / lats.length;
                         heatLon = lons.reduce((a, b) => a + b, 0) / lons.length;
-                        const dLat = (Math.max(...lats) - Math.min(...lats)) * 111320;
-                        const dLon = (Math.max(...lons) - Math.min(...lons)) * 111320 * Math.cos(heatLat * Math.PI / 180);
-                        radius_m = Math.max(40, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 30, 250));
+                        // Rayon = distance max du centroïde à chaque sommet + buffer 35m
+                        // (plus robuste que demi-diagonale bbox qui suppose un centroïde centré)
+                        const _mpdLat3 = 111320;
+                        const _mpdLon3 = 111320 * Math.cos(heatLat * Math.PI / 180);
+                        let _maxD3 = 0;
+                        bCoords.forEach(c => {
+                            const dy = (c[1] - heatLat) * _mpdLat3;
+                            const dx = (c[0] - heatLon) * _mpdLon3;
+                            _maxD3 = Math.max(_maxD3, Math.hypot(dx, dy));
+                        });
+                        radius_m = Math.max(40, Math.min(Math.ceil(_maxD3) + 35, 350));
                     } else {
                         // Fallback : pas de polygone bâtiment → masque circulaire 60m
                         heatLat = viewer3D.centerLat;
@@ -7718,9 +7726,20 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const minLon = Math.min(...lons), maxLon = Math.max(...lons);
                         heatLat  = (minLat + maxLat) / 2;
                         heatLon  = (minLon + maxLon) / 2;
-                        const dLat = (maxLat - minLat) * 111320;
-                        const dLon = (maxLon - minLon) * 111320 * Math.cos(heatLat * Math.PI / 180);
-                        radius_m = Math.max(35, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 25, 250));
+                        // Rayon = distance max du centroïde bbox à chaque coin + buffer 30m
+                        const _mpdLat2 = 111320;
+                        const _mpdLon2 = 111320 * Math.cos(heatLat * Math.PI / 180);
+                        const _corners2 = [
+                            [minLon, minLat], [maxLon, minLat],
+                            [maxLon, maxLat], [minLon, maxLat]
+                        ];
+                        let _maxD2 = 0;
+                        _corners2.forEach(c => {
+                            const dy = (c[1] - heatLat) * _mpdLat2;
+                            const dx = (c[0] - heatLon) * _mpdLon2;
+                            _maxD2 = Math.max(_maxD2, Math.hypot(dx, dy));
+                        });
+                        radius_m = Math.max(35, Math.min(Math.ceil(_maxD2) + 30, 350));
                         // ⚠️ NE PAS envoyer la liste plate de coins (plusieurs rectangles) comme un seul polygone
                         // → le raycasting backend l'interpréterait comme un polygone auto-intersecté.
                         // On envoie le BBOX rectangulaire avec un léger buffer (+15%) comme polygone propre.

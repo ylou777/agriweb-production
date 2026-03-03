@@ -2734,19 +2734,20 @@ def api_solar_flux_heatmap():
                     if len(pts):
                         dists = np.hypot(pts[:, 0] - ctr_row, pts[:, 1] - ctr_col)
                         near_idx = int(np.argmin(dists))
-                        if float(dists[near_idx]) <= 60:
+                        if float(dists[near_idx]) <= 120:  # élargi 60→120 px pour grands bâtiments
                             seed_r, seed_c = int(pts[near_idx, 0]), int(pts[near_idx, 1])
-                # Flood-fill itératif 8-connexité (stack-safe, pas de récursion)
-                # 8-connexité = inclut les diagonales → capture coins et protrusions fines
+                # Flood-fill BFS 8-connexité (deque = file FIFO, plus rapide que stack DFS
+                # et traite uniformément les grandes images sans risque de pile profonde)
                 if bld_mask[seed_r, seed_c]:
+                    from collections import deque
                     filled = np.zeros((H, W), dtype=bool)
-                    stk = [(seed_r, seed_c)]
-                    while stk:
-                        r, c = stk.pop()
+                    q = deque([(seed_r, seed_c)])
+                    while q:
+                        r, c = q.popleft()
                         if r < 0 or r >= H or c < 0 or c >= W: continue
                         if filled[r, c] or not bld_mask[r, c]: continue
                         filled[r, c] = True
-                        stk.extend([(r+1,c),(r-1,c),(r,c+1),(r,c-1),
+                        q.extend([(r+1,c),(r-1,c),(r,c+1),(r,c-1),
                                     (r+1,c+1),(r+1,c-1),(r-1,c+1),(r-1,c-1)])
                     if filled.any():
                         bld_mask = filled
