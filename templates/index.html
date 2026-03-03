@@ -99,13 +99,18 @@
       display: flex;
       align-items: center;
     }
-    .sidebar-brand img {
-      height: 56px;
-      width: auto;
-      max-width: 220px;
-      object-fit: contain;
-      display: block;
-      border-radius: 6px;
+    .sidebar-brand-text {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f7971e;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+    }
+    .sidebar-brand-text .brand-icon {
+      font-size: 1.3rem;
     }
 
     /* === NAVIGATION PILLS === */
@@ -451,7 +456,7 @@
       <!-- Header -->
       <div class="sidebar-header">
         <div class="sidebar-brand">
-          <img src="/static/images/logo_helia.jpg" alt="HeliaPV" />
+          <span class="sidebar-brand-text"><span class="brand-icon">☀️</span> HeliaPV Pro</span>
         </div>
         <button id="closeSidebarBtn" class="btn-close text-reset" type="button" style="filter:invert(1);opacity:0.6;"></button>
       </div>
