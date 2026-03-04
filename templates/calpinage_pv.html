@@ -1537,10 +1537,75 @@
                         </select>
 
                         <label style="font-size:0.8rem;color:rgba(255,255,255,0.6);">Consommation annuelle (kWh)</label>
-                        <input type="number" id="acConsommationKwh" class="form-control form-control-sm mb-3"
+                        <input type="number" id="acConsommationKwh" class="form-control form-control-sm mb-1"
                             style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
                             value="5000" min="100" max="500000" step="100"
                             placeholder="ex: 5000">
+
+                        <!-- ── Import PDL Enedis ─────────────────────────── -->
+                        <div style="margin-bottom:12px;">
+                            <button type="button" onclick="_acTogglePdl()"
+                                style="background:none;border:none;color:#7dd3fc;font-size:0.73rem;
+                                       padding:2px 0;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                                <span id="acPdlChevron">▶</span>
+                                🔌 Importer depuis PDL Enedis
+                            </button>
+
+                            <div id="acPdlBox" style="display:none;margin-top:6px;
+                                background:rgba(14,165,233,0.07);border:1px solid rgba(14,165,233,0.25);
+                                border-radius:8px;padding:10px;">
+
+                                <div style="margin-bottom:6px;">
+                                    <label style="font-size:0.75rem;color:rgba(255,255,255,0.55);">
+                                        Numéro PDL (14 chiffres)
+                                    </label>
+                                    <div style="display:flex;gap:5px;">
+                                        <input type="text" id="acPdlInput" maxlength="14"
+                                            placeholder="ex: 22516914714270"
+                                            class="form-control form-control-sm"
+                                            style="background:#1e293b;border-color:rgba(14,165,233,0.35);
+                                                   color:#e2e8f0;font-size:0.82rem;letter-spacing:0.05em;flex:1;">
+                                        <button onclick="_acFetchPdl()"
+                                            class="btn btn-sm"
+                                            style="background:rgba(14,165,233,0.2);border:1px solid rgba(14,165,233,0.4);
+                                                   color:#38bdf8;white-space:nowrap;font-size:0.78rem;">
+                                            🔍 Récupérer
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Token Data Connect (optionnel) -->
+                                <div style="margin-bottom:6px;">
+                                    <label style="font-size:0.73rem;color:rgba(255,255,255,0.4);">
+                                        Token Data Connect (optionnel – données réelles)
+                                        <a href="https://datahub-enedis.fr/" target="_blank"
+                                           style="color:#818cf8;font-size:0.68rem;">ℹ️ obtenir un token</a>
+                                    </label>
+                                    <input type="password" id="acPdlToken" autocomplete="off"
+                                        placeholder="Bearer eyJ... (laisser vide pour données publiques)"
+                                        class="form-control form-control-sm"
+                                        style="background:#1e293b;border-color:rgba(255,255,255,0.12);
+                                               color:#e2e8f0;font-size:0.75rem;">
+                                </div>
+
+                                <!-- Résultat -->
+                                <div id="acPdlResult" style="display:none;font-size:0.78rem;
+                                    background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);
+                                    border-radius:6px;padding:8px;margin-top:4px;">
+                                    <div id="acPdlResultText" style="color:#86efac;margin-bottom:5px;"></div>
+                                    <button onclick="_acUsePdlResult()"
+                                        class="btn btn-sm"
+                                        style="background:rgba(34,197,94,0.2);border:1px solid rgba(34,197,94,0.4);
+                                               color:#86efac;font-size:0.75rem;padding:2px 10px;">
+                                        ✅ Utiliser cette valeur
+                                    </button>
+                                </div>
+                                <div id="acPdlError" style="display:none;font-size:0.75rem;
+                                    color:#fca5a5;background:rgba(239,68,68,0.08);
+                                    border-radius:6px;padding:6px 8px;margin-top:4px;"></div>
+                            </div>
+                        </div>
+                        <!-- ── fin PDL ──────────────────────────────────── -->
 
                         <label style="font-size:0.8rem;color:rgba(255,255,255,0.6);">Option tarifaire</label>
                         <select id="acTariffType" class="form-select form-select-sm mb-2"
@@ -9988,6 +10053,89 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         }
         // Init au chargement
         setTimeout(_acUpdateTariffInfo, 100);
+
+        // ── PDL Enedis : toggle / fetch / apply ────────────────────────────────
+        let _acPdlFoundKwh = null;
+
+        function _acTogglePdl() {
+            const box = document.getElementById('acPdlBox');
+            const chev = document.getElementById('acPdlChevron');
+            const open = box.style.display === 'none';
+            box.style.display = open ? 'block' : 'none';
+            chev.textContent  = open ? '▼' : '▶';
+        }
+
+        async function _acFetchPdl() {
+            const pdl   = (document.getElementById('acPdlInput')?.value || '').replace(/\s/g, '');
+            const token = (document.getElementById('acPdlToken')?.value || '').trim();
+            const resEl = document.getElementById('acPdlResult');
+            const errEl = document.getElementById('acPdlError');
+            const txtEl = document.getElementById('acPdlResultText');
+
+            resEl.style.display = 'none';
+            errEl.style.display = 'none';
+            _acPdlFoundKwh = null;
+
+            if (!pdl || pdl.length !== 14 || !/^\d{14}$/.test(pdl)) {
+                errEl.textContent = '⚠️ Le PDL doit contenir exactement 14 chiffres.';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            // Bouton en attente
+            const btn = event.currentTarget || document.querySelector('[onclick="_acFetchPdl()"]');
+            const origTxt = btn ? btn.textContent : '';
+            if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+            try {
+                const body = { pdl };
+                if (token) body.access_token = token;
+
+                const resp = await fetch('/api/crm/enedis-pdl-conso', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const json = await resp.json();
+
+                if (json.ok && json.consommation_kwh > 0) {
+                    _acPdlFoundKwh = json.consommation_kwh;
+                    const srcLabel = json.source === 'data_connect' ? '📡 Data Connect' : '🌐 Open Data Enedis';
+                    const annee    = json.annee_ref ? ` (${json.annee_ref})` : '';
+                    txtEl.textContent = `✅ ${srcLabel}${annee} → ${json.consommation_kwh.toLocaleString('fr-FR')} kWh/an`;
+                    resEl.style.display = 'block';
+                } else {
+                    const msg = json.error || 'PDL non trouvé dans les données Enedis.';
+                    errEl.innerHTML = msg
+                        + (json.source === 'non_trouve'
+                            ? '<br><small style="opacity:0.7">💡 Entrez un token Enedis Data Connect pour accéder aux données individuelles.</small>'
+                            : '');
+                    errEl.style.display = 'block';
+                }
+            } catch(e) {
+                errEl.textContent = '❌ Erreur réseau : ' + e.message;
+                errEl.style.display = 'block';
+            } finally {
+                if (btn) { btn.textContent = origTxt; btn.disabled = false; }
+            }
+        }
+
+        function _acUsePdlResult() {
+            if (_acPdlFoundKwh === null) return;
+            const inp = document.getElementById('acConsommationKwh');
+            if (inp) {
+                inp.value = _acPdlFoundKwh;
+                // Flash visuel
+                inp.style.borderColor = '#22c55e';
+                setTimeout(() => inp.style.borderColor = 'rgba(255,255,255,0.2)', 1500);
+            }
+            // Fermer le bloc PDL
+            const box  = document.getElementById('acPdlBox');
+            const chev = document.getElementById('acPdlChevron');
+            if (box)  box.style.display  = 'none';
+            if (chev) chev.textContent   = '▶';
+        }
+        // ── fin PDL ──────────────────────────────────────────────────────────────
 
         async function lancerCalculAutoconso() {
             const profilType       = document.getElementById('acProfilType').value;

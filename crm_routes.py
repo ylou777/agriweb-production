@@ -2449,6 +2449,134 @@ def register_crm_routes(app):
     # ROUTES AUTOCONSOMMATION
     # ========================================
 
+    @app.route('/api/crm/enedis-pdl-conso', methods=['POST'])
+    def enedis_pdl_conso():
+        """
+        Récupère la consommation annuelle d'un PDL via :
+          1. Enedis Data Connect (si access_token fourni) → /metering_data/v5/daily_consumption
+          2. Sinon, tente Enedis Open Data (dataset consommation annuelle entreprise).
+
+        Body JSON :
+          pdl          : str   – numéro PDL 14 chiffres (usage_point_id)
+          access_token : str   – Bearer token Enedis Data Connect (optionnel)
+
+        Retour :
+          ok                 : bool
+          consommation_kwh   : float  (total 12 derniers mois)
+          source             : str    ('data_connect' | 'open_data' | 'non_trouve')
+          annee_ref          : str    (ex: "2023")
+          detail             : dict
+        """
+        import requests as _req
+        from datetime import datetime as _dt, timedelta as _td
+
+        data        = request.json or {}
+        pdl         = str(data.get('pdl', '')).strip().replace(' ', '')
+        token       = str(data.get('access_token', '')).strip()
+
+        if not pdl or len(pdl) != 14 or not pdl.isdigit():
+            return jsonify({'ok': False, 'error': 'PDL invalide – doit contenir exactement 14 chiffres'}), 400
+
+        # ── 1. Enedis Data Connect (Bearer token) ────────────────────────────
+        if token:
+            try:
+                end_date   = _dt.now().strftime('%Y-%m-%d')
+                start_date = (_dt.now() - _td(days=365)).strftime('%Y-%m-%d')
+
+                url = 'https://ext.prod.api.enedis.fr/metering_data/v5/daily_consumption'
+                headers  = {'Authorization': f'Bearer {token}', 'Accept': 'application/json'}
+                params   = {'usage_point_id': pdl, 'start': start_date, 'end': end_date}
+
+                print(f"[PDL] Data Connect: PDL={pdl} période {start_date}→{end_date}")
+                resp = _req.get(url, headers=headers, params=params, timeout=15)
+
+                if resp.status_code == 200:
+                    jdata = resp.json()
+                    readings = jdata.get('meter_reading', {}).get('interval_reading', [])
+                    total_wh  = sum(float(r.get('value', 0)) for r in readings)
+                    total_kwh = round(total_wh / 1000.0, 0) if total_wh > 0 else 0
+
+                    # Parfois valeurs déjà en kWh (dépend du compteur)
+                    # Heuristique : si total très bas (< 10), c'est en MWh
+                    if 0 < total_kwh < 50:
+                        total_kwh = round(total_kwh * 1000, 0)
+
+                    print(f"[PDL] Data Connect OK → {total_kwh} kWh ({len(readings)} jours)")
+                    return jsonify({
+                        'ok'               : True,
+                        'consommation_kwh' : total_kwh,
+                        'source'           : 'data_connect',
+                        'annee_ref'        : start_date[:4] + '–' + end_date[:4],
+                        'detail'           : {'nb_jours': len(readings), 'start': start_date, 'end': end_date}
+                    })
+                elif resp.status_code == 403:
+                    print(f"[PDL] Data Connect 403 – token invalide ou PDL non consenti")
+                    return jsonify({
+                        'ok': False, 'source': 'data_connect',
+                        'error': 'Accès refusé (403) – vérifiez le token et le consentement du client pour ce PDL'
+                    }), 403
+                elif resp.status_code == 404:
+                    print(f"[PDL] Data Connect 404 – PDL {pdl} non trouvé")
+                    return jsonify({'ok': False, 'source': 'data_connect', 'error': f'PDL {pdl} non trouvé'}), 404
+                else:
+                    print(f"[PDL] Data Connect HTTP {resp.status_code}: {resp.text[:200]}")
+                    return jsonify({
+                        'ok': False, 'source': 'data_connect',
+                        'error': f'Erreur Enedis Data Connect HTTP {resp.status_code}'
+                    }), 502
+
+            except Exception as dc_err:
+                print(f"[PDL] Data Connect erreur: {dc_err}")
+                return jsonify({'ok': False, 'source': 'data_connect', 'error': str(dc_err)}), 502
+
+        # ── 2. Fallback Open Data (sans token) – consommation annuelle entreprise ──
+        try:
+            od_url = (
+                'https://data.enedis.fr/api/explore/v2.1/catalog/datasets'
+                '/consommation-annuelle-reseaux-distribution/records'
+            )
+            # Ce dataset n'a pas de PDL individuel ; on essaie le dataset entreprises par adresse
+            od_url2 = (
+                'https://opendata.enedis.fr/data-fair/api/v1/datasets'
+                '/qjl5f5v2mfxajth6gk2t8u7h/lines'
+            )
+            params2 = {'size': 5, 'qs': f'pdl:{pdl}'}
+            print(f"[PDL] Open Data fallback: PDL={pdl}")
+            resp2 = _req.get(od_url2, params=params2, timeout=10)
+            if resp2.status_code == 200:
+                jdata2 = resp2.json()
+                results = jdata2.get('results', [])
+                if results:
+                    r = results[0]
+                    conso_mwh = float(r.get('consommation_annuelle_totale_de_ladresse_mwh', 0) or 0)
+                    conso_kwh = round(conso_mwh * 1000, 0)
+                    annee     = str(r.get('annee', ''))
+                    adresse   = r.get('adresse', '')
+                    print(f"[PDL] Open Data OK → {conso_kwh} kWh, adresse: {adresse}")
+                    return jsonify({
+                        'ok'               : True,
+                        'consommation_kwh' : conso_kwh,
+                        'source'           : 'open_data',
+                        'annee_ref'        : annee,
+                        'detail'           : {'adresse': adresse, 'conso_mwh': conso_mwh}
+                    })
+
+            # Aucune donnée trouvée
+            print(f"[PDL] Open Data : PDL {pdl} non trouvé dans le dataset public")
+            return jsonify({
+                'ok'     : False,
+                'source' : 'non_trouve',
+                'error'  : (
+                    '⚠️ PDL non trouvé dans les données publiques Enedis. '
+                    'Pour accéder aux données réelles, un token Enedis Data Connect '
+                    'avec consentement du client est requis.'
+                )
+            }), 404
+
+        except Exception as od_err:
+            print(f"[PDL] Open Data erreur: {od_err}")
+            return jsonify({'ok': False, 'source': 'open_data', 'error': str(od_err)}), 502
+
     @app.route('/api/crm/prospects/<int:prospect_id>/autoconsommation', methods=['POST'])
     def calculate_autoconsommation(prospect_id):
         """
