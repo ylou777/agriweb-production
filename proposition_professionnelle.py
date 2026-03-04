@@ -70,25 +70,52 @@ class PropositionProfessionnelle:
         self.nb_modules = totaux.get('nbModules', int(self.puissance_kwc / 0.55))
         self.puissance_module = totaux.get('puissanceModule', 550)
 
-        # Production estimée (1100 kWh/kWc moyen France)
-        self.production_annuelle = self.puissance_kwc * 1100
+        # ── Résultats simulation autoconsommation (si disponibles) ────────────────
+        # Priorité : données issues de la simulation PVGIS 8760h > estimations
+        self.autoconso_data = parametres.get('autoconso_data') or {}
+        _kpis = self.autoconso_data.get('kpis', {})
+        _eco  = self.autoconso_data.get('economics', {})
 
-        # Calculs financiers
-        if self.type_projet == 'autoconsommation':
-            self.energie_autoconsommee = self.production_annuelle * self.taux_autoconso
-            self.energie_revendue = self.production_annuelle * (1 - self.taux_autoconso)
-            self.economie_autoconso = self.energie_autoconsommee * self.tarif_achat
-            self.revenu_revente = self.energie_revendue * self.tarif_revente
-            self.gain_annuel = self.economie_autoconso + self.revenu_revente
+        # Production : réelle PVGIS si dispos, sinon 1100 kWh/kWc moyen France
+        if _kpis.get('production_kwh_an'):
+            self.production_annuelle   = self._sf(_kpis['production_kwh_an'])
+            self.energie_autoconsommee = self._sf(_kpis.get('autoconso_kwh_an', 0))
+            self.energie_revendue      = self._sf(_kpis.get('surplus_kwh_an', 0))
+            self.taux_autoconso        = self._sf(_kpis.get('taux_autoconsommation', self.taux_autoconso))
+            self.consommation          = self._sf(_kpis.get('consommation_kwh_an', self.consommation))
         else:
-            self.energie_autoconsommee = 0
-            self.energie_revendue = self.production_annuelle
-            self.economie_autoconso = 0
-            self.revenu_revente = self.production_annuelle * self.tarif_revente
-            self.gain_annuel = self.revenu_revente
+            self.production_annuelle   = self.puissance_kwc * 1100  # estimation
+            self.energie_autoconsommee = self.production_annuelle * self.taux_autoconso
+            self.energie_revendue      = self.production_annuelle * (1 - self.taux_autoconso)
 
-        self.roi_annees = self.investissement / self.gain_annuel if self.gain_annuel > 0 else 99
-        self.rentabilite = (self.gain_annuel / self.investissement * 100) if self.investissement > 0 else 0
+        # Financier : réel simulation si dispos, sinon estimation
+        if _eco.get('economie_an1'):
+            self.economie_autoconso = self._sf(_eco.get('economie_an1', 0))
+            self.revenu_revente     = self._sf(_eco.get('revenu_surplus_an1', 0))
+            self.gain_annuel        = self._sf(_eco.get('gain_total_an1', 0))
+            self.tarif_achat        = self._sf(_eco.get('tarif_achat', self.tarif_achat))
+            self.tarif_revente      = self._sf(_eco.get('tarif_revente', self.tarif_revente))
+            # Projections multi-années depuis simulation
+            self._economies_par_an  = [self._sf(v) for v in _eco.get('economies_par_an', [])]
+            self._revenus_par_an    = [self._sf(v) for v in _eco.get('revenus_par_an', [])]
+            self._tariff_label      = _eco.get('tariff_label', self.autoconso_data.get('tariff_label', ''))
+        else:
+            if self.type_projet == 'autoconsommation':
+                self.economie_autoconso = self.energie_autoconsommee * self.tarif_achat
+                self.revenu_revente     = self.energie_revendue * self.tarif_revente
+                self.gain_annuel        = self.economie_autoconso + self.revenu_revente
+            else:
+                self.energie_autoconsommee = 0
+                self.energie_revendue      = self.production_annuelle
+                self.economie_autoconso    = 0
+                self.revenu_revente        = self.production_annuelle * self.tarif_revente
+                self.gain_annuel           = self.revenu_revente
+            self._economies_par_an  = []
+            self._revenus_par_an    = []
+            self._tariff_label      = ''
+
+        self.roi_annees   = self.investissement / self.gain_annuel if self.gain_annuel > 0 else 99
+        self.rentabilite  = (self.gain_annuel / self.investissement * 100) if self.investissement > 0 else 0
 
         # Parse data_json si disponible
         self.data_json = {}
@@ -150,6 +177,12 @@ class PropositionProfessionnelle:
         c.showPage()
         self.page_number += 1
         self._draw_etude_financiere(c)
+
+        # Page 7b : Simulation autoconsommation (si données disponibles)
+        if self.autoconso_data:
+            c.showPage()
+            self.page_number += 1
+            self._draw_etude_autoconsommation(c)
 
         # Page 8 : Devis détaillé
         c.showPage()
@@ -812,6 +845,221 @@ class PropositionProfessionnelle:
         c.setFillColor(self.COLOR_PRIMARY)
         gain_net_25 = cumul_gains - self.investissement
         c.drawString(2 * cm, y, f"Gain net sur 25 ans : {self._format_euros(gain_net_25)}")
+
+    def _draw_etude_autoconsommation(self, c):
+        """Page : Simulation autoconsommation (PVGIS 8760h + profil Enedis)"""
+        y = self._draw_page_header(c, "6. SIMULATION AUTOCONSOMMATION")
+
+        tariff_label = self._tariff_label
+        profil_label = self.autoconso_data.get('profil_label', '')
+        date_calcul  = self.autoconso_data.get('date_calcul', '')[:10]
+
+        # Mention source
+        c.setFont("Helvetica-Oblique", 7)
+        c.setFillColor(colors.HexColor('#78909C'))
+        src_txt = (f"Simulation horaire PVGIS 8760h × Profil {profil_label}")
+        if tariff_label:
+            src_txt += f" | Tarif : {tariff_label}"
+        if date_calcul:
+            src_txt += f" | Calculé le {date_calcul}"
+        c.drawString(1.5 * cm, y + 0.15 * cm, src_txt)
+        y -= 1.0 * cm
+
+        # ── Ligne de KPI boxes ──────────────────────────────────────────────────
+        _kpis = self.autoconso_data.get('kpis', {})
+        _eco  = self.autoconso_data.get('economics', {})
+
+        prod_kwh     = self._sf(_kpis.get('production_kwh_an'))
+        conso_kwh    = self._sf(_kpis.get('consommation_kwh_an', self.consommation))
+        auto_kwh     = self._sf(_kpis.get('autoconso_kwh_an'))
+        surplus_kwh  = self._sf(_kpis.get('surplus_kwh_an'))
+        taux_ac      = self._sf(_kpis.get('taux_autoconsommation', 0)) * 100
+        taux_ap      = self._sf(_kpis.get('taux_autoproduction', 0)) * 100
+        eco_an1      = self._sf(_eco.get('economie_an1'))
+        rev_an1      = self._sf(_eco.get('revenu_surplus_an1'))
+        gain_an1     = self._sf(_eco.get('gain_total_an1'))
+        cumul        = self._sf(_eco.get('cumul_total'))
+        duree_ans    = int(_eco.get('duree_ans', 20))
+        detail_tarif = _eco.get('detail_tariff', {})
+
+        box_w = (self.width - 3.5 * cm) / 4
+        box_h = 1.9 * cm
+        box_y = y - box_h
+        kpi_boxes = [
+            ("PRODUCTION",    self._format_kwh(prod_kwh),    "kWh/an PVGIS",    '#1565C0'),
+            ("AUTOCONSOMMÉE", self._format_kwh(auto_kwh),    f"{taux_ac:.0f}% du total", '#2E7D32'),
+            ("ÉCONOMIES AN 1", self._format_euros(eco_an1),   f"+ {self._format_euros(rev_an1)} surplus", '#E65100'),
+            (f"CUMUL {duree_ans} ANS", self._format_euros(cumul), f"ROI {self.roi_annees:.1f} ans",  '#4A148C'),
+        ]
+        for i, (label, val, sub, color_hex) in enumerate(kpi_boxes):
+            bx = 1.5 * cm + i * (box_w + 0.1 * cm)
+            self._draw_highlight_box(c, bx, box_y, box_w - 0.1 * cm, box_h, label, val, sub)
+
+        y = box_y - 1.2 * cm
+
+        # ── Tableau synthèse gauche ────────────────────────────────────────────
+        y = self._draw_section_title(c, y, "Bilan énergétique annuel")
+        y = self._draw_kv_line(c, y, "Production PV totale :",      self._format_kwh(prod_kwh))
+        y = self._draw_kv_line(c, y, "Consommation annuelle :",     self._format_kwh(conso_kwh))
+        y = self._draw_kv_line(c, y, "Énergie autoconsommée :",    f"{self._format_kwh(auto_kwh)} ({taux_ac:.0f}%)", bold_value=True)
+        y = self._draw_kv_line(c, y, "Surplus injecté réseau :",   f"{self._format_kwh(surplus_kwh)} ({100-taux_ac:.0f}%)")
+        if taux_ap > 0:
+            y = self._draw_kv_line(c, y, "Taux d'autoproduction :",  f"{taux_ap:.0f}% de la conso couverte")
+        if tariff_label:
+            y = self._draw_kv_line(c, y, "Option tarifaire :",       tariff_label)
+        if detail_tarif:
+            prix_moy = self._sf(detail_tarif.get('mean')) * 100
+            prix_min = self._sf(detail_tarif.get('min'))  * 100
+            prix_max = self._sf(detail_tarif.get('max'))  * 100
+            y = self._draw_kv_line(c, y, "Prix achat électricite :",
+                f"moy. {prix_moy:.2f} c€  ·  min {prix_min:.2f} c€  ·  max {prix_max:.2f} c€/kWh")
+        y -= 0.2 * cm
+
+        # ── Graphique mensuel : production vs consommation ──────────────────────
+        monthly = self.autoconso_data.get('monthly', [])
+        if len(monthly) >= 12:
+            y = self._draw_section_title(c, y, "Production mensuelle vs Consommation (kWh)")
+            MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun',
+                    'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+            prods  = [self._sf(m.get('production_kwh',  m.get('prod_kwh', 0))) for m in monthly[:12]]
+            consos = [self._sf(m.get('consommation_kwh', m.get('conso_kwh', 0))) for m in monthly[:12]]
+            autos  = [self._sf(m.get('autoconso_kwh', 0)) for m in monthly[:12]]
+
+            max_val = max(max(prods), max(consos), 1)
+            graph_w = self.width - 3 * cm
+            graph_h = 4.5 * cm
+            bar_group_w = graph_w / 12
+            bar_w       = bar_group_w * 0.35
+
+            # Axe
+            c.setStrokeColor(colors.HexColor('#CFD8DC'))
+            c.setLineWidth(0.5)
+            c.line(1.5 * cm, y - graph_h - 0.4 * cm, 1.5 * cm + graph_w, y - graph_h - 0.4 * cm)
+
+            for i, mois in enumerate(MOIS):
+                bx_base = 1.5 * cm + i * bar_group_w
+
+                # Barre production (bleu)
+                ph = prods[i] / max_val * graph_h
+                c.setFillColor(colors.HexColor('#1E88E5'))
+                c.rect(bx_base + bar_group_w * 0.05, y - graph_h - 0.4 * cm, bar_w, ph, fill=1, stroke=0)
+
+                # Barre conso (orange)
+                ch = consos[i] / max_val * graph_h
+                c.setFillColor(colors.HexColor('#FB8C00'))
+                c.rect(bx_base + bar_group_w * 0.45, y - graph_h - 0.4 * cm, bar_w, ch, fill=1, stroke=0)
+
+                # Zone autoconsommée sur barre prod (vert translucide — hachuré via répétition)
+                ah = min(autos[i], prods[i]) / max_val * graph_h if max_val > 0 else 0
+                c.setFillColor(colors.HexColor('#43A047'))
+                c.setFillAlpha(0.55)
+                c.rect(bx_base + bar_group_w * 0.05, y - graph_h - 0.4 * cm, bar_w, ah, fill=1, stroke=0)
+                c.setFillAlpha(1.0)
+
+                # Label mois
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont("Helvetica", 6)
+                c.drawCentredString(bx_base + bar_group_w * 0.5, y - graph_h - 0.8 * cm, mois)
+
+            y -= graph_h + 1.3 * cm
+
+            # Légende
+            legend_items = [
+                (colors.HexColor('#1E88E5'), "Production PV"),
+                (colors.HexColor('#43A047'), "Autoconsommée"),
+                (colors.HexColor('#FB8C00'), "Consommation"),
+            ]
+            lx = 1.5 * cm
+            for col, lbl in legend_items:
+                c.setFillColor(col)
+                c.rect(lx, y + 0.1 * cm, 0.35 * cm, 0.3 * cm, fill=1, stroke=0)
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont("Helvetica", 7)
+                c.drawString(lx + 0.45 * cm, y + 0.12 * cm, lbl)
+                lx += 3.8 * cm
+            y -= 0.7 * cm
+
+        # ── Graphique cumul des gains sur N ans ─────────────────────────────────
+        if self._economies_par_an:
+            y = self._draw_section_title(c, y, f"Cumul des gains sur {duree_ans} ans")
+            n = len(self._economies_par_an)
+            cumul_eco   = []
+            cumul_rev   = []
+            cumul_total = []
+            s_e = s_r = 0
+            for i in range(n):
+                s_e += self._economies_par_an[i]
+                s_r += (self._revenus_par_an[i] if i < len(self._revenus_par_an) else 0)
+                cumul_eco.append(s_e)
+                cumul_rev.append(s_r)
+                cumul_total.append(s_e + s_r)
+
+            max_c = max(max(cumul_total), self.investissement, 1)
+            g2_w  = self.width - 3 * cm
+            g2_h  = 4.0 * cm
+            step  = g2_w / max(n - 1, 1)
+            base_y = y - g2_h - 0.3 * cm
+
+            # Axe horizontal + investissement ligne
+            c.setStrokeColor(colors.HexColor('#CFD8DC'))
+            c.setLineWidth(0.5)
+            c.line(1.5 * cm, base_y, 1.5 * cm + g2_w, base_y)
+
+            # Trait investissement (rouge pointillé)
+            inv_y = base_y + (self.investissement / max_c) * g2_h
+            c.setStrokeColor(colors.HexColor('#E53935'))
+            c.setDash(3, 3)
+            c.line(1.5 * cm, inv_y, 1.5 * cm + g2_w, inv_y)
+            c.setDash()
+            c.setFont("Helvetica-Oblique", 6)
+            c.setFillColor(colors.HexColor('#E53935'))
+            c.drawString(1.5 * cm + g2_w + 0.1 * cm, inv_y, "Invest.")
+
+            # Courbe cumul total (vert)
+            pts = [(1.5 * cm + i * step, base_y + (v / max_c) * g2_h)
+                   for i, v in enumerate(cumul_total)]
+            c.setStrokeColor(colors.HexColor('#2E7D32'))
+            c.setLineWidth(1.5)
+            p = c.beginPath()
+            p.moveTo(*pts[0])
+            for pt in pts[1:]:
+                p.lineTo(*pt)
+            c.drawPath(p, stroke=1, fill=0)
+
+            # Courbe cumul économies seules (bleu)
+            pts2 = [(1.5 * cm + i * step, base_y + (v / max_c) * g2_h)
+                    for i, v in enumerate(cumul_eco)]
+            c.setStrokeColor(colors.HexColor('#1565C0'))
+            c.setLineWidth(1)
+            p2 = c.beginPath()
+            p2.moveTo(*pts2[0])
+            for pt in pts2[1:]:
+                p2.lineTo(*pt)
+            c.drawPath(p2, stroke=1, fill=0)
+
+            # Labels années
+            c.setFont("Helvetica", 6)
+            c.setFillColor(self.COLOR_DARK)
+            for i in range(0, n, max(1, n // 5)):
+                lx2 = 1.5 * cm + i * step
+                c.drawCentredString(lx2, base_y - 0.35 * cm, f"An {i+1}")
+
+            y = base_y - 0.8 * cm
+
+            # Légende courbes
+            lx = 1.5 * cm
+            for col, lbl in [
+                (colors.HexColor('#2E7D32'), "Gains cumulés totaux"),
+                (colors.HexColor('#1565C0'), "Économies seules"),
+                (colors.HexColor('#E53935'), "Investissement"),
+            ]:
+                c.setStrokeColor(col)
+                c.setLineWidth(1.5)
+                c.line(lx, y + 0.18 * cm, lx + 0.6 * cm, y + 0.18 * cm)
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont("Helvetica", 7)
+                c.drawString(lx + 0.7 * cm, y + 0.1 * cm, lbl)
+                lx += 5.0 * cm
 
     def _draw_devis(self, c):
         """Page 8 : Devis détaillé"""

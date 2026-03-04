@@ -2701,6 +2701,36 @@ def register_crm_routes(app):
             )
             print(f"[AUTOCONSO] Tarif: {tariff_type} | Économie an1: {economics['economie_an1']}€")
 
+            # ── Sauvegarder les résultats en BDD pour la proposition ─────────────
+            try:
+                _row = execute_query(
+                    "SELECT data_json FROM agriweb_prospects WHERE id = %s",
+                    (prospect_id,), fetch_one=True
+                )
+                _dj = (_row['data_json'] or {}) if _row else {}
+                if isinstance(_dj, str):
+                    _dj = json.loads(_dj)
+                _dj.setdefault('calpinage', {})['autoconso_results'] = {
+                    'kpis'          : result['kpis'],
+                    'economics'     : {
+                        k: v for k, v in economics.items()
+                        if k != 'prix_8760'
+                    },
+                    'monthly'       : result['monthly'],
+                    'profil_type'   : profil_type,
+                    'profil_label'  : PROFILE_LABELS.get(profil_type, profil_type),
+                    'tariff_type'   : tariff_type,
+                    'tariff_label'  : TARIFF_LABELS.get(tariff_type, tariff_type),
+                    'date_calcul'   : datetime.now().isoformat(),
+                }
+                execute_query(
+                    "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
+                    (json.dumps(_dj), prospect_id)
+                )
+                print(f"[AUTOCONSO] Résultats sauvegardés en BDD (prospect {prospect_id})")
+            except Exception as _save_err:
+                print(f"[AUTOCONSO] Warn: impossible de sauvegarder résultats BDD: {_save_err}")
+
             return jsonify({
                 'success'       : True,
                 'zones_traitees': zones_ok,
@@ -3731,16 +3761,33 @@ def register_crm_routes(app):
                     return default
             
             # Préparer les paramètres pour la proposition
+            # Charger les résultats autoconsommation sauvegardés si disponibles
+            autoconso_results = calpinage.get('autoconso_results', {})
+
+            # Dériver les paramètres financiers depuis les résultats autoconso si présents
+            eco_saved = autoconso_results.get('economics', {})
+            kpis_saved = autoconso_results.get('kpis', {})
+
             parametres = {
                 'type_projet': data.get('type_projet', 'autoconsommation'),
                 'puissance_kwc': safe_float(data.get('puissance_kwc'), 100.0),
                 'prix_kwc': safe_float(data.get('prix_kwc'), 850.0),
-                'consommation_annuelle_kwh': safe_float(data.get('consommation_annuelle_kwh'), 0.0),
-                'tarif_achat_kwh': safe_float(data.get('tarif_achat_kwh'), 0.20),
-                'tarif_revente_kwh': safe_float(data.get('tarif_revente_kwh'), 0.13),
-                'taux_autoconso': safe_float(data.get('taux_autoconso'), 70.0),
-                'pvgis_hourly_data': data.get('pvgis_hourly_data'),  # Optionnel
-                'enedis_hourly_data': data.get('enedis_hourly_data'),  # Optionnel
+                'consommation_annuelle_kwh': safe_float(
+                    data.get('consommation_annuelle_kwh')
+                    or kpis_saved.get('consommation_kwh_an'), 0.0),
+                'tarif_achat_kwh': safe_float(
+                    data.get('tarif_achat_kwh')
+                    or eco_saved.get('tarif_achat'), 0.20),
+                'tarif_revente_kwh': safe_float(
+                    data.get('tarif_revente_kwh')
+                    or eco_saved.get('tarif_revente'), 0.13),
+                'taux_autoconso': safe_float(
+                    data.get('taux_autoconso')
+                    or (kpis_saved.get('taux_autoconsommation', 0) * 100), 70.0),
+                'pvgis_hourly_data': data.get('pvgis_hourly_data'),
+                'enedis_hourly_data': data.get('enedis_hourly_data'),
+                # Résultats complets de la simulation autoconsommation
+                'autoconso_data': autoconso_results if autoconso_results else None,
             }
             
             print(f"📊 Génération proposition - Paramètres: {parametres}")

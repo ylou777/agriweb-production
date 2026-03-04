@@ -1709,6 +1709,20 @@
                         <div style="height:220px;position:relative;">
                             <canvas id="acChartEco"></canvas>
                         </div>
+
+                        <!-- Bouton générer proposition -->
+                        <div id="acBtnPropoBox" style="display:none;margin-top:16px;padding-top:14px;
+                            border-top:1px solid rgba(255,255,255,0.1);">
+                            <button onclick="_acOuvrirModalPropo()"
+                                class="btn w-100 fw-semibold"
+                                style="background:linear-gradient(135deg,#16a34a,#0e7490);
+                                       border:none;color:#fff;font-size:0.88rem;padding:9px 12px;">
+                                📄 Générer la Proposition Commerciale
+                            </button>
+                            <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);text-align:center;margin-top:5px;">
+                                Inclut les graphiques de simulation PVGIS
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1725,6 +1739,83 @@
         </div>
     </div>
     <!-- /PANNEAU AUTOCONSOMMATION -->
+
+    <!-- ====== MODAL PROPOSITION COMMERCIALE ====== -->
+    <div id="modalPropoAutoconso" style="
+        display:none;position:fixed;inset:0;z-index:10000;
+        background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
+        align-items:center;justify-content:center;">
+        <div style="background:#1e293b;border-radius:14px;border:1px solid rgba(99,179,237,0.3);
+            box-shadow:0 8px 48px rgba(0,0,0,0.7);width:min(96vw,500px);color:#e2e8f0;">
+
+            <!-- Header -->
+            <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);
+                background:linear-gradient(135deg,rgba(22,163,74,0.2),rgba(14,116,144,0.2));
+                border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <h5 style="margin:0;font-weight:700;color:#4ade80;font-size:1rem;">📄 Proposition Commerciale</h5>
+                    <small style="color:rgba(255,255,255,0.45);">Simulation PVGIS intégrée automatiquement</small>
+                </div>
+                <button onclick="document.getElementById('modalPropoAutoconso').style.display='none'"
+                    style="background:rgba(255,255,255,0.08);border:none;color:#fff;
+                    width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+
+            <!-- Body -->
+            <div style="padding:20px;">
+                <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);
+                    border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:0.8rem;color:rgba(255,255,255,0.6);">
+                    ✅ La simulation autoconsommation (production PVGIS, graphiques mensuel et cumul des gains)
+                    sera automatiquement incluse dans la proposition.
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Type de projet</label>
+                        <select id="propoTypeProjet" class="form-select form-select-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;font-size:0.82rem;">
+                            <option value="autoconsommation">Autoconsommation + surplus</option>
+                            <option value="vente_totale">Vente totale</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Puissance (kWc)</label>
+                        <input type="number" id="propoPuissance" class="form-control form-control-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
+                            value="100" step="1">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Prix install. (€/kWc HT)</label>
+                        <input type="number" id="propoPrixKwc" class="form-control form-control-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
+                            value="850" step="10">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente surplus (€/kWh)</label>
+                        <input type="number" id="propoTarifRevente" class="form-control form-control-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
+                            value="0.1276" step="0.001">
+                    </div>
+                </div>
+
+                <button onclick="_acGenererProposition()"
+                    id="btnGenPropo"
+                    class="btn w-100 fw-semibold"
+                    style="background:linear-gradient(135deg,#16a34a,#0e7490);border:none;color:#fff;
+                           font-size:0.9rem;padding:10px;">
+                    📥 Télécharger le PDF
+                </button>
+                <div id="propoLoadMsg" style="display:none;text-align:center;margin-top:10px;
+                    color:#7dd3fc;font-size:0.82rem;">
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    Génération en cours…
+                </div>
+                <div id="propoErrMsg" style="display:none;color:#fca5a5;font-size:0.8rem;
+                    margin-top:8px;text-align:center;"></div>
+            </div>
+        </div>
+    </div>
+    <!-- /MODAL PROPOSITION -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -10218,8 +10309,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         }
 
         // ── Rendre tous les résultats ──────────────────────────────────────
+        let _acLastData = null;  // Résultats de la dernière simulation
+
         function _acRenderResultats(data) {
             const { kpis, monthly, daily_profiles, economics, zones_traitees, profil_label } = data;
+            _acLastData = data;  // Mémoriser pour la proposition
 
             // Résumé zones traitées
             const zonesResume = document.getElementById('acZonesResume');
@@ -10243,6 +10337,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             // Afficher la colonne des résultats
             document.getElementById('acEtatVide').style.display   = 'none';
             document.getElementById('acResultats').style.display  = 'block';
+
+            // Afficher le bouton "Générer proposition"
+            const propoBox = document.getElementById('acBtnPropoBox');
+            if (propoBox) propoBox.style.display = 'block';
 
             // Activer onglet mensuel par défaut
             acSwitchTab('mensuel');
@@ -10579,6 +10677,82 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         function _acFmtEur(v) {
             return Math.round(v).toLocaleString('fr-FR');
         }
+
+        // ── Proposition commerciale ────────────────────────────────────────────
+        function _acOuvrirModalPropo() {
+            // Pré-remplir la puissance depuis les zones
+            const puiss = zones ? zones.reduce((s, z) => s + (z.puissanceKw || 0), 0) : 0;
+            if (puiss > 0) {
+                const el = document.getElementById('propoPuissance');
+                if (el) el.value = puiss.toFixed(1);
+            }
+            // Pré-remplir tarif revente depuis le champ autoconso
+            const tr = document.getElementById('acTarifRevente');
+            if (tr) {
+                const elTR = document.getElementById('propoTarifRevente');
+                if (elTR) elTR.value = tr.value;
+            }
+            // Afficher le modal
+            const m = document.getElementById('modalPropoAutoconso');
+            if (m) { m.style.display = 'flex'; }
+            // Basculer vers onglet économique pour montrer les résultats
+            acSwitchTab('economique');
+        }
+
+        async function _acGenererProposition() {
+            const btn    = document.getElementById('btnGenPropo');
+            const load   = document.getElementById('propoLoadMsg');
+            const errEl  = document.getElementById('propoErrMsg');
+
+            errEl.style.display = 'none';
+            btn.style.display   = 'none';
+            load.style.display  = 'block';
+
+            try {
+                const body = {
+                    type_projet              : document.getElementById('propoTypeProjet').value,
+                    puissance_kwc            : parseFloat(document.getElementById('propoPuissance').value) || 100,
+                    prix_kwc                 : parseFloat(document.getElementById('propoPrixKwc').value) || 850,
+                    tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || 0.1276,
+                };
+
+                const resp = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
+                    method : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body   : JSON.stringify(body),
+                });
+
+                if (!resp.ok) {
+                    const j = await resp.json().catch(() => ({}));
+                    throw new Error(j.error || `Erreur HTTP ${resp.status}`);
+                }
+
+                // Télécharger le PDF
+                const blob = await resp.blob();
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                a.download = `Proposition_HeliaPV_${prospectId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                // Fermer le modal
+                setTimeout(() => {
+                    document.getElementById('modalPropoAutoconso').style.display = 'none';
+                }, 800);
+
+            } catch(e) {
+                errEl.textContent   = '❌ ' + e.message;
+                errEl.style.display = 'block';
+            } finally {
+                btn.style.display  = 'block';
+                load.style.display = 'none';
+            }
+        }
+        // ── fin Proposition ───────────────────────────────────────────────────
+
         // /AUTOCONSOMMATION
     </script>
 
