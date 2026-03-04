@@ -2406,6 +2406,42 @@ def register_crm_routes(app):
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/crm/prospects/<int:prospect_id>/pvgis-save-values', methods=['POST'])
+    def save_pvgis_values(prospect_id):
+        """Sauvegarder les valeurs P 8760h envoyées par le navigateur (PVGIS appelé côté client)"""
+        try:
+            data = request.json or {}
+            zone_numero = data.get('zone_numero', 1)
+            p_values    = data.get('p_values', [])
+
+            if len(p_values) != 8760:
+                return jsonify({'error': f'Attendu 8760 valeurs, reçu {len(p_values)}'}), 400
+
+            prospect_row = execute_query(
+                "SELECT data_json FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True
+            )
+            if not prospect_row:
+                return jsonify({'error': 'Prospect non trouvé'}), 404
+
+            current_data = prospect_row['data_json'] or {}
+            if isinstance(current_data, str):
+                current_data = json.loads(current_data)
+            current_data.setdefault('calpinage', {}).setdefault('pvgis_8760h', {})[str(zone_numero)] = [
+                float(v) for v in p_values
+            ]
+            execute_query(
+                "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
+                (json.dumps(current_data), prospect_id)
+            )
+            print(f"[PVGIS SAVE] Zone {zone_numero} -> {len(p_values)} valeurs sauvegardées (prospect {prospect_id})")
+            return jsonify({'success': True, 'zone_numero': zone_numero, 'values_saved': len(p_values)})
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
     # ========================================
     # ROUTES AUTOCONSOMMATION
     # ========================================
