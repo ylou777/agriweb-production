@@ -22,10 +22,13 @@ from reportlab.lib.units import cm, mm
 from reportlab.pdfgen import canvas
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Paragraph
+from reportlab.lib.utils import ImageReader
 from datetime import datetime, timedelta
 import io
 import math
 import json
+import base64
+import requests
 
 
 class PropositionProfessionnelle:
@@ -164,6 +167,27 @@ class PropositionProfessionnelle:
         c.showPage()
         self.page_number += 1
         self._draw_analyse_site(c)
+
+        # Page 4b : Plan de situation (si lat/lon disponibles)
+        _lat = self.data_json.get('rapport', {}).get('lat') or self.prospect.get('lat')
+        _lon = self.data_json.get('rapport', {}).get('lon') or self.prospect.get('lon')
+        if _lat and _lon:
+            c.showPage()
+            self.page_number += 1
+            self._draw_plan_situation(c)
+
+        # Page 4c : Plan de calpinage (si screenshot disponible)
+        _screenshot = self.data_json.get('calpinage', {}).get('screenshot_map', '')
+        if _screenshot:
+            c.showPage()
+            self.page_number += 1
+            self._draw_plan_calpinage(c)
+
+        # Page 4d : Rapport contraintes site (si rapport_point disponible)
+        if self.data_json.get('rapport'):
+            c.showPage()
+            self.page_number += 1
+            self._draw_rapport_contraintes(c)
 
         # Page 5 : Solution technique
         c.showPage()
@@ -1410,6 +1434,533 @@ class PropositionProfessionnelle:
         c.setFillColor(colors.HexColor('#78909C'))
         c.drawString(1.5*cm, y2,
             "Profil journalier moyen calculé sur l'ensemble des jours de la saison (PVGIS 8760h).")
+
+        self._draw_page_footer(c)
+
+    # =========================================================================
+    # PAGES GRAPHIQUES : PLANS & RAPPORT POINT
+    # =========================================================================
+
+    def _fetch_static_map_image(self, lat, lon, zoom=16, width=600, height=380):
+        """Télécharge une image de carte OSM static et retourne un ImageReader ReportLab.
+        Retourne None si indisponible."""
+        try:
+            url = (
+                f"https://staticmap.openstreetmap.de/staticmap.php"
+                f"?center={lat},{lon}&zoom={zoom}&size={width}x{height}"
+                f"&markers={lat},{lon},red"
+            )
+            resp = requests.get(url, timeout=8,
+                                headers={"User-Agent": "AgriWeb-PV-Proposition/1.0"})
+            if resp.status_code == 200 and resp.content:
+                return ImageReader(io.BytesIO(resp.content))
+        except Exception:
+            pass
+        return None
+
+    def _decode_base64_image(self, b64_str):
+        """Decode une image base64 (avec ou sans header data:...) en ImageReader."""
+        try:
+            if not b64_str:
+                return None
+            if ',' in b64_str:
+                b64_str = b64_str.split(',', 1)[1]
+            img_bytes = base64.b64decode(b64_str)
+            return ImageReader(io.BytesIO(img_bytes))
+        except Exception:
+            return None
+
+    def _draw_risk_badge(self, c, x, y, label, value, color):
+        """Dessine un badge de risque coloré (petit rectangle)."""
+        bw, bh = 3.8 * cm, 0.9 * cm
+        c.setFillColor(color)
+        c.roundRect(x, y - 0.6 * cm, bw, bh, 4, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 7)
+        c.drawCentredString(x + bw / 2, y - 0.05 * cm, label[:20])
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(x + bw / 2, y - 0.38 * cm, str(value)[:22])
+
+    # ── Plan de situation ─────────────────────────────────────────────────────
+
+    def _draw_plan_situation(self, c):
+        """Page Plan de situation : carte OSM + données géographiques + PVGIS."""
+        y = self._draw_page_header(c, "PLAN DE SITUATION")
+
+        rapport = self.data_json.get('rapport', {})
+        lat  = rapport.get('lat')  or self.prospect.get('lat')
+        lon  = rapport.get('lon')  or self.prospect.get('lon')
+        commune    = rapport.get('commune_name') or self.prospect.get('commune', '')
+        cp         = rapport.get('code_postal')  or self.prospect.get('code_postal', '')
+        adresse    = rapport.get('adresse')      or self.prospect.get('adresse_complete', '')
+        altitude   = rapport.get('altitude_m')   or rapport.get('altitude', '')
+        kwh_kwc    = rapport.get('kwh_per_kwc', '')
+        # Parcelle
+        api_details = rapport.get('api_details', {})
+        cadastre    = api_details.get('cadastre', {}).get('details', {}) if isinstance(api_details, dict) else {}
+        section     = cadastre.get('section', '')
+        parcelle_n  = cadastre.get('parcelle_numero', '')
+        contenance  = cadastre.get('contenance_m2', '')
+        code_insee  = cadastre.get('code_insee', '')
+
+        y -= 0.3 * cm
+
+        # ─ Bloc info gauche ─────────────────────────────────────────────────
+        bx, bw = 1.5 * cm, 8 * cm
+        c.setFillColor(self.COLOR_HEADER_BG)
+        c.rect(bx, y - 5.5 * cm, bw, 5.5 * cm, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(bx + 0.3 * cm, y - 0.3 * cm, "IDENTIFICATION DU SITE")
+        ky = y - 0.8 * cm
+        for lbl, val in [
+            ("Commune :", f"{commune} ({cp})"),
+            ("Adresse :", adresse[:45] if adresse else "—"),
+            ("Coordonnées :", f"{lat:.5f}, {lon:.5f}" if lat and lon else "—"),
+            ("Altitude :", f"{altitude} m" if altitude else "—"),
+            ("Code INSEE :", code_insee or "—"),
+            ("Parcelle :", f"Section {section} n°{parcelle_n}" if section else "—"),
+            ("Surface parcelle :", f"{contenance} m²" if contenance else "—"),
+        ]:
+            c.setFont("Helvetica-Bold", 8)
+            c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(bx + 0.3 * cm, ky, lbl)
+            c.setFont("Helvetica", 8)
+            c.setFillColor(self.COLOR_DARK)
+            c.drawString(bx + 3.8 * cm, ky, str(val))
+            ky -= 0.6 * cm
+
+        # ─ PVGIS / Ensoleillement ────────────────────────────────────────────
+        pvgis = rapport.get('pvgis_data', {})
+        irradiation = ''
+        if isinstance(pvgis, dict):
+            irr = pvgis.get('yearly_irradiation') or pvgis.get('H(i)_m') or pvgis.get('irradiation')
+            if irr:
+                irradiation = f"{irr:.0f} kWh/m²/an"
+        c.setFillColor(self.COLOR_ACCENT)
+        c.rect(bx, y - 7.5 * cm, bw, 1.7 * cm, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(bx + 0.3 * cm, y - 6.1 * cm, "ENSOLEILLEMENT PVGIS")
+        c.setFont("Helvetica", 8)
+        c.drawString(bx + 0.3 * cm, y - 6.65 * cm, f"Productible : {kwh_kwc:.0f} kWh/kWc/an" if kwh_kwc else "Productible : —")
+        c.drawString(bx + 0.3 * cm, y - 7.15 * cm, f"Irradiation : {irradiation}" if irradiation else "Irradiation : —")
+
+        # ─ Carte OSM grande (vue commune, zoom 14) ───────────────────────────
+        map_x  = bx + bw + 0.5 * cm
+        map_w  = self.width - map_x - 1.5 * cm
+        map_h  = 7.5 * cm
+        img14 = None
+        if lat and lon:
+            img14 = self._fetch_static_map_image(float(lat), float(lon), zoom=14, width=500, height=330)
+        if img14:
+            c.drawImage(img14, map_x, y - map_h, width=map_w, height=map_h,
+                        preserveAspectRatio=True, anchor='c')
+        else:
+            c.setFillColor(self.COLOR_LIGHT_BG)
+            c.rect(map_x, y - map_h, map_w, map_h, fill=1, stroke=1)
+            c.setFillColor(colors.HexColor('#AAAAAA'))
+            c.setFont("Helvetica-Oblique", 9)
+            c.drawCentredString(map_x + map_w / 2, y - map_h / 2 - 0.2 * cm, "Carte non disponible (hors-ligne)")
+        # Légende carte
+        c.setFont("Helvetica-Oblique", 7)
+        c.setFillColor(colors.HexColor('#888888'))
+        c.drawCentredString(map_x + map_w / 2, y - map_h - 0.3 * cm, "Vue d'ensemble — OpenStreetMap © contributeurs")
+
+        y -= 8.3 * cm
+
+        # ─ Carte OSM zoom (vue parcelle, zoom 17) ────────────────────────────
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(1.5 * cm, y, "Vue détaillée — parcelle cadastrale")
+        y -= 0.6 * cm
+
+        map2_w = (self.width - 3 * cm)
+        map2_h = 8.0 * cm
+        img17 = None
+        if lat and lon:
+            img17 = self._fetch_static_map_image(float(lat), float(lon), zoom=18, width=700, height=380)
+        if img17:
+            c.drawImage(img17, 1.5 * cm, y - map2_h, width=map2_w, height=map2_h,
+                        preserveAspectRatio=True, anchor='c')
+        else:
+            c.setFillColor(self.COLOR_LIGHT_BG)
+            c.rect(1.5 * cm, y - map2_h, map2_w, map2_h, fill=1, stroke=1)
+            c.setFillColor(colors.HexColor('#AAAAAA'))
+            c.setFont("Helvetica-Oblique", 9)
+            c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h / 2 - 0.2 * cm, "Carte non disponible (hors-ligne)")
+        c.setFont("Helvetica-Oblique", 7)
+        c.setFillColor(colors.HexColor('#888888'))
+        c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm,
+                            "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle")
+
+        self._draw_page_footer(c)
+
+    # ── Plan de calpinage ─────────────────────────────────────────────────────
+
+    def _draw_plan_calpinage(self, c):
+        """Page Plan de calpinage : screenshot Leaflet + résumé des zones."""
+        y = self._draw_page_header(c, "PLAN DE CALPINAGE")
+
+        calpinage  = self.data_json.get('calpinage', {})
+        screenshot = calpinage.get('screenshot_map', '')
+        totaux     = calpinage.get('totaux', self.calpinage.get('totaux', {}))
+        zones      = calpinage.get('zones', self.calpinage.get('zones', []))
+
+        nb_modules    = totaux.get('nbModules', self.nb_modules)
+        puissance_kwc = totaux.get('puissanceKwc', totaux.get('puissance_kwc', self.puissance_kwc))
+        surface_tot   = totaux.get('surfaceTotale', totaux.get('surface_totale', 0))
+        nb_zones      = len(zones) if zones else 0
+
+        y -= 0.2 * cm
+
+        # ─ Bandeaux résumé en haut ───────────────────────────────────────────
+        boxes = [
+            ("Puissance totale", f"{puissance_kwc:.1f} kWc"),
+            ("Modules", f"{int(nb_modules)} modules"),
+            ("Zones", f"{nb_zones} zone(s)"),
+            ("Surface", f"{surface_tot:.0f} m²" if surface_tot else "—"),
+        ]
+        bw_box = (self.width - 3 * cm) / len(boxes)
+        for i, (ttl, val) in enumerate(boxes):
+            bx2 = 1.5 * cm + i * bw_box
+            c.setFillColor(self.COLOR_PRIMARY if i % 2 == 0 else self.COLOR_SECONDARY)
+            c.roundRect(bx2 + 0.1 * cm, y - 1.3 * cm, bw_box - 0.2 * cm, 1.3 * cm, 4, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawCentredString(bx2 + bw_box / 2, y - 0.45 * cm, ttl)
+            c.setFont("Helvetica-Bold", 11)
+            c.drawCentredString(bx2 + bw_box / 2, y - 1.05 * cm, val)
+        y -= 1.6 * cm
+
+        # ─ Image du calpinage ────────────────────────────────────────────────
+        img_calp = self._decode_base64_image(screenshot) if screenshot else None
+        img_h = 13 * cm
+        if img_calp:
+            c.drawImage(img_calp, 1.5 * cm, y - img_h, width=self.width - 3 * cm,
+                        height=img_h, preserveAspectRatio=True, anchor='c')
+        else:
+            c.setFillColor(self.COLOR_LIGHT_BG)
+            c.rect(1.5 * cm, y - img_h, self.width - 3 * cm, img_h, fill=1, stroke=1)
+            c.setFillColor(colors.HexColor('#AAAAAA'))
+            c.setFont("Helvetica-Oblique", 10)
+            c.drawCentredString(self.width / 2, y - img_h / 2,
+                                "Capture de calpinage non disponible")
+            c.setFont("Helvetica-Oblique", 8)
+            c.drawCentredString(self.width / 2, y - img_h / 2 - 0.6 * cm,
+                                "Effectuez un calpinage depuis le CRM pour générer ce plan")
+        y -= img_h + 0.4 * cm
+
+        # ─ Tableau des zones ─────────────────────────────────────────────────
+        if zones:
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(1.5 * cm, y, "DÉTAIL DES ZONES DE POSE")
+            y -= 0.5 * cm
+            # En-têtes
+            cols  = [1.5 * cm, 4.5 * cm, 8.5 * cm, 12.5 * cm, 16.0 * cm]
+            hdrs  = ["Zone", "Modules", "Puissance (kWc)", "Surface (m²)", "Orientation"]
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.rect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 8)
+            for xi, h in zip(cols, hdrs):
+                c.drawString(xi + 0.15 * cm, y, h)
+            y -= 0.65 * cm
+            for zi, zone in enumerate(zones[:8]):
+                c.setFillColor(self.COLOR_LIGHT_BG if zi % 2 == 0 else colors.white)
+                c.rect(1.5 * cm, y - 0.1 * cm, self.width - 3 * cm, 0.5 * cm, fill=1, stroke=0)
+                z_nb   = zone.get('nbModules', zone.get('nb_modules', '—'))
+                z_kwc  = zone.get('puissanceKwc', zone.get('puissance_kwc', 0))
+                z_surf = zone.get('surface', zone.get('surface_m2', 0))
+                z_ori  = zone.get('orientation', zone.get('azimut', '—'))
+                z_name = zone.get('nom', zone.get('name', f"Zone {zi + 1}"))
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont("Helvetica", 8)
+                vals = [z_name, str(z_nb), f"{z_kwc:.2f}" if z_kwc else "—",
+                        f"{z_surf:.0f}" if z_surf else "—", str(z_ori)]
+                for xi, v in zip(cols, vals):
+                    c.drawString(xi + 0.15 * cm, y, str(v))
+                y -= 0.55 * cm
+
+        self._draw_page_footer(c)
+
+    # ── Rapport contraintes site ──────────────────────────────────────────────
+
+    def _draw_rapport_contraintes(self, c):
+        """Page(s) Rapport point : PLU, ZAER, PPRI, GéoRisques, raccordement électrique."""
+        rapport = self.data_json.get('rapport', {})
+        if not rapport:
+            return
+
+        y = self._draw_page_header(c, "ANALYSE DES CONTRAINTES DU SITE")
+        y -= 0.2 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 1 : Urbanisme (PLU + ZAER)
+        # ─────────────────────────────────────────────────────────────────────
+        y = self._draw_section_title(c, y, "Réglementation Urbanisme", number="A")
+
+        plu_list = rapport.get('plu_info', [])
+        zaer_list = rapport.get('zaer', [])
+
+        col1_x, col2_x = 1.5 * cm, 10.5 * cm
+        col_w = 8.5 * cm
+
+        # PLU
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(col1_x, y, "Plan Local d'Urbanisme (PLU)")
+        y -= 0.45 * cm
+        if plu_list:
+            for feat in plu_list[:3]:
+                props = feat.get('properties', feat) if isinstance(feat, dict) else {}
+                typezone  = props.get('typezone', props.get('zone', ''))
+                libelle   = props.get('libelle', props.get('libelong', props.get('lib', '')))
+                c.setFillColor(self.COLOR_ACCENT)
+                c.roundRect(col1_x, y - 0.6 * cm, 1.8 * cm, 0.7 * cm, 3, fill=1, stroke=0)
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 9)
+                c.drawCentredString(col1_x + 0.9 * cm, y - 0.2 * cm, typezone or "—")
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont("Helvetica", 8)
+                c.drawString(col1_x + 2 * cm, y - 0.2 * cm, (libelle or "Zone inconnue")[:55])
+                y -= 0.75 * cm
+        else:
+            c.setFont("Helvetica-Oblique", 8)
+            c.setFillColor(colors.HexColor('#777777'))
+            c.drawString(col1_x, y, "Données PLU non disponibles pour cette commune.")
+            y -= 0.55 * cm
+
+        # ZAER (Zones d'Accélération EnR)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(col1_x, y, "Zones d'Accélération des EnR (ZAER)")
+        y -= 0.45 * cm
+        if zaer_list:
+            for feat in zaer_list[:2]:
+                props = feat.get('properties', feat) if isinstance(feat, dict) else {}
+                lib = props.get('libelle', props.get('lib', props.get('nom', 'Zone EnR')))
+                c.setFillColor(self.COLOR_SECONDARY)
+                c.roundRect(col1_x, y - 0.55 * cm, 1.5 * cm, 0.65 * cm, 3, fill=1, stroke=0)
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 8)
+                c.drawCentredString(col1_x + 0.75 * cm, y - 0.18 * cm, "ZAER")
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont("Helvetica", 8)
+                c.drawString(col1_x + 1.7 * cm, y - 0.18 * cm, str(lib)[:60])
+                y -= 0.65 * cm
+        else:
+            c.setFillColor(colors.HexColor('#777777'))
+            c.setFont("Helvetica-Oblique", 8)
+            c.drawString(col1_x, y, "Aucune zone d'accélération EnR identifiée.")
+            y -= 0.55 * cm
+
+        y -= 0.3 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 2 : Risques naturels / GéoRisques
+        # ─────────────────────────────────────────────────────────────────────
+        y = self._draw_section_title(c, y, "Risques Naturels & GéoRisques", number="B")
+
+        georisques = rapport.get('georisques_risks', {})
+        if not isinstance(georisques, dict):
+            georisques = {}
+
+        # Sismicité
+        sismo = georisques.get('sismicite', {}) or {}
+        sismo_zone = str(sismo.get('zone', sismo.get('niveau', '—')))
+        sismo_desc = sismo.get('description', '')
+
+        # Argile
+        argile = georisques.get('argile', {}) or {}
+        argile_risque = str(argile.get('risque', argile.get('classe', '—')))
+
+        # Radon
+        radon = georisques.get('radon', {}) or {}
+        radon_cls = str(radon.get('classe', radon.get('potentiel', '—')))
+
+        # PPRI
+        ppri = rapport.get('ppri', {})
+        ppri_present = bool(ppri and (isinstance(ppri, dict) and ppri.get('features')))
+
+        # Catnat
+        catnat = georisques.get('catnat', [])
+        if not isinstance(catnat, list):
+            catnat = []
+
+        # Couleurs risque
+        def risk_color(val):
+            v = str(val).lower()
+            if any(x in v for x in ['faible', '1', 'classe 1', 'zone 1', 'très faible', 'nul']):
+                return colors.HexColor('#4CAF50')   # vert
+            if any(x in v for x in ['moyen', '3', 'zone 3', 'modéré', 'moyen']):
+                return colors.HexColor('#FF9800')   # orange
+            if any(x in v for x in ['fort', 'élevé', '4', '5', 'zone 4', 'zone 5', 'très fort', 'fort']):
+                return colors.HexColor('#F44336')   # rouge
+            return colors.HexColor('#78909C')        # gris
+
+        bx_r = 1.5 * cm
+        badge_gap = 4.2 * cm
+        self._draw_risk_badge(c, bx_r,              y, "Sismicité", sismo_zone,  risk_color(sismo_zone))
+        self._draw_risk_badge(c, bx_r + badge_gap,  y, "Argiles",  argile_risque, risk_color(argile_risque))
+        self._draw_risk_badge(c, bx_r + 2*badge_gap,y, "Radon",    radon_cls,    risk_color(radon_cls))
+        ppri_label = "Présent" if ppri_present else "Non identifié"
+        ppri_col   = colors.HexColor('#F44336') if ppri_present else colors.HexColor('#4CAF50')
+        self._draw_risk_badge(c, bx_r + 3*badge_gap,y, "PPRI",     ppri_label,   ppri_col)
+        y -= 1.2 * cm
+
+        if sismo_desc:
+            c.setFont("Helvetica-Oblique", 7.5)
+            c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(1.5 * cm, y, f"Sismicité : {sismo_desc[:100]}")
+            y -= 0.45 * cm
+
+        # CatNat
+        if catnat:
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(1.5 * cm, y, f"Arrêtés de catastrophe naturelle ({len(catnat)} événement(s) recensé(s)) :")
+            y -= 0.45 * cm
+            for ev in catnat[:4]:
+                lib = ev.get('libRisqueJo', ev.get('type_risque_long', ev.get('libelle', '—')))
+                dd  = ev.get('datDebutEvt', ev.get('date_debut', ''))[:10]
+                df  = ev.get('datFinEvt',   ev.get('date_fin', ''))[:10]
+                c.setFont("Helvetica", 7.5)
+                c.setFillColor(self.COLOR_DARK)
+                c.drawString(1.7 * cm, y, f"• {lib} — du {dd} au {df}")
+                y -= 0.4 * cm
+            if len(catnat) > 4:
+                c.setFont("Helvetica-Oblique", 7.5)
+                c.setFillColor(colors.HexColor('#777777'))
+                c.drawString(1.7 * cm, y, f"  … et {len(catnat) - 4} autre(s) événement(s)")
+                y -= 0.4 * cm
+
+        y -= 0.3 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 3 : Raccordement électrique
+        # ─────────────────────────────────────────────────────────────────────
+        y = self._draw_section_title(c, y, "Raccordement Électrique", number="C")
+
+        poste_bt  = rapport.get('poste_bt', {})
+        poste_hta = rapport.get('poste_hta', {})
+        if not isinstance(poste_bt,  dict): poste_bt  = {}
+        if not isinstance(poste_hta, dict): poste_hta = {}
+
+        # BT
+        c.setFillColor(self.COLOR_HEADER_BG)
+        hw = (self.width - 3 * cm) / 2 - 0.2 * cm
+        c.rect(1.5 * cm, y - 3.5 * cm, hw, 3.5 * cm, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(1.7 * cm, y - 0.3 * cm, "Poste Source BT (plus proche)")
+        ky2 = y - 0.75 * cm
+        for lbl, key in [("Nom :", 'nom'), ("Distance :", 'distance_m'), ("Puissance :", 'puissance'), ("État :", 'etat')]:
+            val = poste_bt.get(key, '—')
+            if key == 'distance_m' and val != '—':
+                val = f"{int(float(val))} m"
+            if key == 'puissance' and val != '—':
+                val = f"{val} kVA"
+            c.setFont("Helvetica-Bold", 7.5)
+            c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(1.7 * cm, ky2, lbl)
+            c.setFont("Helvetica", 7.5)
+            c.setFillColor(self.COLOR_DARK)
+            c.drawString(4.5 * cm, ky2, str(val)[:30])
+            ky2 -= 0.52 * cm
+        if not poste_bt:
+            c.setFont("Helvetica-Oblique", 8)
+            c.setFillColor(colors.HexColor('#777777'))
+            c.drawString(1.7 * cm, y - 0.9 * cm, "Données non disponibles")
+
+        # HTA
+        hta_x = 1.5 * cm + hw + 0.4 * cm
+        c.setFillColor(self.COLOR_HEADER_BG)
+        c.rect(hta_x, y - 3.5 * cm, hw, 3.5 * cm, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(hta_x + 0.2 * cm, y - 0.3 * cm, "Poste Source HTA (plus proche)")
+        ky3 = y - 0.75 * cm
+        for lbl, key in [("Nom :", 'nom'), ("Distance :", 'distance_m'), ("Puissance :", 'puissance'), ("État :", 'etat')]:
+            val = poste_hta.get(key, '—')
+            if key == 'distance_m' and val != '—':
+                try:
+                    val = f"{int(float(val))} m"
+                except:
+                    pass
+            if key == 'puissance' and val != '—':
+                val = f"{val} kVA"
+            c.setFont("Helvetica-Bold", 7.5)
+            c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(hta_x + 0.2 * cm, ky3, lbl)
+            c.setFont("Helvetica", 7.5)
+            c.setFillColor(self.COLOR_DARK)
+            c.drawString(hta_x + 2.8 * cm, ky3, str(val)[:30])
+            ky3 -= 0.52 * cm
+        if not poste_hta:
+            c.setFont("Helvetica-Oblique", 8)
+            c.setFillColor(colors.HexColor('#777777'))
+            c.drawString(hta_x + 0.2 * cm, y - 0.9 * cm, "Données non disponibles")
+
+        y -= 3.8 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 4 : Installations classées ICPE
+        # ─────────────────────────────────────────────────────────────────────
+        installations = georisques.get('installations', [])
+        if not isinstance(installations, list):
+            installations = []
+
+        if installations:
+            y = self._draw_section_title(c, y, "Installations Classées (ICPE) à proximité", number="D")
+            for inst in installations[:4]:
+                nom_inst = inst.get('nomEts', inst.get('nom', inst.get('name', '—')))
+                dist_inst = inst.get('distance', inst.get('dist', '—'))
+                act_inst  = inst.get('activitePrincipale', inst.get('activite', ''))
+                c.setFont("Helvetica", 7.5)
+                c.setFillColor(self.COLOR_DARK)
+                label_dist = f"— {int(float(dist_inst))} m" if dist_inst and dist_inst != '—' else ''
+                c.drawString(1.7 * cm, y, f"• {nom_inst}{label_dist}" + (f" ({act_inst[:40]})" if act_inst else ""))
+                y -= 0.4 * cm
+            if len(installations) > 4:
+                c.setFont("Helvetica-Oblique", 7.5)
+                c.setFillColor(colors.HexColor('#777777'))
+                c.drawString(1.7 * cm, y, f"  … et {len(installations) - 4} autre(s) installation(s)")
+                y -= 0.4 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 5 : Note de synthèse
+        # ─────────────────────────────────────────────────────────────────────
+        y -= 0.2 * cm
+        c.setFillColor(self.COLOR_HEADER_BG)
+        note_h = 2.5 * cm
+        c.rect(1.5 * cm, y - note_h, self.width - 3 * cm, note_h, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(1.8 * cm, y - 0.3 * cm, "NOTE DE SYNTHÈSE RÉGLEMENTAIRE")
+        c.setFont("Helvetica", 8)
+        c.setFillColor(self.COLOR_DARK)
+        notes = []
+        if plu_list:
+            zones_str = ", ".join([
+                (f.get('properties', f) if isinstance(f, dict) else {}).get('typezone', '?')
+                for f in plu_list[:3]
+            ])
+            notes.append(f"Zonage PLU identifié : {zones_str}.")
+        if ppri_present:
+            notes.append("Attention : le site est concerné par un PPRI — consulter la Mairie / DDT.")
+        if sismo_zone not in ['—', '1', 'Zone 1']:
+            notes.append(f"Zone sismique {sismo_zone} — respecter la réglementation para-sismique.")
+        if not notes:
+            notes.append("Aucune contrainte majeure identifiée. Vérification en Mairie recommandée.")
+        ny = y - 0.75 * cm
+        for note in notes:
+            c.drawString(1.8 * cm, ny, f"→ {note}"[:90])
+            ny -= 0.5 * cm
+
+        c.drawString(1.8 * cm, ny,
+                     "Source : API GéoRisques, GPU Urbanisme, PVGIS — données indicatives, vérification officielle requise.")
 
         self._draw_page_footer(c)
 
