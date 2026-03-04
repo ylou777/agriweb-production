@@ -2257,7 +2257,10 @@ def register_crm_routes(app):
             "loss": 14,
             "angle": tilt,
             "aspect": aspect_pvgis,
-            "outputformat": "json"
+            "outputformat": "json",
+            "pvcalculation": 1,   # ← indispensable pour avoir le champ P
+            "startyear": 2020,
+            "endyear": 2020,
         }
         
         try:
