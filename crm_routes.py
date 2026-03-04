@@ -2381,7 +2381,126 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
-    
+
+    # ========================================
+    # ROUTES AUTOCONSOMMATION
+    # ========================================
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/autoconsommation', methods=['POST'])
+    def calculate_autoconsommation(prospect_id):
+        """
+        Calcul complet d'autoconsommation solaire.
+        Agrège la production PVGIS de toutes les zones et la superpose
+        au profil de consommation Enedis choisi.
+
+        Body JSON attendu :
+          zones            : [{lat, lon, inclinaison, orientation, puissance_kw, zone_numero}, ...]
+          consommation_kwh : float  – consommation annuelle (kWh)
+          profil_type      : str    – RES1|RES2|PRO1|PRO2|AGR|ENT
+          tarif_achat      : float  – € / kWh (optionnel, défaut 0.2516)
+          tarif_revente    : float  – € / kWh surplus (optionnel, défaut 0.1276)
+        """
+        try:
+            from autoconsommation import (
+                get_consumption_profile,
+                compute_autoconsommation,
+                compute_economics,
+                PROFILE_LABELS,
+            )
+
+            data = request.json or {}
+            zones             = data.get('zones', [])
+            consommation_kwh  = float(data.get('consommation_kwh', 0))
+            profil_type       = data.get('profil_type', 'RES1').upper()
+            tarif_achat       = float(data.get('tarif_achat',   0.2516))
+            tarif_revente     = float(data.get('tarif_revente', 0.1276))
+
+            if not zones:
+                return jsonify({'error': 'Aucune zone fournie'}), 400
+            if consommation_kwh <= 0:
+                return jsonify({'error': 'Consommation annuelle invalide'}), 400
+
+            # ── 1. Récupérer la production PVGIS 8760h pour chaque zone ─────────
+            combined_wh = [0.0] * 8760
+            zones_ok = []
+
+            for zone in zones:
+                lat        = zone.get('lat') or zone.get('latitude')
+                lon        = zone.get('lon') or zone.get('longitude') or zone.get('lng')
+                tilt       = float(zone.get('inclinaison', 30))
+                azimuth    = float(zone.get('orientation', 180))
+                puissance  = float(zone.get('puissance_kw', 1.0))
+                zone_num   = zone.get('zone_numero', zone.get('numero', 1))
+
+                if not lat or not lon:
+                    continue
+
+                pvgis = get_pvgis_hourly(lat, lon, tilt, azimuth, puissance)
+                if pvgis is None:
+                    continue
+
+                hourly = pvgis.get('outputs', {}).get('hourly', [])
+                if len(hourly) < 8760:
+                    continue
+
+                # PVGIS renvoie P en W (puissance instantanée = énergie Wh sur l'heure)
+                for i, entry in enumerate(hourly[:8760]):
+                    combined_wh[i] += float(entry.get('P', 0))
+
+                zones_ok.append({
+                    'zone_numero': zone_num,
+                    'puissance_kw': puissance,
+                    'lat': lat, 'lon': lon,
+                    'inclinaison': tilt, 'orientation': azimuth,
+                })
+
+            if not zones_ok:
+                return jsonify({'error': 'Aucune donnée PVGIS disponible pour les zones fournies'}), 500
+
+            # ── 2. Calcul autoconsommation ────────────────────────────────────────
+            result = compute_autoconsommation(
+                hourly_production_wh=combined_wh,
+                annual_consumption_kwh=consommation_kwh,
+                profile_type=profil_type,
+            )
+
+            # ── 3. Calcul économique ──────────────────────────────────────────────
+            economics = compute_economics(
+                kpis=result['kpis'],
+                tarif_achat_kwh=tarif_achat,
+                prix_revente_kwh=tarif_revente,
+            )
+
+            return jsonify({
+                'success'      : True,
+                'zones_traitees': zones_ok,
+                'profil_type'  : profil_type,
+                'profil_label' : PROFILE_LABELS.get(profil_type, profil_type),
+                'monthly'      : result['monthly'],
+                'daily_profiles': result['daily_profiles'],
+                'kpis'         : result['kpis'],
+                'economics'    : economics,
+            })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/autoconsommation/profils', methods=['GET'])
+    def get_profils_liste():
+        """Retourne la liste des profils de consommation disponibles."""
+        try:
+            from autoconsommation import PROFILE_LABELS
+            return jsonify({
+                'profils': [
+                    {'code': k, 'label': v}
+                    for k, v in PROFILE_LABELS.items()
+                ]
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     # ========================================
     # ROUTES VISITE TECHNIQUE
     # ========================================

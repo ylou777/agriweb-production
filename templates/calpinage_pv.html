@@ -548,6 +548,43 @@
 
         /* Supprimer la bordure rectangulaire des image overlays Leaflet (flux heatmap, RGB) */
         .leaflet-image-layer { border: none !important; outline: none !important; box-shadow: none !important; }
+
+        /* ── Autoconsommation panel ── */
+        .ac-tab-btn {
+            background: transparent; border: none; color: rgba(255,255,255,0.5);
+            padding: 6px 14px; border-radius: 8px 8px 0 0; cursor: pointer;
+            font-size: 0.82rem; font-weight: 500; transition: all .2s;
+        }
+        .ac-tab-btn.active {
+            background: rgba(56,189,248,0.15); color: #38bdf8;
+            border-bottom: 2px solid #38bdf8;
+        }
+        .ac-tab-btn:hover:not(.active) { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+        .ac-season-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.55); padding: 4px 12px; border-radius: 20px;
+            cursor: pointer; font-size: 0.78rem; transition: all .2s;
+        }
+        .ac-season-btn.active {
+            background: rgba(56,189,248,0.2); border-color: #38bdf8; color: #38bdf8;
+        }
+        .ac-kpi-card {
+            background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px;
+            border: 1px solid rgba(255,255,255,0.1); text-align: center;
+        }
+        .ac-kpi-value { font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
+        .ac-kpi-label { font-size: 0.72rem; color: rgba(255,255,255,0.5); margin-top: 3px; }
+        .ac-monthly-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        .ac-monthly-table th {
+            padding: 4px 8px; background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.5); border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: center; white-space: nowrap;
+        }
+        .ac-monthly-table td {
+            padding: 4px 8px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+        }
+        .ac-monthly-table tr:hover td { background: rgba(255,255,255,0.04); }
     </style>
 </head>
 <body>
@@ -1437,12 +1474,170 @@
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
                         <i class="bi bi-save"></i> Sauvegarder le calpinage
                     </button>
+                    <!-- ⚡ Autoconsommation -->
+                    <button class="btn btn-info text-dark fw-semibold" id="btnAutoconsommation" onclick="ouvrirPanneauAutoconso()">
+                        ⚡ Analyse Autoconsommation
+                    </button>
                     <a href="/crm" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-arrow-left"></i> Retour au CRM
                     </a>
                 </div>
         </div>
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         PANNEAU FLOTTANT AUTOCONSOMMATION
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div id="panneauAutoconso" style="
+        display:none; position:fixed; top:0; right:0; width:100%; height:100%;
+        z-index:9000; background:rgba(0,0,0,0.55); backdrop-filter:blur(3px);"
+        onclick="if(event.target===this) fermerPanneauAutoconso()">
+
+        <div style="
+            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            width:min(98vw,1100px); max-height:94vh; overflow-y:auto;
+            background:#0f172a; border-radius:16px; border:1px solid rgba(99,179,237,0.3);
+            box-shadow:0 8px 48px rgba(0,0,0,0.7); color:#e2e8f0; font-size:0.9rem;">
+
+            <!-- En-tête -->
+            <div style="display:flex;align-items:center;justify-content:space-between;
+                        padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.1);
+                        background:linear-gradient(135deg,rgba(14,165,233,0.15),rgba(99,102,241,0.15));
+                        border-radius:16px 16px 0 0; position:sticky; top:0; z-index:2;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:1.5rem;">⚡</span>
+                    <div>
+                        <h5 style="margin:0;font-weight:700;color:#38bdf8;">Analyse Autoconsommation Solaire</h5>
+                        <small style="color:rgba(255,255,255,0.5);">Profils Enedis × Production PVGIS 8760h</small>
+                    </div>
+                </div>
+                <button onclick="fermerPanneauAutoconso()" style="
+                    background:rgba(255,255,255,0.08); border:none; color:#fff;
+                    width:32px; height:32px; border-radius:8px; cursor:pointer;
+                    font-size:1.1rem; display:flex; align-items:center; justify-content:center;">✕</button>
+            </div>
+
+            <!-- Corps -->
+            <div style="padding:20px; display:grid; grid-template-columns:280px 1fr; gap:20px;">
+
+                <!-- Colonne gauche : Paramètres -->
+                <div>
+                    <div style="background:rgba(255,255,255,0.05); border-radius:10px; padding:14px; border:1px solid rgba(255,255,255,0.1);">
+                        <h6 style="color:#7dd3fc; margin-bottom:12px;">⚙️ Paramètres</h6>
+
+                        <label style="font-size:0.8rem;color:rgba(255,255,255,0.6);">Profil de consommation</label>
+                        <select id="acProfilType" class="form-select form-select-sm mb-3"
+                            style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;font-size:0.82rem;">
+                            <option value="RES1">🏠 Résidentiel sans chauffage élec.</option>
+                            <option value="RES2">🏠🔥 Résidentiel avec chauffage élec.</option>
+                            <option value="PRO1">🏢 Professionnel / Tertiaire</option>
+                            <option value="PRO2">🏢🔥 Professionnel avec chauffage élec.</option>
+                            <option value="AGR">🌾 Agricole</option>
+                            <option value="ENT">🏭 Entreprise / Industrie</option>
+                        </select>
+
+                        <label style="font-size:0.8rem;color:rgba(255,255,255,0.6);">Consommation annuelle (kWh)</label>
+                        <input type="number" id="acConsommationKwh" class="form-control form-control-sm mb-3"
+                            style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
+                            value="5000" min="100" max="500000" step="100"
+                            placeholder="ex: 5000">
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                            <div>
+                                <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif achat (€/kWh)</label>
+                                <input type="number" id="acTarifAchat" class="form-control form-control-sm"
+                                    style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
+                                    value="0.2516" step="0.001" min="0.05" max="1.0">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente (€/kWh)</label>
+                                <input type="number" id="acTarifRevente" class="form-control form-control-sm"
+                                    style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
+                                    value="0.1276" step="0.001" min="0.01" max="0.5">
+                            </div>
+                        </div>
+
+                        <button id="acBtnLancer" onclick="lancerCalculAutoconso()"
+                            class="btn btn-info w-100 fw-semibold" style="color:#0f172a;">
+                            🔬 Calculer
+                        </button>
+                        <div id="acLoading" style="display:none;text-align:center;margin-top:12px;color:#7dd3fc;font-size:0.82rem;">
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            Interrogation PVGIS pour {{ zones.length }} zones…
+                        </div>
+                        <div id="acErrMsg" style="display:none;color:#f87171;font-size:0.8rem;margin-top:8px;"></div>
+                    </div>
+
+                    <!-- Sources zones -->
+                    <div id="acZonesResume" style="display:none;background:rgba(255,255,255,0.04);
+                        border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,0.08);margin-top:12px;">
+                        <h6 style="color:#86efac;margin-bottom:8px;font-size:0.83rem;">🗂️ Zones PV utilisées</h6>
+                        <div id="acZonesList" style="font-size:0.78rem;color:rgba(255,255,255,0.65);"></div>
+                    </div>
+
+                    <!-- Source profil -->
+                    <div style="margin-top:12px;padding:8px 10px;background:rgba(99,102,241,0.1);
+                        border-radius:8px;border:1px solid rgba(99,102,241,0.3);font-size:0.75rem;color:rgba(255,255,255,0.5);">
+                        📡 Profils types <a href="https://openservices.enedis.fr/service/simulateur-courbes-de-charge/" target="_blank" style="color:#818cf8;">Enedis</a>
+                        · Production <a href="https://re.jrc.ec.europa.eu/pvg_tools/en/" target="_blank" style="color:#818cf8;">PVGIS</a>
+                    </div>
+                </div>
+
+                <!-- Colonne droite : Résultats -->
+                <div id="acResultats" style="display:none;">
+
+                    <!-- KPIs principaux -->
+                    <div id="acKpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;"></div>
+
+                    <!-- Onglets graphiques -->
+                    <div style="border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:12px;display:flex;gap:4px;" id="acTabBtns">
+                        <button class="ac-tab-btn active" data-tab="mensuel" onclick="acSwitchTab('mensuel')">📅 Mensuel</button>
+                        <button class="ac-tab-btn" data-tab="journalier" onclick="acSwitchTab('journalier')">⏱️ Profils journaliers</button>
+                        <button class="ac-tab-btn" data-tab="economique" onclick="acSwitchTab('economique')">💰 Économique</button>
+                    </div>
+
+                    <!-- Tab : Mensuel -->
+                    <div id="acTabMensuel" class="ac-tab-content">
+                        <div style="height:260px;position:relative;">
+                            <canvas id="acChartMensuel"></canvas>
+                        </div>
+                        <div id="acTableMensuel" style="margin-top:14px;overflow-x:auto;"></div>
+                    </div>
+
+                    <!-- Tab : Profils journaliers -->
+                    <div id="acTabJournalier" class="ac-tab-content" style="display:none;">
+                        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                            <button class="ac-season-btn active" data-season="summer" onclick="acSwitchSeason('summer')">☀️ Été (Jun-Aoû)</button>
+                            <button class="ac-season-btn" data-season="spring"  onclick="acSwitchSeason('spring')">🌸 Printemps (Avr-Mai)</button>
+                            <button class="ac-season-btn" data-season="winter"  onclick="acSwitchSeason('winter')">❄️ Hiver (Déc-Fév)</button>
+                        </div>
+                        <div style="height:260px;position:relative;">
+                            <canvas id="acChartJournalier"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Tab : Économique -->
+                    <div id="acTabEconomique" class="ac-tab-content" style="display:none;">
+                        <div id="acKpisEco" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;"></div>
+                        <div style="height:220px;position:relative;">
+                            <canvas id="acChartEco"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- État vide (avant calcul) -->
+                <div id="acEtatVide" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    color:rgba(255,255,255,0.3);text-align:center;padding:40px 20px;">
+                    <div style="font-size:3rem;margin-bottom:10px;">⚡</div>
+                    <div>Complétez les paramètres ci-contre<br>et cliquez sur <strong>Calculer</strong></div>
+                    <div style="margin-top:16px;font-size:0.78rem;opacity:0.6;">
+                        L'analyse sera effectuée depuis PVGIS<br>pour vos zones PV dessinées.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /PANNEAU AUTOCONSOMMATION -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -9655,6 +9850,446 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
             }, 200); // Animation toutes les 200ms
         }
+
+        // ============================================================
+        //  AUTOCONSOMMATION
+        // ============================================================
+        let _acChartMensuel    = null;
+        let _acChartJournalier = null;
+        let _acChartEco        = null;
+        let _acDailyData       = null;   // mémorise daily_profiles après calcul
+        let _acCurrentSeason   = 'summer';
+
+        function ouvrirPanneauAutoconso() {
+            const p = document.getElementById('panneauAutoconso');
+            if (p) p.style.display = 'block';
+        }
+
+        function fermerPanneauAutoconso() {
+            const p = document.getElementById('panneauAutoconso');
+            if (p) p.style.display = 'none';
+        }
+
+        // ── Lancer le calcul ──────────────────────────────────────────────────
+        async function lancerCalculAutoconso() {
+            const profilType       = document.getElementById('acProfilType').value;
+            const consKwh          = parseFloat(document.getElementById('acConsommationKwh').value);
+            const tarifAchat       = parseFloat(document.getElementById('acTarifAchat').value);
+            const tarifRevente     = parseFloat(document.getElementById('acTarifRevente').value);
+
+            if (isNaN(consKwh) || consKwh <= 0) {
+                _acShowErr('Veuillez saisir une consommation annuelle valide (kWh).');
+                return;
+            }
+            if (!zones || zones.length === 0) {
+                _acShowErr('Aucune zone PV dessinée. Dessinez d\'abord vos zones sur la carte.');
+                return;
+            }
+
+            _acShowErr('');
+            document.getElementById('acBtnLancer').disabled = true;
+            document.getElementById('acLoading').style.display = 'block';
+            document.getElementById('acResultats').style.display = 'none';
+            document.getElementById('acEtatVide').style.display = 'none';
+
+            // Préparer les données zones
+            const zonesPayload = zones.map(z => {
+                const bounds = z.layer.getBounds();
+                const center = bounds.getCenter();
+                return {
+                    lat          : center.lat,
+                    lon          : center.lng,
+                    inclinaison  : z.inclinaison  || 20,
+                    orientation  : z.orientation  || 180,
+                    puissance_kw : z.puissanceKw  || 1.0,
+                    zone_numero  : z.numero       || 1,
+                };
+            });
+
+            try {
+                const resp = await fetch(`/api/crm/prospects/${prospectId}/autoconsommation`, {
+                    method : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body   : JSON.stringify({
+                        zones            : zonesPayload,
+                        consommation_kwh : consKwh,
+                        profil_type      : profilType,
+                        tarif_achat      : tarifAchat,
+                        tarif_revente    : tarifRevente,
+                    }),
+                });
+
+                const data = await resp.json();
+
+                if (!resp.ok || !data.success) {
+                    _acShowErr(data.error || 'Erreur lors du calcul.');
+                    return;
+                }
+
+                _acRenderResultats(data);
+
+            } catch (e) {
+                _acShowErr('Erreur réseau : ' + e.message);
+            } finally {
+                document.getElementById('acBtnLancer').disabled = false;
+                document.getElementById('acLoading').style.display = 'none';
+            }
+        }
+
+        function _acShowErr(msg) {
+            const el = document.getElementById('acErrMsg');
+            if (!el) return;
+            el.textContent = msg;
+            el.style.display = msg ? 'block' : 'none';
+        }
+
+        // ── Rendre tous les résultats ──────────────────────────────────────
+        function _acRenderResultats(data) {
+            const { kpis, monthly, daily_profiles, economics, zones_traitees, profil_label } = data;
+
+            // Résumé zones traitées
+            const zonesResume = document.getElementById('acZonesResume');
+            const zonesList   = document.getElementById('acZonesList');
+            if (zonesResume && zonesList && zones_traitees) {
+                zonesList.innerHTML = zones_traitees.map(z =>
+                    `<div>Zone ${z.zone_numero} — <strong>${z.puissance_kw} kWc</strong> · ${z.inclinaison}° · ${z.orientation}°</div>`
+                ).join('');
+                zonesResume.style.display = 'block';
+            }
+
+            // KPIs principaux
+            _acRenderKpis(kpis);
+
+            // Graphiques
+            _acDailyData = daily_profiles;
+            _acRenderMensuel(monthly);
+            _acRenderJournalier(daily_profiles, _acCurrentSeason);
+            _acRenderEconomique(economics);
+
+            // Afficher la colonne des résultats
+            document.getElementById('acEtatVide').style.display   = 'none';
+            document.getElementById('acResultats').style.display  = 'block';
+
+            // Activer onglet mensuel par défaut
+            acSwitchTab('mensuel');
+        }
+
+        // ── KPIs ──────────────────────────────────────────────────────────────
+        function _acRenderKpis(kpis) {
+            const el = document.getElementById('acKpis');
+            if (!el) return;
+
+            const ac_pct = kpis.taux_autoconsommation;
+            const as_pct = kpis.taux_autosuffisance;
+
+            const colorAC = ac_pct >= 80 ? '#34d399' : ac_pct >= 60 ? '#fbbf24' : '#f87171';
+            const colorAS = as_pct >= 50 ? '#34d399' : as_pct >= 30 ? '#fbbf24' : '#f87171';
+
+            el.innerHTML = `
+                <div class="ac-kpi-card">
+                    <div class="ac-kpi-value" style="color:#38bdf8;">${_acFmt(kpis.production_annuelle_kwh)} kWh</div>
+                    <div class="ac-kpi-label">⚡ Production solaire</div>
+                </div>
+                <div class="ac-kpi-card">
+                    <div class="ac-kpi-value" style="color:${colorAC};">${ac_pct.toFixed(1)}%</div>
+                    <div class="ac-kpi-label">🔄 Taux d'autoconsommation</div>
+                    <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:2px;">${_acFmt(kpis.autoconso_kwh)} kWh autoconsommés</div>
+                </div>
+                <div class="ac-kpi-card">
+                    <div class="ac-kpi-value" style="color:${colorAS};">${as_pct.toFixed(1)}%</div>
+                    <div class="ac-kpi-label">🏠 Taux d'autosuffisance</div>
+                    <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:2px;">${_acFmt(kpis.consommation_annuelle_kwh)} kWh consommés</div>
+                </div>
+                <div class="ac-kpi-card">
+                    <div class="ac-kpi-value" style="color:#86efac;">${_acFmt(kpis.autoconso_kwh)} kWh</div>
+                    <div class="ac-kpi-label">✅ Énergie autoconsommée</div>
+                </div>
+                <div class="ac-kpi-card">
+                    <div class="ac-kpi-value" style="color:#fbbf24;">${_acFmt(kpis.surplus_kwh)} kWh</div>
+                    <div class="ac-kpi-label">↗️ Surplus réinjecté</div>
+                </div>
+                <div class="ac-kpi-card">
+                    <div class="ac-kpi-value" style="color:#f87171;">${_acFmt(kpis.deficit_kwh)} kWh</div>
+                    <div class="ac-kpi-label">↙️ Déficit (réseau)</div>
+                </div>`;
+        }
+
+        // ── Graphique mensuel ─────────────────────────────────────────────────
+        function _acRenderMensuel(monthly) {
+            const ctx = document.getElementById('acChartMensuel');
+            if (!ctx) return;
+
+            if (_acChartMensuel) { _acChartMensuel.destroy(); _acChartMensuel = null; }
+
+            _acChartMensuel = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthly.labels,
+                    datasets: [
+                        {
+                            label     : 'Production (kWh)',
+                            data      : monthly.production,
+                            backgroundColor: 'rgba(56,189,248,0.7)',
+                            order     : 2,
+                        },
+                        {
+                            label     : 'Consommation (kWh)',
+                            data      : monthly.consommation,
+                            type      : 'line',
+                            borderColor    : '#fbbf24',
+                            backgroundColor: 'rgba(251,191,36,0.1)',
+                            borderWidth    : 2,
+                            fill           : false,
+                            tension        : 0.4,
+                            pointRadius    : 3,
+                            order          : 1,
+                        },
+                        {
+                            label     : 'Autoconsommée (kWh)',
+                            data      : monthly.autoconso,
+                            backgroundColor: 'rgba(52,211,153,0.75)',
+                            order     : 3,
+                        },
+                        {
+                            label     : 'Surplus (kWh)',
+                            data      : monthly.surplus,
+                            backgroundColor: 'rgba(251,191,36,0.55)',
+                            order     : 4,
+                        },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                        tooltip: {
+                            mode: 'index', intersect: false,
+                            callbacks: {
+                                afterBody(items) {
+                                    const idx = items[0]?.dataIndex;
+                                    if (idx === undefined) return;
+                                    return [`Autoconso : ${monthly.taux_ac[idx]}%`, `Autosuffis : ${monthly.taux_as[idx]}%`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
+                            ticks: { color: '#64748b', callback: v => `${v} kWh` },
+                            grid : { color: 'rgba(255,255,255,0.07)' },
+                        }
+                    }
+                }
+            });
+
+            // Tableau mensuel
+            const tbl = document.getElementById('acTableMensuel');
+            if (!tbl) return;
+            tbl.innerHTML = `<table class="ac-monthly-table">
+                <thead><tr>
+                    <th>Mois</th><th>Prod. (kWh)</th><th>Conso (kWh)</th>
+                    <th>Autoconso (kWh)</th><th>Surplus (kWh)</th>
+                    <th>Taux AC</th><th>Taux AS</th>
+                </tr></thead>
+                <tbody>
+                    ${monthly.labels.map((m, i) => `
+                    <tr>
+                        <td>${m}</td>
+                        <td style="color:#38bdf8;">${monthly.production[i]}</td>
+                        <td style="color:#fbbf24;">${monthly.consommation[i]}</td>
+                        <td style="color:#34d399;">${monthly.autoconso[i]}</td>
+                        <td style="color:#fbbf24;">${monthly.surplus[i]}</td>
+                        <td>${monthly.taux_ac[i]}%</td>
+                        <td>${monthly.taux_as[i]}%</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>`;
+        }
+
+        // ── Profils journaliers ────────────────────────────────────────────────
+        function _acRenderJournalier(dp, season) {
+            if (!dp) return;
+            const ctx = document.getElementById('acChartJournalier');
+            if (!ctx) return;
+
+            if (_acChartJournalier) { _acChartJournalier.destroy(); _acChartJournalier = null; }
+
+            const labels     = dp.hours.map(h => `${h}h`);
+            const prodKey    = `${season}_prod`;
+            const consoKey   = `${season}_conso`;
+            const prod       = dp[prodKey]  || [];
+            const conso      = dp[consoKey] || [];
+            const autoconso  = prod.map((p, i) => Math.min(p, conso[i] || 0));
+            const surplus    = prod.map((p, i) => Math.max(p - (conso[i] || 0), 0));
+
+            _acChartJournalier = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label          : 'Production solaire (kWh moyen)',
+                            data           : prod,
+                            borderColor    : '#38bdf8',
+                            backgroundColor: 'rgba(56,189,248,0.15)',
+                            fill           : true,
+                            tension        : 0.4, borderWidth: 2, pointRadius: 2,
+                        },
+                        {
+                            label          : 'Consommation (kWh moyen)',
+                            data           : conso,
+                            borderColor    : '#fbbf24',
+                            backgroundColor: 'rgba(251,191,36,0.10)',
+                            fill           : true,
+                            tension        : 0.4, borderWidth: 2, pointRadius: 2,
+                        },
+                        {
+                            label          : 'Autoconsommée',
+                            data           : autoconso,
+                            borderColor    : '#34d399',
+                            backgroundColor: 'rgba(52,211,153,0.25)',
+                            fill           : true,
+                            tension        : 0.4, borderWidth: 1.5, pointRadius: 0,
+                        },
+                        {
+                            label          : 'Surplus injecté',
+                            data           : surplus,
+                            borderColor    : 'rgba(251,191,36,0.6)',
+                            backgroundColor: 'rgba(251,191,36,0.08)',
+                            fill           : true,
+                            tension        : 0.4, borderWidth: 1, pointRadius: 0,
+                            borderDash     : [4, 3],
+                        },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                    },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 13 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
+                            ticks: { color: '#64748b', callback: v => `${v} kWh` },
+                            grid : { color: 'rgba(255,255,255,0.07)' },
+                        }
+                    }
+                }
+            });
+        }
+
+        function acSwitchSeason(season) {
+            _acCurrentSeason = season;
+            document.querySelectorAll('.ac-season-btn').forEach(b => b.classList.toggle('active', b.dataset.season === season));
+            if (_acDailyData) _acRenderJournalier(_acDailyData, season);
+        }
+
+        // ── Graphique économique ───────────────────────────────────────────────
+        function _acRenderEconomique(eco) {
+            // KPIs éco
+            const el = document.getElementById('acKpisEco');
+            if (el) {
+                el.innerHTML = `
+                    <div class="ac-kpi-card">
+                        <div class="ac-kpi-value" style="color:#34d399;">${_acFmtEur(eco.economie_an1)} €</div>
+                        <div class="ac-kpi-label">💰 Économies an 1</div>
+                    </div>
+                    <div class="ac-kpi-card">
+                        <div class="ac-kpi-value" style="color:#fbbf24;">${_acFmtEur(eco.revenu_surplus_an1)} €</div>
+                        <div class="ac-kpi-label">↗️ Revenu surplus an 1</div>
+                    </div>
+                    <div class="ac-kpi-card">
+                        <div class="ac-kpi-value" style="color:#a78bfa;">${_acFmtEur(eco.cumul_total)} €</div>
+                        <div class="ac-kpi-label">📈 Cumul ${eco.duree_ans} ans</div>
+                    </div>`;
+            }
+
+            // Graphique cumulatif
+            const ctx = document.getElementById('acChartEco');
+            if (!ctx) return;
+            if (_acChartEco) { _acChartEco.destroy(); _acChartEco = null; }
+
+            const years     = eco.economies_par_an.map((_, i) => `An ${i + 1}`);
+            const cumEco    = [];
+            const cumSurp   = [];
+            const cumTot    = [];
+            let sEco = 0, sSurp = 0;
+            for (let i = 0; i < eco.economies_par_an.length; i++) {
+                sEco  += eco.economies_par_an[i];
+                sSurp += eco.revenus_par_an[i];
+                cumEco.push(Math.round(sEco));
+                cumSurp.push(Math.round(sSurp));
+                cumTot.push(Math.round(sEco + sSurp));
+            }
+
+            _acChartEco = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: [
+                        {
+                            label          : 'Cumul économies (€)',
+                            data           : cumEco,
+                            borderColor    : '#34d399',
+                            backgroundColor: 'rgba(52,211,153,0.1)',
+                            fill           : true,
+                            tension        : 0.3, borderWidth: 2, pointRadius: 0,
+                        },
+                        {
+                            label          : 'Cumul revente surplus (€)',
+                            data           : cumSurp,
+                            borderColor    : '#fbbf24',
+                            backgroundColor: 'rgba(251,191,36,0.08)',
+                            fill           : true,
+                            tension        : 0.3, borderWidth: 2, pointRadius: 0,
+                        },
+                        {
+                            label          : 'Total cumulé (€)',
+                            data           : cumTot,
+                            borderColor    : '#a78bfa',
+                            backgroundColor: 'transparent',
+                            borderDash     : [5, 3],
+                            tension        : 0.3, borderWidth: 2.5, pointRadius: 0,
+                        },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                    },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
+                            ticks: { color: '#64748b', callback: v => `${v.toLocaleString('fr-FR')} €` },
+                            grid : { color: 'rgba(255,255,255,0.07)' },
+                        }
+                    }
+                }
+            });
+        }
+
+        // ── Navigation onglets ────────────────────────────────────────────────
+        function acSwitchTab(tab) {
+            ['mensuel', 'journalier', 'economique'].forEach(t => {
+                const el = document.getElementById(`acTab${t.charAt(0).toUpperCase() + t.slice(1)}`);
+                if (el) el.style.display = (t === tab) ? 'block' : 'none';
+            });
+            document.querySelectorAll('.ac-tab-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.tab === tab));
+        }
+
+        // ── Utilitaires ───────────────────────────────────────────────────────
+        function _acFmt(v) {
+            return Math.round(v).toLocaleString('fr-FR');
+        }
+        function _acFmtEur(v) {
+            return Math.round(v).toLocaleString('fr-FR');
+        }
+        // /AUTOCONSOMMATION
     </script>
 
 
