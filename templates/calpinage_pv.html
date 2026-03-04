@@ -9998,9 +9998,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 });
 
                 const data = await resp.json();
+                console.log('[AUTOCONSO] Réponse serveur:', resp.status, JSON.stringify(data).slice(0, 400));
 
                 if (!resp.ok || !data.success) {
-                    _acShowErr(data.error || 'Erreur lors du calcul.');
+                    const msg = data.error || `Erreur serveur ${resp.status}`;
+                    console.error('[AUTOCONSO] Erreur:', msg);
+                    _acShowErr(msg);
                     return;
                 }
 
@@ -10016,9 +10019,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
         function _acShowErr(msg) {
             const el = document.getElementById('acErrMsg');
-            if (!el) return;
-            el.textContent = msg;
-            el.style.display = msg ? 'block' : 'none';
+            if (el) {
+                el.textContent = msg;
+                el.style.display = msg ? 'block' : 'none';
+            } else if (msg) {
+                alert('❌ Autoconsommation – ' + msg);
+            }
         }
 
         // ── Rendre tous les résultats ──────────────────────────────────────
