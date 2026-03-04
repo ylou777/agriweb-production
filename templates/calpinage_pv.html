@@ -1546,11 +1546,17 @@
                         <select id="acTariffType" class="form-select form-select-sm mb-2"
                             style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;font-size:0.82rem;"
                             onchange="_acUpdateTariffInfo()">
-                            <option value="BASE">⚡ Tarif Base (0.2516 €/kWh)</option>
-                            <option value="HPHC">🌙 HP/HC – Nuit 22h-6h (HC 0.2068 / HP 0.2700)</option>
-                            <option value="HPHC_MIDI">🌙☀️ HP/HC + créneau midi 12h-14h</option>
-                            <option value="TEMPO">🎨 Tempo EDF (Bleu/Blanc/Rouge)</option>
-                            <option value="EJP">⚠️ EJP – 22 jours de pointe</option>
+                            <optgroup label="── Résidentiel / PME (BT ≤ 36 kVA) ──" style="color:rgba(255,255,255,0.4);font-size:0.75rem;">
+                                <option value="BASE">⚡ Tarif Base (0.2516 €/kWh)</option>
+                                <option value="HPHC">🌙 HP/HC – Nuit 22h-6h (HC 0.2068 / HP 0.2700)</option>
+                                <option value="HPHC_MIDI">🌙☀️ HP/HC + créneau midi 12h-14h</option>
+                                <option value="TEMPO">🎨 Tempo EDF (Bleu/Blanc/Rouge)</option>
+                                <option value="EJP">⚠️ EJP – 22 jours de pointe</option>
+                            </optgroup>
+                            <optgroup label="── Professionnel / Industriel ──" style="color:rgba(255,255,255,0.4);font-size:0.75rem;">
+                                <option value="C4_HORO">🏭 C4 Pro BT 36-250 kVA – Horosaisonnier 4P</option>
+                                <option value="HTA_HORO">⚡🏗️ HTA Industriel &gt;250 kVA – 5 périodes TURPE</option>
+                            </optgroup>
                         </select>
                         <div id="acTariffInfo" style="font-size:0.73rem;color:rgba(255,255,255,0.45);background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:6px;margin-bottom:10px;line-height:1.45;"></div>
 
@@ -9971,6 +9977,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             'HPHC_MIDI' : '🌙☀️ HC nuit 23h→7h + midi 12h→14h. Bénéfique si consommation solaire couvre les HP.',
             'TEMPO'     : '🎨 Bleu 300j (HP 0.1609€) · Blanc 43j (HP 0.2118€) · Rouge 22j (HP 0.7562€). HC = 22h-6h tous jours. Économie maximale si production couvre les jours blancs/rouges.',
             'EJP'       : '⚠️ 22 jours de pointe/an (7h-23h) à 0.6797€/kWh. 343j normaux à 0.1613€. L\'autoconso solaire n\'évite PAS les pointes (hiver, nuageux). Peu adapté au solaire.',
+            'C4_HORO'   : '🏭 Ex-Tarif Jaune (supprimé 2021). 4 périodes : Hiver (nov-mar) HPH 0.2150€ / HCH 0.1450€ · Été (avr-oct) HPE 0.1750€ / HCE 0.1250€. HP = 7h-23h jours ouvrés · HC = nuits + week-ends. Bien adapté au solaire (pic de production en HPE)..',
+            'HTA_HORO'  : '⚡🏗️ TURPE 6 HTA (>250 kVA). 5 périodes : Pointe P (jours ouvrés hiver 9h-11h + 17h-19h) à 0.4500€ · HPH 0.2000€ · HCH 0.1350€ · HPE 0.1650€ · HCE 0.1100€. Abonnement élevé. La production solaire (HPE) offre une valeur économique forte en été.',
         };
 
         function _acUpdateTariffInfo() {

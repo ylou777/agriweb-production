@@ -82,6 +82,53 @@ TARIFF_STRUCTURES = {
         # Plages horaires de pointe (sur les jours EJP uniquement)
         'heures_pointe'  : (7, 23),
     },
+
+    # ── C4 : BT Professionnel 36-250 kVA – Horosaisonnier 4 périodes ──────────
+    # Anciennement "Tarif Jaune" (supprimé 31/12/2021), remplacé par offres marché.
+    # Structure horosaisonnière : Hiver=Nov-Mar / Été=Avr-Oct, HP=7h-23h, HC=23h-7h.
+    # Prix estimés 2024 (offres marché avec TURPE C4 + CSPE + TVA).
+    'C4_HORO': {
+        'label'          : 'C4 Pro BT 36-250 kVA – Horosaisonnier',
+        'description'    : ('Ex-Tarif Jaune (supprimé 2021). 4 périodes : HPH/HCH (Hiver: nov-mar) '
+                            'et HPE/HCE (Été: avr-oct). HP=7h-23h, HC=23h-7h + WE.'),
+        'abonnement_an'  : 800.0,    # €/an indicatif (varie selon puissance souscrite)
+        # Hiver (Nov–Mar) ─ HP jours ouvrés / HC nuits + week-ends
+        'hph_kwh'        : 0.2150,   # €/kWh HPH (Heures Pleines Hiver)
+        'hch_kwh'        : 0.1450,   # €/kWh HCH (Heures Creuses Hiver)
+        # Été (Avr–Oct) ─ HP jours ouvrés / HC nuits + week-ends
+        'hpe_kwh'        : 0.1750,   # €/kWh HPE (Heures Pleines Été)
+        'hce_kwh'        : 0.1250,   # €/kWh HCE (Heures Creuses Été)
+        # Définition des périodes
+        'hiver_mois'     : {10, 0, 1, 2, 11},   # indices mois (0=jan) → nov+déc+jan+fév+mar
+        'hp_debut'       : 7,    # 7h
+        'hp_fin'         : 23,   # 23h
+    },
+
+    # ── HTA : Industriel > 250 kVA – Horosaisonnier 5 périodes (TURPE 6 HTA) ─
+    # Haute Tension A (1 kV < U ≤ 50 kV), mesure quotidienne (compteur communicant).
+    # 5 périodes : Pointe(P) / HPH / HCH / HPE / HCE.
+    # Prix indicatifs tout compris 2024 (TURPE 6 + offre marché + taxes).
+    'HTA_HORO': {
+        'label'          : 'HTA Industriel >250 kVA – 5 périodes TURPE',
+        'description'    : ('Tarif Haute Tension A (TURPE 6 HTA). 5 périodes. '
+                            'Pointe (P) : jours ouvrés hiver 9h-11h + 17h-19h (très cher). '
+                            'HPH/HCH : reste hiver. HPE/HCE : été (avr-oct).'),
+        'abonnement_an'  : 2500.0,   # €/an indicatif (varie beaucoup selon puissance)
+        # Pointe : jours ouvrés, hiver (nov-mar), créneaux 9h-11h ET 17h-19h
+        'p_kwh'          : 0.4500,   # €/kWh P (Pointe) – très élevé en hiver matin/soir
+        # Hiver HP/HC hors pointe
+        'hph_kwh'        : 0.2000,   # €/kWh HPH (Heures Pleines Hiver)
+        'hch_kwh'        : 0.1350,   # €/kWh HCH (Heures Creuses Hiver)
+        # Été HP/HC
+        'hpe_kwh'        : 0.1650,   # €/kWh HPE (Heures Pleines Été)
+        'hce_kwh'        : 0.1100,   # €/kWh HCE (Heures Creuses Été)
+        # Définition des périodes
+        'hiver_mois'     : {10, 0, 1, 2, 11},   # indices mois : nov(10)+déc(11)+jan(0)+fév(1)+mar(2)
+        'hp_debut'       : 7,    # 7h
+        'hp_fin'         : 23,   # 23h
+        # Créneaux Pointe uniquement (jours ouvrés hiver)
+        'pointe_plages'  : [(9, 11), (17, 19)],  # 9h-11h et 17h-19h
+    },
 }
 
 
@@ -160,6 +207,104 @@ def _generate_ejp_pointe_days() -> set:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# GÉNÉRATION DES VECTEURS HOROSAISONNIERS (C4 et HTA)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _generate_horo_8760(tariff_type: str) -> list:
+    """
+    Génère le vecteur de 8760 prix horaires pour les tarifs horosaisonniers
+    C4_HORO (BT 36-250 kVA) et HTA_HORO (>250 kVA, TURPE 6 HTA).
+
+    Règles horosaisonnières (définition TURPE) :
+    ┌───────────────┬────────────────────────────────────────────────────────┐
+    │ Saison Hiver  │ Nov 1 → Mar 31   (mois : nov=10, déc=11, jan=0, fév=1,│
+    │               │ mar=2 en indices Python)                               │
+    │ Saison Été    │ Avr 1 → Oct 31   (mois : avr=3 … oct=9)               │
+    ├───────────────┼────────────────────────────────────────────────────────┤
+    │ HP            │ Jours ouvrés, 7h ≤ h < 23h                            │
+    │ HC            │ Nuits (23h–7h) + week-ends + jours fériés              │
+    ├───────────────┼────────────────────────────────────────────────────────┤
+    │ Pointe P      │ HTA uniquement : jours ouvrés hiver                    │
+    │ (HTA seulement│ créneaux 9h-11h  ET  17h-19h                          │
+    └───────────────┴────────────────────────────────────────────────────────┘
+
+    Année de référence : 2020 (non-bissextile, PVGIS) → jan 1 = mercredi (wd=2).
+    """
+    struct = TARIFF_STRUCTURES[tariff_type]
+    MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    HIVER_MOIS = struct['hiver_mois']   # e.g. {10, 0, 1, 2, 11}
+    HP_DEBUT   = struct['hp_debut']     # 7
+    HP_FIN     = struct['hp_fin']       # 23
+    JAN1_WEEKDAY = 2   # 2020-01-01 = mercredi (0=lun, 6=dim)
+
+    is_hta = (tariff_type == 'HTA_HORO')
+    if is_hta:
+        POINTE_PLAGES = struct['pointe_plages']   # [(9, 11), (17, 19)]
+        p_kwh   = struct['p_kwh']
+        hph_kwh = struct['hph_kwh']
+        hch_kwh = struct['hch_kwh']
+        hpe_kwh = struct['hpe_kwh']
+        hce_kwh = struct['hce_kwh']
+    else:
+        hph_kwh = struct['hph_kwh']
+        hch_kwh = struct['hch_kwh']
+        hpe_kwh = struct['hpe_kwh']
+        hce_kwh = struct['hce_kwh']
+
+    # Jours fériés fixes en France (hors Pâques/Ascension/Lundi Pentecôte)
+    # Format : (mois_0indexed, jour)
+    FERIES = {
+        (0, 1),   # 1er janvier
+        (4, 1),   # 1er mai
+        (4, 8),   # 8 mai
+        (6, 14),  # 14 juillet
+        (7, 15),  # 15 août
+        (10, 1),  # 1er novembre
+        (10, 11), # 11 novembre
+        (11, 25), # 25 décembre
+    }
+
+    prix = []
+    global_day = 0
+
+    for mi, nb_jours in enumerate(MONTH_DAYS):
+        is_hiver = (mi in HIVER_MOIS)
+
+        for d in range(nb_jours):
+            weekday    = (JAN1_WEEKDAY + global_day) % 7   # 0=lun … 6=dim
+            is_weekend = weekday >= 5
+            is_ferie   = (mi, d) in FERIES
+            is_ouvre   = not is_weekend and not is_ferie
+
+            for h in range(24):
+                # ── Déterminer la période tarifaire ──────────────────────────
+                if HP_DEBUT <= h < HP_FIN:
+                    # Créneau HP (7h-23h)
+                    if is_ouvre:
+                        if is_hiver:
+                            # HTA : vérifier si c'est une heure de pointe
+                            if is_hta:
+                                in_pointe = any(ps <= h < pe for ps, pe in POINTE_PLAGES)
+                                p = p_kwh if in_pointe else hph_kwh
+                            else:
+                                p = hph_kwh
+                        else:
+                            p = hpe_kwh   # Été HP ouvré
+                    else:
+                        # Week-end ou férié → HC même sur plage horaire HP
+                        p = hch_kwh if is_hiver else hce_kwh
+                else:
+                    # Créneau HC nuit (h < 7 ou h >= 23)
+                    p = hch_kwh if is_hiver else hce_kwh
+
+                prix.append(p)
+
+            global_day += 1
+
+    return prix[:8760]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # GÉNÉRATION DU VECTEUR DE PRIX HORAIRES (8760 valeurs)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -234,13 +379,17 @@ def get_hourly_tariff_schedule(
                 h += 1
         prix = prix[:8760]
 
+    elif tariff_type in ('C4_HORO', 'HTA_HORO'):
+        # Tarifs horosaisonniers industriels – délégation à _generate_horo_8760()
+        prix = _generate_horo_8760(tariff_type)
+
     else:
         prix = [struct.get('prix_kwh', 0.2516)] * 8760
 
     return {
         'prix_8760'  : prix,
         'label'      : struct.get('label', tariff_type),
-        'abonnement' : struct.get('abonnement_6kva', 130.0),
+        'abonnement' : struct.get('abonnement_6kva', struct.get('abonnement_an', 130.0)),
         'stats': {
             'mean'   : round(sum(prix) / len(prix), 4),
             'min'    : round(min(prix), 4),
