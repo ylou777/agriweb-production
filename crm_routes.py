@@ -2319,7 +2319,7 @@ def register_crm_routes(app):
     
     @app.route('/api/crm/prospects/<int:prospect_id>/pvgis-hourly', methods=['POST'])
     def download_pvgis_hourly(prospect_id):
-        """Télécharger les données horaires 8760h PVGIS au format CSV"""
+        """Télécharger les données horaires 8760h PVGIS au format CSV et les sauvegarder en BDD"""
         try:
             data = request.json
             lat = data.get('latitude')
@@ -2328,55 +2328,74 @@ def register_crm_routes(app):
             azimuth = data.get('orientation', 180)
             puissance_kw = data.get('puissance_kw', 1.0)
             zone_numero = data.get('zone_numero', 1)
-            
+
             if not lat or not lon:
                 return jsonify({'error': 'Coordonnées manquantes'}), 400
-            
+
             # Appel PVGIS hourly
             pvgis_data = get_pvgis_hourly(lat, lon, tilt, azimuth, puissance_kw)
-            
+
             if pvgis_data is None:
                 return jsonify({'error': 'PVGIS hourly indisponible'}), 500
-            
-            # Créer CSV
-            from io import StringIO
-            import csv
-            
-            output = StringIO()
-            writer = csv.writer(output)
-            
-            # En-tête
-            writer.writerow(['Date', 'Heure', 'Production (W)', 'Irradiation (W/m²)', 'Température (°C)'])
-            
+
             # Données horaires
             hourly_data = pvgis_data.get('outputs', {}).get('hourly', [])
+
+            # ── Sauvegarder les valeurs P en BDD dans data_json ────────────────────
+            try:
+                p_values = [float(e.get('P', 0)) for e in hourly_data[:8760]]
+                if len(p_values) == 8760:
+                    prospect_row = execute_query(
+                        "SELECT data_json FROM agriweb_prospects WHERE id = %s",
+                        (prospect_id,), fetch_one=True
+                    )
+                    if prospect_row:
+                        current_data = prospect_row['data_json'] or {}
+                        if isinstance(current_data, str):
+                            current_data = json.loads(current_data)
+                        if 'calpinage' not in current_data:
+                            current_data['calpinage'] = {}
+                        if 'pvgis_8760h' not in current_data['calpinage']:
+                            current_data['calpinage']['pvgis_8760h'] = {}
+                        current_data['calpinage']['pvgis_8760h'][str(zone_numero)] = p_values
+                        execute_query(
+                            "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
+                            (json.dumps(current_data), prospect_id)
+                        )
+                        print(f"[PVGIS 8760h] Zone {zone_numero} sauvegardée en BDD ({len(p_values)} valeurs)")
+            except Exception as save_err:
+                print(f"[PVGIS 8760h] Erreur sauvegarde BDD: {save_err}")
+
+            # ── Créer CSV pour téléchargement ─────────────────────────────────────
+            from io import StringIO
+            import csv
+
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['Date', 'Heure', 'Production (W)', 'Irradiation (W/m²)', 'Température (°C)'])
+
             for entry in hourly_data:
                 time_str = entry.get('time', '')
                 power = entry.get('P', 0)
                 irradiation = entry.get('G(i)', 0)
                 temp = entry.get('T2m', 0)
-                
-                # Parser date/heure
                 if time_str:
-                    date_part = time_str[:8]  # YYYYMMDD
-                    hour_part = time_str[8:10]  # HH
+                    date_part = time_str[:8]
+                    hour_part = time_str[8:10]
                     formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:]}"
                     formatted_hour = f"{hour_part}:00"
-                    
                     writer.writerow([formatted_date, formatted_hour, power, irradiation, temp])
-            
-            # Préparer réponse
+
             output.seek(0)
             from flask import Response
-            
+
             filename = f"PVGIS_8760h_Zone{zone_numero}_Prospect{prospect_id}.csv"
-            
             return Response(
                 output.getvalue(),
                 mimetype='text/csv',
                 headers={'Content-Disposition': f'attachment; filename={filename}'}
             )
-            
+
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -2420,9 +2439,26 @@ def register_crm_routes(app):
             if consommation_kwh <= 0:
                 return jsonify({'error': 'Consommation annuelle invalide'}), 400
 
-            # ── 1. Récupérer la production PVGIS 8760h pour chaque zone ─────────
+            # ── Charger les données 8760h sauvegardées en BDD ────────────────────
+            saved_8760h = {}
+            try:
+                prospect_row = execute_query(
+                    "SELECT data_json FROM agriweb_prospects WHERE id = %s",
+                    (prospect_id,), fetch_one=True
+                )
+                if prospect_row:
+                    dj = prospect_row['data_json'] or {}
+                    if isinstance(dj, str):
+                        dj = json.loads(dj)
+                    saved_8760h = dj.get('calpinage', {}).get('pvgis_8760h', {})
+                    print(f"[AUTOCONSO] Données 8760h disponibles pour zones: {list(saved_8760h.keys())}")
+            except Exception as load_err:
+                print(f"[AUTOCONSO] Erreur chargement BDD: {load_err}")
+
+            # ── 1. Agréger la production 8760h pour chaque zone ──────────────────
             combined_wh = [0.0] * 8760
             zones_ok = []
+            zones_missing = []
 
             for zone in zones:
                 lat        = zone.get('lat') or zone.get('latitude')
@@ -2435,27 +2471,39 @@ def register_crm_routes(app):
                 if not lat or not lon:
                     continue
 
-                pvgis = get_pvgis_hourly(lat, lon, tilt, azimuth, puissance)
-                if pvgis is None:
-                    continue
+                # Chercher les données en cache BDD (int ou str comme clé)
+                p_cached = saved_8760h.get(str(zone_num)) or saved_8760h.get(str(int(zone_num)))
 
-                hourly = pvgis.get('outputs', {}).get('hourly', [])
-                if len(hourly) < 8760:
-                    continue
-
-                # PVGIS renvoie P en W (puissance instantanée = énergie Wh sur l'heure)
-                for i, entry in enumerate(hourly[:8760]):
-                    combined_wh[i] += float(entry.get('P', 0))
+                if p_cached and len(p_cached) >= 8760:
+                    # ✅ Utiliser les données sauvegardées
+                    for i, v in enumerate(p_cached[:8760]):
+                        combined_wh[i] += float(v)
+                    print(f"[AUTOCONSO] Zone {zone_num}: données BDD utilisées (cache)")
+                else:
+                    # ⚡ Fallback PVGIS API
+                    zones_missing.append(zone_num)
+                    pvgis = get_pvgis_hourly(lat, lon, tilt, azimuth, puissance)
+                    if pvgis is None:
+                        continue
+                    hourly = pvgis.get('outputs', {}).get('hourly', [])
+                    if len(hourly) < 8760:
+                        continue
+                    for i, entry in enumerate(hourly[:8760]):
+                        combined_wh[i] += float(entry.get('P', 0))
+                    print(f"[AUTOCONSO] Zone {zone_num}: appel PVGIS live (pas de cache)")
 
                 zones_ok.append({
                     'zone_numero': zone_num,
                     'puissance_kw': puissance,
                     'lat': lat, 'lon': lon,
                     'inclinaison': tilt, 'orientation': azimuth,
+                    'source': 'cache' if not (zone_num in zones_missing) else 'pvgis_live',
                 })
 
             if not zones_ok:
-                return jsonify({'error': 'Aucune donnée PVGIS disponible pour les zones fournies'}), 500
+                return jsonify({
+                    'error': 'Aucune donnée PVGIS disponible. Cliquez d\'abord sur "Télécharger données 8760h" pour chaque zone.'
+                }), 400
 
             # ── 2. Calcul autoconsommation ────────────────────────────────────────
             result = compute_autoconsommation(

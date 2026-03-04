@@ -5691,9 +5691,26 @@
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                
+
+                // Marquer la zone comme cachée en mémoire
+                zone._pvgis8760hCached = true;
+
                 btn.disabled = false;
-                btn.textContent = '📊 Télécharger données 8760h';
+                btn.style.background = '#1a7a3a';
+                btn.style.borderColor = '#1a7a3a';
+                btn.textContent = '✅ Données sauvegardées';
+
+                // Afficher un badge sur la ligne de la zone si présent
+                const badgeId = `pvgis-badge-zone-${zone.numero}`;
+                const existing = document.getElementById(badgeId);
+                if (!existing) {
+                    const badge = document.createElement('span');
+                    badge.id = badgeId;
+                    badge.title = 'Données 8760h disponibles';
+                    badge.style.cssText = 'margin-left:6px;background:#1a7a3a;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;';
+                    badge.textContent = '✅ 8760h';
+                    btn.parentElement && btn.parentElement.appendChild(badge);
+                }
             })
             .catch(error => {
                 console.error('Erreur:', error);
