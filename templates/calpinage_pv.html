@@ -9877,9 +9877,65 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _acDailyData       = null;   // mémorise daily_profiles après calcul
         let _acCurrentSeason   = 'summer';
 
-        function ouvrirPanneauAutoconso() {
+        /**
+         * Sauvegarde silencieuse des données 8760h pour une zone (sans télécharger le CSV).
+         * Retourne une Promise résolue quand la zone est prête.
+         */
+        async function _pvgisSaveZone(zone) {
+            if (zone._pvgis8760hCached) return { skipped: true };
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
+            const resp = await fetch(`/api/crm/prospects/${prospectId}/pvgis-hourly`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    latitude    : center.lat,
+                    longitude   : center.lng,
+                    inclinaison : zone.inclinaison  || 20,
+                    orientation : zone.orientation  || 180,
+                    puissance_kw: zone.puissanceKw  || 1.0,
+                    zone_numero : zone.numero       || 1,
+                    save_only   : true,
+                })
+            });
+            if (!resp.ok) throw new Error(`Zone ${zone.numero}: ${resp.status}`);
+            zone._pvgis8760hCached = true;
+            return resp.json();
+        }
+
+        async function ouvrirPanneauAutoconso() {
             const p = document.getElementById('panneauAutoconso');
             if (p) p.style.display = 'block';
+
+            // Zones sans données 8760h sauvegardées
+            const zonesACharger = (zones || []).filter(z => !z._pvgis8760hCached);
+            if (zonesACharger.length === 0) return;
+
+            // Afficher indicateur de chargement
+            const etatVide = document.getElementById('acEtatVide');
+            const oldText = etatVide ? etatVide.innerHTML : '';
+            if (etatVide) {
+                etatVide.innerHTML = `<div style="text-align:center;padding:20px;color:#555">
+                    <div style="font-size:2rem;margin-bottom:8px">⏳</div>
+                    <div>Récupération des données PVGIS…</div>
+                    <div id="acPvgisProgress" style="font-size:12px;color:#888;margin-top:4px">0 / ${zonesACharger.length} zone(s)</div>
+                </div>`;
+            }
+
+            let done = 0;
+            for (const zone of zonesACharger) {
+                try {
+                    await _pvgisSaveZone(zone);
+                } catch(e) {
+                    console.warn('[PVGIS auto]', e);
+                }
+                done++;
+                const prog = document.getElementById('acPvgisProgress');
+                if (prog) prog.textContent = `${done} / ${zonesACharger.length} zone(s)`;
+            }
+
+            // Restaurer l'état vide normal
+            if (etatVide) etatVide.innerHTML = oldText;
         }
 
         function fermerPanneauAutoconso() {

@@ -2366,6 +2366,11 @@ def register_crm_routes(app):
             except Exception as save_err:
                 print(f"[PVGIS 8760h] Erreur sauvegarde BDD: {save_err}")
 
+            # ── Si save_only → retourner JSON sans générer CSV ──────────────────
+            save_only = data.get('save_only', False)
+            if save_only:
+                return jsonify({'success': True, 'saved': len(p_values) if len(p_values) == 8760 else 0, 'zone_numero': zone_numero})
+
             # ── Créer CSV pour téléchargement ─────────────────────────────────────
             from io import StringIO
             import csv
