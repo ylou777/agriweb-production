@@ -8,10 +8,248 @@ Références :
   - PVGIS EU Science Hub (données 8760h)
   - Enedis Open Data : courbes de charge fictives résidentielles/professionnelles
   - https://openservices.enedis.fr/service/simulateur-courbes-de-charge/
+  - Tarifs TRV EDF au 01/02/2025 : CRE / arrêtés tarifaires
+  - TEMPO : arrêté du 28 juillet 2023, prix actualisés 01/08/2024
 """
 
 from datetime import datetime, timedelta
 import math
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# STRUCTURES TARIFAIRES  (TRV EDF au 01/02/2025, puissance 6 kVA référence)
+# ──────────────────────────────────────────────────────────────────────────────
+
+TARIFF_STRUCTURES = {
+    # ── Tarif de Base ──────────────────────────────────────────────────────────
+    'BASE': {
+        'label'          : 'Tarif Base – Prix unique',
+        'description'    : 'Un seul prix kWh toute la journée, toute l\'année (TRV Bleu EDF)',
+        'abonnement_6kva': 103.56,   # €/an (abonnement 6 kVA hors taxes)
+        'prix_kwh'       : 0.2516,   # €/kWh TTC (TRV au 01/02/2025)
+    },
+
+    # ── HP / HC : Heures Pleines / Heures Creuses ──────────────────────────────
+    'HPHC': {
+        'label'          : 'Heures Pleines / Heures Creuses',
+        'description'    : 'HC la nuit (22h-6h), HP le reste de la journée',
+        'abonnement_6kva': 130.08,   # €/an (option HC, abonnement un peu plus cher)
+        'hp_kwh'         : 0.2700,   # €/kWh TTC HP
+        'hc_kwh'         : 0.2068,   # €/kWh TTC HC
+        # Plages HC par défaut (h_debut inclus, h_fin exclu) – 8h/jour
+        # Possibilité de personnaliser : 'hc_plages': [(22, 6)] ou [(0, 8)] ou [(12.5, 14.5), (22.5, 6.5)]
+        'hc_plages'      : [(22, 6)],  # nuit 22h → 6h
+    },
+
+    # ── HPHC avec créneau midi ─────────────────────────────────────────────────
+    'HPHC_MIDI': {
+        'label'          : 'HP/HC avec créneau midi',
+        'description'    : 'HC nuit (23h-7h) + créneau midi (12h-14h) → 10h HC',
+        'abonnement_6kva': 130.08,
+        'hp_kwh'         : 0.2700,
+        'hc_kwh'         : 0.2068,
+        'hc_plages'      : [(23, 7), (12, 14)],  # nuit 23h→7h + midi 12h→14h
+    },
+
+    # ── Tarif TEMPO  ──────────────────────────────────────────────────────────
+    'TEMPO': {
+        'label'          : 'Tarif Tempo (EDF)',
+        'description'    : '3 couleurs de jours : Bleu (300j/an), Blanc (43j/an), Rouge (22j/an). HC = 22h-6h.',
+        'abonnement_6kva': 235.20,   # €/an
+        # Prix par couleur (TTC, 01/08/2024)
+        'bleu_hc_kwh'    : 0.1369,
+        'bleu_hp_kwh'    : 0.1609,
+        'blanc_hc_kwh'   : 0.1654,
+        'blanc_hp_kwh'   : 0.2118,
+        'rouge_hc_kwh'   : 0.1654,
+        'rouge_hp_kwh'   : 0.7562,   # ← tarif pointe rouge HP très élevé
+        # HC = 22h-6h comme HPHC
+        'hc_plages'      : [(22, 6)],
+        # Distribution annuelle (jours confirmés par EDF)
+        'nb_jours_bleu'  : 300,
+        'nb_jours_blanc' : 43,
+        'nb_jours_rouge' : 22,
+    },
+
+    # ── EJP : Effacement Jours de Pointe  ─────────────────────────────────────
+    'EJP': {
+        'label'          : 'EJP – Effacement Jours de Pointe',
+        'description'    : '22 jours de pointe/an (annoncés veille), tarif très élevé 7h-23h. 343j normaux.',
+        'abonnement_6kva': 127.20,   # €/an (abonnement EJP)
+        'hn_kwh'         : 0.1613,   # €/kWh HN (Heure Normale – 343 jours)
+        'hp_kwh'         : 0.6797,   # €/kWh HP (Heure de Pointe – 22 jours, 7h-23h)
+        'nb_jours_pointe': 22,
+        # Plages horaires de pointe (sur les jours EJP uniquement)
+        'heures_pointe'  : (7, 23),
+    },
+}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GÉNÉRATION DU PLANNING TEMPO : attribution des couleurs aux 365 jours
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _generate_tempo_colors() -> list:
+    """
+    Génère le planning TEMPO pour une année (8760h = 365j depuis le 01/01/2020).
+    Retourne une liste de 365 strings : 'bleu' | 'blanc' | 'rouge'.
+
+    Règles:
+    - Pas de jours non-bleus en mai, juin, juillet, août, septembre.
+    - Seuls les jours ouvrables (lundi-vendredi) peuvent être blanc/rouge.
+    - 22 jours rouges répartis sur les semaines les plus froides (déc, jan, fév).
+    - 43 jours blancs sur les semaines froides/intermédiaires (nov, déc, jan, fév, mar).
+    - Référence 2020 : 1er janvier = mercredi.
+    """
+    # Nombre de jours par mois (année non-bissextile, PVGIS utilise 8760h)
+    MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    # Score de froid par mois (0=jan, 11=déc) – plus grand = plus froid
+    COLD_SCORE  = {0: 10, 1: 9, 11: 8, 2: 6, 10: 5, 3: 3, 9: 2}
+    SUMMER_MONTHS = {4, 5, 6, 7, 8}  # mai-sep → toujours bleu
+
+    # Jan 1, 2020 = mercredi → weekday index 2 (0=lun)
+    JAN1_WEEKDAY = 2
+
+    days_info = []
+    month, day_in_month = 0, 0
+    cum = 0
+    for mi, nd in enumerate(MONTH_DAYS):
+        for d in range(nd):
+            idx = cum + d
+            weekday = (JAN1_WEEKDAY + idx) % 7
+            is_weekend = weekday >= 5
+            cold = COLD_SCORE.get(mi, 0)
+            days_info.append({
+                'idx': idx, 'month': mi,
+                'weekday': weekday, 'is_weekend': is_weekend,
+                'cold': cold, 'is_summer': mi in SUMMER_MONTHS,
+            })
+        cum += nd
+
+    # Candidats non-bleus : jours ouvrables hors été
+    candidates = [d for d in days_info if not d['is_weekend'] and not d['is_summer']]
+    # Trier par score de froid DESC, puis jour de l'année ASC (hiver début d'abord)
+    candidates_sorted = sorted(candidates, key=lambda d: (-d['cold'], d['idx']))
+
+    rouge_set = {d['idx'] for d in candidates_sorted[:22]}
+    blanc_set = {d['idx'] for d in candidates_sorted[22:65]}
+
+    colors = []
+    for d in days_info:
+        if d['idx'] in rouge_set:
+            colors.append('rouge')
+        elif d['idx'] in blanc_set:
+            colors.append('blanc')
+        else:
+            colors.append('bleu')
+    return colors
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GÉNÉRATION DU PLANNING EJP : attribution des jours de pointe
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _generate_ejp_pointe_days() -> set:
+    """
+    Retourne l'ensemble des indices de jours (0-364) considérés comme
+    'jours de pointe' EJP (22 jours, ouvrables, hiver).
+    Même logique que TEMPO rouge.
+    """
+    colors = _generate_tempo_colors()
+    return {i for i, c in enumerate(colors) if c == 'rouge'}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GÉNÉRATION DU VECTEUR DE PRIX HORAIRES (8760 valeurs)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_hourly_tariff_schedule(
+    tariff_type: str = 'BASE',
+    hc_plages_custom: list = None,
+) -> dict:
+    """
+    Retourne un dict avec :
+      - 'prix_8760'  : liste de 8760 float (€/kWh à chaque heure)
+      - 'label'      : nom lisible du tarif
+      - 'abonnement' : abonnement annuel €/an
+      - 'stats'      : {'hp_mean', 'hc_mean', 'min', 'max'} pour info
+    """
+    struct = TARIFF_STRUCTURES.get(tariff_type, TARIFF_STRUCTURES['BASE'])
+    MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    def _is_hc(hour: int, plages: list) -> bool:
+        """hour ∈ [0, 23], plages = [(start, end), ...] – end peut être < start (nuit)."""
+        for start, end in plages:
+            if end > start:
+                if start <= hour < end:
+                    return True
+            else:  # chevauchement minuit
+                if hour >= start or hour < end:
+                    return True
+        return False
+
+    prix = []
+
+    if tariff_type == 'BASE':
+        p = struct['prix_kwh']
+        prix = [p] * 8760
+
+    elif tariff_type in ('HPHC', 'HPHC_MIDI'):
+        plages = hc_plages_custom or struct['hc_plages']
+        hp, hc = struct['hp_kwh'], struct['hc_kwh']
+        for h in range(8760):
+            hour = h % 24
+            prix.append(hc if _is_hc(hour, plages) else hp)
+
+    elif tariff_type == 'TEMPO':
+        colors = _generate_tempo_colors()
+        plages = hc_plages_custom or struct['hc_plages']
+        # Construire le vecteur
+        h = 0
+        for day_idx, color in enumerate(colors):
+            for hour in range(24):
+                is_hc = _is_hc(hour, plages)
+                if color == 'bleu':
+                    p = struct['bleu_hc_kwh'] if is_hc else struct['bleu_hp_kwh']
+                elif color == 'blanc':
+                    p = struct['blanc_hc_kwh'] if is_hc else struct['blanc_hp_kwh']
+                else:  # rouge
+                    p = struct['rouge_hc_kwh'] if is_hc else struct['rouge_hp_kwh']
+                prix.append(p)
+                h += 1
+        prix = prix[:8760]
+
+    elif tariff_type == 'EJP':
+        pointe_days = _generate_ejp_pointe_days()
+        hp_start, hp_end = struct['heures_pointe']
+        hn, hp = struct['hn_kwh'], struct['hp_kwh']
+        h = 0
+        for day_idx in range(365):
+            is_pointe_day = day_idx in pointe_days
+            for hour in range(24):
+                if is_pointe_day and hp_start <= hour < hp_end:
+                    prix.append(hp)
+                else:
+                    prix.append(hn)
+                h += 1
+        prix = prix[:8760]
+
+    else:
+        prix = [struct.get('prix_kwh', 0.2516)] * 8760
+
+    return {
+        'prix_8760'  : prix,
+        'label'      : struct.get('label', tariff_type),
+        'abonnement' : struct.get('abonnement_6kva', 130.0),
+        'stats': {
+            'mean'   : round(sum(prix) / len(prix), 4),
+            'min'    : round(min(prix), 4),
+            'max'    : round(max(prix), 4),
+        }
+    }
+
+
+TARIFF_LABELS = {k: v['label'] for k, v in TARIFF_STRUCTURES.items()}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PROFILS DE CONSOMMATION TYPES ENEDIS  (normalisés → somme = 1.0)
@@ -335,37 +573,82 @@ def compute_autoconsommation(
 
 def compute_economics(
     kpis: dict,
-    tarif_achat_kwh: float = 0.2516,    # Prix électricité achetée (€/kWh, tarif réglementé HC/HP moyen 2024)
+    tarif_achat_kwh: float = 0.2516,    # utilisé uniquement si tariff_type='BASE' ou non fourni
     prix_revente_kwh: float = 0.1276,   # Tarif OA EDF achat surplus ≤36 kVA (€/kWh, 2024)
     degradation_annuelle_pct: float = 0.5,
     duree_contrat_ans: int = 20,
+    tariff_type: str = 'BASE',
+    hourly_production_wh: list = None,       # 8760 Wh – nécessaire pour calcul HP/HC/TEMPO
+    hourly_consumption_wh: list = None,      # 8760 Wh
+    hourly_autoconso_wh: list = None,        # 8760 Wh
+    hourly_surplus_wh: list = None,          # 8760 Wh
+    hc_plages_custom: list = None,
 ) -> dict:
-    """Calcul économique de l'autoconsommation sur la durée du contrat."""
-    auto   = kpis['autoconso_kwh']
-    surp   = kpis['surplus_kwh']
+    """
+    Calcul économique de l'autoconsommation sur la durée du contrat.
+    Prend en compte les tarifs horaires (HP/HC, TEMPO, EJP) si les vecteurs
+    horaires sont fournis, sinon utilise les KPIs agrégés avec tarif_achat_kwh.
+    """
+    # ── Calcul économies avec vecteur horaire (précis pour HP/HC/TEMPO/EJP) ──
+    if tariff_type != 'BASE' and hourly_autoconso_wh and hourly_surplus_wh:
+        tariff_schedule = get_hourly_tariff_schedule(tariff_type, hc_plages_custom)
+        prix_h = tariff_schedule['prix_8760']
 
-    economies   = []
+        # Économie annuelle = Σ autoconso[h] × prix_achat[h] (on évite d'acheter au réseau)
+        economie_an1 = sum(
+            a * p / 1000.0  # Wh → kWh × €/kWh
+            for a, p in zip(hourly_autoconso_wh, prix_h)
+        )
+        # Revenu surplus = Σ surplus[h] × tarif_revente (fixe OA EDF)
+        revenu_surplus_an1 = sum(s / 1000.0 * prix_revente_kwh for s in hourly_surplus_wh)
+
+        # Prix moyen pondéré par la consommation (pour info)
+        tarif_moyen_effectif = sum(
+            c * p for c, p in zip(hourly_consumption_wh or [], prix_h)
+        ) / max(sum(hourly_consumption_wh or [1]), 1) if hourly_consumption_wh else tarif_achat_kwh
+
+        # Détail HP/HC sur l'autoconsommation
+        detail_tariff = tariff_schedule['stats']
+        abonnement = tariff_schedule['abonnement']
+
+    else:
+        # Fallback : tarif unique (BASE ou vecteurs non fournis)
+        auto = kpis['autoconso_kwh']
+        surp = kpis['surplus_kwh']
+        economie_an1       = auto * tarif_achat_kwh
+        revenu_surplus_an1 = surp * prix_revente_kwh
+        tarif_moyen_effectif = tarif_achat_kwh
+        detail_tariff = {'mean': tarif_achat_kwh, 'min': tarif_achat_kwh, 'max': tarif_achat_kwh}
+        abonnement = TARIFF_STRUCTURES.get(tariff_type, {}).get('abonnement_6kva', 130.0)
+
+    gain_total_an1 = economie_an1 + revenu_surplus_an1
+
+    economies    = []
     revenus_surp = []
-    total_ec    = 0.0
-    total_rev   = 0.0
+    total_ec     = 0.0
+    total_rev    = 0.0
 
     for y in range(duree_contrat_ans):
         facto = (1 - degradation_annuelle_pct / 100) ** y
-        eco   = auto * facto * tarif_achat_kwh
-        rev   = surp * facto * prix_revente_kwh
+        eco   = economie_an1       * facto
+        rev   = revenu_surplus_an1 * facto
         economies.append(round(eco, 0))
         revenus_surp.append(round(rev, 0))
         total_ec  += eco
         total_rev += rev
 
     return {
-        'tarif_achat'         : tarif_achat_kwh,
+        'tariff_type'         : tariff_type,
+        'tariff_label'        : TARIFF_STRUCTURES.get(tariff_type, {}).get('label', tariff_type),
+        'tarif_achat'         : round(tarif_moyen_effectif, 4),
         'tarif_revente'       : prix_revente_kwh,
+        'abonnement_an'       : abonnement,
+        'detail_tariff'       : detail_tariff,
         'degradation_pct'     : degradation_annuelle_pct,
         'duree_ans'           : duree_contrat_ans,
-        'economie_an1'        : round(auto * tarif_achat_kwh, 0),
-        'revenu_surplus_an1'  : round(surp * prix_revente_kwh, 0),
-        'gain_total_an1'      : round(auto * tarif_achat_kwh + surp * prix_revente_kwh, 0),
+        'economie_an1'        : round(economie_an1, 0),
+        'revenu_surplus_an1'  : round(revenu_surplus_an1, 0),
+        'gain_total_an1'      : round(gain_total_an1, 0),
         'cumul_economies'     : round(total_ec, 0),
         'cumul_revenus_surp'  : round(total_rev, 0),
         'cumul_total'         : round(total_ec + total_rev, 0),

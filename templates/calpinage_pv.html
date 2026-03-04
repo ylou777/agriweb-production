@@ -1542,18 +1542,31 @@
                             value="5000" min="100" max="500000" step="100"
                             placeholder="ex: 5000">
 
+                        <label style="font-size:0.8rem;color:rgba(255,255,255,0.6);">Option tarifaire</label>
+                        <select id="acTariffType" class="form-select form-select-sm mb-2"
+                            style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;font-size:0.82rem;"
+                            onchange="_acUpdateTariffInfo()">
+                            <option value="BASE">⚡ Tarif Base (0.2516 €/kWh)</option>
+                            <option value="HPHC">🌙 HP/HC – Nuit 22h-6h (HC 0.2068 / HP 0.2700)</option>
+                            <option value="HPHC_MIDI">🌙☀️ HP/HC + créneau midi 12h-14h</option>
+                            <option value="TEMPO">🎨 Tempo EDF (Bleu/Blanc/Rouge)</option>
+                            <option value="EJP">⚠️ EJP – 22 jours de pointe</option>
+                        </select>
+                        <div id="acTariffInfo" style="font-size:0.73rem;color:rgba(255,255,255,0.45);background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:6px;margin-bottom:10px;line-height:1.45;"></div>
+
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-                            <div>
-                                <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif achat (€/kWh)</label>
-                                <input type="number" id="acTarifAchat" class="form-control form-control-sm"
-                                    style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
-                                    value="0.2516" step="0.001" min="0.05" max="1.0">
-                            </div>
                             <div>
                                 <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente (€/kWh)</label>
                                 <input type="number" id="acTarifRevente" class="form-control form-control-sm"
                                     style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
-                                    value="0.1276" step="0.001" min="0.01" max="0.5">
+                                    value="0.1276" step="0.001" min="0.01" max="0.5"
+                                    title="Tarif OA EDF achat du surplus – mise à jour annuelle">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Durée (ans)</label>
+                                <input type="number" id="acDureeAns" class="form-control form-control-sm"
+                                    style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
+                                    value="20" step="5" min="5" max="30">
                             </div>
                         </div>
 
@@ -1618,6 +1631,9 @@
 
                     <!-- Tab : Économique -->
                     <div id="acTabEconomique" class="ac-tab-content" style="display:none;">
+                        <div style="margin-bottom:8px;">
+                            <span id="acTariffBadge" style="display:none;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:#a5b4fc;border-radius:4px;padding:2px 8px;font-size:0.75rem;"></span>
+                        </div>
                         <div id="acKpisEco" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;"></div>
                         <div style="height:220px;position:relative;">
                             <canvas id="acChartEco"></canvas>
@@ -9949,11 +9965,28 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         }
 
         // ── Lancer le calcul ──────────────────────────────────────────────────
+        const TARIFF_INFO = {
+            'BASE'      : '⚡ Prix unique toute la journée. TRV EDF au 01/02/2025.',
+            'HPHC'      : '🌙 HC nuit 22h→6h (8h) à 0.2068€ · HP reste à 0.2700€. Économise sur le réseau nocturne.',
+            'HPHC_MIDI' : '🌙☀️ HC nuit 23h→7h + midi 12h→14h. Bénéfique si consommation solaire couvre les HP.',
+            'TEMPO'     : '🎨 Bleu 300j (HP 0.1609€) · Blanc 43j (HP 0.2118€) · Rouge 22j (HP 0.7562€). HC = 22h-6h tous jours. Économie maximale si production couvre les jours blancs/rouges.',
+            'EJP'       : '⚠️ 22 jours de pointe/an (7h-23h) à 0.6797€/kWh. 343j normaux à 0.1613€. L\'autoconso solaire n\'évite PAS les pointes (hiver, nuageux). Peu adapté au solaire.',
+        };
+
+        function _acUpdateTariffInfo() {
+            const t = document.getElementById('acTariffType').value;
+            const el = document.getElementById('acTariffInfo');
+            if (el) el.textContent = TARIFF_INFO[t] || '';
+        }
+        // Init au chargement
+        setTimeout(_acUpdateTariffInfo, 100);
+
         async function lancerCalculAutoconso() {
             const profilType       = document.getElementById('acProfilType').value;
             const consKwh          = parseFloat(document.getElementById('acConsommationKwh').value);
-            const tarifAchat       = parseFloat(document.getElementById('acTarifAchat').value);
+            const tariffType       = document.getElementById('acTariffType').value;
             const tarifRevente     = parseFloat(document.getElementById('acTarifRevente').value);
+            const dureeAns         = parseInt(document.getElementById('acDureeAns')?.value || 20);
 
             if (isNaN(consKwh) || consKwh <= 0) {
                 _acShowErr('Veuillez saisir une consommation annuelle valide (kWh).');
@@ -9992,8 +10025,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         zones            : zonesPayload,
                         consommation_kwh : consKwh,
                         profil_type      : profilType,
-                        tarif_achat      : tarifAchat,
+                        tariff_type      : tariffType,
                         tarif_revente    : tarifRevente,
+                        duree_contrat_ans: dureeAns,
                     }),
                 });
 
@@ -10272,17 +10306,33 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
         // ── Graphique économique ───────────────────────────────────────────────
         function _acRenderEconomique(eco) {
+            // Badge tarif
+            const elBadge = document.getElementById('acTariffBadge');
+            if (elBadge && eco.tariff_label) {
+                elBadge.textContent = eco.tariff_label;
+                elBadge.style.display = 'inline-block';
+            }
+
             // KPIs éco
             const el = document.getElementById('acKpisEco');
             if (el) {
+                const tariffDetail = eco.detail_tariff
+                    ? `<div style="margin-top:4px;font-size:0.72rem;opacity:0.55;">Prix moy. ${(eco.tarif_achat*100).toFixed(2)} c€ · min ${(eco.detail_tariff.min*100).toFixed(2)} c€ · max ${(eco.detail_tariff.max*100).toFixed(2)} c€ / kWh</div>`
+                    : '';
                 el.innerHTML = `
                     <div class="ac-kpi-card">
                         <div class="ac-kpi-value" style="color:#34d399;">${_acFmtEur(eco.economie_an1)} €</div>
                         <div class="ac-kpi-label">💰 Économies an 1</div>
+                        ${tariffDetail}
                     </div>
                     <div class="ac-kpi-card">
                         <div class="ac-kpi-value" style="color:#fbbf24;">${_acFmtEur(eco.revenu_surplus_an1)} €</div>
                         <div class="ac-kpi-label">↗️ Revenu surplus an 1</div>
+                        <div style="margin-top:4px;font-size:0.72rem;opacity:0.55;">@ ${eco.tarif_revente} €/kWh (OA EDF)</div>
+                    </div>
+                    <div class="ac-kpi-card">
+                        <div class="ac-kpi-value" style="color:#e2e8f0;">${_acFmtEur(eco.gain_total_an1)} €</div>
+                        <div class="ac-kpi-label">✅ Gain total an 1</div>
                     </div>
                     <div class="ac-kpi-card">
                         <div class="ac-kpi-value" style="color:#a78bfa;">${_acFmtEur(eco.cumul_total)} €</div>

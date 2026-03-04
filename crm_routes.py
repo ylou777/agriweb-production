@@ -2469,14 +2469,17 @@ def register_crm_routes(app):
                 compute_autoconsommation,
                 compute_economics,
                 PROFILE_LABELS,
+                TARIFF_LABELS,
             )
 
             data = request.json or {}
             zones             = data.get('zones', [])
             consommation_kwh  = float(data.get('consommation_kwh', 0))
             profil_type       = data.get('profil_type', 'RES1').upper()
-            tarif_achat       = float(data.get('tarif_achat',   0.2516))
+            tariff_type       = data.get('tariff_type', 'BASE').upper()
             tarif_revente     = float(data.get('tarif_revente', 0.1276))
+            duree_contrat_ans = int(data.get('duree_contrat_ans', 20))
+            hc_plages_custom  = data.get('hc_plages_custom', None)  # ex: [[22,6]]
 
             if not zones:
                 return jsonify({'error': 'Aucune zone fournie'}), 400
@@ -2556,22 +2559,31 @@ def register_crm_routes(app):
                 profile_type=profil_type,
             )
 
-            # ── 3. Calcul économique ──────────────────────────────────────────────
+            # ── 3. Calcul économique avec tarifs horaires ─────────────────────────
             economics = compute_economics(
                 kpis=result['kpis'],
-                tarif_achat_kwh=tarif_achat,
                 prix_revente_kwh=tarif_revente,
+                tariff_type=tariff_type,
+                duree_contrat_ans=duree_contrat_ans,
+                hourly_production_wh=combined_wh,
+                hourly_consumption_wh=result['hourly_consumption_wh'],
+                hourly_autoconso_wh=result['hourly_autoconso_wh'],
+                hourly_surplus_wh=result['hourly_surplus_wh'],
+                hc_plages_custom=hc_plages_custom,
             )
+            print(f"[AUTOCONSO] Tarif: {tariff_type} | Économie an1: {economics['economie_an1']}€")
 
             return jsonify({
-                'success'      : True,
+                'success'       : True,
                 'zones_traitees': zones_ok,
-                'profil_type'  : profil_type,
-                'profil_label' : PROFILE_LABELS.get(profil_type, profil_type),
-                'monthly'      : result['monthly'],
+                'profil_type'   : profil_type,
+                'profil_label'  : PROFILE_LABELS.get(profil_type, profil_type),
+                'tariff_type'   : tariff_type,
+                'tariff_label'  : TARIFF_LABELS.get(tariff_type, tariff_type),
+                'monthly'       : result['monthly'],
                 'daily_profiles': result['daily_profiles'],
-                'kpis'         : result['kpis'],
-                'economics'    : economics,
+                'kpis'          : result['kpis'],
+                'economics'     : economics,
             })
 
         except Exception as e:
