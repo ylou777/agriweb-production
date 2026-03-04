@@ -183,6 +183,12 @@ class PropositionProfessionnelle:
             self.page_number += 1
             self._draw_plan_calpinage(c)
 
+        # Page 4c2 : Analyse irradiance Google Solar (si données disponibles)
+        if self.data_json.get('calpinage', {}).get('solar_analysis'):
+            c.showPage()
+            self.page_number += 1
+            self._draw_google_solar(c)
+
         # Page 4d : Rapport contraintes site (si rapport_point disponible)
         if self.data_json.get('rapport'):
             c.showPage()
@@ -1593,6 +1599,292 @@ class PropositionProfessionnelle:
         c.setFillColor(colors.HexColor('#888888'))
         c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm,
                             "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle")
+
+        self._draw_page_footer(c)
+
+    # ── Google Solar — Irradiance & Pans de toiture ────────────────────────────
+
+    def _draw_irradiance_scale(self, c, x, y, w, h, val_min, val_max, val_mean):
+        """Dessine une échelle colorée de type Google Solar (bleu→vert→jaune→rouge)."""
+        stops = [
+            (0.00, colors.HexColor('#0000ff')),
+            (0.20, colors.HexColor('#00aaff')),
+            (0.40, colors.HexColor('#00cc88')),
+            (0.55, colors.HexColor('#aadd00')),
+            (0.70, colors.HexColor('#ffcc00')),
+            (0.85, colors.HexColor('#ff6600')),
+            (1.00, colors.HexColor('#ff0000')),
+        ]
+        nb = 60
+        seg_w = w / nb
+        for i in range(nb):
+            t = i / (nb - 1)
+            # Interpoler la couleur
+            col = stops[0][1]
+            for j in range(len(stops) - 1):
+                t0, c0 = stops[j]
+                t1, c1 = stops[j + 1]
+                if t0 <= t <= t1:
+                    f = (t - t0) / (t1 - t0)
+                    r = c0.red   + f * (c1.red   - c0.red)
+                    g = c0.green + f * (c1.green - c0.green)
+                    b = c0.blue  + f * (c1.blue  - c0.blue)
+                    col = colors.Color(r, g, b)
+                    break
+            c.setFillColor(col)
+            c.rect(x + i * seg_w, y, seg_w + 0.5, h, fill=1, stroke=0)
+        # Légende valeurs
+        c.setFont('Helvetica', 6.5)
+        c.setFillColor(self.COLOR_DARK)
+        if val_min is not None:
+            c.drawString(x, y - 0.35 * cm, f'{val_min:.0f} kWh/m²')
+        if val_mean is not None:
+            c.drawCentredString(x + w / 2, y - 0.35 * cm, f'moy: {val_mean:.0f} kWh/m²')
+        if val_max is not None:
+            c.drawRightString(x + w, y - 0.35 * cm, f'{val_max:.0f} kWh/m²')
+
+    def _irr_color(self, val, irr_min, irr_max):
+        """Retourne une couleur ReportLab interpolée selon l'irradiance."""
+        if val is None or irr_min is None or irr_max is None or irr_max == irr_min:
+            return colors.HexColor('#78909C')
+        t = max(0.0, min(1.0, (val - irr_min) / (irr_max - irr_min)))
+        stops = [
+            (0.00, (0, 0, 255)),
+            (0.40, (0, 200, 140)),
+            (0.65, (255, 200, 0)),
+            (0.85, (255, 100, 0)),
+            (1.00, (255, 0, 0)),
+        ]
+        for j in range(len(stops) - 1):
+            t0, c0 = stops[j]; t1, c1 = stops[j + 1]
+            if t0 <= t <= t1:
+                f = (t - t0) / (t1 - t0)
+                r = int(c0[0] + f * (c1[0] - c0[0]))
+                g = int(c0[1] + f * (c1[1] - c0[1]))
+                b = int(c0[2] + f * (c1[2] - c0[2]))
+                return colors.Color(r/255, g/255, b/255)
+        return colors.HexColor('#FF0000')
+
+    def _draw_google_solar(self, c):
+        """Page Analyse Google Solar : irradiance, bâtiment, pans de toiture."""
+        solar = self.data_json.get('calpinage', {}).get('solar_analysis', {})
+        if not solar:
+            return
+
+        y = self._draw_page_header(c, "ANALYSE IRRADIANCE GOOGLE SOLAR")
+        y -= 0.2 * cm
+
+        bldg   = solar.get('building_dims') or {}
+        dsm    = solar.get('dsm_stats')     or {}
+        pot    = solar.get('solar_potential') or {}
+        segs   = solar.get('roof_segments')  or []
+        flux_min  = solar.get('flux_min')
+        flux_max  = solar.get('flux_max')
+        flux_mean = solar.get('flux_mean')
+        img_date  = solar.get('imagery_date') or {}
+        source    = solar.get('source', '')
+
+        # Date imagerie
+        if isinstance(img_date, dict):
+            img_date_str = f"{img_date.get('month', '?')}/{img_date.get('year', '?')}"
+        else:
+            img_date_str = str(img_date)[:10] if img_date else '—'
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 1 : KPI boxes (4 colonnes)
+        # ─────────────────────────────────────────────────────────────────────
+        kpis = [
+            ("Surface toiture",   f"{bldg.get('roof_total_m2', '—')} m²"   if bldg.get('roof_total_m2')   else "—"),
+            ("Surface utilisable",f"{bldg.get('roof_usable_m2', '—')} m²"  if bldg.get('roof_usable_m2')  else "—"),
+            ("Max. puissance",    f"{bldg.get('max_kwp', '—')} kWc"         if bldg.get('max_kwp')         else
+                                   f"{pot.get('max_kwp', '—')} kWc"),
+            ("Ensoleillement max",f"{bldg.get('sunshine_h_yr') or pot.get('max_sunshine_hours') or '—'} h/an"),
+        ]
+        box_w = (self.width - 3 * cm) / len(kpis)
+        for i, (lbl, val) in enumerate(kpis):
+            bx = 1.5 * cm + i * box_w
+            c.setFillColor(self.COLOR_PRIMARY if i % 2 == 0 else self.COLOR_SECONDARY)
+            c.roundRect(bx + 0.1 * cm, y - 1.3 * cm, box_w - 0.2 * cm, 1.3 * cm, 4, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont('Helvetica-Bold', 8)
+            c.drawCentredString(bx + box_w / 2, y - 0.45 * cm, lbl)
+            c.setFont('Helvetica-Bold', 11)
+            c.drawCentredString(bx + box_w / 2, y - 1.05 * cm, str(val))
+        y -= 1.6 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 2 : Bâtiment + DSM (côte à côte)
+        # ─────────────────────────────────────────────────────────────────────
+        col_w2 = (self.width - 3 * cm) / 2 - 0.2 * cm
+        info_h = 3.0 * cm
+
+        # Bloc Bâtiment
+        c.setFillColor(self.COLOR_HEADER_BG)
+        c.rect(1.5 * cm, y - info_h, col_w2, info_h, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont('Helvetica-Bold', 8)
+        c.drawString(1.7 * cm, y - 0.3 * cm, '🏗 Bâtiment (Google Solar)')
+        ky = y - 0.75 * cm
+        for lbl, val in [
+            ('Longueur :',   f"{bldg.get('length_m', '—')} m"),
+            ('Largeur :',    f"{bldg.get('width_m',  '—')} m"),
+            ('Empreinte :',  f"{int(bldg['footprint_bbox_m2'])} m²" if bldg.get('footprint_bbox_m2') else '—'),
+            ('Panneaux max :', f"{bldg.get('max_panels') or pot.get('max_panel_count') or '—'} × {bldg.get('panel_wc', 400)} Wc"),
+        ]:
+            c.setFont('Helvetica-Bold', 7.5); c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(1.7 * cm, ky, lbl)
+            c.setFont('Helvetica', 7.5); c.setFillColor(self.COLOR_DARK)
+            c.drawString(4.8 * cm, ky, str(val))
+            ky -= 0.52 * cm
+
+        # Bloc DSM (hauteurs toiture)
+        hta_x = 1.5 * cm + col_w2 + 0.4 * cm
+        c.setFillColor(self.COLOR_HEADER_BG)
+        c.rect(hta_x, y - info_h, col_w2, info_h, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont('Helvetica-Bold', 8)
+        c.drawString(hta_x + 0.2 * cm, y - 0.3 * cm, '📐 Hauteurs de toiture (DSM)')
+        ky2 = y - 0.75 * cm
+        for lbl, val in [
+            ('Égout :',    f"{dsm.get('height_egout_m', '—')} m"),
+            ('Moy. :',     f"{dsm.get('height_mean_m',  '—')} m"),
+            ('Faîtage :',  f"{dsm.get('height_faitage_m', '—')} m"),
+            ('Altitude :', f"{dsm.get('altitude_mean_m',  '—')} m IGN"),
+        ]:
+            if not dsm:
+                break
+            c.setFont('Helvetica-Bold', 7.5); c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(hta_x + 0.2 * cm, ky2, lbl)
+            c.setFont('Helvetica', 7.5); c.setFillColor(self.COLOR_DARK)
+            c.drawString(hta_x + 3.0 * cm, ky2, str(val))
+            ky2 -= 0.52 * cm
+        if not dsm:
+            c.setFont('Helvetica-Oblique', 7.5); c.setFillColor(colors.HexColor('#777777'))
+            c.drawString(hta_x + 0.2 * cm, y - 0.9 * cm, 'DSM non disponible')
+        y -= info_h + 0.4 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 3 : Échelle irradiance Google Solar
+        # ─────────────────────────────────────────────────────────────────────
+        if flux_min is not None or flux_max is not None:
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont('Helvetica-Bold', 8)
+            c.drawString(1.5 * cm, y, f'Irradiance annuelle (kWh/m²/an)   — Imagerie Google Solar {img_date_str}')
+            y -= 0.5 * cm
+            self._draw_irradiance_scale(c, 1.5 * cm, y - 0.55 * cm,
+                                        self.width - 3 * cm, 0.55 * cm,
+                                        flux_min, flux_max, flux_mean)
+            y -= 1.2 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
+        # SECTION 4 : Tableau des pans de toiture
+        # ─────────────────────────────────────────────────────────────────────
+        if segs:
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont('Helvetica-Bold', 9)
+            c.drawString(1.5 * cm, y, f'{len(segs)} PANS DE TOITURE — orientation, inclinaison, irradiance')
+            y -= 0.5 * cm
+
+            # Déterminer irr global min/max pour colorisation
+            all_irr = [s.get('irr_max_kwh') or s.get('irr_med_kwh') for s in segs if s.get('irr_max_kwh') or s.get('irr_med_kwh')]
+            g_irr_min = min(all_irr) if all_irr else 0
+            g_irr_max = max(all_irr) if all_irr else 1
+
+            # En-têtes colonnes
+            headers = ['#', 'Orient.', 'Inclin.', 'Haut.', 'Dimensions', 'Surface', 'kWh/m²/an']
+            col_xs  = [1.5*cm, 2.4*cm, 4.3*cm, 6.0*cm, 7.8*cm, 11.5*cm, 14.2*cm]
+            col_ws  = [0.8*cm, 1.8*cm, 1.6*cm, 1.7*cm, 3.6*cm, 2.6*cm, None]
+
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.rect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont('Helvetica-Bold', 7.5)
+            for xi, h in zip(col_xs, headers):
+                c.drawString(xi + 0.1 * cm, y, h)
+            y -= 0.65 * cm
+
+            for si, seg in enumerate(segs[:15]):
+                row_bg = self.COLOR_LIGHT_BG if si % 2 == 0 else colors.white
+                c.setFillColor(row_bg)
+                c.rect(1.5 * cm, y - 0.1 * cm, self.width - 3 * cm, 0.5 * cm, fill=1, stroke=0)
+
+                ori_lbl  = seg.get('orientation', '—')
+                az_deg   = seg.get('azimuth_deg')
+                pit      = seg.get('pitch_deg')
+                hgt      = seg.get('height_m')
+                area     = seg.get('area_m2')
+                seg_l    = seg.get('seg_l_m')
+                seg_w    = seg.get('seg_w_m')
+                irr_min  = seg.get('irr_min_kwh')
+                irr_med  = seg.get('irr_med_kwh')
+                irr_max  = seg.get('irr_max_kwh')
+
+                dim_str  = f'{seg_l}×{seg_w}' if seg_l and seg_w else ('—')
+                irr_disp = irr_max or irr_med
+
+                # Couleur barre irradiance dans dernière colonne
+                irr_col = self._irr_color(irr_disp, g_irr_min, g_irr_max)
+
+                # Couleur orientation
+                ori_color_map = {'S': colors.HexColor('#FF6B35'), 'SE': colors.HexColor('#FF9800'),
+                                 'SW': colors.HexColor('#FF9800'), 'SO': colors.HexColor('#FF9800'),
+                                 'E': colors.HexColor('#FDD835'), 'O': colors.HexColor('#FDD835'),
+                                 'NE': colors.HexColor('#90CAF9'), 'NO': colors.HexColor('#90CAF9'),
+                                 'N': colors.HexColor('#64B5F6')}
+                ori_fill = ori_color_map.get(ori_lbl, colors.HexColor('#B0BEC5'))
+
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont('Helvetica', 7.5)
+                vals = [
+                    str(seg.get('id', si + 1)),
+                    '',  # orientation handled separately
+                    f'{pit}°' if pit is not None else '—',
+                    f'{hgt} m' if hgt is not None else '—',
+                    dim_str,
+                    f'{area} m²' if area is not None else '—',
+                    '',  # irradiance handled separately
+                ]
+                for xi, v in zip(col_xs, vals):
+                    if v:
+                        c.drawString(xi + 0.1 * cm, y, v)
+
+                # Orientation — badge coloré
+                bw = 1.6 * cm
+                c.setFillColor(ori_fill)
+                c.roundRect(col_xs[1] + 0.05 * cm, y - 0.08 * cm, bw, 0.4 * cm, 2, fill=1, stroke=0)
+                c.setFillColor(self.COLOR_DARK)
+                c.setFont('Helvetica-Bold', 7)
+                az_label = f'{ori_lbl} {az_deg}°' if az_deg is not None else ori_lbl
+                c.drawCentredString(col_xs[1] + bw / 2 + 0.05 * cm, y, az_label[:10])
+
+                # Irradiance — barre colorée + valeur
+                irr_x = col_xs[6]
+                irr_bar_w = self.width - 1.5 * cm - irr_x - 0.5 * cm
+                if irr_disp:
+                    c.setFillColor(irr_col)
+                    c.roundRect(irr_x, y - 0.05 * cm, irr_bar_w, 0.38 * cm, 2, fill=1, stroke=0)
+                    c.setFillColor(colors.white)
+                    c.setFont('Helvetica-Bold', 7.5)
+                    irr_txt = f'{irr_min}–{irr_max}' if (irr_min and irr_max) else str(irr_disp)
+                    c.drawCentredString(irr_x + irr_bar_w / 2, y, irr_txt)
+                else:
+                    c.setFillColor(self.COLOR_DARK)
+                    c.setFont('Helvetica', 7.5)
+                    c.drawString(irr_x + 0.1 * cm, y, '—')
+
+                y -= 0.55 * cm
+
+            if len(segs) > 15:
+                c.setFont('Helvetica-Oblique', 7)
+                c.setFillColor(colors.grey)
+                c.drawString(1.5 * cm, y, f'… et {len(segs) - 15} pans supplémentaires')
+                y -= 0.4 * cm
+
+        # Source note
+        y -= 0.3 * cm
+        c.setFont('Helvetica-Oblique', 6.5)
+        c.setFillColor(colors.HexColor('#777777'))
+        c.drawString(1.5 * cm, y, f'Source : Google Solar API ({source}) — Imagerie {img_date_str} — Données indicatives')
 
         self._draw_page_footer(c)
 

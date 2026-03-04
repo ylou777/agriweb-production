@@ -6413,6 +6413,52 @@
                         metersPerDegreeLng: lngMeters,
                         metersPerDegreeLat: latMeters
                     };
+                })(),
+                // ── Analyse Google Solar/DSM (irradiance, pans, bâtiment) ─────────────
+                solar_analysis: (function() {
+                    // Priorité : données DSM flux-heatmap (building_dims + roof_segments + flux stats)
+                    const d = viewer3D && viewer3D._dsmSolarData;
+                    if (d) {
+                        return {
+                            source:        'flux_heatmap',
+                            flux_min:      d.flux_min,
+                            flux_max:      d.flux_max,
+                            flux_mean:     d.flux_mean,
+                            imagery_date:  d.imagery_date,
+                            building_dims: d.building_dims || null,
+                            dsm_stats:     d.dsm_stats    || null,
+                            roof_segments: d.roof_segments || [],
+                            solar_potential: d.solar_potential || {}
+                        };
+                    }
+                    // Fallback : données buildingInsights (sans flux DSM)
+                    const gi = window._googleSolarData;
+                    if (gi) {
+                        return {
+                            source:        'building_insights',
+                            flux_min:      null,
+                            flux_max:      null,
+                            flux_mean:     null,
+                            imagery_date:  gi.imageryDate,
+                            building_dims: { max_panels: gi.maxPanelsCount, roof_usable_m2: gi.maxAreaM2,
+                                            sunshine_h_yr: gi.annualSunshineHours },
+                            dsm_stats:     null,
+                            roof_segments: (gi.roofSegments || []).map(s => ({
+                                id:          s.id,
+                                orientation: s.orientationLabel,
+                                azimuth_deg: s.azimuthDegrees,
+                                pitch_deg:   s.pitchDegrees,
+                                area_m2:     s.areaM2,
+                                irr_min_kwh: s.sunshineMin,
+                                irr_med_kwh: s.sunshineAnnual,
+                                irr_max_kwh: s.sunshineMax
+                            })),
+                            solar_potential: { max_panel_count: gi.maxPanelsCount,
+                                              max_area_m2: gi.maxAreaM2,
+                                              max_sunshine_hours: gi.annualSunshineHours }
+                        };
+                    }
+                    return null;
                 })()
             };
         }
