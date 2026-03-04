@@ -852,7 +852,19 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="proposal-prospect-id">
-                    
+                    <input type="hidden" id="proposal-production-simul" value="0">
+
+                    <!-- Bannière simulation disponible -->
+                    <div id="autoconso-simul-banner" class="alert alert-success d-flex align-items-start py-2 mb-3" style="display:none!important">
+                        <i class="bi bi-check-circle-fill me-2 mt-1"></i>
+                        <div>
+                            <strong>Simulation autoconsommation disponible !</strong><br>
+                            <small id="autoconso-simul-info"></small><br>
+                            <small class="text-muted">Les champs ci-dessous ont été pré-remplis depuis la simulation. Les graphiques seront automatiquement inclus dans le PDF.</small>
+                        </div>
+                        <button type="button" class="btn-close btn-sm ms-auto" onclick="document.getElementById('autoconso-simul-banner').style.display='none'"></button>
+                    </div>
+
                     <!-- Type de projet -->
                     <div class="row g-3 mb-3">
                         <div class="col-md-12">
@@ -3364,7 +3376,51 @@ Cordialement,`
             const surface = currentProspect.surface_m2 || (currentProspect.surface_ha * 10000) || 0;
             const puissanceEstimee = Math.round(surface * 0.15); // 150 Wc/m²
             document.getElementById('proposal-puissance').value = puissanceEstimee;
-            
+
+            // Pré-remplissage depuis les résultats de simulation autoconsommation sauvegardés
+            try {
+                const dj = typeof currentProspect.data_json === 'string'
+                    ? JSON.parse(currentProspect.data_json || '{}')
+                    : (currentProspect.data_json || {});
+                const acResults = dj?.calpinage?.autoconso_results;
+                const banner    = document.getElementById('autoconso-simul-banner');
+                const infoEl    = document.getElementById('autoconso-simul-info');
+
+                if (acResults && acResults.kpis) {
+                    const kpis = acResults.kpis || {};
+                    const eco  = acResults.economics || {};
+
+                    // Stocker la production PVGIS réelle
+                    const prodSimul = kpis.production_annuelle_kwh || 0;
+                    document.getElementById('proposal-production-simul').value = prodSimul;
+
+                    // Pré-remplir tous les champs depuis la simulation
+                    const conso = kpis.consommation_annuelle_kwh;
+                    if (conso)  document.getElementById('proposal-consommation').value   = Math.round(conso);
+                    const tac   = kpis.taux_autoconsommation;  // déjà en %
+                    if (tac)    document.getElementById('proposal-taux-autoconso').value  = parseFloat(tac).toFixed(1);
+                    const ta    = eco.tarif_achat;
+                    if (ta)     document.getElementById('proposal-tarif-achat').value     = parseFloat(ta).toFixed(4);
+                    const tr    = eco.tarif_revente;
+                    if (tr)     document.getElementById('proposal-tarif-revente').value   = parseFloat(tr).toFixed(4);
+
+                    // Afficher la bannière
+                    const dateStr = (acResults.date_calcul || '').slice(0, 10);
+                    infoEl.textContent = [
+                        acResults.profil_label,
+                        acResults.tariff_label,
+                        dateStr ? `Calcul du ${dateStr}` : ''
+                    ].filter(Boolean).join(' | ');
+                    banner.style.removeProperty('display');
+                    banner.style.display = 'flex';
+                } else {
+                    banner.style.display = 'none';
+                }
+            } catch(e) {
+                console.warn('Impossible de lire data_json du prospect:', e);
+                document.getElementById('autoconso-simul-banner').style.display = 'none';
+            }
+
             // Mettre à jour les calculs
             updateProposalCalculation();
             proposalModal.show();
@@ -3504,7 +3560,9 @@ Cordialement,`
             
             // Calculs
             const investissement = puissance * prixKwc;
-            const productionAnnuelle = puissance * 1100; // 1100 kWh/kWc/an par défaut
+            // Utiliser la production PVGIS si disponible (simulation), sinon estimation 1100 kWh/kWc
+            const prodSimul = parseFloat(document.getElementById('proposal-production-simul')?.value) || 0;
+            const productionAnnuelle = prodSimul > 0 ? prodSimul : (puissance * 1100);
             
             let gainAnnuel = 0;
             let energieAutoconsommee = 0;

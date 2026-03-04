@@ -77,12 +77,14 @@ class PropositionProfessionnelle:
         _eco  = self.autoconso_data.get('economics', {})
 
         # Production : réelle PVGIS si dispos, sinon 1100 kWh/kWc moyen France
-        if _kpis.get('production_kwh_an'):
-            self.production_annuelle   = self._sf(_kpis['production_kwh_an'])
-            self.energie_autoconsommee = self._sf(_kpis.get('autoconso_kwh_an', 0))
-            self.energie_revendue      = self._sf(_kpis.get('surplus_kwh_an', 0))
-            self.taux_autoconso        = self._sf(_kpis.get('taux_autoconsommation', self.taux_autoconso))
-            self.consommation          = self._sf(_kpis.get('consommation_kwh_an', self.consommation))
+        # Clés issues de compute_autoconsommation() : production_annuelle_kwh, autoconso_kwh, surplus_kwh, taux_autoconsommation (en %)
+        if _kpis.get('production_annuelle_kwh'):
+            self.production_annuelle   = self._sf(_kpis['production_annuelle_kwh'])
+            self.energie_autoconsommee = self._sf(_kpis.get('autoconso_kwh', 0))
+            self.energie_revendue      = self._sf(_kpis.get('surplus_kwh', 0))
+            # taux_autoconsommation est en % (75.0), self.taux_autoconso est en fraction (0.75)
+            self.taux_autoconso        = self._sf(_kpis.get('taux_autoconsommation', self.taux_autoconso * 100)) / 100.0
+            self.consommation          = self._sf(_kpis.get('consommation_annuelle_kwh', self.consommation))
         else:
             self.production_annuelle   = self.puissance_kwc * 1100  # estimation
             self.energie_autoconsommee = self.production_annuelle * self.taux_autoconso
@@ -178,11 +180,19 @@ class PropositionProfessionnelle:
         self.page_number += 1
         self._draw_etude_financiere(c)
 
-        # Page 7b : Simulation autoconsommation (si données disponibles)
+        # Pages 8A-8C : Simulation autoconsommation (si données disponibles)
         if self.autoconso_data:
             c.showPage()
             self.page_number += 1
             self._draw_etude_autoconsommation(c)
+
+            c.showPage()
+            self.page_number += 1
+            self._draw_autoconso_monthly_table(c)
+
+            c.showPage()
+            self.page_number += 1
+            self._draw_autoconso_daily_profiles(c)
 
         # Page 8 : Devis détaillé
         c.showPage()
@@ -847,17 +857,17 @@ class PropositionProfessionnelle:
         c.drawString(2 * cm, y, f"Gain net sur 25 ans : {self._format_euros(gain_net_25)}")
 
     def _draw_etude_autoconsommation(self, c):
-        """Page : Simulation autoconsommation (PVGIS 8760h + profil Enedis)"""
-        y = self._draw_page_header(c, "6. SIMULATION AUTOCONSOMMATION")
+        """Page 8A : KPI + bilan + graphique mensuel production vs consommation"""
+        y = self._draw_page_header(c, "8. SIMULATION AUTOCONSOMMATION")
 
         tariff_label = self._tariff_label
         profil_label = self.autoconso_data.get('profil_label', '')
-        date_calcul  = self.autoconso_data.get('date_calcul', '')[:10]
+        date_calcul  = (self.autoconso_data.get('date_calcul', '') or '')[:10]
 
         # Mention source
         c.setFont("Helvetica-Oblique", 7)
         c.setFillColor(colors.HexColor('#78909C'))
-        src_txt = (f"Simulation horaire PVGIS 8760h × Profil {profil_label}")
+        src_txt = f"Simulation horaire PVGIS 8760h × Profil {profil_label}"
         if tariff_label:
             src_txt += f" | Tarif : {tariff_label}"
         if date_calcul:
@@ -865,16 +875,17 @@ class PropositionProfessionnelle:
         c.drawString(1.5 * cm, y + 0.15 * cm, src_txt)
         y -= 1.0 * cm
 
-        # ── Ligne de KPI boxes ──────────────────────────────────────────────────
+        # ── KPIs (clés correctes issues de compute_autoconsommation) ────────────
         _kpis = self.autoconso_data.get('kpis', {})
         _eco  = self.autoconso_data.get('economics', {})
 
-        prod_kwh     = self._sf(_kpis.get('production_kwh_an'))
-        conso_kwh    = self._sf(_kpis.get('consommation_kwh_an', self.consommation))
-        auto_kwh     = self._sf(_kpis.get('autoconso_kwh_an'))
-        surplus_kwh  = self._sf(_kpis.get('surplus_kwh_an'))
-        taux_ac      = self._sf(_kpis.get('taux_autoconsommation', 0)) * 100
-        taux_ap      = self._sf(_kpis.get('taux_autoproduction', 0)) * 100
+        prod_kwh     = self._sf(_kpis.get('production_annuelle_kwh'))
+        conso_kwh    = self._sf(_kpis.get('consommation_annuelle_kwh', self.consommation))
+        auto_kwh     = self._sf(_kpis.get('autoconso_kwh'))
+        surplus_kwh  = self._sf(_kpis.get('surplus_kwh'))
+        # taux_autoconsommation est déjà en % (ex: 75.0)
+        taux_ac      = self._sf(_kpis.get('taux_autoconsommation', 0))
+        taux_ap      = self._sf(_kpis.get('taux_autosuffisance', 0))
         eco_an1      = self._sf(_eco.get('economie_an1'))
         rev_an1      = self._sf(_eco.get('revenu_surplus_an1'))
         gain_an1     = self._sf(_eco.get('gain_total_an1'))
@@ -904,7 +915,7 @@ class PropositionProfessionnelle:
         y = self._draw_kv_line(c, y, "Énergie autoconsommée :",    f"{self._format_kwh(auto_kwh)} ({taux_ac:.0f}%)", bold_value=True)
         y = self._draw_kv_line(c, y, "Surplus injecté réseau :",   f"{self._format_kwh(surplus_kwh)} ({100-taux_ac:.0f}%)")
         if taux_ap > 0:
-            y = self._draw_kv_line(c, y, "Taux d'autoproduction :",  f"{taux_ap:.0f}% de la conso couverte")
+            y = self._draw_kv_line(c, y, "Taux d'autosuffisance :",  f"{taux_ap:.0f}% de la conso couverte par le PV")
         if tariff_label:
             y = self._draw_kv_line(c, y, "Option tarifaire :",       tariff_label)
         if detail_tarif:
@@ -916,14 +927,18 @@ class PropositionProfessionnelle:
         y -= 0.2 * cm
 
         # ── Graphique mensuel : production vs consommation ──────────────────────
-        monthly = self.autoconso_data.get('monthly', [])
-        if len(monthly) >= 12:
+        # monthly est un dict { 'labels':[], 'production':[], 'consommation':[], 'autoconso':[], ... }
+        monthly = self.autoconso_data.get('monthly', {})
+        m_prod  = monthly.get('production', [])
+        m_conso = monthly.get('consommation', [])
+        m_auto  = monthly.get('autoconso', [])
+        if len(m_prod) >= 12:
             y = self._draw_section_title(c, y, "Production mensuelle vs Consommation (kWh)")
             MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun',
                     'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
-            prods  = [self._sf(m.get('production_kwh',  m.get('prod_kwh', 0))) for m in monthly[:12]]
-            consos = [self._sf(m.get('consommation_kwh', m.get('conso_kwh', 0))) for m in monthly[:12]]
-            autos  = [self._sf(m.get('autoconso_kwh', 0)) for m in monthly[:12]]
+            prods  = [self._sf(v) for v in m_prod[:12]]
+            consos = [self._sf(v) for v in m_conso[:12]]
+            autos  = [self._sf(v) for v in m_auto[:12]]
 
             max_val = max(max(prods), max(consos), 1)
             graph_w = self.width - 3 * cm
@@ -940,24 +955,30 @@ class PropositionProfessionnelle:
                 bx_base = 1.5 * cm + i * bar_group_w
 
                 # Barre production (bleu)
-                ph = prods[i] / max_val * graph_h
+                ph = prods[i] / max_val * graph_h if max_val > 0 else 0
                 c.setFillColor(colors.HexColor('#1E88E5'))
                 c.rect(bx_base + bar_group_w * 0.05, y - graph_h - 0.4 * cm, bar_w, ph, fill=1, stroke=0)
 
-                # Barre conso (orange)
-                ch = consos[i] / max_val * graph_h
-                c.setFillColor(colors.HexColor('#FB8C00'))
-                c.rect(bx_base + bar_group_w * 0.45, y - graph_h - 0.4 * cm, bar_w, ch, fill=1, stroke=0)
-
-                # Zone autoconsommée sur barre prod (vert translucide — hachuré via répétition)
+                # Zone autoconsommée sur barre prod (vert)
                 ah = min(autos[i], prods[i]) / max_val * graph_h if max_val > 0 else 0
                 c.setFillColor(colors.HexColor('#43A047'))
-                c.setFillAlpha(0.55)
+                c.setFillAlpha(0.6)
                 c.rect(bx_base + bar_group_w * 0.05, y - graph_h - 0.4 * cm, bar_w, ah, fill=1, stroke=0)
                 c.setFillAlpha(1.0)
 
-                # Label mois
+                # Barre conso (orange)
+                ch = consos[i] / max_val * graph_h if max_val > 0 else 0
+                c.setFillColor(colors.HexColor('#FB8C00'))
+                c.rect(bx_base + bar_group_w * 0.45, y - graph_h - 0.4 * cm, bar_w, ch, fill=1, stroke=0)
+
+                # Valeur en haut de chaque barre (prod)
+                c.setFont("Helvetica", 5)
                 c.setFillColor(self.COLOR_DARK)
+                c.drawCentredString(bx_base + bar_group_w * 0.225,
+                                    y - graph_h - 0.4 * cm + ph + 0.05 * cm,
+                                    f"{int(prods[i])}")
+
+                # Label mois
                 c.setFont("Helvetica", 6)
                 c.drawCentredString(bx_base + bar_group_w * 0.5, y - graph_h - 0.8 * cm, mois)
 
@@ -1060,6 +1081,337 @@ class PropositionProfessionnelle:
                 c.setFont("Helvetica", 7)
                 c.drawString(lx + 0.7 * cm, y + 0.1 * cm, lbl)
                 lx += 5.0 * cm
+
+        self._draw_page_footer(c)
+
+    def _draw_autoconso_monthly_table(self, c):
+        """Page 8B : Tableau mensuel détaillé + graphique taux de couverture"""
+        y = self._draw_page_header(c, "8B. ANALYSE MENSUELLE DÉTAILLÉE")
+
+        _kpis = self.autoconso_data.get('kpis', {})
+        monthly = self.autoconso_data.get('monthly', {})
+        m_prod     = monthly.get('production',   [0]*12)
+        m_conso    = monthly.get('consommation', [0]*12)
+        m_auto     = monthly.get('autoconso',    [0]*12)
+        m_surp     = monthly.get('surplus',      [0]*12)
+        m_taux_ac  = monthly.get('taux_ac',      [0]*12)  # % de la prod autoconsommée
+        m_taux_as  = monthly.get('taux_as',      [0]*12)  # % de la conso couverte par PV
+        MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun',
+                'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+
+        # ── Tableau mensuel ─────────────────────────────────────────────────────
+        y = self._draw_section_title(c, y, "Bilan mensuel (kWh)")
+        col_x  = [1.5, 3.2, 5.8, 8.4, 11.0, 13.6, 16.2]  # cm
+        col_w  = [1.7, 2.4, 2.4, 2.4,  2.4,  2.4,  2.4]
+        hdrs   = ["Mois", "Prod. (kWh)", "Conso (kWh)", "Autoconso.", "Surplus", "Taux AC%", "Cov.*%"]
+        row_h  = 0.52 * cm
+        tbl_w  = self.width - 3 * cm
+
+        # En-tête
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.rect(1.5 * cm, y - row_h + 0.15*cm, tbl_w, row_h, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_WHITE)
+        c.setFont("Helvetica-Bold", 7.5)
+        for j, hdr in enumerate(hdrs):
+            c.drawString((col_x[j] + 0.15) * cm, y - row_h + 0.35*cm, hdr)
+        y -= row_h
+
+        total_prod = total_conso = total_auto = total_surp = 0
+        for i, mois in enumerate(MOIS):
+            prod  = self._sf(m_prod[i]  if i < len(m_prod)  else 0)
+            conso = self._sf(m_conso[i] if i < len(m_conso) else 0)
+            auto  = self._sf(m_auto[i]  if i < len(m_auto)  else 0)
+            surp  = self._sf(m_surp[i]  if i < len(m_surp)  else 0)
+            tac   = self._sf(m_taux_ac[i] if i < len(m_taux_ac) else 0)
+            tas   = self._sf(m_taux_as[i]  if i < len(m_taux_as)  else 0)
+            total_prod  += prod
+            total_conso += conso
+            total_auto  += auto
+            total_surp  += surp
+
+            # Fond alterné
+            if i % 2 == 0:
+                c.setFillColor(colors.HexColor('#F1F8E9'))
+            else:
+                c.setFillColor(colors.white)
+            c.rect(1.5*cm, y - row_h + 0.15*cm, tbl_w, row_h, fill=1, stroke=0)
+
+            # Indicateur couleur couverture (vert si bonnes, jaune si moyen, orange si faible)
+            cov_color = colors.HexColor('#2E7D32') if tas >= 50 else (colors.HexColor('#F57C00') if tas >= 25 else colors.HexColor('#B71C1C'))
+
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica-Bold" if i == 5 or i == 6 else "Helvetica", 7.5)  # bold juin/juil (max)
+            c.drawString((col_x[0] + 0.15)*cm, y - row_h + 0.3*cm, mois)
+            c.setFont("Helvetica", 7.5)
+            c.drawRightString((col_x[1] + col_w[1] - 0.2)*cm, y - row_h + 0.3*cm, f"{prod:,.0f}")
+            c.drawRightString((col_x[2] + col_w[2] - 0.2)*cm, y - row_h + 0.3*cm, f"{conso:,.0f}")
+            c.setFillColor(colors.HexColor('#2E7D32'))
+            c.drawRightString((col_x[3] + col_w[3] - 0.2)*cm, y - row_h + 0.3*cm, f"{auto:,.0f}")
+            c.setFillColor(colors.HexColor('#1565C0'))
+            c.drawRightString((col_x[4] + col_w[4] - 0.2)*cm, y - row_h + 0.3*cm, f"{surp:,.0f}")
+            c.setFillColor(self.COLOR_DARK)
+            c.drawRightString((col_x[5] + col_w[5] - 0.2)*cm, y - row_h + 0.3*cm, f"{tac:.0f}%")
+            c.setFillColor(cov_color)
+            c.drawRightString((col_x[6] + col_w[6] - 0.2)*cm, y - row_h + 0.3*cm, f"{tas:.0f}%")
+            y -= row_h
+
+        # Ligne total
+        c.setFillColor(colors.HexColor('#E8F5E9'))
+        c.rect(1.5*cm, y - row_h + 0.15*cm, tbl_w, row_h, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_DARK)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawString((col_x[0]+0.15)*cm, y - row_h + 0.3*cm, "TOTAL")
+        c.drawRightString((col_x[1]+col_w[1]-0.2)*cm, y - row_h + 0.3*cm, f"{total_prod:,.0f}")
+        c.drawRightString((col_x[2]+col_w[2]-0.2)*cm, y - row_h + 0.3*cm, f"{total_conso:,.0f}")
+        c.setFillColor(colors.HexColor('#2E7D32'))
+        c.drawRightString((col_x[3]+col_w[3]-0.2)*cm, y - row_h + 0.3*cm, f"{total_auto:,.0f}")
+        c.setFillColor(colors.HexColor('#1565C0'))
+        c.drawRightString((col_x[4]+col_w[4]-0.2)*cm, y - row_h + 0.3*cm, f"{total_surp:,.0f}")
+        c.setFillColor(self.COLOR_DARK)
+        tac_tot  = total_auto / total_prod  * 100 if total_prod  > 0 else 0
+        tas_tot  = total_auto / total_conso * 100 if total_conso > 0 else 0
+        c.drawRightString((col_x[5]+col_w[5]-0.2)*cm, y - row_h + 0.3*cm, f"{tac_tot:.0f}%")
+        c.drawRightString((col_x[6]+col_w[6]-0.2)*cm, y - row_h + 0.3*cm, f"{tas_tot:.0f}%")
+        y -= row_h + 0.2*cm
+
+        # Légende *
+        c.setFont("Helvetica-Oblique", 6)
+        c.setFillColor(colors.HexColor('#78909C'))
+        c.drawString(1.5*cm, y, "* Taux AC = % de la production autoconsommée  ·  Cov. = Couverture = % de la consommation couverte par le PV")
+        y -= 0.9*cm
+
+        # ── Graphique : taux de couverture mensuel (barres empilées) ───────────
+        y = self._draw_section_title(c, y, "Couverture mensuelle de la consommation")
+
+        graph_w  = self.width - 3 * cm
+        graph_h  = 4.2 * cm
+        bar_gw   = graph_w / 12
+        bar_base = y - graph_h - 0.4*cm
+
+        # Axe horizontal
+        c.setStrokeColor(colors.HexColor('#CFD8DC'))
+        c.setLineWidth(0.5)
+        c.line(1.5*cm, bar_base, 1.5*cm + graph_w, bar_base)
+
+        # Axe vertical (grille à 25%, 50%, 75%, 100%)
+        for pct in [25, 50, 75, 100]:
+            gy = bar_base + pct / 100.0 * graph_h
+            c.setStrokeColor(colors.HexColor('#ECEFF1'))
+            c.setDash(2, 2)
+            c.line(1.5*cm, gy, 1.5*cm + graph_w, gy)
+            c.setDash()
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(colors.HexColor('#90A4AE'))
+            c.drawRightString(1.4*cm, gy - 0.07*cm, f"{pct}%")
+
+        for i, mois in enumerate(MOIS):
+            conso = self._sf(m_conso[i] if i < len(m_conso) else 0)
+            auto  = self._sf(m_auto[i]  if i < len(m_auto)  else 0)
+            deficit = max(conso - auto, 0)
+            bx = 1.5*cm + i * bar_gw + bar_gw * 0.1
+            bw = bar_gw * 0.8
+
+            if conso > 0:
+                ha = auto    / conso * graph_h  # hauteur autoconsommée
+                hd = deficit / conso * graph_h  # hauteur réseau
+
+                # Réseau (gris clair) - dessous
+                c.setFillColor(colors.HexColor('#CFD8DC'))
+                c.rect(bx, bar_base, bw, min(ha + hd, graph_h), fill=1, stroke=0)
+
+                # Autoconsommée (vert) - par-dessus
+                c.setFillColor(colors.HexColor('#43A047'))
+                c.rect(bx, bar_base, bw, min(ha, graph_h), fill=1, stroke=0)
+
+                # Valeur %tas dans la barre si assez haute
+                if ha > 0.3*cm:
+                    tas_v = auto / conso * 100
+                    c.setFont("Helvetica-Bold", 5.5)
+                    c.setFillColor(colors.white)
+                    c.drawCentredString(bx + bw/2, bar_base + ha/2 - 0.05*cm, f"{tas_v:.0f}%")
+
+            # Label mois
+            c.setFont("Helvetica", 6)
+            c.setFillColor(self.COLOR_DARK)
+            c.drawCentredString(bx + bw/2, bar_base - 0.35*cm, mois)
+
+        y = bar_base - 0.8*cm
+
+        # Légende
+        lx = 1.5*cm
+        for col, lbl in [(colors.HexColor('#43A047'), "Autoconsommée (PV direct)"),
+                         (colors.HexColor('#CFD8DC'), "Réseau électrique")]:
+            c.setFillColor(col)
+            c.rect(lx, y + 0.1*cm, 0.35*cm, 0.3*cm, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica", 7)
+            c.drawString(lx + 0.45*cm, y + 0.12*cm, lbl)
+            lx += 5.5*cm
+
+        self._draw_page_footer(c)
+
+    def _draw_autoconso_daily_profiles(self, c):
+        """Page 8C : Profils journaliers 24h par saison (hiver / printemps / été)"""
+        y = self._draw_page_header(c, "8C. PROFILS JOURNALIERS SAISONNIERS")
+
+        dp = self.autoconso_data.get('daily_profiles', {})
+        if not dp:
+            c.setFont("Helvetica-Oblique", 9)
+            c.setFillColor(colors.HexColor('#78909C'))
+            c.drawCentredString(self.width / 2, y - 2*cm,
+                                "Données de profils journaliers non disponibles.")
+            self._draw_page_footer(c)
+            return
+
+        hours        = list(range(24))
+        seasons = [
+            ('Hiver (Déc-Fév)',    dp.get('winter_prod',  [0]*24), dp.get('winter_conso',  [0]*24), '#1565C0', '#FB8C00'),
+            ('Mi-saison (Avr-Mai)', dp.get('spring_prod',  [0]*24), dp.get('spring_conso',  [0]*24), '#1E88E5', '#FFA726'),
+            ('Été (Jun-Aoû)',      dp.get('summer_prod',  [0]*24), dp.get('summer_conso',  [0]*24), '#42A5F5', '#FF7043'),
+        ]
+
+        panel_h = 5.5 * cm
+        panel_w = (self.width - 3.5 * cm) / 3
+        panel_gap = 0.25 * cm
+        HEURES_LABEL = ['0', '', '', '', '4', '', '', '', '8', '', '', '', '12', '', '', '', '16', '', '', '', '20', '', '', '23']
+
+        y -= 0.5 * cm
+
+        for si, (season_lbl, s_prod, s_conso, col_prod_hex, col_conso_hex) in enumerate(seasons):
+            px = 1.5 * cm + si * (panel_w + panel_gap)
+            py_base = y - panel_h - 0.8 * cm
+
+            # Cadre fond
+            c.setFillColor(colors.HexColor('#FAFAFA'))
+            c.setStrokeColor(colors.HexColor('#E0E0E0'))
+            c.setLineWidth(0.5)
+            c.roundRect(px - 0.1*cm, py_base - 0.2*cm, panel_w + 0.2*cm, panel_h + 1.2*cm, 3, fill=1, stroke=1)
+
+            # Titre saison
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(px + panel_w/2, py_base + panel_h + 0.4*cm, season_lbl)
+
+            # Calcul max pour normalisation
+            max_val = max(max(s_prod, default=0), max(s_conso, default=0), 0.001)
+
+            # Axe horizontal
+            c.setStrokeColor(colors.HexColor('#CFD8DC'))
+            c.setLineWidth(0.4)
+            c.line(px, py_base, px + panel_w, py_base)
+
+            # Grille horizontale légère
+            for pct in [0.25, 0.5, 0.75, 1.0]:
+                gy = py_base + pct * panel_h
+                c.setStrokeColor(colors.HexColor('#F5F5F5'))
+                c.line(px, gy, px + panel_w, gy)
+
+            step_x = panel_w / 23.0
+
+            # Zone autoconsommée (fond vert clair - min(prod, conso) à chaque heure)
+            auto_pts  = [min(self._sf(s_prod[h]), self._sf(s_conso[h])) for h in range(24)]
+            auto_poly = [(px, py_base)]
+            for h in range(24):
+                hx = px + h * step_x
+                hy = py_base + (auto_pts[h] / max_val) * panel_h
+                auto_poly.append((hx, hy))
+            auto_poly.append((px + 23 * step_x, py_base))
+            p_fill = c.beginPath()
+            p_fill.moveTo(*auto_poly[0])
+            for pt in auto_poly[1:]:
+                p_fill.lineTo(*pt)
+            p_fill.close()
+            c.setFillColor(colors.HexColor('#C8E6C9'))
+            c.setFillAlpha(0.7)
+            c.drawPath(p_fill, stroke=0, fill=1)
+            c.setFillAlpha(1.0)
+
+            # Courbe production (bleu)
+            prod_pts = [(px + h * step_x, py_base + (self._sf(s_prod[h]) / max_val) * panel_h) for h in range(24)]
+            c.setStrokeColor(colors.HexColor(col_prod_hex))
+            c.setLineWidth(1.3)
+            path_p = c.beginPath()
+            path_p.moveTo(*prod_pts[0])
+            for pt in prod_pts[1:]:
+                path_p.lineTo(*pt)
+            c.drawPath(path_p, stroke=1, fill=0)
+
+            # Courbe conso (orange)
+            conso_pts = [(px + h * step_x, py_base + (self._sf(s_conso[h]) / max_val) * panel_h) for h in range(24)]
+            c.setStrokeColor(colors.HexColor(col_conso_hex))
+            c.setLineWidth(1.3)
+            c.setDash(3, 2)
+            path_c = c.beginPath()
+            path_c.moveTo(*conso_pts[0])
+            for pt in conso_pts[1:]:
+                path_c.lineTo(*pt)
+            c.drawPath(path_c, stroke=1, fill=0)
+            c.setDash()
+
+            # Axes heures (labels 0, 4, 8, 12, 16, 20, 23)
+            c.setFont("Helvetica", 5)
+            c.setFillColor(colors.HexColor('#90A4AE'))
+            for h in [0, 4, 8, 12, 16, 20, 23]:
+                hx = px + h * step_x
+                c.drawCentredString(hx, py_base - 0.3*cm, str(h) + 'h')
+
+        # Légende commune sous les 3 panels
+        legend_y = y - panel_h - 1.9*cm
+        lx = 1.5*cm
+        for col, lbl, dash in [
+            ('#1565C0', "Production PV (kWh moy./h)", False),
+            ('#FB8C00', "Consommation (kWh moy./h)", True),
+            ('#C8E6C9', "Autoconsommée (zone verte)", False),
+        ]:
+            if dash:
+                c.setStrokeColor(colors.HexColor(col))
+                c.setLineWidth(1.2)
+                c.setDash(3, 2)
+                c.line(lx, legend_y + 0.15*cm, lx + 0.6*cm, legend_y + 0.15*cm)
+                c.setDash()
+            else:
+                c.setFillColor(colors.HexColor(col))
+                c.rect(lx, legend_y + 0.05*cm, 0.6*cm, 0.3*cm, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica", 7)
+            c.drawString(lx + 0.7*cm, legend_y + 0.1*cm, lbl)
+            lx += 6.5*cm
+
+        legend_y -= 1.0*cm
+
+        # ── Analyse textuelle par saison ─────────────────────────────────────
+        y2 = legend_y - 0.5*cm
+        y2 = self._draw_section_title(c, y2, "Interprétation des profils")
+
+        dp_summ = []
+        for si, (season_lbl, s_prod, s_conso, _, _) in enumerate(seasons):
+            max_prod_h = max(range(24), key=lambda h: self._sf(s_prod[h]))
+            total_prod_d = sum(self._sf(v) for v in s_prod)
+            total_conso_d = sum(self._sf(v) for v in s_conso)
+            auto_d = sum(min(self._sf(s_prod[h]), self._sf(s_conso[h])) for h in range(24))
+            cov_pct = auto_d / total_conso_d * 100 if total_conso_d > 0 else 0
+            dp_summ.append((season_lbl, total_prod_d, total_conso_d, auto_d, cov_pct, max_prod_h))
+
+        for (season_lbl, tp, tc, ta, cov, mph) in dp_summ:
+            c.setFont("Helvetica-Bold", 8)
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.drawString(1.5*cm, y2, f"▸ {season_lbl}")
+            y2 -= 0.45*cm
+            c.setFont("Helvetica", 7.5)
+            c.setFillColor(self.COLOR_DARK)
+            txt = (f"Prod. jour moy. {tp:.2f} kWh  ·  Conso {tc:.2f} kWh  ·  "
+                   f"Autoconsommée {ta:.2f} kWh  ·  Couverture {cov:.0f}%  ·  "
+                   f"Pic production à {mph}h")
+            c.drawString(2.0*cm, y2, txt)
+            y2 -= 0.6*cm
+
+        y2 -= 0.3*cm
+        c.setFont("Helvetica-Oblique", 7)
+        c.setFillColor(colors.HexColor('#78909C'))
+        c.drawString(1.5*cm, y2,
+            "Profil journalier moyen calculé sur l'ensemble des jours de la saison (PVGIS 8760h).")
+
+        self._draw_page_footer(c)
 
     def _draw_devis(self, c):
         """Page 8 : Devis détaillé"""

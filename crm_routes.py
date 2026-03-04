@@ -2711,17 +2711,18 @@ def register_crm_routes(app):
                 if isinstance(_dj, str):
                     _dj = json.loads(_dj)
                 _dj.setdefault('calpinage', {})['autoconso_results'] = {
-                    'kpis'          : result['kpis'],
-                    'economics'     : {
+                    'kpis'           : result['kpis'],
+                    'economics'      : {
                         k: v for k, v in economics.items()
                         if k != 'prix_8760'
                     },
-                    'monthly'       : result['monthly'],
-                    'profil_type'   : profil_type,
-                    'profil_label'  : PROFILE_LABELS.get(profil_type, profil_type),
-                    'tariff_type'   : tariff_type,
-                    'tariff_label'  : TARIFF_LABELS.get(tariff_type, tariff_type),
-                    'date_calcul'   : datetime.now().isoformat(),
+                    'monthly'        : result['monthly'],
+                    'daily_profiles' : result['daily_profiles'],
+                    'profil_type'    : profil_type,
+                    'profil_label'   : PROFILE_LABELS.get(profil_type, profil_type),
+                    'tariff_type'    : tariff_type,
+                    'tariff_label'   : TARIFF_LABELS.get(tariff_type, tariff_type),
+                    'date_calcul'    : datetime.now().isoformat(),
                 }
                 execute_query(
                     "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
@@ -3774,16 +3775,17 @@ def register_crm_routes(app):
                 'prix_kwc': safe_float(data.get('prix_kwc'), 850.0),
                 'consommation_annuelle_kwh': safe_float(
                     data.get('consommation_annuelle_kwh')
-                    or kpis_saved.get('consommation_kwh_an'), 0.0),
+                    or kpis_saved.get('consommation_annuelle_kwh'), 0.0),   # clé correcte
                 'tarif_achat_kwh': safe_float(
                     data.get('tarif_achat_kwh')
                     or eco_saved.get('tarif_achat'), 0.20),
                 'tarif_revente_kwh': safe_float(
                     data.get('tarif_revente_kwh')
                     or eco_saved.get('tarif_revente'), 0.13),
+                # taux_autoconsommation est déjà en % (ex: 75.0) - pas de * 100
                 'taux_autoconso': safe_float(
                     data.get('taux_autoconso')
-                    or (kpis_saved.get('taux_autoconsommation', 0) * 100), 70.0),
+                    or kpis_saved.get('taux_autoconsommation', 70.0), 70.0),
                 'pvgis_hourly_data': data.get('pvgis_hourly_data'),
                 'enedis_hourly_data': data.get('enedis_hourly_data'),
                 # Résultats complets de la simulation autoconsommation
