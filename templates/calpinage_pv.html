@@ -9878,54 +9878,34 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _acCurrentSeason   = 'summer';
 
         /**
-         * Récupère les données PVGIS 8760h DIRECTEMENT depuis le navigateur
-         * (PVGIS a CORS ouvert) puis sauvegarde uniquement les P values sur Railway.
-         * Railway ne fait plus qu'un UPDATE rapide — zéro timeout.
+         * Sauvegarde les données 8760h d'une zone via Railway (proxy PVGIS).
+         * Chaque appel = 1 zone = ~30s → sous le timeout Railway.
+         * Le navigateur appelle les zones séquentiellement.
          */
         async function _pvgisSaveZone(zone) {
             if (zone._pvgis8760hCached) return { skipped: true };
 
-            const bounds  = zone.layer.getBounds();
-            const center  = bounds.getCenter();
-            const lat      = center.lat;
-            const lon      = center.lng;
-            const tilt     = zone.inclinaison  || 20;
-            const azimuth  = zone.orientation  || 180;
-            const peakpow  = zone.puissanceKw  || 1.0;
-            const aspectPvgis = 180 - azimuth;  // convention PVGIS : 0=sud
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
 
-            // 1️⃣  Appel PVGIS depuis le navigateur (pas de transit par Railway)
-            const pvgisUrl = new URL('https://re.jrc.ec.europa.eu/api/v5_2/seriescalc');
-            pvgisUrl.searchParams.set('lat',          lat);
-            pvgisUrl.searchParams.set('lon',          lon);
-            pvgisUrl.searchParams.set('peakpower',    peakpow);
-            pvgisUrl.searchParams.set('loss',         14);
-            pvgisUrl.searchParams.set('angle',        tilt);
-            pvgisUrl.searchParams.set('aspect',       aspectPvgis);
-            pvgisUrl.searchParams.set('outputformat', 'json');
-            pvgisUrl.searchParams.set('browser',      1);
-
-            const pvgisResp = await fetch(pvgisUrl.toString());
-            if (!pvgisResp.ok) throw new Error(`PVGIS ${pvgisResp.status} (zone ${zone.numero})`);
-            const pvgisData = await pvgisResp.json();
-
-            const hourly = pvgisData?.outputs?.hourly || [];
-            if (hourly.length < 8760)
-                throw new Error(`PVGIS: seulement ${hourly.length} entrées horaires pour zone ${zone.numero}`);
-
-            const pValues = hourly.slice(0, 8760).map(e => parseFloat(e.P ?? 0));
-
-            // 2️⃣  Sauvegarder via Railway (opération rapide : juste un UPDATE)
-            const saveResp = await fetch(`/api/crm/prospects/${prospectId}/pvgis-save-values`, {
+            const resp = await fetch(`/api/crm/prospects/${prospectId}/pvgis-hourly`, {
                 method : 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body   : JSON.stringify({ zone_numero: zone.numero || 1, p_values: pValues }),
+                body   : JSON.stringify({
+                    latitude    : center.lat,
+                    longitude   : center.lng,
+                    inclinaison : zone.inclinaison  || 20,
+                    orientation : zone.orientation  || 180,
+                    puissance_kw: zone.puissanceKw  || 1.0,
+                    zone_numero : zone.numero       || 1,
+                    save_only   : true,
+                }),
             });
-            if (!saveResp.ok) throw new Error(`Sauvegarde BDD échouée (zone ${zone.numero})`);
+            if (!resp.ok) throw new Error(`Zone ${zone.numero}: HTTP ${resp.status}`);
 
             zone._pvgis8760hCached = true;
-            console.log(`[PVGIS] Zone ${zone.numero}: ${pValues.length} valeurs sauvegardées`);
-            return saveResp.json();
+            console.log(`[PVGIS] Zone ${zone.numero}: données sauvegardées en BDD`);
+            return resp.json();
         }
 
         async function ouvrirPanneauAutoconso() {
