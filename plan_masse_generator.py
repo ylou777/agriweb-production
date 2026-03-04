@@ -102,19 +102,93 @@ class PlanMasseGenerator:
     def __init__(self, prospect_data, calpinage_data=None):
         self.data = prospect_data
         self.calpinage = calpinage_data
-        self.width, self.height = A3  # Format A3 pour plus de d├®tails
-        self.label_manager = LabelManager()  # Gestionnaire d'├®tiquettes
-        
+        self.width, self.height = A3  # Format A3 pour plus de détails
+        self.label_manager = LabelManager()  # Gestionnaire d'étiquettes
+        self.computed_scale = 500          # Echelle par défaut
+        self.computed_meters_per_cm = 5.0  # 1cm = 5m par défaut
+
+    def _compute_best_scale(self, plan_width_cm, plan_height_cm):
+        """Calcule l'échelle optimale en fonction de l'étendue réelle des zones PV.
+        Choisit dans les échelles cadastrales standards: 1/200, 1/500, 1/1000, 1/2000, 1/5000.
+        Ajoute une marge de 40% autour du bâtiment pour ne pas le tronquer.
+        """
+        all_lats, all_lons = [], []
+        if self.calpinage and 'zones' in self.calpinage:
+            for z in self.calpinage['zones']:
+                for coord in z.get('coordinates', []):
+                    all_lats.append(coord['lat'])
+                    all_lons.append(coord['lng'])
+                if not z.get('coordinates'):
+                    b = z.get('bounds', {})
+                    for k in ('_southWest', '_northEast'):
+                        pt = b.get(k, {})
+                        if pt.get('lat'):
+                            all_lats.append(pt['lat'])
+                            all_lons.append(pt['lng'])
+
+        if not all_lats or not all_lons:
+            # Pas de zones PV : échelle 1/500 par défaut
+            print("[PLAN] ℹ️ Pas de zones PV → échelle 1/500 par défaut")
+            return 500
+
+        # Facteurs de conversion GPS→mètres
+        lat_c = (min(all_lats) + max(all_lats)) / 2
+        gps_conv = None
+        if self.calpinage:
+            gps_conv = self.calpinage.get('gpsConversion')
+            if not gps_conv and self.calpinage.get('zones'):
+                gps_conv = self.calpinage['zones'][0].get('gpsConversion')
+        if gps_conv and 'metersPerDegreeLat' in gps_conv:
+            mpd_lat = gps_conv['metersPerDegreeLat']
+            mpd_lng = gps_conv['metersPerDegreeLng']
+        else:
+            import math as _math
+            mpd_lat = 1 / 111320.0
+            mpd_lng = 1 / (111320.0 * _math.cos(lat_c * _math.pi / 180))
+
+        # Dimensions réelles du bâtiment en mètres (+ 40% de marge)
+        lat_extent_m = (max(all_lats) - min(all_lats)) / mpd_lat * 1.4
+        lon_extent_m = (max(all_lons) - min(all_lons)) / mpd_lng * 1.4
+
+        print(f"[PLAN] 📐 Étendue bâtiment: {lon_extent_m:.1f}m × {lat_extent_m:.1f}m (avec marge 40%)")
+
+        # Échelles cadastrales standards (plus précis → moins précis)
+        standard_scales = [200, 500, 1000, 2000, 5000]
+        for scale in standard_scales:
+            mpc = scale / 100.0  # mètres par cm sur le plan
+            req_w = lon_extent_m / mpc
+            req_h = lat_extent_m / mpc
+            if req_w <= plan_width_cm and req_h <= plan_height_cm:
+                print(f"[PLAN] ✅ Échelle retenue: 1/{scale} "
+                      f"(bâtiment {req_w:.1f}cm × {req_h:.1f}cm dans cadre {plan_width_cm:.1f}cm × {plan_height_cm:.1f}cm)")
+                return scale
+
+        # Trop grand pour toutes les échelles : calculer une échelle personnalisée
+        import math as _math
+        min_mpc = max(lon_extent_m / plan_width_cm, lat_extent_m / plan_height_cm)
+        raw_scale = min_mpc * 100
+        custom_scale = int(_math.ceil(raw_scale / 500) * 500)
+        print(f"[PLAN] ⚠️ Échelle personnalisée: 1/{custom_scale} (bâtiment trop grand pour les échelles standards)")
+        return custom_scale
+
     def generate(self):
-        """G├®n├¿re le plan de masse PDF"""
+        """Génère le plan de masse PDF"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
-        
+
         # Réinitialiser le gestionnaire d'étiquettes avec centre de l'image
         # Le centre sera défini après calcul de la bbox du plan
         self.label_manager = None
-        
-        # En-t├¬te
+
+        # ─── Calcul de l'échelle optimale AVANT le dessin ───
+        _plan_w = self.width - 4*cm
+        _plan_h = self.height - 18*cm
+        self.computed_scale = self._compute_best_scale(_plan_w / cm, _plan_h / cm)
+        self.computed_meters_per_cm = self.computed_scale / 100.0
+        print(f"[PLAN] 🔍 Échelle sélectionnée: 1/{self.computed_scale} ("
+              f"{self.computed_meters_per_cm:.2f} m/cm)")
+
+        # En-tête
         self._draw_header(c)
         
         # Zone principale : plan cadastral + calpinage
@@ -144,10 +218,11 @@ class PlanMasseGenerator:
         adresse = self.data.get('adresse', '')
         c.drawString(3*cm, y, f"{adresse}, {commune}")
         
-        # Echelle reglementaire
+        # Echelle réelle (calculée dynamiquement selon la taille du bâtiment)
+        scale_label = f"Echelle 1/{self.computed_scale:,}".replace(',', ' ')
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(colors.HexColor('#D32F2F'))
-        c.drawRightString(self.width - 3*cm, y, "Echelle 1/500")
+        c.drawRightString(self.width - 3*cm, y, scale_label)
         c.setFillColor(colors.black)
         
     def _draw_plan_cadastral(self, c):
@@ -170,6 +245,34 @@ class PlanMasseGenerator:
         
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
+
+        # ═══════════════════════════════════════════════════════════════════╗
+        # CORRECTION DÉCALAGE : centrer sur les zones PV réelles             ║
+        # lat/lon du prospect = adresse géocodée, peut être à 50–300m        ║
+        # de la toiture réelle → gps_bounds serait décalé → modules décalés  ║
+        # ═══════════════════════════════════════════════════════════════════╝
+        if self.calpinage and 'zones' in self.calpinage and self.calpinage['zones']:
+            all_lats, all_lons = [], []
+            for z in self.calpinage['zones']:
+                for coord in z.get('coordinates', []):
+                    all_lats.append(coord['lat'])
+                    all_lons.append(coord['lng'])
+                # aussi regarder bounds si coordinates vides
+                if not z.get('coordinates'):
+                    b = z.get('bounds', {})
+                    if b:
+                        for k in ('_southWest', '_northEast'):
+                            pt = b.get(k, {})
+                            if pt.get('lat'):
+                                all_lats.append(pt['lat'])
+                                all_lons.append(pt['lng'])
+            if all_lats and all_lons:
+                lat_zones = (min(all_lats) + max(all_lats)) / 2
+                lon_zones = (min(all_lons) + max(all_lons)) / 2
+                print(f"[PLAN] 🎯 Centre recalé sur zones PV: ({lat_zones:.6f}, {lon_zones:.6f})"
+                      f" — adresse: ({lat:.6f}, {lon:.6f})"
+                      f" — écart: {abs(lat_zones-lat)*111320:.0f}m lat / {abs(lon_zones-lon)*111320*0.7:.0f}m lon")
+                lat, lon = lat_zones, lon_zones
         
         print(f"[PLAN] ­ƒôî D├®marrage _draw_plan_cadastral: lat={lat}, lon={lon}")
         
@@ -181,6 +284,11 @@ class PlanMasseGenerator:
         gps_conversion = None
         if self.calpinage:
             gps_conversion = self.calpinage.get('gpsConversion')
+            # Fallback: chercher dans la première zone si non présent au niveau racine
+            if not gps_conversion and 'zones' in self.calpinage and self.calpinage['zones']:
+                gps_conversion = self.calpinage['zones'][0].get('gpsConversion')
+                if gps_conversion:
+                    print(f"[PLAN] ℹ️ gpsConversion récupéré depuis la zone 1 (fallback)")
         
         if gps_conversion and 'metersPerDegreeLat' in gps_conversion and 'metersPerDegreeLng' in gps_conversion:
             # Utiliser les facteurs de conversion PR├ëCIS du calpinage
@@ -195,20 +303,15 @@ class PlanMasseGenerator:
             meters_per_degree_lng = 1 / (111320 * math.cos(lat_rad))
             print(f"[PLAN] ÔÜá´©Å Facteurs GPS approximatifs (gpsConversion manquant)")
         
-        # ­ƒöÑ ├ëCHELLE 1/500 OBLIGATOIRE pour plan cadastral
-        # 1 cm sur le plan = 500 cm (5 m) dans la r├®alit├®
-        # Calculer la bbox en m├¿tres selon la taille du cadre PDF
+        # Échelle adaptée dynamiquement (calculée dans generate())
+        mpc = self.computed_meters_per_cm  # mètres par cm sur le plan
         plan_width_cm = plan_width / cm
         plan_height_cm = plan_height / cm
-        
-        bbox_width_meters = plan_width_cm * 5  # 1cm = 5m ├á l'├®chelle 1/500
-        bbox_height_meters = plan_height_cm * 5
-        
-        # ­ƒöÑ ├ëCHELLE 1/500 RESPECT├ëE: correspondance exacte entre cadre PDF et terrain
-        # L'image satellite doit couvrir EXACTEMENT les dimensions calcul├®es
-        # Si cadre = 30cm × 20cm, alors image = 150m × 100m (1cm = 5m)
-        
-        print(f"[PLAN] ├ëchelle 1/500 EXACTE: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m r├®els")
+
+        bbox_width_meters = plan_width_cm * mpc
+        bbox_height_meters = plan_height_cm * mpc
+
+        print(f"[PLAN] Échelle 1/{self.computed_scale}: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m réels")
         
         # Convertir en degr├®s avec les BONS facteurs - DIMENSIONS EXACTES pour 1/500
         # Demi-dimensions (rayon) pour centrer autour du point GPS
@@ -285,7 +388,7 @@ class PlanMasseGenerator:
             if not self.screenshot_used:
                 print(f"[PLAN] 🔙 Tentative téléchargement image satellite...")
                 print(f"[PLAN]   GPS: lat={lat}, lon={lon}")
-                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (échelle 1/500)")
+                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (échelle 1/{self.computed_scale})")
                 
                 # 🔑 CORRECTION: Utiliser les dimensions EXACTES du plan (pas de bbox élargie)
                 # L'élargissement causait un décalage d'échelle entre l'image satellite et les modules PV
@@ -300,7 +403,7 @@ class PlanMasseGenerator:
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
                               preserveAspectRatio=False, mask='auto')  # False = remplit tout
-                    print(f"[PLAN] Ô£à Image satellite affich├®e (recadr├®e ├á l'├®chelle 1/500)")
+                    print(f"[PLAN] ✅ Image satellite affichée (recadrée à l'échelle 1/{self.computed_scale})")
                 else:
                     print(f"[PLAN] ÔØî ERREUR: Image satellite = None, pas d'image charg├®e !")
                 self.screenshot_used = False  # Image satellite, pas de screenshot
@@ -314,8 +417,11 @@ class PlanMasseGenerator:
             'height': plan_height,
             'lat_center': lat,
             'lon_center': lon,
-            'meters_per_cm': 5.0  # ├ëCHELLE 1/500 EXACTE: 1cm = 5m
+            'meters_per_cm': self.computed_meters_per_cm  # Échelle adaptée dynamiquement
         }
+
+        # ── Barre d'échelle graphique (en bas à droite du cadre plan) ──
+        self._draw_scale_bar(c, plan_x, plan_y, plan_width)
         
         # Initialiser le LabelManager avec le centre du plan
         center_x = plan_x + plan_width / 2
@@ -348,6 +454,58 @@ class PlanMasseGenerator:
         # 5. ROSE DES VENTS - OBLIGATOIRE pour plan cadastral
         self._draw_compass(c, plan_x, plan_y, plan_width, plan_height)
         
+    def _draw_scale_bar(self, c, plan_x, plan_y, plan_width):
+        """Dessine une barre d'échelle graphique en bas à droite du cadre plan."""
+        mpc = self.computed_meters_per_cm
+        scale = self.computed_scale
+
+        # Choisir une longueur de barre «propre» (multiple rond de mètres)
+        # On veut la barre ≈ 4 cm sur le plan
+        target_cm = 4.0
+        target_meters = target_cm * mpc  # mètres réels représentés par 4 cm
+        # Arrondir au chiffre «propre» le plus proche
+        magnitudes = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]
+        bar_meters = min(magnitudes, key=lambda v: abs(v - target_meters))
+        bar_cm_pdf = (bar_meters / mpc) * cm  # taille en points PDF
+
+        # Position : coin inférieur droit du cadre plan, avec marge
+        bar_x = plan_x + plan_width - bar_cm_pdf - 0.5*cm
+        bar_y = plan_y + 0.4*cm
+        bar_h = 0.25*cm
+
+        # Rectangle de fond blanc
+        c.setFillColor(colors.white)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(0.5)
+        c.rect(bar_x - 0.1*cm, bar_y - 0.05*cm,
+               bar_cm_pdf + 0.2*cm, bar_h + 0.5*cm, fill=1, stroke=0)
+
+        # Segments alternés noir/blanc
+        nb_seg = 4
+        seg_w = bar_cm_pdf / nb_seg
+        for i in range(nb_seg):
+            c.setFillColor(colors.black if i % 2 == 0 else colors.white)
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(0.5)
+            c.rect(bar_x + i * seg_w, bar_y, seg_w, bar_h, fill=1, stroke=1)
+
+        # Étiquettes de la barre
+        c.setFont("Helvetica", 6)
+        c.setFillColor(colors.black)
+        # 0 m
+        c.drawCentredString(bar_x, bar_y - 0.25*cm, "0")
+        # Demi
+        c.drawCentredString(bar_x + bar_cm_pdf / 2, bar_y - 0.25*cm,
+                            f"{bar_meters // 2}m")
+        # Total
+        c.drawCentredString(bar_x + bar_cm_pdf, bar_y - 0.25*cm,
+                            f"{bar_meters}m")
+
+        # Texte échelle
+        c.setFont("Helvetica-Bold", 7)
+        scale_str = f"1/{scale:,}".replace(',', ' ')
+        c.drawCentredString(bar_x + bar_cm_pdf / 2, bar_y + bar_h + 0.15*cm, scale_str)
+
     def _draw_compass(self, c, plan_x, plan_y, plan_width, plan_height):
         """Dessine la rose des vents (Nord/Sud/Est/Ouest) - OBLIGATOIRE"""
         # Position : coin sup├®rieur gauche du plan
@@ -1113,10 +1271,11 @@ class PlanMasseGenerator:
             info_y -= 0.3*cm
             c.drawString(x + 0.5*cm, info_y, f"- {len(self.calpinage['zones'])} zone(s) PV")
         
-        # Date et signature
+        # Date, echelle et signature
         info_y = y + 0.5*cm
         c.setFont("Helvetica", 8)
-        c.drawString(x + 0.3*cm, info_y, "Date : _______________")
+        scale_str = f"1/{self.computed_scale:,}".replace(',', ' ')
+        c.drawString(x + 0.3*cm, info_y, f"Date : _______________   Echelle : {scale_str}")
         c.drawString(x + w/2 + 0.3*cm, info_y, "Signature :")
     
     def _fetch_satellite_image(self, lat, lon, zoom=19, width=1200, height=1000):
@@ -1216,11 +1375,66 @@ class PlanMasseGenerator:
             
             bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
             
-            print(f"[PLAN] 🖼️ Téléchargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (échelle 1/500), {width}x{height}px")
+            print(f"[PLAN] 🖼️ Téléchargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (échelle 1/{self.computed_scale}), {width}x{height}px")
             print(f"[PLAN] 📌 GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
             # ========================================
-            # MÉTHODE 1: IGN Géoplateforme WMS (orthophotos françaises)
+            # MÉTHODE 1: Tuiles Google Satellite (même source que fond de carte Leaflet)
+            # → parfait alignement avec les polygones dessinés sur fond Google
+            # ========================================
+            try:
+                print(f"[PLAN] 🗺️ Tentative assemblage tuiles Google Satellite (alignement carte)...")
+                tile_img = self._fetch_satellite_from_tiles(
+                    lat, lon, width_meters, height_meters, width, height,
+                    tile_url_template="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                )
+                if tile_img:
+                    print(f"[PLAN] ✅ Image Google Satellite assemblée — alignement carte OK")
+                    return tile_img
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Tuiles Google échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 2: ArcGIS World Imagery (fallback tuiles)
+            # ========================================
+            try:
+                print(f"[PLAN] 🌍 Tentative assemblage tuiles ArcGIS...")
+                tile_img = self._fetch_satellite_from_tiles(
+                    lat, lon, width_meters, height_meters, width, height,
+                    tile_url_template="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                )
+                if tile_img:
+                    print(f"[PLAN] ✅ Image ArcGIS assemblée")
+                    return tile_img
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Tuiles ArcGIS échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 3: ArcGIS WMS Export (fallback WMS)
+            # ========================================
+            try:
+                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+                arcgis_params = {
+                    'bbox': bbox_str,
+                    'bboxSR': '4326',
+                    'size': f'{width},{height}',
+                    'format': 'png',
+                    'f': 'image'
+                }
+                
+                print(f"[PLAN] 🌍 Tentative ArcGIS WMS Export...")
+                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
+                if response.status_code == 200:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image satellite ArcGIS WMS OK ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ❌ ArcGIS WMS: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"[PLAN] ❌ ArcGIS WMS échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 4: IGN Géoplateforme WMS (dernier recours)
             # ========================================
             try:
                 ign_url = "https://data.geopf.fr/wms-r"
@@ -1242,51 +1456,15 @@ class PlanMasseGenerator:
                 
                 if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
                     img_size_kb = len(response.content) / 1024
-                    if img_size_kb > 5:  # Vérifier que ce n'est pas une image vide
+                    if img_size_kb > 5:
                         print(f"[PLAN] ✅ Image satellite IGN OK ({img_size_kb:.1f} KB)")
                         return io.BytesIO(response.content)
                     else:
-                        print(f"[PLAN] ⚠️ Image IGN trop petite ({img_size_kb:.1f} KB), tentative ArcGIS...")
+                        print(f"[PLAN] ⚠️ Image IGN trop petite ({img_size_kb:.1f} KB)")
                 else:
                     print(f"[PLAN] ⚠️ IGN WMS: HTTP {response.status_code}, content-type: {response.headers.get('content-type', 'N/A')}")
             except Exception as e:
                 print(f"[PLAN] ⚠️ IGN WMS échoué: {e}")
-            
-            # ========================================
-            # MÉTHODE 2: ArcGIS World Imagery (fallback)
-            # ========================================
-            try:
-                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-                arcgis_params = {
-                    'bbox': bbox_str,
-                    'bboxSR': '4326',
-                    'size': f'{width},{height}',
-                    'format': 'png',
-                    'f': 'image'
-                }
-                
-                print(f"[PLAN] 🌍 Tentative ArcGIS World Imagery...")
-                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
-                if response.status_code == 200:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image satellite ArcGIS OK ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ❌ ArcGIS: HTTP {response.status_code}")
-            except Exception as e:
-                print(f"[PLAN] ❌ ArcGIS échoué: {e}")
-            
-            # ========================================
-            # MÉTHODE 3: Google Maps Static API (dernier recours)
-            # ========================================
-            try:
-                # Assembler les tuiles depuis le serveur de tuiles ArcGIS (même URL que Leaflet)
-                print(f"[PLAN] 🗺️ Tentative assemblage tuiles ArcGIS...")
-                tile_img = self._fetch_satellite_from_tiles(lat, lon, width_meters, height_meters, width, height)
-                if tile_img:
-                    return tile_img
-            except Exception as e:
-                print(f"[PLAN] ❌ Assemblage tuiles échoué: {e}")
                     
         except Exception as e:
             print(f"[PLAN] ❌ Erreur téléchargement satellite: {e}")
@@ -1296,13 +1474,21 @@ class PlanMasseGenerator:
         print(f"[PLAN] ❌ TOUTES les méthodes satellite ont échoué!")
         return None
 
-    def _fetch_satellite_from_tiles(self, lat, lon, width_meters, height_meters, img_width=800, img_height=600):
+    def _fetch_satellite_from_tiles(self, lat, lon, width_meters, height_meters, img_width=800, img_height=600,
+                                       tile_url_template=None):
         """
         Assemble une image satellite à partir des tuiles XYZ (même serveur que Leaflet).
-        Utilisé en dernier recours si les API WMS/export échouent.
+        
+        Args:
+            tile_url_template: URL template avec {z}/{x}/{y} ou {z}/{y}/{x}.
+                Par défaut: Google Satellite (même fond que la carte → alignement parfait).
         """
         import math
         from PIL import Image
+        
+        # Google Satellite par défaut — même source que le fond Leaflet → alignement carte garantit
+        if tile_url_template is None:
+            tile_url_template = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
         
         # Zoom 18 pour bon compromis résolution/couverture
         zoom = 18
@@ -1339,9 +1525,12 @@ class PlanMasseGenerator:
                 tile_x = x_start + tx
                 tile_y = y_start + ty
                 
-                tile_url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{tile_y}/{tile_x}"
+                # Construire l'URL — supporte les deux conventions {z}/{y}/{x} et {z}/{x}/{y}
+                tile_url = tile_url_template.format(z=zoom, x=tile_x, y=tile_y)
                 try:
-                    r = requests.get(tile_url, timeout=5)
+                    # User-Agent nécessaire pour Google et certains serveurs
+                    headers = {'User-Agent': 'Mozilla/5.0 (compatible; AgriWeb/1.0)'}
+                    r = requests.get(tile_url, timeout=5, headers=headers)
                     if r.status_code == 200:
                         tile_img = Image.open(io.BytesIO(r.content))
                         composite.paste(tile_img, (tx * tile_size, ty * tile_size))
@@ -1353,16 +1542,27 @@ class PlanMasseGenerator:
             print(f"[PLAN] ❌ Seulement {tile_count} tuiles récupérées, abandon")
             return None
         
-        # Recadrer au centre pour obtenir la bonne taille
-        cx = composite.width // 2
-        cy = composite.height // 2
+        # ════════════════════════════════════════════════════════════════════
+        # RECADRAGE PRÉCIS : centrer sur la position GPS exacte (x_center/y_center)
+        # et NON sur le milieu entier du composite.
+        # x_center/y_center sont des coordonnées de tuile FRACTIONNAIRES → position
+        # sub-pixel exacte du point (lat, lon) dans le composite.
+        # Erreur de l'ancienne méthode (cx = composite.width//2) : jusqu'à ±128px
+        # = ±76m à zoom 18 → 15cm sur le PDF à l'échelle 1/500 !
+        # ════════════════════════════════════════════════════════════════════
+        px_center = (x_center - x_start) * tile_size   # position exacte en pixels
+        py_center = (y_center - y_start) * tile_size
+        
         crop_w = int(width_meters / meters_per_pixel)
         crop_h = int(height_meters / meters_per_pixel)
         
-        left = max(0, cx - crop_w // 2)
-        top = max(0, cy - crop_h // 2)
-        right = min(composite.width, cx + crop_w // 2)
-        bottom = min(composite.height, cy + crop_h // 2)
+        left   = max(0, int(px_center) - crop_w // 2)
+        top    = max(0, int(py_center) - crop_h // 2)
+        right  = min(composite.width,  int(px_center) + crop_w // 2)
+        bottom = min(composite.height, int(py_center) + crop_h // 2)
+        
+        print(f"[PLAN] 🎯 Recadrage précis: centre pixel ({px_center:.1f}, {py_center:.1f})"
+              f" → crop ({left},{top},{right},{bottom}) sur composite {composite.width}×{composite.height}")
         
         cropped = composite.crop((left, top, right, bottom))
         cropped = cropped.resize((img_width, img_height), Image.LANCZOS)

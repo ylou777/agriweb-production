@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgriWeb Pro - Solution Intelligente pour Développeurs Photovoltaïques</title>
+    <title>HeliaPV - Solution Intelligente pour Développeurs Photovoltaïques</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -14,59 +14,55 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             background: #0a0e27;
             min-height: 100vh;
             overflow-x: hidden;
         }
-        
+
         .animated-bg {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 25%, #2d1b4e 50%, #1a1f3a 75%, #0a0e27 100%);
             background-size: 400% 400%;
             animation: gradientShift 15s ease infinite;
             z-index: 0;
         }
-        
+
         @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
-        
+
         .particle {
             position: absolute;
-            width: 3px;
-            height: 3px;
+            width: 3px; height: 3px;
             background: rgba(255, 183, 0, 0.6);
             border-radius: 50%;
             animation: float 20s infinite;
         }
-        
+
         @keyframes float {
             0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
+            10%  { opacity: 1; }
+            90%  { opacity: 1; }
             100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
         }
-        
+
+        /* ── NAV ── */
         .top-nav {
             background: rgba(10, 14, 39, 0.8);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid rgba(255, 183, 0, 0.1);
             padding: 20px 0;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             z-index: 1000;
         }
-        
+
         .top-nav .navbar-brand {
             font-size: 1.6rem;
             font-weight: 800;
@@ -75,13 +71,13 @@
             -webkit-text-fill-color: transparent;
             letter-spacing: -0.5px;
         }
-        
+
         .top-nav .user-info {
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.7);
             font-weight: 500;
         }
-        
+
         .top-nav .btn {
             margin-left: 12px;
             font-weight: 600;
@@ -89,49 +85,68 @@
             padding: 10px 24px;
             transition: all 0.3s ease;
         }
-        
+
         .top-nav .btn-warning {
             background: linear-gradient(135deg, #FFB700 0%, #FFA000 100%);
             border: none;
             color: #0a0e27;
         }
-        
+
         .top-nav .btn-warning:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(255, 183, 0, 0.4);
         }
-        
+
         .top-nav .btn-primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
         }
-        
+
         .top-nav .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
         }
-        
+
         .top-nav .btn-outline-secondary {
             border: 1px solid rgba(255, 255, 255, 0.2);
             color: rgba(255, 255, 255, 0.8);
         }
-        
+
         .top-nav .btn-outline-secondary:hover {
             background: rgba(255, 255, 255, 0.1);
             color: white;
         }
-        
+
         .top-nav .btn-outline-primary {
             border: 1px solid rgba(255, 183, 0, 0.4);
             color: #FFB700;
         }
-        
+
         .top-nav .btn-outline-primary:hover {
             background: rgba(255, 183, 0, 0.1);
             border-color: #FFB700;
             color: #FFB700;
         }
-        
+
+        .nav-commune-link {
+            color: rgba(74, 222, 128, 0.85) !important;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 20px;
+            padding: 6px 14px;
+            margin-left: 12px;
+            transition: all 0.25s ease;
+        }
+
+        .nav-commune-link:hover {
+            background: rgba(74, 222, 128, 0.1);
+            border-color: rgba(74, 222, 128, 0.6);
+            color: #4ade80 !important;
+        }
+
+        /* ── HERO ── */
         .hero-section {
             position: relative;
             padding: 180px 0 120px 0;
@@ -139,7 +154,7 @@
             text-align: center;
             z-index: 1;
         }
-        
+
         .badge-pro {
             display: inline-block;
             background: rgba(255, 183, 0, 0.15);
@@ -153,7 +168,7 @@
             text-transform: uppercase;
             margin-bottom: 30px;
         }
-        
+
         .hero-section h1 {
             font-size: 4.5rem;
             font-weight: 900;
@@ -161,7 +176,7 @@
             line-height: 1.1;
             letter-spacing: -2px;
         }
-        
+
         .gradient-text {
             background: linear-gradient(135deg, #FFB700 0%, #FF8C00 50%, #FFB700 100%);
             -webkit-background-clip: text;
@@ -169,11 +184,11 @@
             background-size: 200% auto;
             animation: shimmer 3s linear infinite;
         }
-        
+
         @keyframes shimmer {
             to { background-position: 200% center; }
         }
-        
+
         .subtitle {
             font-size: 1.5rem;
             margin-bottom: 1rem;
@@ -181,12 +196,9 @@
             font-weight: 500;
             line-height: 1.6;
         }
-        
-        .highlight {
-            color: #FFB700;
-            font-weight: 700;
-        }
-        
+
+        .highlight { color: #FFB700; font-weight: 700; }
+
         .cta-button {
             padding: 18px 45px;
             font-size: 1.1rem;
@@ -198,41 +210,37 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .cta-button::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
             transition: left 0.5s ease;
         }
-        
-        .cta-button:hover::before {
-            left: 100%;
-        }
-        
+
+        .cta-button:hover::before { left: 100%; }
+
         .cta-primary {
             background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);
             color: #0a0e27;
             border: none;
             box-shadow: 0 8px 25px rgba(255, 183, 0, 0.3);
         }
-        
+
         .cta-primary:hover {
             transform: translateY(-3px);
             box-shadow: 0 15px 40px rgba(255, 183, 0, 0.5);
             color: #0a0e27;
         }
-        
+
         .cta-secondary {
             background: transparent;
             color: white;
             border: 2px solid rgba(255, 183, 0, 0.5);
         }
-        
+
         .cta-secondary:hover {
             background: rgba(255, 183, 0, 0.1);
             border-color: #FFB700;
@@ -240,7 +248,7 @@
             box-shadow: 0 15px 40px rgba(255, 183, 0, 0.3);
             color: white;
         }
-        
+
         .trust-indicator {
             display: inline-flex;
             align-items: center;
@@ -251,18 +259,11 @@
             border: 1px solid rgba(255, 183, 0, 0.2);
             margin: 0 10px;
         }
-        
-        .trust-indicator i {
-            color: #FFB700;
-            font-size: 1.2rem;
-        }
-        
-        .trust-indicator span {
-            color: rgba(255, 255, 255, 0.9);
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        
+
+        .trust-indicator i   { color: #FFB700; font-size: 1.2rem; }
+        .trust-indicator span { color: rgba(255, 255, 255, 0.9); font-weight: 600; font-size: 0.9rem; }
+
+        /* ── FEATURES ── */
         .features-section {
             position: relative;
             background: linear-gradient(180deg, rgba(10, 14, 39, 0.95) 0%, rgba(20, 25, 50, 0.98) 100%);
@@ -270,7 +271,7 @@
             margin-top: 60px;
             z-index: 1;
         }
-        
+
         .section-title {
             font-size: 3rem;
             font-weight: 800;
@@ -279,7 +280,7 @@
             color: white;
             letter-spacing: -1px;
         }
-        
+
         .section-subtitle {
             text-align: center;
             font-size: 1.2rem;
@@ -287,7 +288,7 @@
             margin-bottom: 60px;
             font-weight: 400;
         }
-        
+
         .feature-card {
             background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(10px);
@@ -299,36 +300,32 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .feature-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             background: linear-gradient(135deg, rgba(255, 183, 0, 0.05) 0%, transparent 100%);
             opacity: 0;
             transition: opacity 0.4s ease;
         }
-        
+
         .feature-card:hover {
             transform: translateY(-12px) scale(1.02);
             border-color: rgba(255, 183, 0, 0.4);
             box-shadow: 0 25px 50px rgba(255, 183, 0, 0.2);
         }
-        
-        .feature-card:hover::before {
-            opacity: 1;
-        }
-        
+
+        .feature-card:hover::before { opacity: 1; }
+
         .feature-icon {
             font-size: 3.5rem;
             margin-bottom: 25px;
             display: inline-block;
             filter: drop-shadow(0 0 20px rgba(255, 183, 0, 0.3));
         }
-        
+
         .feature-card h3 {
             font-size: 1.6rem;
             font-weight: 700;
@@ -336,14 +333,14 @@
             color: white;
             letter-spacing: -0.5px;
         }
-        
+
         .feature-card p {
             color: rgba(255, 255, 255, 0.7);
             margin-bottom: 25px;
             line-height: 1.7;
             font-size: 0.95rem;
         }
-        
+
         .tech-badge {
             display: inline-block;
             padding: 8px 16px;
@@ -356,13 +353,13 @@
             font-weight: 600;
             transition: all 0.3s ease;
         }
-        
+
         .tech-badge:hover {
             background: rgba(255, 183, 0, 0.2);
             border-color: rgba(255, 183, 0, 0.4);
             transform: translateY(-2px);
         }
-        
+
         .stats-row {
             background: linear-gradient(135deg, rgba(255, 183, 0, 0.1) 0%, rgba(255, 140, 0, 0.1) 100%);
             border: 1px solid rgba(255, 183, 0, 0.2);
@@ -371,38 +368,33 @@
             border-radius: 20px;
             margin: 40px 0;
         }
-        
-        .stat-item {
-            text-align: center;
-        }
-        
+
+        .stat-item { text-align: center; }
+
         .stat-number {
             font-size: 3rem;
             font-weight: 700;
             display: block;
             color: #FFB700;
         }
-        
+
         .stat-label {
             font-size: 1.1rem;
             color: rgba(255, 255, 255, 0.8);
         }
-        
+
+        /* ── WORKFLOW ── */
         .workflow-section {
             background: rgba(10, 14, 39, 0.95);
             position: relative;
             z-index: 1;
             padding: 60px 0;
         }
-        
-        .workflow-step {
-            text-align: center;
-            padding: 20px;
-        }
-        
+
+        .workflow-step { text-align: center; padding: 20px; }
+
         .workflow-number {
-            width: 60px;
-            height: 60px;
+            width: 60px; height: 60px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -412,21 +404,348 @@
             margin: 0 auto 20px;
             color: white;
         }
-        
-        .workflow-step h5 {
-            color: white;
+
+        .workflow-step h5 { color: white; font-weight: 700; margin-bottom: 10px; }
+        .workflow-step p  { color: rgba(255, 255, 255, 0.6); }
+
+        /* ── SECTION COMMUNES (nouveau bloc, style cohérent dark) ── */
+        .communes-section {
+            position: relative;
+            z-index: 1;
+            padding: 80px 0;
+            background: linear-gradient(180deg, rgba(10,20,35,0.98) 0%, rgba(5,30,20,0.98) 100%);
+            border-top: 1px solid rgba(74, 222, 128, 0.15);
+            border-bottom: 1px solid rgba(74, 222, 128, 0.15);
+        }
+
+        .communes-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(74, 222, 128, 0.12);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 0.85rem;
             font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+        }
+
+        .communes-section h2 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            color: white;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            line-height: 1.15;
+        }
+
+        .communes-section h2 .accent-green {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .communes-section .lead {
+            color: rgba(255,255,255,0.65);
+            font-size: 1.1rem;
+            line-height: 1.7;
+            max-width: 600px;
+        }
+
+        /* Carte capacité (style dark) */
+        .commune-cap-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(74, 222, 128, 0.15);
+            border-radius: 16px;
+            padding: 28px;
+            height: 100%;
+            transition: all 0.35s ease;
+        }
+
+        .commune-cap-card:hover {
+            border-color: rgba(74, 222, 128, 0.45);
+            box-shadow: 0 16px 40px rgba(74, 222, 128, 0.12);
+            transform: translateY(-6px);
+        }
+
+        .commune-cap-icon {
+            font-size: 2rem;
+            margin-bottom: 14px;
+            display: block;
+            filter: drop-shadow(0 0 12px rgba(74,222,128,0.3));
+        }
+
+        .commune-cap-card h4 {
+            color: white;
+            font-size: 1.05rem;
+            font-weight: 800;
             margin-bottom: 10px;
         }
-        
-        .workflow-step p {
-            color: rgba(255, 255, 255, 0.6);
+
+        .commune-cap-card p {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.88rem;
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+
+        .green-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 15px;
+            margin: 3px;
+            font-size: 0.78rem;
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        /* Barre recherche commune */
+        .commune-search-wrap {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(74,222,128,0.25);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-top: 40px;
+        }
+
+        .commune-search-wrap label {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .commune-search-row { display: flex; gap: 10px; }
+
+        .commune-input {
+            flex: 1;
+            background: rgba(255,255,255,0.06);
+            border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 14px 18px;
+            font-size: 1rem;
+            color: white;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .commune-input::placeholder { color: rgba(255,255,255,0.35); }
+        .commune-input:focus { border-color: #4ade80; }
+
+        .btn-commune-search {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 14px 28px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 16px rgba(34,197,94,0.3);
+        }
+
+        .btn-commune-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(34,197,94,0.45);
+        }
+
+        .commune-search-hint {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.4);
+            margin-top: 8px;
+        }
+
+        /* Autocomplete dropdown */
+        #commune-dropdown {
+            position: absolute;
+            z-index: 500;
+            background: #1a1f3a;
+            border: 1.5px solid rgba(74,222,128,0.3);
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            width: 100%;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+            top: 100%;
+            left: 0;
+        }
+
+        #commune-dropdown li {
+            list-style: none;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.85);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: background 0.15s;
+        }
+
+        #commune-dropdown li:hover { background: rgba(74,222,128,0.12); }
+        #commune-dropdown li small { color: rgba(255,255,255,0.4); font-size: 0.78rem; }
+        .search-input-wrap { position: relative; flex: 1; }
+
+        /* Stats communes */
+        .communes-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 24px;
+        }
+
+        .commune-stat {
+            background: rgba(74,222,128,0.08);
+            border: 1px solid rgba(74,222,128,0.2);
+            border-radius: 12px;
+            padding: 10px 18px;
+        }
+
+        .commune-stat-num { font-size: 1.4rem; font-weight: 900; color: #4ade80; display: block; }
+        .commune-stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.06em; }
+
+        /* ── SPONSORS (dark) ── */
+        .sponsor-section {
+            position: relative;
+            z-index: 1;
+            padding: 72px 0;
+            background: rgba(10, 14, 39, 0.98);
+            text-align: center;
+        }
+
+        .sponsor-section h2 {
+            color: white;
+            font-size: 2.2rem;
+            font-weight: 900;
+            margin-bottom: 0.8rem;
+            letter-spacing: -0.5px;
+        }
+
+        .sponsor-section .lead {
+            color: rgba(255,255,255,0.55);
+            max-width: 620px;
+            margin: 0 auto 3rem;
+            font-size: 1rem;
+        }
+
+        .sponsor-slots {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: center;
+            margin-bottom: 3.5rem;
+        }
+
+        .sponsor-slot {
+            background: rgba(255,255,255,0.04);
+            border: 1.5px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 16px 28px;
+            color: rgba(255,255,255,0.45);
+            font-weight: 700;
+            font-size: 0.85rem;
+            min-width: 150px;
+            transition: all 0.25s;
+        }
+
+        .sponsor-slot:hover {
+            border-color: rgba(255,183,0,0.35);
+            background: rgba(255,183,0,0.06);
+            color: rgba(255,255,255,0.7);
+        }
+
+        .sponsor-slot.featured {
+            background: rgba(255,183,0,0.1);
+            border-color: rgba(255,183,0,0.4);
+            color: #FFB700;
+        }
+
+        .sponsor-cta-box {
+            background: linear-gradient(135deg, rgba(255,183,0,0.07) 0%, rgba(255,140,0,0.07) 100%);
+            border: 1px solid rgba(255,183,0,0.25);
+            border-radius: 20px;
+            padding: 40px 48px;
+            max-width: 680px;
+            margin: 0 auto;
+            color: white;
+        }
+
+        .sponsor-cta-box h3 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #FFB700;
+            margin-bottom: 0.8rem;
+        }
+
+        .sponsor-cta-box p {
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 1.6rem;
+            line-height: 1.7;
+        }
+
+        .sponsor-perks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 1.8rem;
+        }
+
+        .sponsor-perk {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.8);
+            font-weight: 600;
+        }
+
+        .btn-sponsor {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);
+            color: #0a0e27;
+            border: none;
+            border-radius: 10px;
+            padding: 14px 32px;
+            font-weight: 800;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.25s;
+            box-shadow: 0 6px 20px rgba(255,183,0,0.3);
+        }
+
+        .btn-sponsor:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(255,183,0,0.45);
+            color: #0a0e27;
+        }
+
+        @media (max-width: 768px) {
+            .hero-section h1 { font-size: 2.8rem; }
+            .communes-section h2 { font-size: 2rem; }
+            .sponsor-cta-box { padding: 28px 20px; }
+            .commune-search-row { flex-direction: column; }
         }
     </style>
 </head>
 <body>
     <div class="animated-bg"></div>
-    
+
     <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
     <div class="particle" style="left: 20%; animation-delay: 2s;"></div>
     <div class="particle" style="left: 30%; animation-delay: 4s;"></div>
@@ -436,20 +755,24 @@
     <div class="particle" style="left: 70%; animation-delay: 2.5s;"></div>
     <div class="particle" style="left: 80%; animation-delay: 4.5s;"></div>
     <div class="particle" style="left: 90%; animation-delay: 1.5s;"></div>
-    
+
+    <!-- ══ NAV ══ -->
     <nav class="top-nav">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="navbar-brand">
-                    <i class="bi bi-sun"></i> AgriWeb Pro
+                    <i class="bi bi-sun"></i> HeliaPV
                 </div>
-                <div class="d-flex align-items-center">
-                    {% if current_user.is_authenticated %}
-                        <span class="user-info">Bienvenue, {{ current_user.email }}</span>
+                <div class="d-flex align-items-center flex-wrap">
+                    {% if current_user %}
+                        <span class="user-info me-2">Bienvenue, {{ current_user.get('email', '') }}</span>
                         <a href="/admin" class="btn btn-warning">Administration</a>
                         <a href="/app" class="btn btn-primary">Application</a>
                         <a href="/logout" class="btn btn-outline-secondary">Déconnexion</a>
                     {% else %}
+                        <a href="#communes" class="nav-commune-link d-none d-md-inline-flex">
+                            <i class="bi bi-building"></i> Espace Communes
+                        </a>
                         <a href="/login" class="btn btn-outline-primary">Se connecter</a>
                     {% endif %}
                 </div>
@@ -457,6 +780,7 @@
         </div>
     </nav>
 
+    <!-- ══ HERO ══ -->
     <div class="hero-section">
         <div class="container">
             <div class="badge-pro">
@@ -495,6 +819,7 @@
         </div>
     </div>
 
+    <!-- ══ FEATURES ══ -->
     <div class="features-section">
         <div class="container">
             <h2 class="section-title">Votre arsenal complet de développement PV</h2>
@@ -513,7 +838,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">📊</div>
@@ -526,7 +850,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">👥</div>
@@ -539,7 +862,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">☀️</div>
@@ -552,7 +874,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">📄</div>
@@ -565,7 +886,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">⚡</div>
@@ -591,7 +911,7 @@
                         <span class="stat-label">Génération rapport</span>
                     </div>
                     <div class="col-md-3 stat-item">
-                        <span class="stat-number">15+</span>
+                        <span class="stat-number">18+</span>
                         <span class="stat-label">Couches SIG</span>
                     </div>
                     <div class="col-md-3 stat-item">
@@ -603,6 +923,7 @@
         </div>
     </div>
 
+    <!-- ══ WORKFLOW ══ -->
     <div class="workflow-section">
         <div class="container">
             <h2 class="section-title">Votre méthode structurée, de A à Z</h2>
@@ -669,6 +990,7 @@
         </div>
     </div>
 
+    <!-- Stack tech -->
     <div class="container py-5" style="position: relative; z-index: 1;">
         <div class="text-center mb-4">
             <h2 class="section-title" style="font-size: 2.5rem;">Stack technique professionnel</h2>
@@ -687,10 +1009,13 @@
             <span class="tech-badge"><i class="bi bi-geo-alt"></i> API Adresse</span>
             <span class="tech-badge"><i class="bi bi-map-fill"></i> OSM</span>
             <span class="tech-badge"><i class="bi bi-diagram-3"></i> Cadastre</span>
+            <span class="tech-badge"><i class="bi bi-layers"></i> LiDAR IGN HD</span>
+            <span class="tech-badge"><i class="bi bi-sun-fill"></i> Google Solar</span>
         </div>
     </div>
 
-    <div class="container text-center py-5 mb-5" style="position: relative; z-index: 1;">
+    <!-- CTA final développeurs -->
+    <div class="container text-center py-5 mb-3" style="position: relative; z-index: 1;">
         <h2 class="section-title" style="font-size: 3.5rem; margin-bottom: 1.5rem;">
             Arrêtez de perdre du temps.<br>Développez plus vite.
         </h2>
@@ -706,10 +1031,226 @@
             </a>
         </div>
         <p style="color: rgba(255, 255, 255, 0.5); margin-top: 30px; font-size: 0.9rem;">
-            <i class="bi bi-check-circle"></i> Sans engagement · <i class="bi bi-credit-card"></i> Aucune CB requise · <i class="bi bi-calendar-check"></i> 7 jours d'essai offerts
+            <i class="bi bi-check-circle"></i> Sans engagement &nbsp;·&nbsp;
+            <i class="bi bi-credit-card"></i> Aucune CB requise &nbsp;·&nbsp;
+            <i class="bi bi-calendar-check"></i> 7 jours d'essai offerts
         </p>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- ══  ESPACE COMMUNES — Bloc complémentaire            ══ -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="communes-section" id="communes">
+        <div class="container">
+
+            <div class="row align-items-center g-5 mb-5">
+                <div class="col-lg-6">
+                    <div class="communes-badge">
+                        <i class="bi bi-building"></i> Communes de France
+                    </div>
+                    <h2>
+                        Votre territoire <span class="accent-green">cartographié</span><br>
+                        gratuitement
+                    </h2>
+                    <p class="lead">
+                        HeliaPV met à disposition de toutes les <strong style="color:white">communes de France</strong>
+                        un accès gratuit à la plateforme : analyse du potentiel solaire, LiDAR IGN HD,
+                        réseau Enedis, cadastre, RPG, risques naturels.
+                        <strong style="color:#4ade80">100 % financé par nos partenaires énergie.</strong>
+                    </p>
+                    <div class="communes-stats">
+                        <div class="commune-stat">
+                            <span class="commune-stat-num">35 000</span>
+                            <span class="commune-stat-label">Communes couvertes</span>
+                        </div>
+                        <div class="commune-stat">
+                            <span class="commune-stat-num">20 pts/m²</span>
+                            <span class="commune-stat-label">LiDAR IGN HD</span>
+                        </div>
+                        <div class="commune-stat">
+                            <span class="commune-stat-num">18+</span>
+                            <span class="commune-stat-label">Couches SIG</span>
+                        </div>
+                        <div class="commune-stat">
+                            <span class="commune-stat-num">100 %</span>
+                            <span class="commune-stat-label">Gratuit mairies</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="commune-cap-card">
+                                <span class="commune-cap-icon">📡</span>
+                                <h4>LiDAR IGN HD</h4>
+                                <p>Nuage de points 25 cm, détection pentes RANSAC, surfaces de toiture au m².</p>
+                                <span class="green-badge">20 pts/m²</span>
+                                <span class="green-badge">COPC</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="commune-cap-card">
+                                <span class="commune-cap-icon">⚡</span>
+                                <h4>Réseau Enedis</h4>
+                                <p>Lignes HTA aériennes/souterraines, postes HTA/BTA, capacités d'accueil injection.</p>
+                                <span class="green-badge">Open Data</span>
+                                <span class="green-badge">HTA/BTA</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="commune-cap-card">
+                                <span class="commune-cap-icon">🛡️</span>
+                                <h4>Risques & contraintes</h4>
+                                <p>Natura 2000, ZNIEFF, PPRn, séisme, inondation. Toutes les contraintes avant l'étude.</p>
+                                <span class="green-badge">GéoRisques</span>
+                                <span class="green-badge">INPN</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="commune-cap-card">
+                                <span class="commune-cap-icon">☀️</span>
+                                <h4>Potentiel solaire</h4>
+                                <p>Heatmap irradiation, PVGIS Copernicus SARAH-3, simulation kWh/kWc/an par parcelle.</p>
+                                <span class="green-badge">PVGIS</span>
+                                <span class="green-badge">Heatmap</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Séparateur Inscription mairie -->
+            <div class="row mt-5 align-items-center">
+                <div class="col-lg-7">
+                    <h3 style="color:white; font-weight:800; font-size:1.5rem; margin-bottom:.6rem;">
+                        Inscrire ma commune pour un accès complet
+                    </h3>
+                    <p style="color:rgba(255,255,255,.55); font-size:.95rem;">
+                        Obtenez un tableau de bord dédié, les exports PDF territoriaux et les mises à jour automatiques des données. Réservé aux agents et élus des collectivités, entièrement gratuit.
+                    </p>
+                </div>
+                <div class="col-lg-5 text-lg-end mt-3 mt-lg-0">
+                    <a href="/register?plan=commune_gratuit" class="cta-button cta-primary"
+                       style="background: linear-gradient(135deg,#22c55e 0%,#16a34a 100%); box-shadow:0 8px 25px rgba(34,197,94,.35);">
+                        <i class="bi bi-building-fill-add"></i> Inscrire ma commune — Gratuit
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- ══  SECTION SPONSORS                                 ══ -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="sponsor-section" id="sponsors">
+        <div class="container">
+            <h2>
+                Gratuit pour les communes,<br>
+                soutenu par les <span class="gradient-text">acteurs de l'énergie</span>
+            </h2>
+            <p class="lead">
+                HeliaPV est financé par des partenaires industriels du secteur énergétique
+                en échange d'une visibilité ciblée auprès des décisionnaires territoriaux —
+                là où les projets ENR se décident.
+            </p>
+
+            <div class="sponsor-slots">
+                <div class="sponsor-slot featured"><i class="bi bi-star-fill"></i> Partenaire principal</div>
+                <div class="sponsor-slot">Annonceur énergie</div>
+                <div class="sponsor-slot">Annonceur énergie</div>
+                <div class="sponsor-slot">Annonceur énergie</div>
+                <div class="sponsor-slot">Annonceur énergie</div>
+                <div class="sponsor-slot">Annonceur énergie</div>
+            </div>
+
+            <div class="sponsor-cta-box">
+                <h3><i class="bi bi-lightning-charge-fill"></i> Devenez partenaire énergie</h3>
+                <p>
+                    Votre marque visible auprès d'élus, directeurs de travaux et chargés d'urbanisme
+                    des 35 000 communes de France — un accès direct aux territoires où
+                    les projets solaires se décident.
+                </p>
+                <div class="sponsor-perks">
+                    <span class="sponsor-perk"><i class="bi bi-geo-alt-fill"></i> Visibilité territoriale ciblée</span>
+                    <span class="sponsor-perk"><i class="bi bi-people-fill"></i> Décisionnaires publics</span>
+                    <span class="sponsor-perk"><i class="bi bi-bar-chart-fill"></i> Reporting mensuel</span>
+                    <span class="sponsor-perk"><i class="bi bi-patch-check-fill"></i> Co-branding PDF rapports</span>
+                    <span class="sponsor-perk"><i class="bi bi-map-fill"></i> Dashboard sponsor dédié</span>
+                </div>
+                <a href="mailto:contact@heliapv.fr?subject=Partenariat%20sponsor%20HeliaPV" class="btn-sponsor">
+                    <i class="bi bi-envelope-fill"></i> Nous contacter pour un partenariat
+                </a>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // ── Autocomplete communes via API officielle geo.api.gouv.fr ──
+    const communeInput = document.getElementById('commune-input');
+    const communeDropdown = document.getElementById('commune-dropdown');
+    let debounceTimer = null;
+    let selectedCommune = null;
+
+    if (communeInput) {
+        communeInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            const q = communeInput.value.trim();
+            if (q.length < 2) { communeDropdown.style.display = 'none'; return; }
+            debounceTimer = setTimeout(function() { fetchCommunes(q); }, 260);
+        });
+
+        communeInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); launchCommune(); }
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (communeInput && !communeInput.contains(e.target)) {
+            communeDropdown.style.display = 'none';
+        }
+    });
+
+    async function fetchCommunes(q) {
+        try {
+            const url = 'https://geo.api.gouv.fr/communes?nom=' + encodeURIComponent(q) +
+                        '&fields=nom,code,departement,population&boost=population&limit=8';
+            const res = await fetch(url);
+            const data = await res.json();
+            renderDropdown(data);
+        } catch(e) {
+            communeDropdown.style.display = 'none';
+        }
+    }
+
+    function renderDropdown(communes) {
+        if (!communes || !communes.length) { communeDropdown.style.display = 'none'; return; }
+        communeDropdown.innerHTML = '';
+        communes.forEach(function(c) {
+            const li = document.createElement('li');
+            const dept = c.departement ? c.departement.nom : '';
+            li.innerHTML = '<strong>' + c.nom + '</strong>&nbsp;<small>(' + c.code + ')' +
+                           (dept ? ' — ' + dept : '') + '</small>';
+            li.addEventListener('click', function() {
+                communeInput.value = c.nom;
+                selectedCommune = c;
+                communeDropdown.style.display = 'none';
+            });
+            communeDropdown.appendChild(li);
+        });
+        communeDropdown.style.display = 'block';
+    }
+
+    function launchCommune() {
+        const val = communeInput ? communeInput.value.trim() : '';
+        if (!val) { if (communeInput) communeInput.focus(); return; }
+        if (selectedCommune) {
+            window.location.href = '/app?address=' + encodeURIComponent(selectedCommune.nom + ', France') +
+                                   '&commune=' + selectedCommune.code;
+        } else {
+            window.location.href = '/app?address=' + encodeURIComponent(val + ', France');
+        }
+    }
+    </script>
 </body>
 </html>

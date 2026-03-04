@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -1564,7 +1564,7 @@
                     
                     // Si un projet a été créé/mis à jour, l'indiquer
                     if (result.project_id) {
-                        message += `\n\n📁 Les fiches projets ont été mises à jour automatiquement.\n✅ L'étape "Rapport de recherche AgriWeb" a été marquée comme terminée.`;
+                        message += `\n\n📁 Les fiches projets ont été mises à jour automatiquement.\n✅ L'étape "Rapport de recherche HeliaPV" a été marquée comme terminée.`;
                     }
                     
                     alert(message + '\n\n🔗 Ouvrir Projets pour voir les prospects');
@@ -1574,7 +1574,7 @@
                         try {
                             window.opener.postMessage({
                                 type: 'etape_terminee',
-                                etape: 'Rapport de recherche AgriWeb',
+                                etape: 'Rapport de recherche HeliaPV',
                                 ordre: 1,
                                 total_exported: result.total_exported
                             }, '*');

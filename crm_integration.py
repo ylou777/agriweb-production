@@ -2,7 +2,7 @@
 
 Système d'intégration pour la création automatique de prospectsSystème d'intégration pour la création automatique de prospects
 
-Module pour connecter les recherches AgriWeb avec le CRMModule pour connecter les recherches AgriWeb avec le CRM
+Module pour connecter les recherches HeliaPV avec le CRMModule pour connecter les recherches HeliaPV avec le CRM
 
 """"""
 
@@ -18,9 +18,9 @@ from datetime import datetimefrom datetime import datetime
 
 
 
-class AgriWebCRMIntegrator:class AgriWebCRMIntegrator:
+class HeliaPVCRMIntegrator:class HeliaPVCRMIntegrator:
 
-    """Intégrateur pour connecter les recherches AgriWeb au système CRM"""    """Intégrateur pour connecter les recherches AgriWeb au système CRM"""
+    """Intégrateur pour connecter les recherches HeliaPV au système CRM"""    """Intégrateur pour connecter les recherches HeliaPV au système CRM"""
 
         
 
@@ -34,7 +34,7 @@ class AgriWebCRMIntegrator:class AgriWebCRMIntegrator:
 
         """        """
 
-        Crée des prospects à partir des résultats de recherche AgriWeb        Crée des prospects à partir des résultats de recherche AgriWeb
+        Crée des prospects à partir des résultats de recherche HeliaPV        Crée des prospects à partir des résultats de recherche HeliaPV
 
                 
 
@@ -744,7 +744,7 @@ def integrate_search_results_to_crm(search_results, search_name, user_session_da
 
     try:    try:
 
-        integrator = AgriWebCRMIntegrator()        integrator = AgriWebCRMIntegrator()
+        integrator = HeliaPVCRMIntegrator()        integrator = HeliaPVCRMIntegrator()
 
         summary = integrator.create_prospects_from_search_results(        summary = integrator.create_prospects_from_search_results(
 

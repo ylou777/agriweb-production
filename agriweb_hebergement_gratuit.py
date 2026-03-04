@@ -609,9 +609,15 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # Force pas de cache pour les templates
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
+# ProxyFix : Railway/Gunicorn est derrière un reverse proxy HTTPS.
+# Sans ça, Flask génère des URLs en http:// → "Non sécurisé" dans le navigateur.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+
 # Marqueur de version diagnostic pour vérifier que ce fichier (avec la route /api/hta-lignes) est bien chargé
-AGRIWEB_HTA_VERSION = "fix-N-is-not-defined-v4-2026-01-18"
-print(f"🔧 [HTA] Chargement serveur avec version: {AGRIWEB_HTA_VERSION}")
+HeliaPV_HTA_VERSION = "fix-N-is-not-defined-v4-2026-01-18"
+print(f"🔧 [HTA] Chargement serveur avec version: {HeliaPV_HTA_VERSION}")
 print(f"🔧 [TEMPLATE] Templates auto-reload activé, cache désactivé")
 
 # Cookies de session sécurisés (Railway/Prod)
@@ -620,6 +626,16 @@ COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')  # 'Lax' or 'None' for cro
 app.config['SESSION_COOKIE_SECURE'] = COOKIE_SECURE
 app.config['SESSION_COOKIE_SAMESITE'] = COOKIE_SAMESITE
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+
+# Forcer HTTPS en production (redirection HTTP → HTTPS)
+@app.before_request
+def force_https():
+    """Redirige HTTP → HTTPS en production (Railway)."""
+    from flask import request, redirect
+    if os.getenv('ENVIRONMENT', '').lower() == 'production':
+        if request.headers.get('X-Forwarded-Proto', 'https') == 'http':
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
 
 # Intégration du système d'authentification (Blueprint)
 try:
@@ -699,6 +715,14 @@ def after_request(response):
 def lidar_plan_view():
     """Affiche la visualisation des points LiDAR sur un plan 100m×100m"""
     return render_template('lidar_plan.html')
+
+# ──────────────────────────────────────────────────────────────
+# Showcase logos Helia (prévisualisation des propositions)
+# ──────────────────────────────────────────────────────────────
+@app.route('/logos')
+def logos_showcase():
+    """Affiche les propositions de logos HeliaPV"""
+    return render_template('logos_showcase.html')
 
 # ──────────────────────────────────────────────────────────────
 # HELPERS : Segmentation planaire RANSAC multi-plan
@@ -993,7 +1017,7 @@ def _largest_connected_component_mask(xi, yi, grid_res=0.5):
 def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
                                 threshold=0.12, min_pts=8, max_planes=8, n_iter=150,
                                 pre_filter=True, min_area_m2=1.5, density_check=True,
-                                grid_res=0.25):
+                                grid_res=0.25, filter_sigma=1.8):
     """
     Segmentation planaire RANSAC itérative avec robustesse obstacles/discontinuités.
 
@@ -1032,7 +1056,7 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
 
     # ── Niveau 1 : Pré-filtrage des obstacles (cheminées, superstructures…) ──────
     if pre_filter and len(x) >= 8:
-        valid_mask = _filter_roof_obstacles(x, y, z)
+        valid_mask = _filter_roof_obstacles(x, y, z, sigma=filter_sigma)
         n_before = len(x)
         x, y, z = x[valid_mask], y[valid_mask], z[valid_mask]
         if len(x) < min_pts:
@@ -1531,22 +1555,15 @@ def _find_lidar_hd_tile_url(lat, lon):
 
     features = data.get("features", [])
     if not features:
-        # Exception typée pour que l'appelant puisse distinguer "zone non couverte"
-        # d'une vraie erreur réseau/serveur
-        err = ValueError(
-            f"Zone non couverte : aucune dalle LiDAR HD disponible pour "
-            f"lat={lat:.5f}, lon={lon:.5f}. "
-            f"Le programme IGN couvre ~60% du territoire métropolitain (2026). "
-            f"Consultez https://macarte.ign.fr/carte/mThSup/diffusionMNxLiDARHD"
+        raise ValueError(
+            f"Aucune dalle LiDAR HD disponible pour lat={lat:.5f}, lon={lon:.5f} "
+            f"(zone non encore couverte ou interdite)"
         )
-        err.code = "NOT_COVERED"   # attribut custom pour distinguer côté appelant
-        raise err
     url = features[0]["properties"].get("url", "")
     if not url:
         raise ValueError("WFS LiDAR HD: propriété 'url' absente dans la feature")
     name = features[0]["properties"].get("name", "?")
-    timestamp = features[0]["properties"].get("timestamp", "")
-    print(f"  🗺️ Dalle LiDAR HD: {name} (date={timestamp})")
+    print(f"  🗺️ Dalle LiDAR HD: {name}")
     return url
 
 
@@ -1665,16 +1682,15 @@ def api_lidar_copc_roof():
         building_coords : [[lon, lat], ...] — polygone bâtiment (WGS84)
     """
     try:
-        import numpy as np
         body = request.get_json(force=True) or {}
         lat  = float(body['lat'])
         lon  = float(body['lon'])
         building_coords = body['building_coords']   # [[lon, lat], ...]
-        wall_h = float(body.get('wall_h', 6.0))     # hauteur mur BD TOPO transmise par le JS
 
         if not building_coords or len(building_coords) < 3:
             return jsonify({"error": "building_coords trop court (min 3 points)"}), 400
 
+        import numpy as np
         # ── 1. Trouver la dalle COPC ─────────────────────────────────────────
         copc_url = _find_lidar_hd_tile_url(lat, lon)
 
@@ -1714,10 +1730,8 @@ def api_lidar_copc_roof():
             app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
             rx_f, ry_f, rz_f = rx_np, ry_np, rz_np
 
-        # ── 5. Normaliser z → vrai MNH (hauteur au-dessus du terrain) ─────────────────────────
-        # rz_f = altitudes brutes NGF-IGN69.  Classe-6 ne touche que le toit,
-        # donc min(rz_f) ≈ altitude de l'avant-toit ≈ terrain + wall_h.
-        # En soustrayant z_baseline et en ajoutant wall_h on retrouve le MNH réel.
+        # ── 5. Normaliser z → vrai MNH (hauteur au-dessus du terrain) ─────
+        wall_h  = float(body.get('wall_h', 6.0))
         z_arr_f = np.array(rz_f, dtype=np.float64)
         z_baseline = float(np.percentile(z_arr_f, 5))     # ≈ altitude avant-toit NGF
         z_mnh = (z_arr_f - z_baseline + wall_h).tolist()  # → MNH : ≈wall_h à l'égout, > wall_h au faîtage
@@ -1743,35 +1757,23 @@ def api_lidar_copc_roof():
         })
 
     except ValueError as e:
-        code = getattr(e, 'code', 'ERROR')
-        app.logger.warning(f"COPC roof {code}: {e}")
-        return jsonify({
-            "error": str(e),
-            "error_code": code,
-            "coverage_available": code != "NOT_COVERED",
-        }), 422
+        app.logger.warning(f"COPC roof ValueError: {e}")
+        return jsonify({"error": str(e)}), 422
     except Exception as e:
         app.logger.error(f"COPC roof error: {e}", exc_info=True)
-        return jsonify({"error": str(e), "error_code": "SERVER_ERROR", "coverage_available": True}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # ──────────────────────────────────────────────────────────────
 # Route légère : vérifie si le LiDAR HD IGN est disponible
-# pour une position (WFS only, ~0.5s, pas de COPC streaming)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/copc-coverage', methods=['GET'])
 def api_lidar_copc_coverage():
-    """
-    Vérifie rapidement si le LiDAR HD COPC IGN couvre une position.
-    GET ?lat=XX&lon=YY
-    Réponse : { covered: bool, tile_name: str|null, timestamp: str|null }
-    """
     try:
         lat = float(request.args['lat'])
         lon = float(request.args['lon'])
     except (KeyError, ValueError):
         return jsonify({"error": "lat et lon requis"}), 400
-
     delta = 0.003
     bbox  = f"{lon-delta},{lat-delta},{lon+delta},{lat+delta},EPSG:4326"
     wfs_url = (
@@ -1787,44 +1789,29 @@ def api_lidar_copc_coverage():
         if not features:
             return jsonify({"covered": False, "tile_name": None, "timestamp": None})
         props = features[0]["properties"]
-        return jsonify({
-            "covered":   True,
-            "tile_name": props.get("name"),
-            "timestamp": props.get("timestamp"),
-            "tile_url":  props.get("url"),
-        })
+        return jsonify({"covered": True, "tile_name": props.get("name"),
+                        "timestamp": props.get("timestamp"), "tile_url": props.get("url")})
     except Exception as e:
-        app.logger.warning(f"COPC coverage check error: {e}")
-        # En cas d'erreur réseau, on ne peut pas déterminer la couverture
         return jsonify({"covered": None, "error": str(e)})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Google Solar API — proxy sécurisé (clé non exposée côté client)
-# Docs: https://developers.google.com/maps/documentation/solar
+# Google Solar API — proxy sécurisé
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/solar/building-insights', methods=['GET'])
 def api_solar_building_insights():
-    """
-    Proxy Google Solar API → buildingInsights:findClosest
-    GET ?lat=XX&lon=YY&quality=HIGH|MEDIUM|LOW
-
-    Retourne les infos de toiture Google Solar + segments croisés avec labels lisibles.
-    """
     try:
         from config import GOOGLE_SOLAR_API_KEY
         lat     = float(request.args['lat'])
         lon     = float(request.args['lon'])
-        quality = request.args.get('quality', 'MEDIUM')   # HIGH nécessite couverture premium
-
+        quality = request.args.get('quality', 'MEDIUM')
         url = (
             "https://solar.googleapis.com/v1/buildingInsights:findClosest"
             f"?location.latitude={lat}&location.longitude={lon}"
             f"&requiredQuality={quality}&key={GOOGLE_SOLAR_API_KEY}"
         )
         r = requests.get(url, timeout=15)
-
         if r.status_code == 404:
             return jsonify({"error": "Bâtiment non trouvé dans Google Solar", "error_code": "NOT_FOUND"}), 404
         if r.status_code == 403:
@@ -1835,77 +1822,51 @@ def api_solar_building_insights():
             return jsonify({
                 "error": msg,
                 "error_code": "FORBIDDEN",
-                "help": "Vérifiez que l'API Solar est activée dans Google Cloud Console et que la facturation est activée sur la clé API."
+                "help": "Activez l'API Solar dans Google Cloud Console et vérifiez que la facturation est active sur ce projet."
             }), 403
         if r.status_code == 400:
-            # Essai fallback avec qualité inférieure
             if quality == 'HIGH':
-                url_med = url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM')
-                r2 = requests.get(url_med, timeout=15)
+                url2 = url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM')
+                r2 = requests.get(url2, timeout=15)
                 if r2.ok:
                     r = r2
-                else:
-                    return jsonify({"error": f"Google Solar: {r.json().get('error', {}).get('message', 'Erreur 400')}", "error_code": "BAD_REQUEST"}), 400
             else:
-                return jsonify({"error": f"Google Solar: {r.json().get('error', {}).get('message', 'Erreur 400')}", "error_code": "BAD_REQUEST"}), 400
+                return jsonify({"error": "Erreur Google Solar 400", "error_code": "BAD_REQUEST"}), 400
         r.raise_for_status()
+        data   = r.json()
+        solar  = data.get('solarPotential', {})
 
-        data = r.json()
-        solar = data.get('solarPotential', {})
-
-        # ── Enrichir les segments avec des labels d'orientation ──────────────
         def azimuth_label(deg):
-            dirs = [('N', 0), ('NE', 45), ('E', 90), ('SE', 135),
-                    ('S', 180), ('SO', 225), ('O', 270), ('NO', 315)]
-            closest = min(dirs, key=lambda d: abs((deg - d[1] + 180) % 360 - 180))
-            return closest[0]
+            dirs = [('N',0),('NE',45),('E',90),('SE',135),('S',180),('SO',225),('O',270),('NO',315)]
+            return min(dirs, key=lambda d: abs((deg - d[1] + 180) % 360 - 180))[0]
 
         segments = []
         for i, seg in enumerate(solar.get('roofSegmentStats', [])):
             sunshine = seg.get('stats', {}).get('sunshineQuantiles', [])
-            area = seg.get('stats', {}).get('areaMeters2', 0)
-            pitch = round(seg.get('pitchDegrees', 0), 1)
-            azimuth = round(seg.get('azimuthDegrees', 0), 1)
-            # Ensoleillement annuel : médiane des quantiles (kWh/m²/an)
+            area     = seg.get('stats', {}).get('areaMeters2', 0)
+            pitch    = round(seg.get('pitchDegrees', 0), 1)
+            azimuth  = round(seg.get('azimuthDegrees', 0), 1)
             sunshine_med = round(sunshine[len(sunshine)//2], 0) if sunshine else None
             segments.append({
-                'id':              i + 1,
-                'pitchDegrees':    pitch,
-                'azimuthDegrees':  azimuth,
-                'orientationLabel': azimuth_label(azimuth),
-                'areaM2':          round(area, 1),
-                'sunshineAnnual':  sunshine_med,   # kWh/m²/an (médiane)
-                'sunshineMin':     round(sunshine[0], 0) if sunshine else None,
-                'sunshineMax':     round(sunshine[-1], 0) if sunshine else None,
-                'center':          seg.get('center'),
-                'boundingBox':     seg.get('boundingBox'),
+                'id': i + 1, 'pitchDegrees': pitch, 'azimuthDegrees': azimuth,
+                'orientationLabel': azimuth_label(azimuth), 'areaM2': round(area, 1),
+                'sunshineAnnual': sunshine_med,
+                'sunshineMin': round(sunshine[0], 0) if sunshine else None,
+                'sunshineMax': round(sunshine[-1], 0) if sunshine else None,
+                'center': seg.get('center'), 'boundingBox': seg.get('boundingBox'),
             })
-
-        # Trier par surface décroissante
         segments.sort(key=lambda s: -s['areaM2'])
 
-        result = {
-            "success":         True,
-            "source":          "google_solar",
-            "quality":         quality,
-            "imageryDate":     data.get('imageryDate'),
-            "imageryQuality":  data.get('imageryQuality'),
-            "name":            data.get('name'),
-            "center":          data.get('center'),
-            "roofSegments":    segments,
-            "maxPanelsCount":  solar.get('maxArrayPanelsCount'),
-            "maxAreaM2":       solar.get('maxArrayAreaMeters2'),
+        return jsonify({
+            "success": True, "source": "google_solar", "quality": quality,
+            "imageryDate": data.get('imageryDate'), "imageryQuality": data.get('imageryQuality'),
+            "name": data.get('name'), "center": data.get('center'),
+            "roofSegments": segments,
+            "maxPanelsCount": solar.get('maxArrayPanelsCount'),
+            "maxAreaM2": solar.get('maxArrayAreaMeters2'),
             "annualSunshineHours": solar.get('maxSunshineHoursPerYear'),
-            "carbonOffsetKgPerYear": solar.get('carbonOffsetFactorKgPerMwh'),
-            "nbSegments":      len(segments),
-            "financial": {
-                "defaultBill": solar.get('financialAnalyses', [{}])[0]
-                               .get('monthlyBill', {}).get('units') if solar.get('financialAnalyses') else None,
-                "currency": "EUR"
-            }
-        }
-        return jsonify(result)
-
+            "nbSegments": len(segments),
+        })
     except KeyError:
         return jsonify({"error": "lat et lon requis"}), 400
     except requests.exceptions.Timeout:
@@ -1917,14 +1878,14 @@ def api_solar_building_insights():
 
 # ──────────────────────────────────────────────────────────────
 # API: Google Solar buildingInsights → roof_planes 3D
-# Utilise roofSegmentStats pré-calculés par Google (meilleure qualité)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/solar/roof-planes', methods=['POST'])
 def api_solar_roof_planes():
     """
     Convertit roofSegmentStats de buildingInsights en roof_planes 3D.
     Format identique COPC/RANSAC — injecté directement dans la vue 3D.
-    POST body: lat, lon, wall_h (défaut 6.0), quality (défaut HIGH)
+    POST body: lat, lon, wall_h (défaut 6.0), quality (défaut HIGH),
+               building_coords (opt): [[lon,lat],...] polygone BD TOPO pour filtrage
     """
     try:
         import math
@@ -1933,6 +1894,7 @@ def api_solar_roof_planes():
         lon     = float(body['lon'])
         wall_h  = float(body.get('wall_h', 6.0))
         quality = body.get('quality', 'HIGH')
+        bldg_coords = body.get('building_coords')  # [[lon, lat], ...] polygone BD TOPO
         GOOGLE_SOLAR_API_KEY = os.getenv('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
         url = (
             "https://solar.googleapis.com/v1/buildingInsights:findClosest"
@@ -2017,11 +1979,44 @@ def api_solar_roof_planes():
         inclined    = sorted([p for p in roof_planes if p['slope_deg'] >= 1.0], key=lambda p: -p['area_m2'])
         flat        = [p for p in roof_planes if p['slope_deg'] < 1.0]
         roof_planes = inclined + flat
+
+        # ── Filtre Shapely : garder uniquement les plans dont le centroïde
+        #    tombe dans le polygone BD TOPO passé par le frontend ──────────
+        if bldg_coords and len(bldg_coords) >= 3:
+            try:
+                from shapely.geometry import Point, Polygon
+                poly_sh = Polygon([(c[0], c[1]) for c in bldg_coords])  # (lon, lat)
+                lat_to_m = 111320.0
+                lng_to_m = 111320.0 * math.cos(math.radians(lat))
+                def _centroid_latlon(p):
+                    cx, cy = p['centroid']
+                    return float(lon + cx / lng_to_m), float(lat + cy / lat_to_m)
+                filtered = [p for p in roof_planes
+                            if poly_sh.contains(Point(_centroid_latlon(p)))]
+                if filtered:
+                    if len(filtered) > 12:
+                        # Polygone BD TOPO trop grand (complexe industriel) :
+                        # garder les 8 plans les plus proches du centroïde requêté
+                        filtered.sort(key=lambda p: p['centroid'][0]**2 + p['centroid'][1]**2)
+                        app.logger.warning(
+                            f"Solar roof-planes: polygone trop large → {len(filtered)} plans, "
+                            f"conserve 8 plus proches du centroïde")
+                        filtered = filtered[:8]
+                    else:
+                        app.logger.info(f"Solar roof-planes filtrés Shapely: {len(filtered)}/{len(roof_planes)}")
+                    roof_planes = filtered
+                else:
+                    # Aucun centroïde dans le polygone → garder les 8 plus grands inclinés
+                    app.logger.warning(f"Solar roof-planes: 0 centroides dans polygone → top 8 par surface")
+                    roof_planes = sorted(roof_planes, key=lambda p: -p['area_m2'])[:8]
+            except Exception as e_shp:
+                app.logger.warning(f"Filtre Shapely roof-planes ignoré: {e_shp}")
+
         return jsonify({
             "success":         True,
             "source":          "google_solar_building_insights",
             "quality":         data.get('imageryQuality', quality),
-            "imagery_date":    data.get('imageryDate'),
+            "imagery_date":    str(data.get('imageryDate', '')),
             "roof_planes":     roof_planes,
             "nb_segments":     len(roof_planes),
             "building_center": {"lat": lat, "lon": lon},
@@ -2037,42 +2032,31 @@ def api_solar_roof_planes():
 
 # ──────────────────────────────────────────────────────────────
 # API: Google Solar Data Layers — DSM + Flux pour reconstruction toiture 3D
-# Altérnatif LiDAR IGN (pas de couverture COPC ou COPC insuffisant)
+# Alternative LiDAR IGN (pas de couverture COPC ou COPC insuffisant)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/solar/dsm-roof', methods=['POST'])
 def api_solar_dsm_roof():
     """
     Pipeline Google Solar Data Layers → reconstruction toiture 3D.
-    Alternative au LiDAR HD IGN (COPC) quand la couverture est absente ou insuffisante.
+    Alternative au LiDAR HD IGN (COPC) quand la couverture est absente.
 
-    Flux :
-      1. dataLayers:get  → URLs DSM + mask + annualFlux GeoTIFF
-      2. Téléchargement DSM + mask + annualFlux (Pillow + numpy)
-      3. Extraction des pixels bâtiment (mask > 0) + coords locales (x, y, z_mnh)
-      4. RANSAC multi-plans identique COPC
-      5. Retourne roof_planes + flux annuel moyen par plan
-
-    POST body (JSON):
-        lat             : float  — latitude WGS84
-        lon             : float  — longitude WGS84
-        building_coords : [[lon, lat], ...]  — polygone bâtiment (optionnel, améliore le filtre)
-        wall_h          : float  — hauteur mur BD TOPO (défaut 6.0 m)
-        quality         : str    — HIGH|MEDIUM|LOW (défaut HIGH)
+    POST body: lat, lon, building_coords, wall_h, quality
+    Retourne: roof_planes au format identique /api/lidar/copc-roof
     """
     try:
         import numpy as np
         from PIL import Image as PILImage
-        body     = request.get_json(force=True) or {}
-        lat      = float(body['lat'])
-        lon      = float(body['lon'])
-        wall_h   = float(body.get('wall_h', 6.0))
-        quality  = body.get('quality', 'HIGH')
-        bcoords  = body.get('building_coords', [])  # [[lon,lat], ...]
+        body    = request.get_json(force=True) or {}
+        lat     = float(body['lat'])
+        lon     = float(body['lon'])
+        wall_h  = float(body.get('wall_h', 6.0))
+        quality = body.get('quality', 'HIGH')
+        bcoords = body.get('building_coords', [])
 
         from config import GOOGLE_SOLAR_API_KEY
 
-        # ── 1. Récupérer les URLs des couches Data Layers ─────────────────────
-        radius_m = 50   # rayon d'extraction autour du bâtiment
+        # ── 1. Récupérer les URLs des couches Data Layers ───────────────────
+        radius_m = 50
         layers_url = (
             "https://solar.googleapis.com/v1/dataLayers:get"
             f"?location.latitude={lat}&location.longitude={lon}"
@@ -2083,145 +2067,274 @@ def api_solar_dsm_roof():
         if r_layers.status_code == 403:
             return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
         if r_layers.status_code == 404 and quality == 'HIGH':
-            # Fallback MEDIUM
             layers_url2 = layers_url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM')
             r_layers = requests.get(layers_url2, timeout=20)
             quality = 'MEDIUM'
         r_layers.raise_for_status()
         layers = r_layers.json()
 
-        dsm_url       = layers.get('dsmUrl', '')
-        mask_url      = layers.get('maskUrl', '')
-        flux_url      = layers.get('annualFluxUrl', '')
-        pixel_size_m  = float(layers.get('pixelSizeMeters', 0.5))
-        bbox          = layers.get('boundingBox', {})
-        sw            = bbox.get('sw', {})
-        ne            = bbox.get('ne', {})
-        bbox_south    = float(sw.get('latitude', lat - 0.001))
-        bbox_north    = float(ne.get('latitude', lat + 0.001))
-        bbox_west     = float(sw.get('longitude', lon - 0.001))
-        bbox_east     = float(ne.get('longitude', lon + 0.001))
+        dsm_url      = layers.get('dsmUrl', '')
+        mask_url     = layers.get('maskUrl', '')
+        flux_url     = layers.get('annualFluxUrl', '')
+        rgb_url      = layers.get('rgbUrl', '')
+        pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
+        # bbox JSON = footprint bâtiment uniquement (pas l'étendue réelle du GeoTIFF)
+        # → sera remplacé par la vraie bbox lue depuis l'en-tête GeoTIFF via rasterio
+        bbox_api     = layers.get('boundingBox', {})
+        sw_api = bbox_api.get('sw', {}); ne_api = bbox_api.get('ne', {})
+        bbox_south_api = float(sw_api.get('latitude',  lat - 0.001))
+        bbox_north_api = float(ne_api.get('latitude',  lat + 0.001))
+        bbox_west_api  = float(sw_api.get('longitude', lon - 0.001))
+        bbox_east_api  = float(ne_api.get('longitude', lon + 0.001))
 
         if not dsm_url:
             return jsonify({"error": "Pas de DSM disponible pour ce point"}), 422
 
-        print(f"🌍 DSM Google Solar: pixel={pixel_size_m}m, bbox={bbox_south:.4f},{bbox_west:.4f} → {bbox_north:.4f},{bbox_east:.4f}")
+        print(f"🌍 DSM Google Solar: pixel={pixel_size_m}m, quality={quality}")
 
-        # ── 2. Télécharger DSM + mask + annualFlux ───────────────────────
-        def _get_tiff_array(url):
-            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+        # ── 2. Télécharger DSM + mask + flux + RGB en parallèle (raw bytes) ─
+        def _dl_raw(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=35)
             r.raise_for_status()
-            img = PILImage.open(io.BytesIO(r.content))
-            return np.array(img, dtype=np.float32)
+            return r.content
 
-        dsm_arr  = _get_tiff_array(dsm_url)
-        mask_arr = _get_tiff_array(mask_url) if mask_url else None
-        flux_arr = _get_tiff_array(flux_url) if flux_url else None
+        from concurrent.futures import ThreadPoolExecutor
+        _dl_tasks = {'dsm': dsm_url}
+        if mask_url: _dl_tasks['mask'] = mask_url
+        if flux_url: _dl_tasks['flux'] = flux_url
+        if rgb_url:  _dl_tasks['rgb']  = rgb_url
 
-        print(f"  DSM shape={dsm_arr.shape}, min={dsm_arr.min():.1f}, max={dsm_arr.max():.1f}")
+        _raw = {}
+        with ThreadPoolExecutor(max_workers=4) as _ex:
+            _futs = {k: _ex.submit(_dl_raw, v) for k, v in _dl_tasks.items()}
+            for k, f in _futs.items():
+                try:
+                    _raw[k] = f.result()
+                    print(f'  [dsm-roof] ✓ {k} {len(_raw[k])//1024}KB')
+                except Exception as _e:
+                    print(f'  [dsm-roof] ✗ {k} failed: {_e}')
+                    _raw[k] = None
+
+        if not _raw.get('dsm'):
+            return jsonify({"error": "Téléchargement DSM impossible"}), 502
+
+        # ── Lire un GeoTIFF float32 en choisissant le meilleur byte-order ──
+        # Google Solar GeoTIFFs sont big-endian float32 ; on teste les deux
+        # pour être robuste (même logique que flux-heatmap).
+        def _read_tiff_best(raw_bytes, label=''):
+            img = PILImage.open(io.BytesIO(raw_bytes))
+            w, h = img.size
+            raw = img.tobytes()
+            n_px = h * w
+            best_arr = None; best_ok = -1
+
+            def _finite_range(a):
+                v = a[np.isfinite(a) & (a != 0)]
+                return int(len(v))
+
+            # Candidat 1 : frombuffer float32 big-endian
+            try:
+                if len(raw) >= n_px * 4:
+                    a = np.frombuffer(raw[:n_px*4], dtype='>f4').astype(np.float32).reshape(h, w).copy()
+                    ok = _finite_range(a)
+                    if ok > best_ok: best_arr, best_ok = a, ok
+                    print(f'  [dsm-roof] {label} f32_be range=[{a[np.isfinite(a)].min():.1f},{a[np.isfinite(a)].max():.1f}] ok={ok}')
+            except Exception as _e: print(f'  [dsm-roof] {label} f32_be failed: {_e}')
+            # Candidat 2 : np.array direct (float32 LE)
+            try:
+                a = np.array(img, dtype=np.float32)
+                if a.ndim > 2: a = a[:, :, 0]
+                ok = _finite_range(a)
+                if ok > best_ok: best_arr, best_ok = a, ok
+                print(f'  [dsm-roof] {label} direct range=[{a[np.isfinite(a)].min():.1f},{a[np.isfinite(a)].max():.1f}] ok={ok}')
+            except Exception as _e: print(f'  [dsm-roof] {label} direct failed: {_e}')
+            # Candidat 3 : frombuffer float32 little-endian
+            try:
+                if len(raw) >= n_px * 4:
+                    a = np.frombuffer(raw[:n_px*4], dtype='<f4').reshape(h, w).copy()
+                    ok = _finite_range(a)
+                    if ok > best_ok: best_arr, best_ok = a, ok
+            except Exception: pass
+            if best_arr is None:
+                raise ValueError(f'Impossible de lire GeoTIFF {label}')
+            return best_arr
+
+        # ── Lire la vraie bbox depuis le GeoTIFF du masque (référence Google) ─
+        def _bbox_from_tiff_dsm(raw_bytes):
+            try:
+                import rasterio
+                from rasterio.io import MemoryFile
+                from rasterio.warp import transform_bounds as _tb
+                with MemoryFile(raw_bytes) as mf:
+                    with mf.open() as ds:
+                        b = ds.bounds; crs = ds.crs
+                        print(f'  [dsm-roof] rasterio CRS={crs} bounds={b}')
+                        if crs and not crs.is_geographic:
+                            west, south, east, north = _tb(crs, 'EPSG:4326',
+                                                           b.left, b.bottom, b.right, b.top)
+                        else:
+                            west, south, east, north = b.left, b.bottom, b.right, b.top
+                        if east > west and north > south and -180 < west < 180:
+                            print(f'  [dsm-roof] ✅ bbox_rasterio N={north:.6f} S={south:.6f} E={east:.6f} W={west:.6f}')
+                            return dict(north=north, south=south, east=east, west=west)
+            except ImportError:
+                print('  [dsm-roof] rasterio indisponible')
+            except Exception as _e:
+                print(f'  [dsm-roof] rasterio failed: {_e}')
+            return None
+
+        dsm_arr  = _read_tiff_best(_raw['dsm'],  'DSM')
+        mask_arr = _read_tiff_best(_raw['mask'], 'mask').astype(np.uint8) if _raw.get('mask') else None
+        flux_arr = _read_tiff_best(_raw['flux'], 'flux') if _raw.get('flux') else None
+        _rgb_content = _raw.get('rgb')
+
+        # Priorité bbox : mask → dsm → JSON API
+        _tiff_bbox = None
+        if _raw.get('mask'):
+            _tiff_bbox = _bbox_from_tiff_dsm(_raw['mask'])
+        if not _tiff_bbox:
+            _tiff_bbox = _bbox_from_tiff_dsm(_raw['dsm'])
+        if _tiff_bbox:
+            bbox_north = _tiff_bbox['north']; bbox_south = _tiff_bbox['south']
+            bbox_east  = _tiff_bbox['east'];  bbox_west  = _tiff_bbox['west']
+            print(f'  [dsm-roof] ✅ bbox depuis GeoTIFF (précis)')
+        else:
+            bbox_north = bbox_north_api; bbox_south = bbox_south_api
+            bbox_east  = bbox_east_api;  bbox_west  = bbox_west_api
+            print(f'  [dsm-roof] ⚠️ bbox JSON fallback (approx)')
 
         H, W = dsm_arr.shape[:2]
-        if mask_arr is not None and mask_arr.ndim > 2:
-            mask_arr = mask_arr[:, :, 0]  # prendre premier canal
-        if flux_arr is not None and flux_arr.ndim > 2:
-            flux_arr = flux_arr[:, :, 0]
+        print(f'  [dsm-roof] DSM {H}x{W} px  bbox={bbox_north:.5f}N {bbox_south:.5f}S {bbox_east:.5f}E {bbox_west:.5f}W')
+        if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
+        if flux_arr is not None and flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
 
-        # ── 3. Coordonnées géographiques de chaque pixel ───────────────────
-        # Pixel (0,0) = coin NW du bbox
+        # Grille de coordonnées géographiques pour chaque pixel (centre de pixel)
         lat_to_m = 111320.0
         lng_to_m = 111320.0 * math.cos(math.radians(lat))
-
         rows_idx = np.arange(H)
         cols_idx = np.arange(W)
         lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
         lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
-        lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')  # (H, W)
 
-        # Coordonnées locales en mètres centrées sur (lat, lon)
+        lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
         x_grid = (lon_grid - lon) * lng_to_m
         y_grid = (lat_grid - lat) * lat_to_m
 
-        # ── 4. Filtrer les pixels bâtiment ─────────────────────────────────
+        # ── 4. Filtrer les pixels bâtiment ──────────────────────────────────
         if mask_arr is not None:
             bld_mask = mask_arr > 0
         else:
-            # Pas de masque : filtrer par hauteur > terrain baseline + 1.5m
-            valid = dsm_arr > (dsm_arr.mean() - 1000)   # éliminer NoData
-            baseline = float(np.percentile(dsm_arr[valid], 10))
-            bld_mask = dsm_arr > (baseline + 1.5)
+            valid_all_tmp = (dsm_arr > 0) & np.isfinite(dsm_arr)
+            if not valid_all_tmp.any(): valid_all_tmp = np.isfinite(dsm_arr)
+            if not valid_all_tmp.any(): valid_all_tmp = np.ones(dsm_arr.shape, dtype=bool)
+            baseline_tmp = float(np.percentile(dsm_arr[valid_all_tmp], 10))
+            bld_mask = dsm_arr > (baseline_tmp + 1.5)
 
-        # Si un polygone bâtiment est fourni, restreindre davantage
         if bcoords and len(bcoords) >= 3:
             from shapely.geometry import Polygon, Point
             try:
                 poly_bld = Polygon([(float(c[0]), float(c[1])) for c in bcoords])
-                pts = np.column_stack([lon_grid[bld_mask], lat_grid[bld_mask]])
-                inside = np.array([
-                    poly_bld.contains(Point(p[0], p[1])) for p in pts
-                ])
-                idx_bld = np.where(bld_mask)
-                for k, (ri, ci) in enumerate(zip(idx_bld[0], idx_bld[1])):
-                    if not inside[k]:
+                idx_r, idx_c = np.where(bld_mask)
+                for k in range(len(idx_r)):
+                    ri, ci = idx_r[k], idx_c[k]
+                    if not poly_bld.contains(Point(float(lon_grid[ri, ci]), float(lat_grid[ri, ci]))):
                         bld_mask[ri, ci] = False
-                print(f"  Polygone bâtiment: {inside.sum()}/{len(inside)} pixels conservés")
             except Exception as e_poly:
                 print(f"  ⚠ Filtre polygone échoué: {e_poly}")
 
         nb_pts = int(bld_mask.sum())
         if nb_pts < 20:
-            return jsonify({
-                "error": f"Trop peu de pixels bâtiment dans le DSM: {nb_pts}",
-                "error_code": "INSUFFICIENT_DATA",
-                "nb_pixels": nb_pts
-            }), 422
+            return jsonify({"error": f"Trop peu de pixels bâtiment: {nb_pts}", "error_code": "INSUFFICIENT_DATA"}), 422
 
-        # ── 5. Normaliser z → MNH (hauteur au-dessus du terrain) ───────────
-        z_bld     = dsm_arr[bld_mask]
-        x_bld     = x_grid[bld_mask]
-        y_bld     = y_grid[bld_mask]
-
-        # Baseline = p5 du DSM région (terrain autour du bâtiment)
-        # NoData Google Solar DSM = 0 ou très négatif → exclure
-        valid_all = (dsm_arr > 0) & np.isfinite(dsm_arr)
-        if not valid_all.any():
-            valid_all = np.isfinite(dsm_arr)   # fallback : tout pixel fini
-        if not valid_all.any():
-            valid_all = np.ones(dsm_arr.shape, dtype=bool)  # dernier recours
-        z_baseline = float(np.percentile(dsm_arr[valid_all], 5))
+        # ── 5. Normaliser z → MNH ────────────────────────────────────────────
+        z_bld = dsm_arr[bld_mask]; x_bld = x_grid[bld_mask]; y_bld = y_grid[bld_mask]
+        # Baseline = p5 des pixels BÂTIMENT uniquement (≈ altitude avant-toit/égout).
+        # Cohérent avec le pipeline COPC qui fait pareil sur les pts LiDAR classe 6.
+        # NE PAS utiliser le p5 de toute l'image (terrain) : z_mnh_égout serait
+        # ≈ 2×wall_h au lieu de ≈wall_h, ce qui fait flotter le toit 3D en l'air.
+        z_bld_finite = z_bld[np.isfinite(z_bld) & (z_bld > 0)]
+        if len(z_bld_finite) == 0:
+            z_bld_finite = z_bld[np.isfinite(z_bld)]
+        z_baseline = float(np.percentile(z_bld_finite if len(z_bld_finite) > 0 else z_bld, 5))
         z_mnh = (z_bld - z_baseline + wall_h).tolist()
-        print(f"  📏 DSM MNH: baseline={z_baseline:.1f}m + wall_h={wall_h:.1f}m → mnh=[{min(z_mnh):.1f},{max(z_mnh):.1f}]m")
+        print(f"  📏 DSM MNH: baseline_bld={z_baseline:.1f}m + wall_h={wall_h:.1f}m → [{min(z_mnh):.1f},{max(z_mnh):.1f}]m, {nb_pts} px")
 
-        # ── 6. RANSAC multi-plans ────────────────────────────────────────
+        # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
         roof_planes = _segment_roof_planes_ransac(
             x_bld.tolist(), y_bld.tolist(), z_mnh,
             grid_res=max(0.25, pixel_size_m)
         )
-        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) détecté(s)")
+        # Si RANSAC strict échoue (toit très peu incliné ou bruit), retry relaxé
+        if not roof_planes:
+            print(f"  ⚠ RANSAC strict: 0 plans — retry avec seuil relaxé (threshold=0.25m, min_pts=6)")
+            roof_planes = _segment_roof_planes_ransac(
+                x_bld.tolist(), y_bld.tolist(), z_mnh,
+                threshold=0.25, min_pts=6, min_area_m2=4.0,
+                grid_res=max(0.25, pixel_size_m)
+            )
+        # Dernier recours : utiliser le pre_filter avec sigma très relaxé (sigma=4.0)
+        # Sigma 1.8 filtre trop agressivement un toit < 8° (variation naturelle
+        # de pente ≈ bruit pour le filtre MAD). Sigma 4.0 ne retire que les
+        # vraies anomalies extrêmes (cheminées, antennes, bruit DSM évid. cassé).
+        if not roof_planes:
+            print(f"  ⚠ RANSAC relaxé: 0 plans — retry avec filtre obstacles sigma=4.0 (toit plat/peu incliné)")
+            roof_planes = _segment_roof_planes_ransac(
+                x_bld.tolist(), y_bld.tolist(), z_mnh,
+                threshold=0.30, min_pts=5, min_area_m2=3.0,
+                max_planes=10, pre_filter=True, filter_sigma=4.0,
+                grid_res=max(0.25, pixel_size_m)
+            )
+        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) bruts")
 
-        # ── 7. Ensoleillement moyen par plan (depuis annualFlux) ─────────
+        # ── Filtre pente aberrante ─────────────────────────────────────────────
+        # Les plans issus d'artefacts de bord (pixels sol/mur à l'extérieur du masque)
+        # ont souvent une pente > 65° : on les écarte pour éviter la géométrie explosée.
+        MAX_SLOPE_DEG = 65.0
+        n_before_slope = len(roof_planes)
+        roof_planes = [p for p in roof_planes if p.get('slope_deg', 0) <= MAX_SLOPE_DEG]
+        n_removed_slope = n_before_slope - len(roof_planes)
+        if n_removed_slope:
+            print(f"  🧹 Filtre pente > {MAX_SLOPE_DEG}°: {n_removed_slope} plan(s) artefact retirés")
+        print(f"  ✅ DSM RANSAC final: {len(roof_planes)} plan(s) valides")
+
+        if not roof_planes:
+            return jsonify({
+                "success": False,
+                "error": f"RANSAC n'a trouvé aucun plan valide sur {nb_pts} px (toit trop plat ou bruit DSM)",
+                "error_code": "NO_PLANES",
+                "nb_pixels_roof": nb_pts,
+                "z_baseline_abs": round(z_baseline, 2),
+            }), 422
+
+        # ── 7. Ensoleillement moyen par plan ─────────────────────────────────
         if flux_arr is not None:
-            flux_bld   = flux_arr[bld_mask]
-            z_mnh_arr  = np.array(z_mnh)
-            x_bld_arr  = x_bld
-            y_bld_arr  = y_bld
+            flux_bld  = flux_arr[bld_mask]
+            z_mnh_arr = np.array(z_mnh)
             for plane in roof_planes:
                 a = plane.get('mnh_a', 0); b = plane.get('mnh_b', 0); c = plane.get('mnh_c', 0)
-                z_pred  = a * x_bld_arr + b * y_bld_arr + c
+                z_pred  = a * x_bld + b * y_bld + c
                 inliers = np.where(np.abs(z_mnh_arr - z_pred) < 0.20)[0]
                 if len(inliers) > 0:
                     vals = flux_bld[inliers]
                     plane['sunshine_annual_kwh_m2'] = round(float(np.median(vals[vals > 0])), 0) if np.any(vals > 0) else None
 
+        # Formater imageryDate: l'API Solar renvoie un dict {year, month, day}
+        imagery_date_raw = layers.get('imageryDate')
+        if isinstance(imagery_date_raw, dict):
+            y = imagery_date_raw.get('year', '')
+            m = imagery_date_raw.get('month', '')
+            d = imagery_date_raw.get('day', '')
+            imagery_date_str = f"{y}-{str(m).zfill(2)}-{str(d).zfill(2)}" if y else None
+        else:
+            imagery_date_str = imagery_date_raw  # déjà string ou None
+
         return jsonify({
-            "success":           True,
-            "source":            "google_solar_dsm",
-            "quality":           quality,
-            "pixel_size_m":      pixel_size_m,
-            "nb_pixels_roof":    nb_pts,
-            "z_baseline_abs":    round(z_baseline, 2),
-            "imagery_date":      layers.get('imageryDate'),
-            "roof_planes":       roof_planes,
-            "building_center":   {"lat": lat, "lon": lon},
+            "success": True, "source": "google_solar_dsm", "quality": quality,
+            "pixel_size_m": pixel_size_m, "nb_pixels_roof": nb_pts,
+            "z_baseline_abs": round(z_baseline, 2),
+            "imagery_date": imagery_date_str,
+            "roof_planes": roof_planes,
+            "building_center": {"lat": lat, "lon": lon},
         })
 
     except KeyError as e:
@@ -2231,37 +2344,40 @@ def api_solar_dsm_roof():
     except Exception as e:
         app.logger.error(f"DSM Solar error: {e}", exc_info=True)
         return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
-# ──────────────────────────────────────────────────────────────
+
+
 # ──────────────────────────────────────────────────────────────
 # API: Google Solar Annual Flux Heatmap — carte d'irradiation pixel par pixel
-# Retourne une image PNG colorisée (bleu=ombré → rouge=très ensoleillé)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/solar/flux-heatmap', methods=['GET', 'POST'])
 def api_solar_flux_heatmap():
     """
     Heatmap irradiance annuelle (kWh/m²/an) depuis Google Solar annualFlux GeoTIFF.
-    POST body (JSON): lat, lon, quality, radius_m, building_coords [[lon,lat],...]
+    POST body JSON: lat, lon, quality, radius_m, building_coords [[lon,lat],...]
     Returns JSON: image_base64 (PNG RGBA), bbox, flux_min/max/mean, pixel_size_m
     """
     try:
         import numpy as np
         from PIL import Image as PILImage
-        import base64, struct, math
+        import base64, math
 
         body     = request.get_json(force=True, silent=True) or {}
-        lat      = body.get('lat')      or request.args.get('lat',      type=float)
-        lon      = body.get('lon')      or request.args.get('lon',      type=float)
-        quality  = body.get('quality')  or request.args.get('quality',  'HIGH')
+        lat      = body.get('lat')     or request.args.get('lat',      type=float)
+        lon      = body.get('lon')     or request.args.get('lon',      type=float)
+        quality  = body.get('quality') or request.args.get('quality',  'HIGH')
         radius_m = int(body.get('radius_m', 0) or request.args.get('radius_m', 50, type=int))
-        bcoords  = body.get('building_coords', [])   # [[lon,lat], ...]
+        bcoords  = body.get('building_coords', [])
         lat = float(lat); lon = float(lon)
-
+        if not radius_m: radius_m = 50
         if lat is None or lon is None:
             return jsonify({"error": "lat et lon requis"}), 400
 
+        # bcoords n'est plus utilisé pour le masque : on utilise exclusivement
+        # le maskUrl Google Solar (découpe pixel-perfect de chaque bâtiment).
+        # Le flood-fill depuis le point cliqué isole le bâtiment cible.
+
         from config import GOOGLE_SOLAR_API_KEY
 
-        # ── 1. Récupérer les URLs des couches ─────────────────────────────
         def _fetch_layers(q):
             url = (
                 "https://solar.googleapis.com/v1/dataLayers:get"
@@ -2271,108 +2387,407 @@ def api_solar_flux_heatmap():
             )
             return requests.get(url, timeout=20)
 
-        r_layers = _fetch_layers(quality)
-        if r_layers.status_code == 404 and quality == 'HIGH':
+        # Fetch buildingInsights en parallèle des dataLayers
+        from concurrent.futures import ThreadPoolExecutor as _TPE_bi
+        def _fetch_building_insights():
+            url = (
+                "https://solar.googleapis.com/v1/buildingInsights:findClosest"
+                f"?location.latitude={lat}&location.longitude={lon}"
+                f"&requiredQuality=LOW&key={GOOGLE_SOLAR_API_KEY}"
+            )
+            try:
+                r = requests.get(url, timeout=15)
+                if r.status_code == 200:
+                    return r.json()
+            except Exception as _e:
+                print(f'  [flux-heatmap] buildingInsights failed: {_e}')
+            return None
+
+        with _TPE_bi(max_workers=2) as _ex_bi:
+            _fut_bi    = _ex_bi.submit(_fetch_building_insights)
+            _fut_layers = _ex_bi.submit(lambda: _fetch_layers(quality))
+            building_insights = _fut_bi.result(timeout=18)
+            r_layers          = _fut_layers.result(timeout=25)
+        print(f'  [flux-heatmap] buildingInsights: {"OK" if building_insights else "N/A"}')
+        # Google Solar renvoie 404 OU 400 quand la qualité demandée n'est pas
+        # disponible pour cette zone géographique → on tente les qualités inférieures.
+        if r_layers.status_code in (400, 404) and quality == 'HIGH':
             r_layers = _fetch_layers('MEDIUM'); quality = 'MEDIUM'
-        if r_layers.status_code == 404 and quality == 'MEDIUM':
+        if r_layers.status_code in (400, 404) and quality == 'MEDIUM':
             r_layers = _fetch_layers('LOW');    quality = 'LOW'
         if r_layers.status_code == 403:
             return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
+        if r_layers.status_code in (400, 404):
+            return jsonify({"error": f"Irradiation indisponible pour cette zone (aucune qualité LOW/MEDIUM/HIGH disponible)", "error_code": "NO_COVERAGE"}), 422
         r_layers.raise_for_status()
         layers = r_layers.json()
 
         flux_url     = layers.get('annualFluxUrl', '')
-        mask_url     = layers.get('maskUrl', '')
+        mask_url         = layers.get('maskUrl', '')
+        rgb_url          = layers.get('rgbUrl', '')
+        dsm_url          = layers.get('dsmUrl', '')
+        monthly_flux_url = layers.get('monthlyFluxUrl', '')
         pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
-        bbox         = layers.get('boundingBox', {})
-        sw = bbox.get('sw', {}); ne = bbox.get('ne', {})
-        bbox_south = float(sw.get('latitude',  lat - 0.001))
-        bbox_north = float(ne.get('latitude',  lat + 0.001))
-        bbox_west  = float(sw.get('longitude', lon - 0.001))
-        bbox_east  = float(ne.get('longitude', lon + 0.001))
-
+        # bbox API conservé comme fallback mais on recalcule depuis les dims réelles de l'image
+        bbox_api     = layers.get('boundingBox', {})
+        sw_api = bbox_api.get('sw', {}); ne_api = bbox_api.get('ne', {})
+        bbox_south_api = float(sw_api.get('latitude',  lat - 0.001))
+        bbox_north_api = float(ne_api.get('latitude',  lat + 0.001))
+        bbox_west_api  = float(sw_api.get('longitude', lon - 0.001))
+        bbox_east_api  = float(ne_api.get('longitude', lon + 0.001))
         if not flux_url:
             return jsonify({"error": "Pas de données flux annuel pour ce point"}), 422
 
-        # ── 2. Lecture robuste des GeoTIFF Google Solar ────────────────────
-        # Google Solar encode les flux en float32 ; PIL ouvre ces TIFF comme
-        # mode 'I' (int32) ou 'F' (float32). Pour l'un et l'autre, on lit les
-        # raw bytes avec frombuffer pour garantir l'interprétation float32 correcte.
-        def _read_flux_tiff(url):
-            """Retourne un ndarray float32 2D pour un flux GeoTIFF Google Solar."""
-            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
-            r.raise_for_status()
-            img = PILImage.open(io.BytesIO(r.content))
+        def _read_flux_tiff(content):
+            img = PILImage.open(io.BytesIO(content))
             w, h = img.size
-            if img.mode == 'F':
-                # Natif float32 — PIL lit correctement
-                return np.array(img, dtype=np.float32)
-            elif img.mode == 'I':
-                # PIL interprète les bytes float32 comme int32 → reinterpret
-                raw = img.tobytes()
-                return np.frombuffer(raw, dtype=np.float32).reshape(h, w).copy()
-            else:
-                # Mode L (uint8) pour le masque binaire — cast simple
-                return np.array(img, dtype=np.float32)
+            print(f'  [flux-heatmap] GeoTIFF mode={img.mode} size={w}x{h}')
 
-        flux_arr = _read_flux_tiff(flux_url)
-        # Masque : TIFF binaire (uint8 0/255) — ne pas réinterpréter en float32
-        mask_arr = None
-        if mask_url:
+            # ── Stratégie : tester toutes les interprétations, choisir la plus plausible ──
+            # Les valeurs d'irradiance annuelle (Google Solar) sont typiquement 100-2500 kWh/m²/an.
+            # Un pixel "valide" = valeur dans [80, 4000].
+            def _count_plausible(a):
+                return int(np.sum(np.isfinite(a) & (a > 80) & (a < 4000)))
+
+            candidates = []
+            raw = img.tobytes()
+            n_px = h * w
+
+            # Interprétation 1 : np.array direct (mode F natif PIL = float32 LE)
             try:
-                rm = requests.get(mask_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
-                rm.raise_for_status()
-                imgm = PILImage.open(io.BytesIO(rm.content))
+                a1 = np.array(img, dtype=np.float32)
+                if a1.ndim > 2: a1 = a1[:,:,0]
+                candidates.append(('array_direct', a1, _count_plausible(a1)))
+                print(f'  [flux-heatmap] array_direct: min={a1.min():.3g} max={a1.max():.3g} ok={_count_plausible(a1)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] array_direct failed: {e}')
+
+            # Interprétation 2 : frombuffer float32 little-endian
+            try:
+                if len(raw) >= n_px * 4:
+                    a2 = np.frombuffer(raw[:n_px*4], dtype='<f4').reshape(h, w).copy()
+                    candidates.append(('frombuffer_f32_le', a2, _count_plausible(a2)))
+                    print(f'  [flux-heatmap] frombuffer_f32_le: min={a2.min():.3g} max={a2.max():.3g} ok={_count_plausible(a2)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] frombuffer_f32_le failed: {e}')
+
+            # Interprétation 3 : frombuffer float32 BIG-ENDIAN (GeoTIFF standard = big-endian)
+            try:
+                if len(raw) >= n_px * 4:
+                    a3 = np.frombuffer(raw[:n_px*4], dtype='>f4').astype(np.float32).reshape(h, w).copy()
+                    candidates.append(('frombuffer_f32_be', a3, _count_plausible(a3)))
+                    print(f'  [flux-heatmap] frombuffer_f32_be: min={a3.min():.3g} max={a3.max():.3g} ok={_count_plausible(a3)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] frombuffer_f32_be failed: {e}')
+
+            # Interprétation 4 : int32 → float (TIFF entier mode I;32)
+            try:
+                a4 = np.array(img, dtype=np.int32).astype(np.float32)
+                if a4.ndim > 2: a4 = a4[:,:,0]
+                candidates.append(('int32_cast', a4, _count_plausible(a4)))
+                print(f'  [flux-heatmap] int32_cast: min={a4.min():.3g} max={a4.max():.3g} ok={_count_plausible(a4)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] int32_cast failed: {e}')
+
+            # Interprétation 5 : float64 (certains GeoTIFF sont en double précision)
+            try:
+                if len(raw) >= n_px * 8:
+                    a5 = np.frombuffer(raw[:n_px*8], dtype='<f8').astype(np.float32).reshape(h, w).copy()
+                    candidates.append(('frombuffer_f64_le', a5, _count_plausible(a5)))
+                    print(f'  [flux-heatmap] frombuffer_f64_le: min={a5.min():.3g} max={a5.max():.3g} ok={_count_plausible(a5)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] frombuffer_f64_le failed: {e}')
+
+            # Interprétation 6 : int16 → float (GeoTIFF 16-bit, Google parfois en Wh×0.1)
+            try:
+                if len(raw) >= n_px * 2:
+                    a6 = np.frombuffer(raw[:n_px*2], dtype='<i2').astype(np.float32).reshape(h, w).copy()
+                    # Google peut stocker en Wh/m²/an → diviser par 1000
+                    a6_k = a6 / 1000.0
+                    c6 = _count_plausible(a6_k)
+                    if c6 == 0: a6_k = a6  # essai sans diviser
+                    candidates.append(('int16_raw', a6_k, _count_plausible(a6_k)))
+                    print(f'  [flux-heatmap] int16_raw: min={a6_k.min():.3g} max={a6_k.max():.3g} ok={_count_plausible(a6_k)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] int16_raw failed: {e}')
+
+            if not candidates:
+                raise ValueError(f'Impossible de lire le GeoTIFF (mode={img.mode})')
+
+            # Garder le candidat avec le plus de pixels plausibles
+            candidates.sort(key=lambda x: x[2], reverse=True)
+            best_name, best_arr, best_ok = candidates[0]
+            print(f'  [flux-heatmap] → CHOIX={best_name} ok={best_ok} '
+                  f'p50={float(np.nanpercentile(best_arr[best_arr>0], 50)) if best_ok > 0 else 0:.1f}')
+            return best_arr
+
+        # ── Télécharger TOUTES les couches Solar en parallèle ────────────────────
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+
+        def _dl_raw(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=35)
+            r.raise_for_status()
+            return r.content
+
+        _dl_tasks = {k: v for k, v in {
+            'flux':    flux_url,
+            'mask':    mask_url,
+            'rgb':     rgb_url,
+            'dsm':     dsm_url,
+            'monthly': monthly_flux_url,
+        }.items() if v}
+
+        _raw = {}
+        with _TPE(max_workers=5) as _ex:
+            _futs = {k: _ex.submit(_dl_raw, v) for k, v in _dl_tasks.items()}
+            for k, f in _futs.items():
+                try:
+                    _raw[k] = f.result()
+                    print(f'  [flux-heatmap] ✓ {k} {len(_raw[k])//1024}KB')
+                except Exception as _e:
+                    print(f'  [flux-heatmap] ✗ {k} failed: {_e}')
+                    _raw[k] = None
+
+        if not _raw.get('flux'):
+            return jsonify({'error': 'Téléchargement flux annuel impossible'}), 502
+        flux_arr = _read_flux_tiff(_raw['flux'])
+
+        # ── Lire le géo-référencement natif du GeoTIFF via rasterio (GDAL) ────────────
+        # C'est la seule méthode fiable : lit le transform exact du GeoTIFF
+        # et convertit en WGS84 si nécessaire (Google Solar = EPSG:4326 ou 3857).
+        def _bbox_from_tiff(raw_bytes):
+            # ── Tentative 1 : rasterio (GDAL) — méthode la plus fiable ──
+            try:
+                import rasterio
+                from rasterio.io import MemoryFile
+                from rasterio.warp import transform_bounds as _tb
+                with MemoryFile(raw_bytes) as mf:
+                    with mf.open() as ds:
+                        b = ds.bounds  # left, bottom, right, top dans le CRS natif
+                        crs = ds.crs
+                        print(f'  [flux-heatmap] rasterio CRS={crs} bounds={b}')
+                        if crs and not crs.is_geographic:
+                            # Web Mercator ou autre projection mètres → WGS84
+                            west, south, east, north = _tb(crs, 'EPSG:4326',
+                                                           b.left, b.bottom, b.right, b.top)
+                        else:
+                            west, south, east, north = b.left, b.bottom, b.right, b.top
+                        if east > west and north > south and -180 < west < 180:
+                            print(f'  [flux-heatmap] ✅ bbox_rasterio: '
+                                  f'N={north:.6f} S={south:.6f} E={east:.6f} W={west:.6f}')
+                            return dict(north=north, south=south, east=east, west=west)
+            except ImportError:
+                print('  [flux-heatmap] rasterio indisponible, fallback PIL')
+            except Exception as _e:
+                print(f'  [flux-heatmap] rasterio failed: {_e}')
+
+            # ── Tentative 2 : tags Pillow tag_v2 (33550/33922) ──
+            try:
+                from pyproj import Transformer
+                _img = PILImage.open(io.BytesIO(raw_bytes))
+                tags = getattr(_img, 'tag_v2', None) or getattr(_img, 'tag', {})
+                scale = tags.get(33550)
+                tie   = tags.get(33922)
+                print(f'  [flux-heatmap] PIL tags scale={scale} tie={list(tie)[:6] if tie else None}')
+                if scale and tie and len(scale) >= 2 and len(tie) >= 6:
+                    sx, sy = float(scale[0]), float(scale[1])
+                    mx0, my0 = float(tie[3]), float(tie[4])
+                    W_t, H_t = _img.size
+                    mx_west, my_north = mx0, my0
+                    mx_east, my_south = mx0 + W_t * sx, my0 - H_t * sy
+                    if -180 < mx_west < 180 and -90 < my_south < 90:
+                        # Déjà en degrés
+                        return dict(north=my_north, south=my_south, east=mx_east, west=mx_west)
+                    if abs(mx_west) < 22_000_000 and abs(my_north) < 22_000_000:
+                        # EPSG:3857 → WGS84
+                        tf = Transformer.from_crs('EPSG:3857', 'EPSG:4326', always_xy=True)
+                        west,  south = tf.transform(mx_west,  my_south)
+                        east,  north = tf.transform(mx_east,  my_north)
+                        if east > west and north > south and -180 < west < 180:
+                            return dict(north=north, south=south, east=east, west=west)
+            except Exception as _e:
+                print(f'  [flux-heatmap] PIL/pyproj tags failed: {_e}')
+            return None
+
+        # Priorité : mask (référence officielle du sample Google) → flux → JSON API
+        # Le mask est co-enregistré avec tous les layers et sert de référence géo
+        _tiff_bbox = None
+        if _raw.get('mask'):
+            _tiff_bbox = _bbox_from_tiff(_raw['mask'])
+            if _tiff_bbox:
+                print(f'  [flux-heatmap] ✅ bbox depuis MASK GeoTIFF (référence Google)')
+        if not _tiff_bbox:
+            _tiff_bbox = _bbox_from_tiff(_raw['flux'])
+            if _tiff_bbox:
+                print(f'  [flux-heatmap] ✅ bbox depuis FLUX GeoTIFF (fallback)')
+        if _tiff_bbox:
+            bbox_north = _tiff_bbox['north']
+            bbox_south = _tiff_bbox['south']
+            bbox_east  = _tiff_bbox['east']
+            bbox_west  = _tiff_bbox['west']
+        else:
+            bbox_north = bbox_north_api
+            bbox_south = bbox_south_api
+            bbox_east  = bbox_east_api
+            bbox_west  = bbox_west_api
+            print(f'  [flux-heatmap] ⚠️ bbox JSON fallback (approx)')
+
+        # ── Parser masque bâtiment (0.1 m/px) ───────────────────────────────────
+        mask_arr = None
+        if _raw.get('mask'):
+            try:
+                imgm = PILImage.open(io.BytesIO(_raw['mask']))
                 mask_arr = np.array(imgm, dtype=np.uint8)
                 if mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
-            except Exception as e_mask:
-                print(f"  ⚠ Masque non disponible: {e_mask}")
+            except Exception: pass
 
-        if flux_arr.ndim > 2:
-            flux_arr = flux_arr[:, :, 0]
+        # ── Parser DSM (altitude surface, 0.1 m/px) ─────────────────────────────
+        dsm_arr_raw = None
+        if _raw.get('dsm'):
+            try:
+                imgd = PILImage.open(io.BytesIO(_raw['dsm']))
+                dsm_arr_raw = np.array(imgd, dtype=np.float32)
+                if dsm_arr_raw.ndim > 2: dsm_arr_raw = dsm_arr_raw[:, :, 0]
+                print(f'  [flux-heatmap] DSM {dsm_arr_raw.shape} alt={dsm_arr_raw.min():.1f}–{dsm_arr_raw.max():.1f}m')
+            except Exception as _e:
+                print(f'  [flux-heatmap] DSM parse failed: {_e}')
 
+        # ── Parser flux mensuel 12 bandes ────────────────────────────────────────
+        monthly_arr = None  # shape (12, H, W) ou None
+        if _raw.get('monthly'):
+            try:
+                img_mo = PILImage.open(io.BytesIO(_raw['monthly']))
+                n_frames = getattr(img_mo, 'n_frames', 1)
+                if n_frames >= 12:
+                    bands = []
+                    for _mi in range(12):
+                        img_mo.seek(_mi)
+                        _b = np.array(img_mo, dtype=np.float32)
+                        if _b.ndim > 2: _b = _b[:, :, 0]
+                        bands.append(_b)
+                    monthly_arr = np.stack(bands, axis=0)
+                    print(f'  [flux-heatmap] monthly {monthly_arr.shape} '
+                          f'sum={float(monthly_arr.sum(axis=0).mean()):.0f} kWh/m²/an equiv')
+                else:
+                    print(f'  [flux-heatmap] monthly only {n_frames} frames, skip')
+            except Exception as _e:
+                print(f'  [flux-heatmap] monthly parse failed: {_e}')
+
+        _rgb_content = _raw.get('rgb')
+
+        if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
-        print(f"🌡️ flux TIFF: {W}×{H}, min={flux_arr.min():.1f}, max={flux_arr.max():.1f}")
 
-        # ── 3. Masque bâtiment ─────────────────────────────────────────────
-        # Niveau 1 : masque Google Solar (toits = 1)
-        bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
+        # ── Normaliser mask_arr à la résolution du flux ──────────────────────────
+        # maskUrl est à 0.1 m/px, annualFluxUrl à 0.5 m/px → shape ~5× différente.
+        # On redimensionne le masque pour qu'il soit exactement (H, W).
+        if mask_arr is not None:
+            H_m, W_m = mask_arr.shape
+            if H_m != H or W_m != W:
+                _m_pil = PILImage.fromarray(mask_arr).resize((W, H), PILImage.NEAREST)
+                mask_arr = np.array(_m_pil, dtype=np.uint8)
+                print(f'  [flux-heatmap] mask resized {H_m}×{W_m} → {H}×{W}')
 
-        # Niveau 2 : filtrage par polygone du bâtiment (élimine les toits voisins)
-        if bcoords and len(bcoords) >= 3:
-            lat_to_m  = 111320.0
-            lng_to_m  = 111320.0 * math.cos(math.radians(lat))
-            rows_idx  = np.arange(H)
-            cols_idx  = np.arange(W)
-            lat_pix   = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
-            lon_pix   = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
-            lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
+        # bbox_api = étendue géographique réelle du GeoTIFF livré par Google Solar.
+        # pixel_size_m = résolution NATIVE du capteur, PAS de l'image downsamplée livrée.
+        # La vraie résolution livrée = bbox_width_m / W, bbox_height_m / H.
+        import math as _math
+        _lat_rad       = _math.radians(lat)
+        _m_per_deg_lat = 111320.0
+        _m_per_deg_lon = 111320.0 * _math.cos(_lat_rad)
+        api_h_m = (bbox_north_api - bbox_south_api) * _m_per_deg_lat
+        api_w_m = (bbox_east_api  - bbox_west_api)  * _m_per_deg_lon
+        px_h_m  = api_h_m / H   # résolution réelle verticale
+        px_w_m  = api_w_m / W   # résolution réelle horizontale
+        print(f'  [flux-heatmap] bbox_api={api_w_m:.1f}x{api_h_m:.1f}m  '
+              f'HxW={H}x{W}  px_real={px_w_m:.3f}x{px_h_m:.3f}m/px  pixel_size_native={pixel_size_m}m')
 
-            # Point-in-polygon raycasting vectorisé sur chaque pixel
-            poly_lon = [float(c[0]) for c in bcoords]
-            poly_lat = [float(c[1]) for c in bcoords]
-            n = len(poly_lon)
-            poly_mask = np.zeros((H, W), dtype=bool)
-            for i in range(n):
-                xi, yi = poly_lon[i],       poly_lat[i]
-                xj, yj = poly_lon[(i-1)%n], poly_lat[(i-1)%n]
-                cond = ((yi > lat_grid) != (yj > lat_grid)) & \
-                       (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
-                poly_mask ^= cond
-            bld_mask = bld_mask & poly_mask
-            print(f"  Polygone bâtiment: {bld_mask.sum()} pixels retenus / {(mask_arr > 0).sum() if mask_arr is not None else H*W}")
+        # bbox_north/south/east/west déjà définis plus haut (tiff natif ou fallback JSON)
 
-        # ── 4. Statistiques flux ───────────────────────────────────────────
-        valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 0) & (flux_arr < 5000)
+        rows_idx = np.arange(H)
+        cols_idx = np.arange(W)
+        lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
+        lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
+        lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
+
+        # ── Masque bâtiment exclusivement depuis Google Solar maskUrl ────────────
+        # maskUrl est la source la plus précise : découpe pixel-perfect de chaque
+        # bâtiment individuel. Flood-fill depuis le point cliqué = isolation exacte.
+        poly_mask_d = None  # gardé pour compatibilité (fallback valid_mask plus bas)
+
+        if mask_arr is not None:
+            bld_mask = mask_arr > 0
+            print(f'  [flux-heatmap] GSolar mask: {int(bld_mask.sum())} px bâtiment sur {H}×{W}')
+        else:
+            # Pas de masque GSolar → cercle raster 20 m autour du point cliqué
+            _cr_m   = 20.0
+            _cr_lat = _cr_m / 111320.0
+            _cr_lon = _cr_m / (111320.0 * math.cos(math.radians(lat)))
+            bld_mask = (((lat_grid - lat) / _cr_lat) ** 2 +
+                        ((lon_grid - lon) / _cr_lon) ** 2) <= 1.0
+            print(f'  [flux-heatmap] fallback cercle 20m: {int(bld_mask.sum())} px')
+
+        # ── Flood-fill : isole le bâtiment contenant le point cliqué (lat/lon) ──
+        # Sans flood-fill, bld_mask contient TOUS les bâtiments du masque GSolar.
+        # Seed de préférence = centroïde du polygone building_coords (OSM/3D) envoyé
+        # par le frontend — c'est le centre réel du bâtiment sélectionné sur la carte,
+        # indépendamment du point de requête Google Solar (lat/lon) qui peut être décalé.
+        if mask_arr is not None and bld_mask.any():
+            try:
+                # Calculer le seed : centroïde building_coords ou fallback lat/lon
+                if bcoords and len(bcoords) >= 3:
+                    _seed_lat = sum(float(p[1]) for p in bcoords) / len(bcoords)
+                    _seed_lon = sum(float(p[0]) for p in bcoords) / len(bcoords)
+                    print(f'  [flux-heatmap] seed = centroïde building_coords ({_seed_lat:.6f},{_seed_lon:.6f})')
+                else:
+                    _seed_lat, _seed_lon = lat, lon
+                ctr_row = int(np.clip((bbox_north - _seed_lat) / (bbox_north - bbox_south) * H, 0, H - 1))
+                ctr_col = int(np.clip((_seed_lon  - bbox_west) / (bbox_east  - bbox_west)  * W, 0, W - 1))
+                seed_r, seed_c = ctr_row, ctr_col
+                # Si le pixel central n'est pas dans un bâtiment → pixel bâtiment le plus proche
+                if not bld_mask[seed_r, seed_c]:
+                    pts = np.argwhere(bld_mask)
+                    if len(pts):
+                        dists = np.hypot(pts[:, 0] - ctr_row, pts[:, 1] - ctr_col)
+                        near_idx = int(np.argmin(dists))
+                        if float(dists[near_idx]) <= 120:  # élargi 60→120 px pour grands bâtiments
+                            seed_r, seed_c = int(pts[near_idx, 0]), int(pts[near_idx, 1])
+                # Flood-fill BFS 8-connexité (deque = file FIFO, plus rapide que stack DFS
+                # et traite uniformément les grandes images sans risque de pile profonde)
+                if bld_mask[seed_r, seed_c]:
+                    from collections import deque
+                    filled = np.zeros((H, W), dtype=bool)
+                    q = deque([(seed_r, seed_c)])
+                    while q:
+                        r, c = q.popleft()
+                        if r < 0 or r >= H or c < 0 or c >= W: continue
+                        if filled[r, c] or not bld_mask[r, c]: continue
+                        filled[r, c] = True
+                        q.extend([(r+1,c),(r-1,c),(r,c+1),(r,c-1),
+                                    (r+1,c+1),(r+1,c-1),(r-1,c+1),(r-1,c-1)])
+                    if filled.any():
+                        bld_mask = filled
+                        print(f'  [flux-heatmap] flood-fill OK: seed=({seed_r},{seed_c}) → {int(bld_mask.sum())} px')
+                    else:
+                        print(f'  [flux-heatmap] flood-fill empty → masque GSolar complet utilisé')
+                else:
+                    print(f'  [flux-heatmap] aucun pixel bâtiment proche du centre → masque GSolar complet')
+            except Exception as _e_ff:
+                print(f'  [flux-heatmap] flood-fill skipped: {_e_ff}')
+
+        valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
         valid = flux_arr[valid_mask]
         if len(valid) == 0:
-            # Fallback : assouplir le filtre (supprimer le masque Google s'il est vide)
-            valid_mask = np.isfinite(flux_arr) & (flux_arr > 0) & (flux_arr < 5000)
-            if bcoords and len(bcoords) >= 3:
-                valid_mask = valid_mask & poly_mask
+            # Fallback sans masque bâtiment
+            valid_mask = np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
+            if poly_mask_d is not None: valid_mask = valid_mask & poly_mask_d
             valid = flux_arr[valid_mask]
         if len(valid) == 0:
-            return jsonify({"error": f"Aucun pixel valide (flux range: {flux_arr.min():.1f}–{flux_arr.max():.1f})"}), 422
+            # Diagnostic : afficher la vraie distribution du tableau brut
+            raw_flat = flux_arr.flatten()
+            raw_flat = raw_flat[np.isfinite(raw_flat)]
+            diag = f"min={raw_flat.min():.3g} max={raw_flat.max():.3g} p50={float(np.percentile(raw_flat,50)):.3g}" if len(raw_flat) > 0 else "vide"
+            return jsonify({"error": f"Aucun pixel valide [80–4000]. Distribution brute: {diag}"}), 422
 
         flux_min  = float(np.percentile(valid, 2))
         flux_max  = float(np.percentile(valid, 98))
@@ -2380,31 +2795,35 @@ def api_solar_flux_heatmap():
         if not math.isfinite(flux_min):  flux_min  = 0.0
         if not math.isfinite(flux_max):  flux_max  = 0.0
         if not math.isfinite(flux_mean): flux_mean = 0.0
-        # Plage colorimétrique : percentiles 10–90 pour éviter les valeurs extrêmes
-        # et plancher réaliste (>400 kWh/m²/an = min physique sous ombrage partiel)
-        color_min = max(float(np.percentile(valid, 10)), 400.0)
-        color_max = float(np.percentile(valid, 90))
-        if not math.isfinite(color_min) or not math.isfinite(color_max):
-            color_min, color_max = flux_min, flux_max
-        if color_max <= color_min: color_max = color_min + 200.0
-        print(f"  ✅ Flux valide: {len(valid)} pixels, stats=[{flux_min:.0f},{flux_max:.0f}], color=[{color_min:.0f},{color_max:.0f}] kWh/m²/an")
 
-        # ── 5. Colorisation spectrale (bleu→cyan→vert→jaune→orange→rouge) ─
-        # Chaque point d'ancrage : (valeur_normalisée, R, G, B)
+        # Plage colorimétrique dynamique basée sur la distribution réelle des pixels :
+        # - color_min = p5  (valeur basse réelle : zones ombragées / orientations défavorables)
+        # - color_max = p95 (valeur haute réelle : zones les mieux exposées)
+        # → l'échelle de couleur s'étire automatiquement sur l'amplitude du bâtiment,
+        #   ce qui maximise le contraste visuel entre les différentes zones/champs.
+        color_min = float(np.percentile(valid, 5))
+        color_max = float(np.percentile(valid, 95))
+        # Garantir une plage minimale de 50 kWh/m²/an pour éviter une image aplatie
+        if color_max - color_min < 50.0:
+            mid = (color_min + color_max) / 2.0
+            color_min = mid - 25.0
+            color_max = mid + 25.0
+        if not math.isfinite(color_min): color_min = flux_min
+        if not math.isfinite(color_max): color_max = flux_max if flux_max > flux_min else flux_min + 50.0
+
         COLORMAP = np.array([
-            [0.00,  20,   0, 100],  # violet sombre  → très ombré
-            [0.15,   0,  60, 220],  # bleu
-            [0.35,   0, 200, 255],  # cyan
-            [0.55,  50, 210,  50],  # vert
-            [0.70, 255, 230,   0],  # jaune
-            [0.85, 255, 120,   0],  # orange
-            [1.00, 220,   0,   0],  # rouge vif      → très ensoleillé
+            [0.00,  20,   0, 100],
+            [0.15,   0,  60, 220],
+            [0.35,   0, 200, 255],
+            [0.55,  50, 210,  50],
+            [0.70, 255, 230,   0],
+            [0.85, 255, 120,   0],
+            [1.00, 220,   0,   0],
         ], dtype=np.float32)
 
         flux_norm = np.where(
             valid_mask,
-            (flux_arr - color_min) / max(color_max - color_min, 1.0),
-            0.0
+            (flux_arr - color_min) / max(color_max - color_min, 1.0), 0.0
         ).clip(0.0, 1.0)
 
         r_out = np.zeros((H, W), np.float32)
@@ -2419,38 +2838,332 @@ def api_solar_flux_heatmap():
             g_out += seg * (g0 + t * (g1 - g0))
             b_out += seg * (b0 + t * (b1 - b0))
 
-        rgb = np.stack([r_out, g_out, b_out], axis=-1).clip(0, 255).astype(np.uint8)
-
-        # Alpha : 210 sur le bâtiment (légèrement transparent), 0 hors bâtiment
+        rgb   = np.stack([r_out, g_out, b_out], axis=-1).clip(0, 255).astype(np.uint8)
         alpha = np.where(valid_mask, 210, 0).astype(np.uint8)
         rgba  = np.dstack([rgb, alpha])
 
-        # ── 6. Encoder en PNG base64 ──────────────────────────────────────
+        # ── Crop serré au bbox des pixels valides ─────────────────────────────────
+        # → l'overlay Leaflet/Three.js aura exactement la taille du bâtiment,
+        #   quelle que soit la taille de l'image Google Solar brute.
+        rows_any = np.any(valid_mask, axis=1)
+        cols_any = np.any(valid_mask, axis=0)
+        if rows_any.any() and cols_any.any():
+            rmin, rmax = int(np.where(rows_any)[0][0]),  int(np.where(rows_any)[0][-1])
+            cmin, cmax = int(np.where(cols_any)[0][0]),  int(np.where(cols_any)[0][-1])
+            pad = 4  # 4 px de marge pour capturer les coins/protrusions fins
+            rmin = max(0, rmin - pad); rmax = min(H - 1, rmax + pad)
+            cmin = max(0, cmin - pad); cmax = min(W - 1, cmax + pad)
+            rgba = rgba[rmin:rmax + 1, cmin:cmax + 1]
+            # Recalculer le bbox géographique pour la portion croppée
+            bbox_north_out = bbox_north - rmin       / H * (bbox_north - bbox_south)
+            bbox_south_out = bbox_north - (rmax + 1) / H * (bbox_north - bbox_south)
+            bbox_west_out  = bbox_west  + cmin       / W * (bbox_east  - bbox_west)
+            bbox_east_out  = bbox_west  + (cmax + 1) / W * (bbox_east  - bbox_west)
+            print(f'  [flux-heatmap] crop: rows={rmin}:{rmax} cols={cmin}:{cmax} '
+                  f'→ {rgba.shape[1]}x{rgba.shape[0]}px '
+                  f'bbox N={bbox_north_out:.6f} S={bbox_south_out:.6f}')
+        else:
+            bbox_north_out, bbox_south_out = bbox_north, bbox_south
+            bbox_east_out,  bbox_west_out  = bbox_east,  bbox_west
+
         buf = io.BytesIO()
         PILImage.fromarray(rgba, mode='RGBA').save(buf, format='PNG')
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
-        print(f"🌡️ Flux heatmap: {W}x{H}px, flux=[{flux_min:.0f},{flux_max:.0f}] kWh/m²/an, quality={quality}")
+        # ── Image RGB co-enregistrée (même prise de vue que le flux) ─────────────
+        # → fond parfaitement aligné sous la heatmap (même GeoTIFF origin)
+        # Crop EXACT proportionnel au flux (pas de ±1 qui crée de la dérive).
+        _rgb_b64 = None
+        if _rgb_content:
+            try:
+                img_rgb = PILImage.open(io.BytesIO(_rgb_content)).convert('RGB')
+                arr_rgb = np.array(img_rgb)
+                # Même crop fractionnel que le flux, sans offset ±1
+                if rows_any.any() and cols_any.any():
+                    rH, rW = arr_rgb.shape[:2]
+                    # Ratios fractionnels exacts → même bbox_out que la heatmap
+                    _rmin_f = rmin / H;  _rmax_f = (rmax + 1) / H
+                    _cmin_f = cmin / W;  _cmax_f = (cmax + 1) / W
+                    _rmin_r = max(0,      int(round(_rmin_f * rH)))
+                    _rmax_r = min(rH - 1, int(round(_rmax_f * rH)))
+                    _cmin_r = max(0,      int(round(_cmin_f * rW)))
+                    _cmax_r = min(rW - 1, int(round(_cmax_f * rW)))
+                    arr_rgb = arr_rgb[_rmin_r:_rmax_r + 1, _cmin_r:_cmax_r + 1]
+                buf_rgb = io.BytesIO()
+                PILImage.fromarray(arr_rgb, 'RGB').save(buf_rgb, format='JPEG', quality=85)
+                _rgb_b64 = 'data:image/jpeg;base64,' + base64.b64encode(buf_rgb.getvalue()).decode('utf-8')
+                print(f'  [flux-heatmap] rgb: {arr_rgb.shape[1]}x{arr_rgb.shape[0]}px JPEG')
+            except Exception as e:
+                print(f'  [flux-heatmap] rgb fetch failed: {e}')
+        # ─────────────────────────────────────────────────────────────────────────
+
+        tiff_raw_range = f"{float(flux_arr.min()):.1f}–{float(flux_arr.max()):.1f}"
+
+        # ── Stats flux mensuel (12 valeurs moyennes sur pixels valides) ──────────
+        _MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+        monthly_means = None
+        if monthly_arr is not None:
+            try:
+                mH, mW = monthly_arr.shape[1], monthly_arr.shape[2]
+                if mH != H or mW != W:
+                    # Redimensionner chaque bande mensuelle à la résolution du flux annuel
+                    _bands_r = []
+                    for _bi in range(12):
+                        _pil_b = PILImage.fromarray(monthly_arr[_bi], mode='F')
+                        _pil_b = _pil_b.resize((W, H), PILImage.BILINEAR)
+                        _bands_r.append(np.array(_pil_b, dtype=np.float32))
+                    monthly_arr = np.stack(_bands_r, axis=0)
+                monthly_means = []
+                for _mi in range(12):
+                    _band = monthly_arr[_mi]
+                    _vals_m = _band[valid_mask & np.isfinite(_band) & (_band > 0)]
+                    monthly_means.append(round(float(np.mean(_vals_m)), 1) if len(_vals_m) > 0 else 0.0)
+                _peak_idx = int(np.argmax(monthly_means))
+                _low_idx  = int(np.argmin(monthly_means))
+                print(f'  [flux-heatmap] monthly means: {monthly_means}')
+                print(f'  [flux-heatmap] peak={_MONTHS_FR[_peak_idx]}({monthly_means[_peak_idx]:.0f}) '
+                      f'low={_MONTHS_FR[_low_idx]}({monthly_means[_low_idx]:.0f}) kWh/m²/mois')
+            except Exception as _e:
+                print(f'  [flux-heatmap] monthly stats failed: {_e}')
+
+        # ── Stats DSM (hauteurs de toiture) ──────────────────────────────────────
+        dsm_stats = None
+        _dsm_ground_alt = None                 # altitude absolue du sol (p5 du DSM)
+        if dsm_arr_raw is not None:
+            try:
+                dH, dW = dsm_arr_raw.shape
+                if dH != H or dW != W:
+                    _pil_dsm = PILImage.fromarray(dsm_arr_raw, mode='F')
+                    _pil_dsm = _pil_dsm.resize((W, H), PILImage.BILINEAR)
+                    dsm_resized = np.array(_pil_dsm, dtype=np.float32)
+                else:
+                    dsm_resized = dsm_arr_raw
+                # Filtre plage altitude raisonnable (France 0−9000m) — élimine overflows résiduels
+                _dsm_bld = dsm_resized[valid_mask & np.isfinite(dsm_resized) & (dsm_resized > 0) & (dsm_resized < 9000)]
+                if len(_dsm_bld) > 10:
+                    # Estimation sol = p5 du DSM sur l'empreinte (pixels de rive bas)
+                    _ground = float(np.percentile(_dsm_bld, 5))
+                    _dsm_ground_alt = _ground           # expose au code roof_segments ci-dessous
+                    _heights = np.clip(_dsm_bld - _ground, 0, None)
+                    def _sf(v):  # safe float : None si inf/nan
+                        f = float(v)
+                        return round(f, 1) if math.isfinite(f) else None
+                    dsm_stats = {
+                        'altitude_min_m':   _sf(_dsm_bld.min()),
+                        'altitude_max_m':   _sf(_dsm_bld.max()),
+                        'altitude_mean_m':  _sf(np.mean(_dsm_bld)),
+                        'ground_alt_m':     _sf(_ground),               # p5 = estimation sol
+                        'height_egout_m':   _sf(np.percentile(_heights, 10)),
+                        'height_faitage_m': _sf(np.percentile(_heights, 90)),
+                        'height_mean_m':    _sf(np.mean(_heights)),
+                    }
+                    print(f'  [flux-heatmap] DSM stats: {dsm_stats}')
+            except Exception as _e:
+                print(f'  [flux-heatmap] DSM stats failed: {_e}')
+
+        # ── Pans de toiture + dimensions bâtiment depuis buildingInsights ──────────
+        roof_segments   = []
+        solar_panels_data = []
+        api_panel_w_m   = 1.045
+        api_panel_h_m   = 1.879
+        solar_potential = {}
+        building_dims   = {}
+        if building_insights:
+            try:
+                sp = building_insights.get('solarPotential', {})
+                _mpc = sp.get('maxArrayPanelsCount')
+                _pcw = sp.get('panelCapacityWatts', 400)   # W par panneau
+                _max_kwp = round(_mpc * _pcw / 1000, 1) if _mpc else None
+
+                # Dimensions du bâtiment depuis la boundingBox de buildingInsights
+                _bb  = building_insights.get('boundingBox', {})
+                _sw  = _bb.get('sw', {}); _ne = _bb.get('ne', {})
+                _bb_s = float(_sw.get('latitude',  lat))
+                _bb_n = float(_ne.get('latitude',  lat))
+                _bb_w = float(_sw.get('longitude', lon))
+                _bb_e = float(_ne.get('longitude', lon))
+                _bld_l = round((_bb_n - _bb_s) * 111320.0, 1)                         # N-S en m
+                _bld_w = round((_bb_e - _bb_w) * 111320.0 * math.cos(math.radians(lat)), 1)  # E-W en m
+                _bld_fp = round(_bld_l * _bld_w, 0)                                   # empreinte bbox (approximative)
+
+                # Statistiques toiture globale
+                _wrs       = sp.get('wholeRoofStats', {})
+                _roof_area = _wrs.get('areaMeters2')
+                _wrs_q     = _wrs.get('sunshineQuantiles', [])
+                _roof_irr  = round(_wrs_q[len(_wrs_q)//2], 0) if _wrs_q else None  # irr médiane globale
+
+                building_dims = {
+                    'length_m':          _bld_l,
+                    'width_m':           _bld_w,
+                    'footprint_bbox_m2': _bld_fp,
+                    'bbox_gps':          {'s': _bb_s, 'n': _bb_n, 'w': _bb_w, 'e': _bb_e},
+                    'roof_total_m2':     round(_roof_area, 1) if _roof_area else None,
+                    'roof_usable_m2':    round(sp.get('maxArrayAreaMeters2') or 0, 1) or None,
+                    'max_panels':        _mpc,
+                    'panel_wc':          int(_pcw),
+                    'max_kwp':           _max_kwp,
+                    'sunshine_h_yr':     sp.get('maxSunshineHoursPerYear'),
+                    'roof_irr_med_kwh':  _roof_irr,
+                    'n_segments':        len(sp.get('roofSegmentStats', [])),
+                }
+
+                solar_potential = {
+                    'max_sunshine_hours':   building_dims['sunshine_h_yr'],
+                    'max_panel_count':      _mpc,
+                    'max_area_m2':          building_dims['roof_usable_m2'],
+                    'max_kwp':              _max_kwp,
+                    'carbon_offset_kg_mwh': sp.get('carbonOffsetFactorKgPerMwh'),
+                }
+
+                def _az_to_dir(az):
+                    az = az % 360
+                    for limit, label in [(22.5,'N'),(67.5,'NE'),(112.5,'E'),(157.5,'SE'),
+                                         (202.5,'S'),(247.5,'SO'),(292.5,'O'),(337.5,'NO'),(360,'N')]:
+                        if az < limit: return label
+                    return 'N'
+
+                # ── Conversion absolute → relative de planeHeightAtCenterMeters ─────
+                # planeHeightAtCenterMeters est une ALTITUDE ABSOLUE (au-dessus du
+                # niveau de la mer).  Le frontend attend une hauteur RELATIVE au sol.
+                # On soustrait l'altitude du sol (DSM p5 si disponible, sinon on l'estime
+                # depuis le minimum des altitudes de centre - hauteur de mur DSM).
+                _all_center_h = [s.get('planeHeightAtCenterMeters') for s in sp.get('roofSegmentStats', [])
+                                 if s.get('planeHeightAtCenterMeters')]
+                if _dsm_ground_alt is not None:
+                    _h_ground_abs = _dsm_ground_alt        # sol DSM (p5) — le plus fiable
+                elif _all_center_h:
+                    _eave_est = (dsm_stats or {}).get('height_egout_m') or 3.0
+                    _h_ground_abs = min(_all_center_h) - _eave_est  # fallback
+                else:
+                    _h_ground_abs = 0.0
+                print(f'  [flux-heatmap] h_ground_abs={_h_ground_abs:.1f}m  '
+                      f'dsm_ground={_dsm_ground_alt}  '
+                      f'min_center_h={min(_all_center_h) if _all_center_h else "N/A"}')
+
+                for i, seg in enumerate(sp.get('roofSegmentStats', [])):
+                    pitch   = seg.get('pitchDegrees')
+                    azimuth = seg.get('azimuthDegrees')
+                    height_abs = seg.get('planeHeightAtCenterMeters')
+                    # Convertir altitude absolue → hauteur relative au sol
+                    height_rel = (height_abs - _h_ground_abs) if height_abs is not None else None
+                    stats   = seg.get('stats', {})
+                    area    = stats.get('areaMeters2')
+                    sunshine_q = stats.get('sunshineQuantiles', [])
+                    irr_min = round(sunshine_q[0],  0) if sunshine_q else None
+                    irr_max = round(sunshine_q[-1], 0) if sunshine_q else None
+                    irr_med = round(sunshine_q[len(sunshine_q)//2], 0) if sunshine_q else None
+                    # Dimensions + bbox géo du pan (pour reconstruction 3D)
+                    _sb  = seg.get('boundingBox', {})
+                    _ssw = _sb.get('sw', {}); _sne = _sb.get('ne', {})
+                    _seg_l = None; _seg_w = None
+                    _seg_sw_geo = None; _seg_ne_geo = None
+                    if _ssw and _sne:
+                        _seg_sw_geo = {'lat': float(_ssw.get('latitude', 0)), 'lon': float(_ssw.get('longitude', 0))}
+                        _seg_ne_geo = {'lat': float(_sne.get('latitude', 0)), 'lon': float(_sne.get('longitude', 0))}
+                        _seg_l = round((_seg_ne_geo['lat'] - _seg_sw_geo['lat']) * 111320.0, 1)
+                        _seg_w = round((_seg_ne_geo['lon'] - _seg_sw_geo['lon']) * 111320.0 * math.cos(math.radians(lat)), 1)
+                    roof_segments.append({
+                        'id':          i + 1,
+                        'orig_idx':    i,          # index 0-based dans roofSegmentStats (pour solar_panels.segmentIndex)
+                        'pitch_deg':   round(pitch,   1) if pitch   is not None else None,
+                        'azimuth_deg': round(azimuth, 1) if azimuth is not None else None,
+                        'orientation': _az_to_dir(azimuth) if azimuth is not None else None,
+                        'height_m':    round(height_rel, 1) if height_rel is not None else None,
+                        'area_m2':     round(area,    1) if area    is not None else None,
+                        'seg_l_m':     _seg_l,
+                        'seg_w_m':     _seg_w,
+                        'seg_sw':      _seg_sw_geo,
+                        'seg_ne':      _seg_ne_geo,
+                        'irr_min_kwh': irr_min,
+                        'irr_med_kwh': irr_med,
+                        'irr_max_kwh': irr_max,
+                    })
+                roof_segments.sort(key=lambda s: s.get('area_m2') or 0, reverse=True)
+
+                # ── Panneaux individuels Google Solar (positions GPS exactes) ─────
+                api_panel_w_m = sp.get('panelWidthMeters',  1.045)
+                api_panel_h_m = sp.get('panelHeightMeters', 1.879)
+                for _p in sp.get('solarPanels', []):
+                    _pc = _p.get('center', {})
+                    _plat = _pc.get('latitude')
+                    _plon = _pc.get('longitude')
+                    if _plat is not None and _plon is not None:
+                        solar_panels_data.append({
+                            'lat':         _plat,
+                            'lon':         _plon,
+                            'orientation': _p.get('orientation', 'LANDSCAPE'),  # PORTRAIT | LANDSCAPE
+                            'seg_idx':     _p.get('segmentIndex', 0),            # 0-based → roofSegmentStats
+                            'irr_kwh':     round(_p.get('yearlyEnergyDcKwh', 0), 0),
+                        })
+                print(f'  [flux-heatmap] {len(roof_segments)} pans  bld={_bld_l}x{_bld_w}m  {len(solar_panels_data)} solar_panels GPS')
+            except Exception as _e:
+                print(f'  [flux-heatmap] roof_segments failed: {_e}')
+
+        # Sanitize : remplacer tout inf/nan par None pour JSON valide
+        def _jf(v):
+            if v is None: return None
+            f = float(v)
+            return round(f, 1) if math.isfinite(f) else None
+        def _jfr(v, d=0):
+            if v is None: return None
+            f = float(v)
+            return round(f, d) if math.isfinite(f) else None
+
+        flux_min  = _jfr(flux_min,  0) or 0.0
+        flux_max  = _jfr(flux_max,  0) or 0.0
+        flux_mean = _jfr(flux_mean, 0) or 0.0
+        color_min = _jfr(color_min, 0) or 0.0
+        color_max = _jfr(color_max, 0) or 0.0
+        if monthly_means:
+            monthly_means = [_jf(v) or 0.0 for v in monthly_means]
+        if dsm_stats:
+            dsm_stats = {k: _jf(v) for k, v in dsm_stats.items()}
 
         return jsonify({
-            "success":      True,
-            "quality":      quality,
-            "pixel_size_m": pixel_size_m,
-            "flux_min":     round(flux_min,  0),
-            "flux_max":     round(flux_max,  0),
-            "color_min":    round(color_min, 0),
-            "color_max":    round(color_max, 0),
-            "flux_mean":    round(flux_mean, 0),
-            "imagery_date": layers.get('imageryDate'),
-            "bbox": {
-                "north": bbox_north,
-                "south": bbox_south,
-                "east":  bbox_east,
-                "west":  bbox_west
+            'success': True, 'quality': quality, 'pixel_size_m': pixel_size_m,
+            'flux_min':   round(flux_min, 0),
+            'flux_max':   round(flux_max, 0),
+            'flux_mean':  round(flux_mean, 0),
+            'color_min':  round(color_min, 0),
+            'color_max':  round(color_max, 0),
+            'n_valid':    int(len(valid)),
+            'tiff_raw_range': tiff_raw_range,
+            'imagery_date': layers.get('imageryDate'),
+            'layers_available': {
+                'annual_flux':   bool(flux_url),
+                'monthly_flux':  bool(monthly_flux_url),
+                'dsm':           bool(dsm_url),
+                'mask':          bool(mask_url),
+                'rgb':           bool(rgb_url),
             },
-            "image_base64": img_b64
+            # Flux mensuel : [Jan, Fév, Mar, Avr, Mai, Jun, Jul, Aoû, Sep, Oct, Nov, Déc] kWh/m²/mois
+            'monthly_flux':   monthly_means,
+            'month_labels':   _MONTHS_FR if monthly_means else None,
+            'month_peak':     _MONTHS_FR[int(np.argmax(monthly_means))] if monthly_means else None,
+            'month_low':      _MONTHS_FR[int(np.argmin(monthly_means))] if monthly_means else None,
+            # DSM — hauteurs de toiture
+            'dsm_stats':      dsm_stats,
+            'roof_segments':   roof_segments,
+            'solar_panels':    solar_panels_data,
+            'api_panel_w_m':   api_panel_w_m,
+            'api_panel_h_m':   api_panel_h_m,
+            'building_dims':   building_dims,
+            'solar_potential': solar_potential,
+            'building_center': ({'lat': float(building_insights['center']['latitude']),
+                                  'lon': float(building_insights['center']['longitude'])}
+                                 if building_insights and building_insights.get('center') else
+                                 {'lat': lat, 'lon': lon}),
+            'bbox': {'north': bbox_north_out, 'south': bbox_south_out,
+                     'east':  bbox_east_out,  'west':  bbox_west_out},
+            'diag': {
+                'api_bbox_m': f'{api_w_m:.0f}x{api_h_m:.0f}',
+                'px_real_m':  f'{px_w_m:.3f}x{px_h_m:.3f}',
+                'H_W': f'{H}x{W}',
+                'pixel_size_native_m': pixel_size_m
+            },
+            'image_base64': img_b64,
+            'rgb_base64':   _rgb_b64,
         })
-
     except requests.exceptions.Timeout:
         return jsonify({"error": "Timeout Google Solar (30s)", "error_code": "TIMEOUT"}), 504
     except Exception as e:
@@ -2458,6 +3171,10 @@ def api_solar_flux_heatmap():
         return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
 # ──────────────────────────────────────────────────────────────
 
+
+# ──────────────────────────────────────────────────────────────
+# API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
+# ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/3d-data', methods=['GET'])
 def api_lidar_3d_data():
     """
@@ -2561,71 +3278,79 @@ def api_lidar_3d_data():
         else:
             sr_offsets = [(0, 0)]
         
-        # Assemblage : pour chaque offset, on récupère la grille complète
+        # Assemblage : téléchargement PARALLÈLE de toutes les tuiles WMS
+        # (toutes passes SR × toutes tuiles × MNS+MNT en une seule vague)
         mns_grids = []
         mnt_grids = []
-        
-        for sr_idx, (d_lat, d_lon) in enumerate(sr_offsets):
-            mns_grid = np.zeros((base_grid_size, base_grid_size), dtype=np.float32)
-            mnt_grid = np.zeros((base_grid_size, base_grid_size), dtype=np.float32)
-            tiles_ok_sr = 0
-            
-            for ty in range(nb_tiles):
-                for tx in range(nb_tiles):
-                    t_south = south + ty * lat_step + d_lat
-                    t_north = south + (ty + 1) * lat_step + d_lat
-                    t_west = west + tx * lon_step + d_lon
-                    t_east = west + (tx + 1) * lon_step + d_lon
-                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
-                    
-                    wms_params = {
-                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                        "CRS": "EPSG:4326", "BBOX": t_bbox,
-                        "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
-                        "FORMAT": "image/tiff", "STYLES": ""
-                    }
-                    
-                    try:
-                        r_mns = requests.get(wms_url, params={
-                            **wms_params,
-                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-                        }, timeout=12)
-                        
-                        r_mnt = requests.get(wms_url, params={
-                            **wms_params,
-                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-                        }, timeout=12)
-                        
-                        if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
-                            'image' in r_mns.headers.get('content-type', '')):
-                            
-                            mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
-                            mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
-                            
-                            if mns_tile.shape != (tile_pixel_size, tile_pixel_size):
-                                mns_tile = np.array(PILImage.fromarray(mns_tile).resize(
-                                    (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
-                            if mnt_tile.shape != (tile_pixel_size, tile_pixel_size):
-                                mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize(
-                                    (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
-                            
-                            py = (nb_tiles - 1 - ty) * tile_pixel_size
-                            px = tx * tile_pixel_size
-                            mns_grid[py:py+tile_pixel_size, px:px+tile_pixel_size] = mns_tile
-                            mnt_grid[py:py+tile_pixel_size, px:px+tile_pixel_size] = mnt_tile
-                            tiles_ok_sr += 1
-                            
-                    except Exception as te:
-                        print(f"  ⚠ Tuile [{ty},{tx}] SR offset {sr_idx} erreur: {te}")
-            
-            if tiles_ok_sr > 0:
-                mns_grids.append(mns_grid)
-                mnt_grids.append(mnt_grid)
-                if sr_idx == 0:
-                    tiles_ok = tiles_ok_sr
-                    tiles_total = nb_tiles * nb_tiles
-            
-            print(f"  📡 SR pass {sr_idx+1}/{len(sr_offsets)}: {tiles_ok_sr}/{nb_tiles**2} tuiles OK")
+
+        from concurrent.futures import ThreadPoolExecutor as _WmsTPE
+
+        def _fetch_wms(args):
+            """Télécharge une seule tuile WMS, retourne (key, content_or_None)."""
+            key, params = args
+            try:
+                r = requests.get(wms_url, params=params, timeout=15)
+                if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
+                    return key, r.content
+            except Exception as _e:
+                print(f"  ⚠ WMS {key}: {_e}")
+            return key, None
+
+        # Construire toutes les requêtes à lancer
+        _wms_tasks = []
+        for _si, (_d_lat, _d_lon) in enumerate(sr_offsets):
+            for _ty in range(nb_tiles):
+                for _tx in range(nb_tiles):
+                    _t_bbox = (f"{south + _ty * lat_step + _d_lat},"
+                               f"{west  + _tx * lon_step + _d_lon},"
+                               f"{south + (_ty+1)*lat_step + _d_lat},"
+                               f"{west  + (_tx+1)*lon_step + _d_lon}")
+                    _base = {"SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                             "CRS": "EPSG:4326", "BBOX": _t_bbox,
+                             "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
+                             "FORMAT": "image/tiff", "STYLES": ""}
+                    _wms_tasks.append(((_si, _ty, _tx, 'mns'),
+                                       {**_base, "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"}))
+                    _wms_tasks.append(((_si, _ty, _tx, 'mnt'),
+                                       {**_base, "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"}))
+
+        # Lancer toutes les requêtes en parallèle
+        with _WmsTPE(max_workers=min(32, len(_wms_tasks))) as _pool:
+            _wms_results = dict(_pool.map(_fetch_wms, _wms_tasks))
+
+        # Réassembler les grilles par passe SR
+        _sr_data = {_si: {
+            'mns': np.zeros((base_grid_size, base_grid_size), dtype=np.float32),
+            'mnt': np.zeros((base_grid_size, base_grid_size), dtype=np.float32),
+            'ok': 0
+        } for _si in range(len(sr_offsets))}
+
+        for (_si, _ty, _tx, _layer), _content in _wms_results.items():
+            if _content is None:
+                continue
+            try:
+                _tile = np.array(PILImage.open(io.BytesIO(_content)), dtype=np.float32)
+                if _tile.shape != (tile_pixel_size, tile_pixel_size):
+                    _tile = np.array(PILImage.fromarray(_tile).resize(
+                        (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                _py = (nb_tiles - 1 - _ty) * tile_pixel_size
+                _px = _tx * tile_pixel_size
+                _sr_data[_si][_layer][_py:_py+tile_pixel_size, _px:_px+tile_pixel_size] = _tile
+                if _layer == 'mns':
+                    _sr_data[_si]['ok'] += 1
+            except Exception as _pe:
+                print(f"  ⚠ Décodage tuile [{_ty},{_tx}] SR{_si} {_layer}: {_pe}")
+
+        tiles_ok = 0
+        tiles_total = nb_tiles * nb_tiles
+        for _si in range(len(sr_offsets)):
+            _g = _sr_data[_si]
+            if _g['ok'] > 0:
+                mns_grids.append(_g['mns'])
+                mnt_grids.append(_g['mnt'])
+                if _si == 0:
+                    tiles_ok = _g['ok']
+            print(f"  📡 SR pass {_si+1}/{len(sr_offsets)}: {_g['ok']}/{nb_tiles**2} tuiles OK")
         
         if len(mns_grids) > 0:
             if use_superres and len(mns_grids) == 4:
@@ -3791,7 +4516,7 @@ def api_ai_roof_type():
         try:
             client = Groq(api_key=groq_key)
         except TypeError:
-            # Groq SDK >= 0.9 raises TypeError if HTTP_PROXY env var injects 'proxies' kwarg
+            # Groq SDK >= 0.9 raises TypeError si HTTP_PROXY env var injecte 'proxies'
             client = Groq(api_key=groq_key, http_client=httpx.Client())
         
         prompt = """Analyse cette image satellite aérienne d'un bâtiment vu du dessus.
@@ -4028,7 +4753,7 @@ def api_hta_diagnostic():
         "timestamp": datetime.now().isoformat(),
         "department_requested": department,
         "enedis_module_status": ENEDIS_MODULE_OK,
-        "api_version": AGRIWEB_HTA_VERSION
+        "api_version": HeliaPV_HTA_VERSION
     }
     
     if not ENEDIS_MODULE_OK:
@@ -4154,7 +4879,7 @@ def create_demo_accounts():
         {
             'email': 'admin@test.com',
             'name': 'Administrateur',
-            'company': 'AgriWeb Demo',
+            'company': 'HeliaPV Demo',
             'password': 'admin123',
             'subscription_status': 'active'
         },
@@ -4538,7 +5263,7 @@ def health_check():
     """Endpoint de santé pour Railway"""
     return jsonify({
         "status": "healthy",
-        "service": "AgriWeb",
+        "service": "HeliaPV",
         "timestamp": datetime.now().isoformat(),
         "geoserver_url": GEOSERVER_URL
     }), 200
@@ -4888,7 +5613,7 @@ LOGIN_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌾 AgriWeb 2.0 - Connexion</title>
+    <title>🌾 HeliaPV - Connexion</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -4952,7 +5677,7 @@ LOGIN_TEMPLATE = """
 <body>
     <div class="container">
         <div class="logo">
-            <h1>🌾 AgriWeb 2.0</h1>
+            <h1>🌾 HeliaPV</h1>
             <p>Solution d'analyse agricole professionnelle</p>
         </div>
         
@@ -4996,7 +5721,7 @@ REGISTER_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📝 Inscription - AgriWeb 2.0</title>
+    <title>📝 Inscription - HeliaPV</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -5055,7 +5780,7 @@ REGISTER_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>📝 Inscription AgriWeb 2.0</h1>
+        <h1>📝 Inscription HeliaPV</h1>
         
         <div class="trial-info">
             <h3>🆓 Essai Gratuit Inclus</h3>
@@ -5183,7 +5908,7 @@ def register_legacy():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Inscription - AgriWeb 2.0</title>
+    <title>🚀 Inscription - HeliaPV</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -5269,7 +5994,7 @@ def register_legacy():
 </head>
 <body>
     <div class="register-container">
-        <div class="logo">🚀 AgriWeb 2.0</div>
+        <div class="logo">🚀 HeliaPV</div>
         <h2 style="text-align: center; color: #333; margin-bottom: 2rem;">Créer un compte</h2>
         
         <form method="POST" action="/register">
@@ -5388,7 +6113,7 @@ def login_legacy():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Connexion - AgriWeb 2.0</title>
+    <title>🔐 Connexion - HeliaPV</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -5475,7 +6200,7 @@ def login_legacy():
 </head>
 <body>
     <div class="login-container">
-        <div class="logo">🔐 AgriWeb 2.0</div>
+        <div class="logo">🔐 HeliaPV</div>
         <h2 style="text-align: center; color: #333; margin-bottom: 2rem;">Connexion</h2>
         
         <form method="POST" action="/login">
@@ -5658,7 +6383,7 @@ def profile():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Profil - AgriWeb 2.0</title>
+        <title>Profil - HeliaPV</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     </head>
     <body>
@@ -5681,7 +6406,7 @@ def profile():
                             <p><strong>Fin d'essai:</strong> {{ user.trial_end_date[:10] }}</p>
                             <div class="alert alert-warning">
                                 <h5>🎯 Votre essai se termine bientôt !</h5>
-                                <p>Souscrivez à un abonnement pour continuer à utiliser AgriWeb 2.0.</p>
+                                <p>Souscrivez à un abonnement pour continuer à utiliser HeliaPV.</p>
                                 <a href="/subscribe" class="btn btn-primary">Voir les abonnements</a>
                             </div>
                             {% endif %}
@@ -5737,17 +6462,17 @@ def create_checkout_session():
         prices = {
             'basic': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Basic',
+                'name': 'HeliaPV - Plan Basic',
                 'amount': 3500,  # 35€ en centimes
             },
             'professional': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Professionnel',
+                'name': 'HeliaPV - Plan Professionnel',
                 'amount': 19900,  # 199€ en centimes
             },
             'team': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Team',
+                'name': 'HeliaPV - Plan Team',
                 'amount': 29900,  # 299€ en centimes
             }
         }
@@ -5770,7 +6495,7 @@ def create_checkout_session():
                         'currency': 'eur',
                         'product_data': {
                             'name': plan_config['name'],
-                            'description': 'Accès mensuel à la plateforme AgriWeb Pro'
+                            'description': 'Accès mensuel à la plateforme HeliaPV'
                         },
                         'unit_amount': plan_config['amount'],
                     },
@@ -6165,7 +6890,7 @@ def qr_code_page():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code - AgriWeb</title>
+    <title>QR Code - HeliaPV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -6200,7 +6925,7 @@ def qr_code_page():
         <div class="qr-card">
             <div class="mb-4">
                 <h1 class="text-success mb-2">
-                    <i class="fas fa-seedling me-2"></i>AgriWeb
+                    <i class="fas fa-seedling me-2"></i>HeliaPV
                 </h1>
                 <p class="text-muted">Partagez votre application facilement</p>
             </div>
@@ -6208,7 +6933,7 @@ def qr_code_page():
             <div class="mb-4">
                 <img src="data:image/png;base64,{{ qr_code }}" 
                      class="qr-image" 
-                     alt="QR Code AgriWeb">
+                     alt="QR Code HeliaPV">
             </div>
             
             <div class="mb-4">
@@ -6217,7 +6942,7 @@ def qr_code_page():
                     <li class="mb-2">📱 <strong>Ouvrez l'appareil photo</strong> de votre téléphone</li>
                     <li class="mb-2">🎯 <strong>Pointez vers le QR code</strong> ci-dessus</li>
                     <li class="mb-2">🔗 <strong>Appuyez sur la notification</strong> qui apparaît</li>
-                    <li class="mb-2">🌾 <strong>Accédez directement</strong> à AgriWeb !</li>
+                    <li class="mb-2">🌾 <strong>Accédez directement</strong> à HeliaPV !</li>
                 </ol>
             </div>
             
@@ -6251,8 +6976,8 @@ def qr_code_page():
         function shareQR() {
             if (navigator.share) {
                 navigator.share({
-                    title: 'AgriWeb - Application Agricole',
-                    text: 'Découvrez AgriWeb, l\\'application pour l\\'agriculture moderne',
+                    title: 'HeliaPV - Application Agricole',
+                    text: 'Découvrez HeliaPV, l\\'application pour l\\'agriculture moderne',
                     url: '{{ app_url }}'
                 });
             } else {
@@ -6265,7 +6990,7 @@ def qr_code_page():
         
         function downloadQR() {
             const link = document.createElement('a');
-            link.download = 'AgriWeb_QRCode.png';
+            link.download = 'HeliaPV_QRCode.png';
             link.href = 'data:image/png;base64,{{ qr_code }}';
             link.click();
         }
@@ -6346,11 +7071,11 @@ def index_original():
                          is_admin=is_admin,
                          current_user=current_user)
 
-# Interface complète AgriWeb (après authentification)
+# Interface complète HeliaPV (après authentification)
 @app.route("/app")
 @require_auth
 def app_interface():
-    """Interface complète AgriWeb - Nécessite authentification
+    """Interface complète HeliaPV - Nécessite authentification
     
     Accepte les paramètres d'URL suivants pour zoom automatique:
     - lat: latitude du point à centrer
@@ -6426,7 +7151,7 @@ def auth():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🔐 Connexion - AgriWeb</title>
+        <title>🔐 Connexion - HeliaPV</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
@@ -6502,7 +7227,7 @@ def auth():
     </head>
     <body>
         <div class="login-container">
-            <div class="logo">🔐 AgriWeb</div>
+            <div class="logo">🔐 HeliaPV</div>
             
             <div class="demo-notice">
                 💡 <strong>En développement :</strong> L'authentification sera bientôt disponible. 
@@ -11217,7 +11942,7 @@ def search_by_commune():
         import os
         from flask import request as _r
         debug_stack = (
-            os.environ.get("AGRIWEB_DEBUG_STACK", "0") == "1" or
+            os.environ.get("HeliaPV_DEBUG_STACK", "0") == "1" or
             _r.args.get("debug_stack") == "1"
         )
     except Exception:
@@ -11228,7 +11953,7 @@ def search_by_commune():
         for line in lines:
             pass # print("    " + line.strip())  # Optimisé pour performance
     # else:
-        # #  print(f"📞 [CALL  # Optimisé pour performance #{call_id}] Stack trace désactivée (set AGRIWEB_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")  # Optimisé pour performance
+        # #  print(f"📞 [CALL  # Optimisé pour performance #{call_id}] Stack trace désactivée (set HeliaPV_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")  # Optimisé pour performance
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
     # ║                    CIRCUIT BREAKER ANTI-LOOP ULTRA-ROBUSTE              ║
@@ -17077,7 +17802,7 @@ def init_crm_database():
     conn = sqlite3.connect(crm_db_path)
     cursor = conn.cursor()
     
-    # Créer la table pour les prospects AgriWeb dans la base KPI
+    # Créer la table pour les prospects HeliaPV dans la base KPI
     print(f"📊 [CRM] Initialisation table agriweb_prospects dans {crm_db_path}")
     
     cursor.execute('''
@@ -19536,23 +20261,26 @@ def admin_dashboard():
 @require_admin
 def admin_view_user(user_id):
     """Voir les détails d'un utilisateur"""
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("""
-        SELECT id, email, username, subscription_status, created_at, last_login, trial_end_date
+        SELECT id, email, name, subscription_status, created_at, last_login, trial_end_date
         FROM users WHERE id = ?
     """, (user_id,))
     
     user = c.fetchone()
     if not user:
+        conn.close()
         return "Utilisateur non trouvé", 404
     
     # Sessions de l'utilisateur
     c.execute("""
         SELECT created_at, ip_address, user_agent, expires_at
-        FROM sessions WHERE user_id = ?
+        FROM user_sessions WHERE user_id = ?
         ORDER BY created_at DESC LIMIT 10
     """, (user_id,))
     sessions = c.fetchall()
+    conn.close()
     
     return render_template_string("""
     <!DOCTYPE html>
@@ -19632,7 +20360,7 @@ def admin_view_user(user_id):
             }
             
             function extendTrial() {
-                if (confirm('Prolonger l\'essai de 7 jours ?')) {
+                if (confirm("Prolonger l'essai de 7 jours ?")) {
                     fetch('/admin/user/{{ user[0] }}/extend-trial', {method: 'POST'})
                     .then(response => response.json())
                     .then(data => {
@@ -19726,20 +20454,23 @@ def admin_create_user():
 @require_admin
 def admin_delete_user(user_id):
     """Supprimer un utilisateur"""
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     
     # Vérifier que ce n'est pas un compte admin/demo
     c.execute("SELECT email FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
     
     if user and user[0] in ['admin@test.com', 'demo@test.com']:
+        conn.close()
         return jsonify({'error': 'Impossible de supprimer les comptes système'}), 400
     
     # Supprimer les sessions
-    c.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    c.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
     # Supprimer l'utilisateur
     c.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     
     return jsonify({'success': True, 'message': 'Utilisateur supprimé'})
 
@@ -19759,9 +20490,11 @@ def admin_reset_password(user_id):
     hashed_password = pbkdf2_sha256.hash(new_password)
     
     # Mettre à jour en base
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user_id))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     
     return jsonify({
         'success': True, 
@@ -19778,13 +20511,15 @@ def admin_extend_trial(user_id):
     # Nouvelle date de fin d'essai (+7 jours)
     new_trial_end = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
     
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("""
         UPDATE users 
         SET trial_end_date = ?, subscription_status = 'trial'
         WHERE id = ?
     """, (new_trial_end, user_id))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     
     return jsonify({
         'success': True,
@@ -19798,9 +20533,10 @@ def admin_export_users():
     import csv
     from io import StringIO
     
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     c.execute("""
-        SELECT email, username, subscription_status, subscription_plan, created_at, last_login, stripe_customer_id
+        SELECT email, name, subscription_status, subscription_plan, created_at, last_login, stripe_customer_id
         FROM users ORDER BY created_at DESC
     """)
     
@@ -19946,9 +20682,11 @@ def admin_system_check():
     
     try:
         # Test base de données
-        c = get_db_connection().cursor()
+        conn = get_auth_db()
+        c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM users")
         c.fetchone()
+        conn.close()
     except:
         status['database'] = 'Erreur'
         status['status'] = 'ERREUR'
@@ -19970,14 +20708,16 @@ def admin_logs():
 # Fonction pour créer un utilisateur admin au démarrage
 def create_admin_user():
     """Créer un utilisateur admin si nécessaire"""
-    c = get_db_connection().cursor()
+    conn = get_auth_db()
+    c = conn.cursor()
     
     # Vérifier si admin existe déjà
     c.execute("SELECT id FROM users WHERE email = 'admin@test.com'")
     if c.fetchone():
         # Mettre à jour pour s'assurer qu'il est admin
         c.execute("UPDATE users SET is_admin = 1 WHERE email = 'admin@test.com'")
-        c.connection.commit()
+        conn.commit()
+        conn.close()
         return
     
     # Créer l'utilisateur admin
@@ -19985,10 +20725,11 @@ def create_admin_user():
     admin_password = pbkdf2_sha256.hash('admin123')
     
     c.execute("""
-        INSERT INTO users (email, username, password_hash, subscription_status, is_admin, created_at)
+        INSERT INTO users (email, name, password_hash, subscription_status, is_admin, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
     """, ('admin@test.com', 'Administrateur', admin_password, 'active', 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-    c.connection.commit()
+    conn.commit()
+    conn.close()
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
 
 # Template pour la page de sélection des plans
@@ -19998,7 +20739,7 @@ SUBSCRIPTION_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plans d'abonnement - AgriWeb Pro</title>
+    <title>Plans d'abonnement - HeliaPV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -20027,7 +20768,7 @@ SUBSCRIPTION_TEMPLATE = """
 <body>
     <div class="container py-5">
         <div class="text-center mb-5 text-white">
-            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan AgriWeb Pro</h1>
+            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan HeliaPV</h1>
             <p class="lead mb-4">Accédez à l'analyse territoriale la plus avancée pour vos projets agricoles et énergétiques</p>
             <div class="trial-badge d-inline-block">
                 <i class="fas fa-gift me-2"></i>7 jours d'essai gratuit sur tous les plans
@@ -20156,7 +20897,7 @@ ADMIN_STRIPE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Stripe - AgriWeb Pro Admin</title>
+    <title>Dashboard Stripe - HeliaPV Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -20743,7 +21484,7 @@ def send_to_kpi():
                 "risques_detail": risques
             },
             "date_collecte": datetime.now().isoformat(),
-            "source": "AgriWeb Prospection"
+            "source": "HeliaPVspection"
         }
         
         # ÉTAPE 4: Créer un résumé texte
@@ -20794,7 +21535,7 @@ CONTRAINTES:
 - Risques identifiés: {sum([len(v) if isinstance(v, list) else (1 if v else 0) for v in dossier['contraintes_environnementales']['risques'].values()])}
 - Zones protégées: ZNIEFF1={dossier['contraintes_environnementales']['zones_protegees']['znieff_type1']}, ZNIEFF2={dossier['contraintes_environnementales']['zones_protegees']['znieff_type2']}
 
-Source: AgriWeb - Collecte automatique le {datetime.now().strftime('%d/%m/%Y %H:%M')}
+Source: HeliaPV - Collecte automatique le {datetime.now().strftime('%d/%m/%Y %H:%M')}
 Coordonnées: {lat}, {lon}
 """
             }
@@ -20888,7 +21629,7 @@ def kpi_sync_page():
 @app.route("/api/get_agriweb_prospects")
 def get_agriweb_prospects():
     """
-    Récupère tous les prospects depuis AgriWeb (éleveurs + entreprises)
+    Récupère tous les prospects depuis HeliaPV (éleveurs + entreprises)
     Format standardisé pour envoi vers KPI
     """
     try:
@@ -21772,7 +22513,7 @@ if __name__ == "__main__":
         if host == "127.0.0.1":
             Timer(1, open_browser).start()
             
-        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
+        print(f"🚀 Démarrage HeliaPV sur {host}:{port}")
         
         # Lancer le serveur Flask
         app.run(host=host, port=port, debug=False)

@@ -1,5 +1,5 @@
 """
-Routes CRM pour AgriWeb - Adaptées pour Railway avec PostgreSQL
+Routes CRM pour HeliaPV - Adaptées pour Railway avec PostgreSQL
 Toutes les connexions SQLite ont été converties pour utiliser database_adapter
 Multi-tenant: chaque utilisateur ne voit que ses propres prospects/projets (admin voit tout)
 """
@@ -122,7 +122,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             # Créer les 11 étapes du workflow
             # L'étape 1 (Rapport) est marquée comme terminée car l'export provient d'un rapport
             etapes_autoconso = [
-                ('Rapport de recherche AgriWeb', 1),
+                ('Rapport de recherche HeliaPV', 1),
                 ('Visite technique', 2),
                 ('Calepinage', 3),
                 ('Étude d\'autoconsommation', 4),
@@ -197,7 +197,7 @@ def register_crm_routes(app):
     
     @app.route('/crm')
     def crm_dashboard():
-        """Page de lancement du CRM AgriWeb - Version web"""
+        """Page de lancement du CRM HeliaPV - Version web"""
         user_id, is_admin = get_current_crm_user()
         return render_template('crm_web.html', is_admin=is_admin)
 
@@ -211,7 +211,7 @@ def register_crm_routes(app):
 
     @app.route('/crm/desktop')
     def crm_desktop():
-        """Page de lancement du CRM AgriWeb - Version desktop (Tkinter)"""
+        """Page de lancement du CRM HeliaPV - Version desktop (Tkinter)"""
         return render_template('crm_redirect.html')
 
     @app.route('/crm/calendrier')
@@ -467,7 +467,7 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/launch', methods=['POST'])
     def crm_launch():
-        """Lance l'application CRM AgriWeb (désactivé sur Railway)"""
+        """Lance l'application CRM HeliaPV (désactivé sur Railway)"""
         return jsonify({
             'success': False,
             'message': 'Fonctionnalité disponible uniquement en version desktop'
@@ -1145,7 +1145,7 @@ def register_crm_routes(app):
                     ))
                     print(f"✅ [PROJECT UPDATE] Fiche projet {project_id} mise à jour avec le rapport")
                     
-                    # Marquer l'étape "Rapport de recherche AgriWeb" comme terminée
+                    # Marquer l'étape "Rapport de recherche HeliaPV" comme terminée
                     execute_query('''
                         UPDATE project_etapes 
                         SET statut = 'termine', 
@@ -1183,7 +1183,7 @@ def register_crm_routes(app):
                         
                         # Créer les étapes du workflow pour ce nouveau projet
                         etapes_autoconso = [
-                            ('Rapport de recherche AgriWeb', 1),
+                            ('Rapport de recherche HeliaPV', 1),
                             ('Visite technique', 2),
                             ('Calepinage', 3),
                             ('Étude d\'autoconsommation', 4),
@@ -1565,7 +1565,7 @@ def register_crm_routes(app):
             
             # Créer les étapes du workflow autoconsommation
             etapes_autoconso = [
-                ('Rapport de recherche AgriWeb', 1),
+                ('Rapport de recherche HeliaPV', 1),
                 ('Visite technique', 2),
                 ('Calepinage', 3),
                 ('Étude d\'autoconsommation', 4),
@@ -2381,7 +2381,126 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
-    
+
+    # ========================================
+    # ROUTES AUTOCONSOMMATION
+    # ========================================
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/autoconsommation', methods=['POST'])
+    def calculate_autoconsommation(prospect_id):
+        """
+        Calcul complet d'autoconsommation solaire.
+        Agrège la production PVGIS de toutes les zones et la superpose
+        au profil de consommation Enedis choisi.
+
+        Body JSON attendu :
+          zones            : [{lat, lon, inclinaison, orientation, puissance_kw, zone_numero}, ...]
+          consommation_kwh : float  – consommation annuelle (kWh)
+          profil_type      : str    – RES1|RES2|PRO1|PRO2|AGR|ENT
+          tarif_achat      : float  – € / kWh (optionnel, défaut 0.2516)
+          tarif_revente    : float  – € / kWh surplus (optionnel, défaut 0.1276)
+        """
+        try:
+            from autoconsommation import (
+                get_consumption_profile,
+                compute_autoconsommation,
+                compute_economics,
+                PROFILE_LABELS,
+            )
+
+            data = request.json or {}
+            zones             = data.get('zones', [])
+            consommation_kwh  = float(data.get('consommation_kwh', 0))
+            profil_type       = data.get('profil_type', 'RES1').upper()
+            tarif_achat       = float(data.get('tarif_achat',   0.2516))
+            tarif_revente     = float(data.get('tarif_revente', 0.1276))
+
+            if not zones:
+                return jsonify({'error': 'Aucune zone fournie'}), 400
+            if consommation_kwh <= 0:
+                return jsonify({'error': 'Consommation annuelle invalide'}), 400
+
+            # ── 1. Récupérer la production PVGIS 8760h pour chaque zone ─────────
+            combined_wh = [0.0] * 8760
+            zones_ok = []
+
+            for zone in zones:
+                lat        = zone.get('lat') or zone.get('latitude')
+                lon        = zone.get('lon') or zone.get('longitude') or zone.get('lng')
+                tilt       = float(zone.get('inclinaison', 30))
+                azimuth    = float(zone.get('orientation', 180))
+                puissance  = float(zone.get('puissance_kw', 1.0))
+                zone_num   = zone.get('zone_numero', zone.get('numero', 1))
+
+                if not lat or not lon:
+                    continue
+
+                pvgis = get_pvgis_hourly(lat, lon, tilt, azimuth, puissance)
+                if pvgis is None:
+                    continue
+
+                hourly = pvgis.get('outputs', {}).get('hourly', [])
+                if len(hourly) < 8760:
+                    continue
+
+                # PVGIS renvoie P en W (puissance instantanée = énergie Wh sur l'heure)
+                for i, entry in enumerate(hourly[:8760]):
+                    combined_wh[i] += float(entry.get('P', 0))
+
+                zones_ok.append({
+                    'zone_numero': zone_num,
+                    'puissance_kw': puissance,
+                    'lat': lat, 'lon': lon,
+                    'inclinaison': tilt, 'orientation': azimuth,
+                })
+
+            if not zones_ok:
+                return jsonify({'error': 'Aucune donnée PVGIS disponible pour les zones fournies'}), 500
+
+            # ── 2. Calcul autoconsommation ────────────────────────────────────────
+            result = compute_autoconsommation(
+                hourly_production_wh=combined_wh,
+                annual_consumption_kwh=consommation_kwh,
+                profile_type=profil_type,
+            )
+
+            # ── 3. Calcul économique ──────────────────────────────────────────────
+            economics = compute_economics(
+                kpis=result['kpis'],
+                tarif_achat_kwh=tarif_achat,
+                prix_revente_kwh=tarif_revente,
+            )
+
+            return jsonify({
+                'success'      : True,
+                'zones_traitees': zones_ok,
+                'profil_type'  : profil_type,
+                'profil_label' : PROFILE_LABELS.get(profil_type, profil_type),
+                'monthly'      : result['monthly'],
+                'daily_profiles': result['daily_profiles'],
+                'kpis'         : result['kpis'],
+                'economics'    : economics,
+            })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/autoconsommation/profils', methods=['GET'])
+    def get_profils_liste():
+        """Retourne la liste des profils de consommation disponibles."""
+        try:
+            from autoconsommation import PROFILE_LABELS
+            return jsonify({
+                'profils': [
+                    {'code': k, 'label': v}
+                    for k, v in PROFILE_LABELS.items()
+                ]
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     # ========================================
     # ROUTES VISITE TECHNIQUE
     # ========================================
@@ -2494,7 +2613,7 @@ def register_crm_routes(app):
                     
                     # Créer les étapes
                     etapes_autoconso = [
-                        ('Rapport de recherche AgriWeb', 1),
+                        ('Rapport de recherche HeliaPV', 1),
                         ('Visite technique', 2),
                         ('Calepinage', 3),
                         ('Étude d\'autoconsommation', 4),
@@ -2586,7 +2705,8 @@ def register_crm_routes(app):
                 print(f"[CALPINAGE PAGE] data_json est vide/None")
                 prospect_dict['data_json'] = {}
             
-            return render_template('calpinage_pv.html', prospect=prospect_dict)
+            _, is_admin = get_current_crm_user()
+            return render_template('calpinage_pv.html', prospect=prospect_dict, is_admin=is_admin)
             
         except Exception as e:
             import traceback
@@ -2678,7 +2798,7 @@ def register_crm_routes(app):
                         
                         # Créer les étapes du workflow
                         etapes_autoconso = [
-                            ('Rapport de recherche AgriWeb', 1),
+                            ('Rapport de recherche HeliaPV', 1),
                             ('Visite technique', 2),
                             ('Calepinage', 3),
                             ('Étude d\'autoconsommation', 4),
@@ -2968,7 +3088,7 @@ def register_crm_routes(app):
             
             # Pied de page
             c.setFont("Helvetica-Oblique", 8)
-            c.drawString(2*cm, 1.5*cm, "AgriWeb - Étude de faisabilité photovoltaïque")
+            c.drawString(2*cm, 1.5*cm, "HeliaPV - Étude de faisabilité photovoltaïque")
             c.drawString(width - 6*cm, 1.5*cm, f"Page 1/1")
             
             # Finaliser le PDF
@@ -3080,7 +3200,8 @@ def register_crm_routes(app):
                         'marque': schema.onduleur['marque'],
                         'puissance_ac': schema.onduleur['p_ac'],
                         'puissance_dc_max': schema.onduleur['p_dc_max'],
-                        'tension_max': schema.onduleur['v_max'],
+                        'tension_min': schema.onduleur.get('v_min', 150),   # FIX #5c
+                        'tension_max': schema.onduleur.get('v_max', 1000),
                         'nb_mppt': schema.onduleur['mppt']
                     })
                 
@@ -4126,7 +4247,7 @@ def register_autoconso_routes(app):
             url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
             headers = {
                 'Accept': 'application/json',
-                'User-Agent': 'AgriWeb/1.0'
+                'User-Agent': 'HeliaPV/1.0'
             }
             
             response = requests.get(url, headers=headers, timeout=5)
@@ -4174,7 +4295,7 @@ def register_autoconso_routes(app):
             url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
             headers = {
                 'Accept': 'application/json',
-                'User-Agent': 'AgriWeb/1.0'
+                'User-Agent': 'HeliaPV/1.0'
             }
             
             response = requests.get(url, headers=headers, timeout=5)
@@ -4240,7 +4361,7 @@ def register_autoconso_routes(app):
             }
             headers = {
                 'Accept': 'application/json',
-                'User-Agent': 'AgriWeb/2.0'
+                'User-Agent': 'HeliaPV/2.0'
             }
             
             response = requests.get(url, params=params, headers=headers, timeout=10)
@@ -4682,8 +4803,8 @@ def register_autoconso_routes(app):
 
     # ========== API LiDAR 3D pour visualisation bâtiment ==========
     
-    @app.route('/api/lidar/3d-data')
-    def api_lidar_3d_data():
+    @app.route('/api/crm/lidar/3d-data')
+    def api_lidar_3d_data_crm():
         """
         Retourne les données 3D complètes pour un point GPS :
         - Terrain heightmap (MNS-MNT via WMS GeoTIFF)

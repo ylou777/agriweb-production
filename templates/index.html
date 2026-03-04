@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgriWeb</title>
+  <title>HeliaPV</title>
   <!-- Polices et styles externes -->
   <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -86,22 +86,31 @@
 
     /* === SIDEBAR HEADER === */
     .sidebar-header {
-      padding: 20px 24px 16px;
+      padding: 10px 16px 10px;
       border-bottom: 1px solid var(--c-border);
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: space-between;
+      gap: 8px;
       flex-shrink: 0;
     }
     .sidebar-brand {
-      font-size: 1.15rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      color: var(--c-text);
       flex-grow: 1;
+      display: flex;
+      align-items: center;
     }
-    .sidebar-brand span {
-      color: var(--c-accent);
+    .sidebar-brand-text {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f7971e;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+    }
+    .sidebar-brand-text .brand-icon {
+      font-size: 1.3rem;
     }
 
     /* === NAVIGATION PILLS === */
@@ -446,13 +455,18 @@
     <div id="sidebar">
       <!-- Header -->
       <div class="sidebar-header">
-        <div class="sidebar-brand"><span>Agri</span>Web</div>
-        <button id="closeSidebarBtn" class="btn-close text-reset" type="button"></button>
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-text"><span class="brand-icon">☀️</span> HeliaPV</span>
+        </div>
+        <button id="closeSidebarBtn" class="btn-close text-reset" type="button" style="filter:invert(1);opacity:0.6;"></button>
       </div>
 
       <!-- Navigation pills -->
       <div class="nav-pills-row">
         <a href="/crm" target="_blank" class="nav-pill"><i class="bi bi-folder2-open"></i> Projets</a>
+        {% if is_admin %}
+        <a href="/ao-pv-batiment" target="_blank" class="nav-pill" style="border-color:rgba(247,151,30,0.5);color:#f7971e;"><i class="bi bi-sun-fill"></i> AO PV</a>
+        {% endif %}
         {% if is_admin %}
         <a href="/crm/stats" target="_blank" class="nav-pill"><i class="bi bi-bar-chart-line"></i> KPI</a>
         <a href="/admin" target="_blank" class="nav-pill" style="border-color:rgba(241,196,15,0.4);color:#f1c40f;"><i class="bi bi-shield-lock"></i> Admin</a>

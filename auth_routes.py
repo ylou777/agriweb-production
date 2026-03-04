@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Routes d'authentification améliorées avec confirmation email
-AgriWeb 2025
+HeliaPV 2025
 """
 
 from flask import Blueprint, request, jsonify, render_template_string, redirect, session, make_response
@@ -255,7 +255,7 @@ def register_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inscription - AgriWeb Pro</title>
+    <title>Inscription - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -264,7 +264,7 @@ def register_form():
     <div class="auth-card wide">
         <div class="text-center" style="margin-bottom:1.6rem">
             <div class="auth-icon"><i class="bi bi-rocket-takeoff"></i></div>
-            <div class="auth-brand"><span class="gold">AgriWeb</span> Pro</div>
+            <div class="auth-brand"><span class="gold">HeliaPV</span> Pro</div>
             <p class="auth-subtitle">Créez votre compte pour accéder à toutes les fonctionnalités</p>
         </div>
         <form method="POST" action="/auth/register">
@@ -368,7 +368,7 @@ def login_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - AgriWeb Pro</title>
+    <title>Connexion - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -377,7 +377,7 @@ def login_form():
     <div class="auth-card">
         <div class="text-center" style="margin-bottom:1.8rem">
             <div class="auth-icon"><i class="bi bi-shield-lock-fill"></i></div>
-            <div class="auth-brand"><span class="gold">AgriWeb</span> Pro</div>
+            <div class="auth-brand"><span class="gold">HeliaPV</span> Pro</div>
             <p class="auth-subtitle">Connectez-vous à votre espace</p>
         </div>
         <form method="POST" action="/auth/login">
@@ -538,7 +538,7 @@ SUCCESS_PAGE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - AgriWeb Pro</title>
+    <title>{{ title }} - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -565,7 +565,7 @@ ERROR_PAGE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - AgriWeb Pro</title>
+    <title>{{ title }} - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -595,7 +595,7 @@ def reset_password_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Réinitialiser le mot de passe - AgriWeb Pro</title>
+    <title>Réinitialiser le mot de passe - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -647,7 +647,7 @@ def reset_password_request():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email envoyé - AgriWeb Pro</title>
+    <title>Email envoyé - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -696,7 +696,7 @@ def new_password_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nouveau mot de passe - AgriWeb Pro</title>
+    <title>Nouveau mot de passe - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -760,7 +760,7 @@ def new_password_submit():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mot de passe modifié - AgriWeb Pro</title>
+    <title>Mot de passe modifié - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>
@@ -798,7 +798,7 @@ RESET_ERROR_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - AgriWeb Pro</title>
+    <title>{{ title }} - HeliaPV</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>""" + AUTH_BASE_CSS + """</style>
 </head>

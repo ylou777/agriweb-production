@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" width="420" height="120">
+  <defs>
+    <radialGradient id="innerCircleH" cx="50%" cy="48%" r="50%">
+      <stop offset="0%"  stop-color="#3A1A6E"/>
+      <stop offset="100%" stop-color="#1A0840"/>
+    </radialGradient>
+    <radialGradient id="faceGradH" cx="50%" cy="40%" r="55%">
+      <stop offset="0%"  stop-color="#4ECDC4"/>
+      <stop offset="100%" stop-color="#1A8F88"/>
+    </radialGradient>
+    <linearGradient id="hairLH" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFD700"/>
+      <stop offset="60%" stop-color="#4ECDC4"/>
+      <stop offset="100%" stop-color="#2A0E5A"/>
+    </linearGradient>
+    <linearGradient id="hairRH" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#FFD700"/>
+      <stop offset="60%" stop-color="#E91E8C"/>
+      <stop offset="100%" stop-color="#2A0E5A"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFE566"/>
+      <stop offset="50%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#F5A623"/>
+    </linearGradient>
+    <linearGradient id="pvGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#4ECDC4"/>
+      <stop offset="100%" stop-color="#27AE60"/>
+    </linearGradient>
+    <filter id="textGlow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Fond noir/très sombre -->
+  <rect width="420" height="120" rx="14" fill="#0A0512"/>
+
+  <!-- ══ ICÔNE : soleil + visage (compact, 110x110 centré sur x=60) ══ -->
+  <g transform="translate(60,60) scale(0.22)">
+
+    <!-- Rayons solaires -->
+    <g>
+      <polygon points="0,-240 -22,-155 22,-155" fill="#FFD700"/>
+      <polygon points="115,-210 56,-138 100,-105" fill="#FFD700"/>
+      <polygon points="210,-115 138,-56 105,-100" fill="#FFD700"/>
+      <polygon points="240,0 155,-22 155,22" fill="#FFD700"/>
+      <polygon points="210,115 105,100 138,56" fill="#FFD700"/>
+      <polygon points="115,210 100,105 56,138" fill="#FFD700"/>
+      <polygon points="0,240 -22,155 22,155" fill="#FFD700"/>
+      <polygon points="-115,210 -56,138 -100,105" fill="#FFD700"/>
+      <polygon points="-210,115 -105,100 -138,56" fill="#FFD700"/>
+      <polygon points="-240,0 -155,22 -155,-22" fill="#FFD700"/>
+      <polygon points="-210,-115 -138,-56 -105,-100" fill="#FFD700"/>
+      <polygon points="-115,-210 -100,-105 -56,-138" fill="#FFD700"/>
+    </g>
+
+    <!-- Cercle blanc -->
+    <circle cx="0" cy="0" r="165" fill="white" stroke="#2A0E5A" stroke-width="5"/>
+    <!-- Fond intérieur -->
+    <circle cx="0" cy="0" r="158" fill="url(#innerCircleH)"/>
+    <ellipse cx="0" cy="110" rx="130" ry="60" fill="#F5A623" opacity="0.3"/>
+
+    <!-- Cheveux arrière gauche -->
+    <path d="M-90,50 Q-130,-30 -90,-120 Q-70,-70 -60,-30 Q-55,10 -75,50 Z" fill="url(#hairLH)" stroke="#2A0E5A" stroke-width="3"/>
+    <path d="M-100,-10 Q-150,-30 -170,-80 Q-130,-60 -100,-20 Z" fill="#FFD700" stroke="#2A0E5A" stroke-width="2"/>
+    <!-- Cheveux arrière droite -->
+    <path d="M90,50 Q130,-30 90,-120 Q70,-70 60,-30 Q55,10 75,50 Z" fill="url(#hairRH)" stroke="#2A0E5A" stroke-width="3"/>
+    <path d="M100,-10 Q150,-30 170,-80 Q130,-60 100,-20 Z" fill="#FFD700" stroke="#2A0E5A" stroke-width="2"/>
+
+    <!-- Cou -->
+    <path d="M-28,110 Q0,125 28,110 L22,75 Q0,82 -22,75 Z" fill="#2EBDB5" stroke="#2A0E5A" stroke-width="2.5"/>
+    <!-- Vêtement -->
+    <path d="M-55,130 Q0,115 55,130 Q40,150 0,155 Q-40,150 -55,130 Z" fill="#E91E8C" stroke="#2A0E5A" stroke-width="2.5"/>
+
+    <!-- Visage -->
+    <ellipse cx="0" cy="15" rx="85" ry="100" fill="url(#faceGradH)" stroke="#2A0E5A" stroke-width="4"/>
+    <!-- Reflet visage -->
+    <path d="M-60,-50 Q0,-65 60,-50" fill="none" stroke="#6EDDD6" stroke-width="3" opacity="0.4"/>
+
+    <!-- Bindi -->
+    <circle cx="0" cy="-50" r="6" fill="#E91E8C"/>
+    <circle cx="0" cy="-50" r="3" fill="white" opacity="0.7"/>
+
+    <!-- Ombres pommettes -->
+    <ellipse cx="-68" cy="10" rx="14" ry="10" fill="#1A8F88" opacity="0.35"/>
+    <ellipse cx="68" cy="10" rx="14" ry="10" fill="#1A8F88" opacity="0.35"/>
+
+    <!-- Sourcils -->
+    <path d="M-45,-25 Q-32,-32 -17,-28" fill="none" stroke="#2A0E5A" stroke-width="6" stroke-linecap="round"/>
+    <path d="M17,-28 Q32,-32 45,-25" fill="none" stroke="#2A0E5A" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Yeux gauche -->
+    <ellipse cx="-28" cy="2" rx="20" ry="13" fill="#2A0E5A" stroke="#2A0E5A" stroke-width="2"/>
+    <ellipse cx="-28" cy="2" rx="11" ry="10" fill="#8B4513"/>
+    <ellipse cx="-28" cy="2" rx="6" ry="6" fill="#3D1A00"/>
+    <circle cx="-23" cy="-2" r="3.5" fill="white" opacity="0.9"/>
+    <!-- Yeux droit -->
+    <ellipse cx="28" cy="2" rx="20" ry="13" fill="#2A0E5A" stroke="#2A0E5A" stroke-width="2"/>
+    <ellipse cx="28" cy="2" rx="11" ry="10" fill="#8B4513"/>
+    <ellipse cx="28" cy="2" rx="6" ry="6" fill="#3D1A00"/>
+    <circle cx="33" cy="-2" r="3.5" fill="white" opacity="0.9"/>
+
+    <!-- Nez -->
+    <path d="M-7,20 Q-9,42 -12,52 Q0,58 12,52 Q9,42 7,20 Z" fill="#1A8F88" opacity="0.6" stroke="#2A0E5A" stroke-width="1.5"/>
+    <ellipse cx="-11" cy="52" rx="8" ry="5" fill="#1A8F88" stroke="#2A0E5A" stroke-width="1.5"/>
+    <ellipse cx="11" cy="52" rx="8" ry="5" fill="#1A8F88" stroke="#2A0E5A" stroke-width="1.5"/>
+
+    <!-- Bouche -->
+    <path d="M-24,70 Q0,60 24,70 Q16,78 0,80 Q-16,78 -24,70 Z" fill="#E91E8C" stroke="#2A0E5A" stroke-width="2.5"/>
+    <path d="M-24,72 Q0,85 24,72" fill="none" stroke="#2A0E5A" stroke-width="2"/>
+    <path d="M-15,73 Q0,80 15,73" fill="none" stroke="#FF80C0" stroke-width="1.5" opacity="0.6"/>
+
+    <!-- Boucles d'oreilles -->
+    <circle cx="-95" cy="20" r="7" fill="none" stroke="#FFD700" stroke-width="3"/>
+    <circle cx="-95" cy="20" r="3" fill="#FFD700"/>
+    <circle cx="95" cy="20" r="7" fill="none" stroke="#FFD700" stroke-width="3"/>
+    <circle cx="95" cy="20" r="3" fill="#FFD700"/>
+
+    <!-- Mèches avant -->
+    <path d="M-34,-75 Q-40,-58 -36,-40" fill="none" stroke="#4ECDC4" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-18,-78 Q-22,-62 -20,-44" fill="none" stroke="#FFD700" stroke-width="4" stroke-linecap="round"/>
+    <path d="M0,-80 Q0,-64 0,-46" fill="none" stroke="#FFE566" stroke-width="5" stroke-linecap="round"/>
+    <path d="M18,-78 Q22,-62 20,-44" fill="none" stroke="#FFD700" stroke-width="4" stroke-linecap="round"/>
+    <path d="M34,-75 Q40,-58 36,-40" fill="none" stroke="#E91E8C" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- Anneau blanc cercle -->
+    <circle cx="0" cy="0" r="165" fill="none" stroke="white" stroke-width="10"/>
+    <circle cx="0" cy="0" r="160" fill="none" stroke="#2A0E5A" stroke-width="3"/>
+  </g>
+
+  <!-- ══ TEXTE HELIA ══ -->
+  <!-- Ombre text -->
+  <text x="123" y="56" font-family="'Arial Black', 'Impact', sans-serif" font-size="48"
+        font-weight="900" fill="#E91E8C" opacity="0.25" letter-spacing="5">HELIA</text>
+  <!-- Texte principal -->
+  <text x="121" y="54" font-family="'Arial Black', 'Impact', sans-serif" font-size="48"
+        font-weight="900" fill="url(#textGrad)" letter-spacing="5" filter="url(#textGlow)">HELIA</text>
+
+  <!-- Badge PV -->
+  <rect x="122" y="64" width="38" height="18" rx="4" fill="url(#pvGrad)"/>
+  <text x="141" y="77" font-family="Arial, sans-serif" font-size="11" font-weight="bold"
+        fill="white" text-anchor="middle" letter-spacing="1">PV</text>
+
+  <!-- Ligne séparatrice décorative -->
+  <line x1="170" y1="68" x2="400" y2="68" stroke="#FFD700" stroke-width="0.8" opacity="0.3"/>
+
+  <!-- Sous-titre -->
+  <text x="122" y="88" font-family="Georgia, serif" font-size="11" fill="#4ECDC4"
+        letter-spacing="3" font-style="italic">Assistante Solaire Agricole</text>
+
+  <!-- Tagline -->
+  <text x="122" y="105" font-family="Arial, sans-serif" font-size="8.5" fill="#F5A623"
+        opacity="0.7" letter-spacing="2">ÉNERGIE · MYTHOLOGIE · INNOVATION</text>
+</svg>

@@ -539,7 +539,15 @@ class Calpinage3DViewer {
         }
         
         // Marge depuis le bord du toit (acrotère, rive, etc.)
-        const marge = 0.30; // 30cm de marge depuis les bords
+        // Pour un toit plat avec acrotère (parapet), 80cm ; pour toit incliné, 30cm.
+        // Si le LiDAR a détecté un acrotère, on utilise sa largeur + 20cm de sécurité.
+        const isFlat = info.type === 'flat' || !info.type;
+        const marge = (() => {
+            if (this.roofPanelsInfo && this.roofPanelsInfo._acrotereWidth) {
+                return this.roofPanelsInfo._acrotereWidth + 0.20;
+            }
+            return isFlat ? 0.80 : 0.30;
+        })();
         
         const generatedZones = [];
         
@@ -580,28 +588,47 @@ class Calpinage3DViewer {
         
         const panels = info.panels;
         const opts = options || {};
-        const sunshineThresholdH = opts.sunshineThresholdH || 0;
-        const maxPowerKw         = (opts.maxPowerKw > 0 && isFinite(opts.maxPowerKw)) ? opts.maxPowerKw : Infinity;
-        const modulePowerW       = opts.modulePowerW || 400;
+        const sunshineThresholdH   = opts.sunshineThresholdH   || 0;
+        const sunshineThresholdMax  = (opts.sunshineThresholdMax > 0 && isFinite(opts.sunshineThresholdMax))
+                                      ? opts.sunshineThresholdMax : Infinity;
+        const maxPowerKw            = (opts.maxPowerKw > 0 && isFinite(opts.maxPowerKw)) ? opts.maxPowerKw : Infinity;
+        const modulePowerW          = opts.modulePowerW || 400;
 
         // Trier par ensoleillement décroissant — placer en priorité les meilleurs pans
         let indicesToProcess = panelIndices || panels.map((_, i) => i);
         indicesToProcess = [...indicesToProcess].sort((a, b) =>
             ((panels[b]?.sunshineAnnual || 0) - (panels[a]?.sunshineAnnual || 0))
         );
-        // Exclure pans sous le seuil (pans sans donnée sunshine conservés)
-        if (sunshineThresholdH > 0) {
-            indicesToProcess = indicesToProcess.filter(i =>
-                panels[i]?.sunshineAnnual === undefined ||
-                panels[i].sunshineAnnual >= sunshineThresholdH
-            );
+        // Filtrer par plage d'irradiance min–max
+        // Si sunshineAnnual est absent ET que rejectMissingData=true (données Solar présentes) → rejeter
+        // Si rejectMissingData=false (pas de données Solar) → conserver les pans sans irradiance
+        const rejectMissingData = opts.rejectMissingData === true;
+        if (sunshineThresholdH > 0 || isFinite(sunshineThresholdMax)) {
+            indicesToProcess = indicesToProcess.filter(i => {
+                const v = panels[i]?.sunshineAnnual;
+                if (v === undefined || v === null) return !rejectMissingData; // selon disponibilité données Solar
+                return v >= sunshineThresholdH && v <= sunshineThresholdMax;
+            });
             if (indicesToProcess.length === 0)
-                console.warn(`⚠️ Aucun pan au-dessus du seuil ${sunshineThresholdH} h/an`);
+                console.warn(`⚠️ Aucun pan dans la plage [${sunshineThresholdH}–${isFinite(sunshineThresholdMax) ? sunshineThresholdMax : '∞'}] kWh/m²/an`);
         }
 
         let totalModules = 0;
         let modulesRemaining = isFinite(maxPowerKw) ? Math.floor(maxPowerKw * 1000 / modulePowerW) : Infinity;
         let powerLimitReached = false;
+
+        // === Grille d'occupation inter-panneaux ===
+        // Évite les superpositions de modules entre panneaux Solar dont les polygon_2d
+        // se chevauchent ou sont adjacents. La résolution de cellule = demi-dimension
+        // minimale du module → deux modules à des positions identiques ou très proches
+        // partagent la même clé et seul le premier (meilleur pan en ensoleillement) est conservé.
+        const _occCellSize = Math.min(modAlong, modAcross) * 0.5;
+        const _occGrid = new Set();
+        const _occKey = (wx, wz) => {
+            const gx = Math.round(wx / _occCellSize);
+            const gz = Math.round(wz / _occCellSize);
+            return `${gx},${gz}`;
+        };
 
         indicesToProcess.forEach(pi => {
             if (powerLimitReached) return;
@@ -832,6 +859,11 @@ class Calpinage3DViewer {
                         if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
 
+                    // === Vérification anti-superposition inter-panneaux ===
+                    const _key = _occKey(worldX, worldZ);
+                    if (_occGrid.has(_key)) continue; // Cellule déjà occupée par un autre pan → skip
+                    _occGrid.add(_key);
+
                     // === Position et rotation du module 3D ===
                     const panel3d = new THREE.Mesh(
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
@@ -863,7 +895,7 @@ class Calpinage3DViewer {
                         // ── Positionnement OBB paramétrique (fallback) ──
                         const localX = worldX - _pivotX;
                         const localZ = worldZ - _pivotZ;
-                        panel3d.position.set(localX, 0.06, localZ);
+                        panel3d.position.set(localX, 0.25, localZ);
                         panel3d.rotation.y = -obb.angle;
                     }
 
@@ -965,22 +997,61 @@ class Calpinage3DViewer {
      * Construit les bâtiments 3D depuis BD TOPO et OSM
      */
     async _buildBuildings(data) {
-        // Supprimer les anciens bâtiments
+        // Préserver les meshes Solar si la heatmap est déjà active.
+        // _buildBuildings est rappelé après chaque mise à jour LiDAR/RANSAC ;
+        // sans cette protection, les quads Solar sont supprimés et remplacés
+        // par de nouveaux meshes RANSAC visibles.
+        const _solarSet = new Set([
+            ...(this._solarRoofMeshes  || []),
+            ...(this._solarPanelMeshes || []),
+        ]);
+        const _solarActive = _solarSet.size > 0;
+
+        // Supprimer les anciens bâtiments (sauf meshes Solar à préserver)
         this.buildings.forEach(b => {
+            if (_solarActive && _solarSet.has(b)) return;  // garder
             this.scene.remove(b);
             if (b.geometry) b.geometry.dispose();
             if (b.material) { if (Array.isArray(b.material)) b.material.forEach(m => m.dispose()); else b.material.dispose(); }
         });
-        this.buildings = [];
+        this.buildings = _solarActive
+            ? this.buildings.filter(b => _solarSet.has(b))
+            : [];
+        if (_solarActive) {
+            console.log(`ℹ️ _buildBuildings: Solar actif (${_solarSet.size} meshes) — conservés, RANSAC créés masqués`);
+        }
         
         const allBuildings = [];
         
         // BD TOPO buildings (prioritaire - ont hauteur réelle)
         if (data.buildings_bdtopo) {
             data.buildings_bdtopo.forEach((b, idx) => {
+                // === Hauteur corniche = hauteur réelle des murs (pour extrusion) ===
+                // altitude_toit_min = corniche/acrotère = sommet des murs sans le toit
+                let computedEave = null;
+                if (b.altitude_toit_min != null && b.altitude_sol_min != null) {
+                    const d = b.altitude_toit_min - b.altitude_sol_min;
+                    if (d > 1.0 && d < 80) computedEave = d;
+                }
+                // Fallback : 70% du faîtage (approximation corniche pour toit avec pente)
+                if (!computedEave && b.hauteur && b.hauteur > 1.0) computedEave = b.hauteur * 0.7;
+                if (!computedEave && b.nb_etages && b.nb_etages > 0) computedEave = b.nb_etages * 3.0;
+                if (!computedEave) computedEave = 6;
+
+                // === Hauteur faîtage (compat, non utilisée pour extrusion) ===
+                let computedH = null;
+                if (b.hauteur && b.hauteur > 1.0) computedH = b.hauteur;
+                else if (b.altitude_toit_max != null && b.altitude_sol_min != null) {
+                    const d = b.altitude_toit_max - b.altitude_sol_min;
+                    if (d > 1.0 && d < 80) computedH = d;
+                }
+                if (!computedH && b.nb_etages && b.nb_etages > 0) computedH = b.nb_etages * 3.0;
+                if (!computedH) computedH = computedEave;
+
                 allBuildings.push({
                     coords: b.coords,
-                    height: b.hauteur || 6,
+                    height: computedH,       // faîtage (non utilisé pour extrusion)
+                    height_eave: computedEave, // corniche → extrusion des murs
                     source: 'bdtopo',
                     _bdtopoIdx: idx,
                     usage: b.usage,
@@ -989,6 +1060,7 @@ class Calpinage3DViewer {
                     materiaux_murs: b.materiaux_murs,
                     alt_toit_min: b.altitude_toit_min,
                     alt_toit_max: b.altitude_toit_max,
+                    nb_etages: b.nb_etages,
                 });
             });
         }
@@ -1088,17 +1160,76 @@ class Calpinage3DViewer {
         const pvBuilding = selectedIdx >= 0 ? allBuildings[selectedIdx] : null;
         // Stocker les coordonnées géo du bâtiment PV pour le matching zone→pan
         this.pvBuildingCoords = pvBuilding ? pvBuilding.coords : null;
-        console.log(`🏗️ Construction du bâtiment PV (idx=${selectedIdx}, ${allBuildings.length} candidats)...`);
-        
-        let successCount = 0;
-        try {
-            await this._createBuilding3D(pvBuilding);
-            successCount = 1;
-        } catch(err) {
-            console.warn(`⚠ Bâtiment PV échoué:`, err.message);
+        console.log(`🏗️ Construction ${allBuildings.length} bâtiments (PV idx=${selectedIdx})...`);
+
+        // ═══════════════════════════════════════════════════════════════════
+        // FETCH PARALLÈLE Google Solar pour les bâtiments voisins
+        // Chaque bâtiment voisin reçoit ses propres roof_planes réels via
+        // /api/solar/roof-planes sur son centroïde — max 8 voisins pour ne
+        // pas surcharger l'API (le PV principal est déjà traité séparément)
+        // ═══════════════════════════════════════════════════════════════════
+        const MAX_NEIGHBOR_SOLAR = 8;
+        const neighborSolarMap = {}; // index → {roof_planes, building_center}
+
+        const neighborsToFetch = allBuildings
+            .map((b, i) => ({ b, i }))
+            .filter(({ i }) => i !== selectedIdx && allBuildings[i].source === 'bdtopo')
+            .slice(0, MAX_NEIGHBOR_SOLAR);
+
+        if (neighborsToFetch.length > 0) {
+            console.log(`🌞 Fetch Solar pour ${neighborsToFetch.length} bâtiments voisins...`);
+            const solarFetches = neighborsToFetch.map(async ({ b, i }) => {
+                try {
+                    const center = this._polygonCenter(b.coords);
+                    const resp = await fetch('/api/solar/roof-planes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: center.y, lon: center.x, wall_h: b.height || 6 }),
+                        signal: AbortSignal.timeout(12000),
+                    });
+                    if (!resp.ok) return;
+                    const d = await resp.json();
+                    if (d.success && d.roof_planes?.length) {
+                        neighborSolarMap[i] = { roof_planes: d.roof_planes, building_center: d.building_center };
+                        console.log(`✅ Solar voisin idx=${i}: ${d.roof_planes.length} plan(s)`);
+                    }
+                } catch (e) { /* timeout ou erreur réseau → LiDAR/fallback */ }
+            });
+            await Promise.allSettled(solarFetches);
         }
-        
-        console.log(`✅ ${successCount}/1 bâtiment PV créé`);
+
+        // Stocker la map pour que _createBuilding3D y accède
+        this._neighborSolarMap = neighborSolarMap;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // CONSTRUCTION 3D de TOUS les bâtiments
+        // Ordre : PV principal en premier (priorité affichage + roofPanelsInfo)
+        // puis tous les voisins
+        // ═══════════════════════════════════════════════════════════════════
+        let successCount = 0;
+
+        // 1. Bâtiment PV principal
+        if (pvBuilding) {
+            try {
+                await this._createBuilding3D(pvBuilding);
+                successCount++;
+            } catch(err) {
+                console.warn(`⚠ Bâtiment PV échoué:`, err.message);
+            }
+        }
+
+        // 2. Bâtiments voisins (tous sauf le PV)
+        for (let i = 0; i < allBuildings.length; i++) {
+            if (i === selectedIdx) continue;
+            try {
+                await this._createBuilding3D(allBuildings[i], i);
+                successCount++;
+            } catch(err) {
+                console.warn(`⚠ Bâtiment voisin idx=${i} échoué:`, err.message);
+            }
+        }
+
+        console.log(`✅ ${successCount}/${allBuildings.length} bâtiments créés`);
     }
     
     /**
@@ -1956,11 +2087,12 @@ class Calpinage3DViewer {
      * Utilise l'emprise polygonale réelle (ExtrudeGeometry) avec fallback BoxGeometry orientée.
      * Toit bi-pan (gable) par défaut pour les bâtiments résidentiels.
      */
-    async _createBuilding3D(buildingData) {
+    async _createBuilding3D(buildingData, neighborIdx = null) {
         const coords = buildingData.coords;
         if (!coords || coords.length < 3) return;
         
-        const height = buildingData.height || 6;
+        // Utiliser la hauteur de mur/corniche pour extrusion
+        const height = buildingData.height_eave || buildingData.height || 6;
         
         // Convertir toutes les coordonnées en espace local 3D
         let localCoords = coords.map(c => this._geoToLocal(c[1], c[0]));
@@ -1994,6 +2126,14 @@ class Calpinage3DViewer {
         const bh = Math.max(height, 2);
         const wallType = this._getWallType(buildingData);
         const roofType = this._getRoofType(buildingData);
+
+        // Mémoriser les paramètres du bâtiment principal (sans voisin)
+        // pour permettre l'injection ultérieure des toits Solar depuis la heatmap.
+        if (neighborIdx === null) {
+            this._mainBldgTerrainH  = terrainH;
+            this._mainBldgBh        = bh;
+            this._mainBldgRoofType  = roofType;
+        }
         
         // === Méthode 1 : ExtrudeGeometry depuis l'emprise polygonale réelle ===
         let mesh = null;
@@ -2023,17 +2163,23 @@ class Calpinage3DViewer {
             geo.rotateX(-Math.PI / 2);
             
             // Materials: group 0 = caps (haut/bas), group 1 = murs latéraux
-            // Cap couleur toiture (sera cachée par le toit en pente)
             const wallColorMap = {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
             };
-            // Cap : transparent - le toit en pente (OBB) le recouvre toujours
-            const capMat = new THREE.MeshLambertMaterial({
-                color: 0x666666,
+            // Couleur du toit plat selon matériau
+            const roofCapColorMap = {
+                tuile: 0xC8824A, ardoise: 0x708090, zinc: 0x8FA8A0,
+                metal: 0x9AAAB0, bac_acier: 0x8FA8A0, membrane: 0xB0B0A8,
+                gravier: 0xA8A090, beton: 0xB4B0A8, unknown: 0xB0A898
+            };
+            const capMat = new THREE.MeshPhongMaterial({
+                color: roofCapColorMap[roofType] || 0xB0A898,
+                specular: 0x111111,
+                shininess: roofType === 'zinc' || roofType === 'metal' ? 20 : 3,
                 transparent: true,
-                opacity: 0,
-                depthWrite: false,
+                opacity: 0.0, // Rendre le cap invisible pour ne pas interférer avec le toit Google Solar
+                depthWrite: false // Éviter les artefacts de profondeur
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
@@ -2058,7 +2204,7 @@ class Calpinage3DViewer {
             const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
             const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
             const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
-            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: 0.0, depthWrite: false });
             const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
             
             mesh = new THREE.Mesh(geo, [facadeMatSide, facadeMatSide, topMat, bottomMat, facadeMat, facadeMat]);
@@ -2068,260 +2214,26 @@ class Calpinage3DViewer {
         
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        mesh.userData = {
+            isMainBuilding: neighborIdx === null,
+            originalHeight: bh
+        };
         this.scene.add(mesh);
         this.buildings.push(mesh);
 
-        // ═══════════════════════════════════════════════════════════════════
-        // PRIORITÉ 0 : Toit depuis Google Solar buildingInsights
-        // building_hd injecté par _autoSolarRoofPlanes() après chargement terrain
-        // ═══════════════════════════════════════════════════════════════════
-        const _buildingHD    = this.lidarData?.building_hd;
-        // _isMainBldg: vrai si index BD TOPO correspond, OU si source DSM/COPC forcée (OSM buildings n'ont pas _bdtopoIdx)
-        const _isMainBldg    = _buildingHD && (
-            _buildingHD.building_index === buildingData._bdtopoIdx ||
-            _buildingHD._source === 'google_solar_dsm' ||
-            _buildingHD._source === 'google_solar_building_insights' ||
-            _buildingHD._source === 'copc'
-        );
-        let   usedRansac     = false;
-        if (_isMainBldg && Array.isArray(_buildingHD.roof_planes) && _buildingHD.roof_planes.length > 0) {
-            const _planes = _buildingHD.roof_planes;
-            const _bc     = _buildingHD.building_center;   // {lat, lon}
-            console.log(`�️ Toit Solar: ${_planes.length} plan(s) Google Solar disponibles`);
-            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
-            if (_rok) {
-                this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc, roofType);
-                // Compléter les coordonnées locales (pour matchZones…)
-                this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({ x: c.x, z: c.z }));
-                if (this.pvBuildingCoords && this.pvBuildingCoords.length) {
-                    const gc = this._polygonCenter ? this._polygonCenter(this.pvBuildingCoords)
-                                                   : { x: _bc.lon, y: _bc.lat };
-                    this.roofPanelsInfo.buildingCenterGeo = { lat: gc.y ?? _bc.lat, lng: gc.x ?? _bc.lon };
-                }
-                usedRansac = true;
-                console.log('✅ Toit Solar: rendu réussi — skip analyse paramétrique');
-                console.log('📐 Pans de toiture (Solar):', this.roofPanelsInfo);
-            }
-        }
-        if (usedRansac) return;
-
-        // === Toit : analyse LiDAR MNS pour forme réaliste ===
-        let roofAnalysis = null;
-        let hasPitchedRoof = false;
-        let ridgeExtra = 0;
-        let roofShape = 'flat'; // gable, hip, shed, flat, multi-gable, multi-shed
-        let nRidges = 1;
-        let usedDirectLidar = false; // Flag: toit rendu par maillage LiDAR direct
-        
-        // 1. Essayer l'analyse LiDAR MNS (la plus précise)
-        const roofPoints = this._sampleMNSOnBuilding(coords, buildingData._bdtopoIdx);
-        if (roofPoints) {
-            console.log(`📡 MNS: ${roofPoints.length} points échantillonnés sur le toit`);
-            try {
-                roofAnalysis = this._analyzeRoofShape(roofPoints, obb);
-            } catch (err) {
-                console.error('⚠️ Erreur analyse forme toit:', err);
-                roofAnalysis = null;
-            }
-            if (roofAnalysis && roofAnalysis.type !== 'flat') {
-                roofShape = roofAnalysis.type;
-                ridgeExtra = roofAnalysis.ridgeExtra;
-                hasPitchedRoof = true;
-                nRidges = roofAnalysis.nRidges || 1;
-                
-                // ═══ SWAP OBB si le faîtage suit l'axe court ═══
-                // Quand le faîtage longe shortDim, il faut réorienter l'OBB
-                // pour que le rendu et les calculs de pans soient corrects
-                if (roofAnalysis.ridgeAlongShort) {
-                    obb = {
-                        cx: obb.cx,
-                        cz: obb.cz,
-                        angle: obb.angle + Math.PI / 2,
-                        longDim: obb.shortDim,
-                        shortDim: obb.longDim,
-                    };
-                    console.log(`🔄 OBB pivoté : faîtage le long de l'axe court → longDim=${obb.longDim.toFixed(1)}m, shortDim=${obb.shortDim.toFixed(1)}m`);
-                }
-                
-                console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m, ridges=${nRidges}`);
-            }
-            
-            // ═══ ARBITRAGE IA : corriger le type LiDAR avec l'analyse vision ═══
-            if (this.aiRoofPromise) {
-                try {
-                    const aiResult = await this.aiRoofPromise;
-                    if (aiResult && aiResult.confidence >= 0.6) {
-                        const aiType = aiResult.roof_type;
-                        const lidarType = roofShape;
-                        
-                        // Si l'IA et le LiDAR divergent sur le type fondamental
-                        if (aiType !== lidarType) {
-                            // Cas critique : LiDAR dit hip (4 pans) mais IA dit gable (2 pans)
-                            if (aiType === 'gable' && lidarType === 'hip') {
-                                console.log(`🤖→🏠 IA corrige: hip → gable (conf=${aiResult.confidence})`);
-                                roofShape = 'gable';
-                                if (roofAnalysis) roofAnalysis.type = 'gable';
-                            }
-                            // LiDAR dit gable mais IA dit hip
-                            else if (aiType === 'hip' && lidarType === 'gable') {
-                                console.log(`🤖→🏠 IA corrige: gable → hip (conf=${aiResult.confidence})`);
-                                roofShape = 'hip';
-                                if (roofAnalysis) roofAnalysis.type = 'hip';
-                            }
-                            // LiDAR dit flat mais IA voit une pente
-                            else if (lidarType === 'flat' && ['gable', 'hip', 'shed'].includes(aiType)) {
-                                console.log(`🤖→🏠 IA détecte toit incliné (${aiType}) là où LiDAR voit flat`);
-                                roofShape = aiType;
-                                hasPitchedRoof = true;
-                                ridgeExtra = ridgeExtra || 1.5; // estimation par défaut
-                                if (roofAnalysis) roofAnalysis.type = aiType;
-                            }
-                            // Shed vs gable
-                            else if ((aiType === 'shed' && lidarType === 'gable') || (aiType === 'gable' && lidarType === 'shed')) {
-                                if (aiResult.confidence >= 0.75) {
-                                    console.log(`🤖→🏠 IA corrige: ${lidarType} → ${aiType} (conf=${aiResult.confidence})`);
-                                    roofShape = aiType;
-                                    if (roofAnalysis) roofAnalysis.type = aiType;
-                                }
-                            }
-                            else {
-                                console.log(`🤖 IA dit ${aiType} vs LiDAR ${lidarType} — on garde LiDAR (types trop différents)`);
-                            }
-                        } else {
-                            console.log(`🤖✅ IA confirme: ${aiType} (conf=${aiResult.confidence})`);
-                        }
-                    }
-                } catch (e) {
-                    console.warn('🤖 Erreur attente IA:', e.message);
-                }
-            }
-            
-            // ═══ MODE TOIT LiDAR DIRECT ═══
-            // Utilisé UNIQUEMENT quand :
-            //  1. Le toit est complexe (multi-gable, multi-shed) OU le fit paramétrique est mauvais
-            //  2. On a des données LiDAR HD (50cm) — PAS le WMS 1m qui est trop bruité
-            //  3. La densité de points est suffisante (≥ 3 pts/m²)
-            // Pour les toits simples (gable, hip, shed) bien détectés, le rendu paramétrique
-            // produit des surfaces lisses et correctes — le LiDAR direct crée du bruit.
-            const isComplexRoof = roofShape === 'multi-gable' || roofShape === 'multi-shed';
-            const hasHDData = !!(this.lidarData && this.lidarData.building_hd && 
-                this.lidarData.building_hd.building_index === buildingData._bdtopoIdx);
-            const buildingArea = obb.longDim * obb.shortDim;
-            const pointDensity = buildingArea > 0 ? roofPoints.length / buildingArea : 0;
-            const parametricFitPoor = roofAnalysis && roofAnalysis.bestR2 < 0.35;
-            
-            // Activer le LiDAR direct seulement si les conditions sont réunies
-            const useDirectLidar = hasPitchedRoof && hasHDData && pointDensity >= 3.0 &&
-                (isComplexRoof || parametricFitPoor);
-            
-            if (useDirectLidar) {
-                console.log(`🛰️ Direct LiDAR candidat: ${roofPoints.length} pts, densité=${pointDensity.toFixed(1)} pts/m², HD=${hasHDData}, complex=${isComplexRoof}, R²=${roofAnalysis?.bestR2?.toFixed(3)}`);
-                try {
-                    // Calculer la hauteur d'acrotère (percentile 10 du MNH = bord du toit)
-                    const sortedMNH = roofPoints.map(p => p.mnh).sort((a, b) => a - b);
-                    const eaveHeight = sortedMNH[Math.floor(sortedMNH.length * 0.10)];
-                    const roofBaseY = terrainH + eaveHeight;
-                    
-                    usedDirectLidar = this._createDirectLidarRoof(
-                        localCoords, obb, roofBaseY, roofPoints,
-                        roofType, wallType, eaveHeight
-                    );
-                    
-                    if (usedDirectLidar) {
-                        console.log(`✅ Mode toit LiDAR direct activé (${roofPoints.length} pts, eaveH=${eaveHeight.toFixed(1)}m)`);
-                    }
-                } catch (lidarErr) {
-                    console.warn('⚠️ Toit LiDAR direct échoué → fallback paramétrique:', lidarErr.message);
-                    usedDirectLidar = false;
-                }
-            } else if (hasPitchedRoof && roofPoints.length >= 20) {
-                console.log(`📐 Toit paramétrique préféré: type=${roofShape}, R²=${roofAnalysis?.bestR2?.toFixed(3)}, HD=${hasHDData}, densité=${pointDensity.toFixed(1)} pts/m²`);
-            }
-        }
-        
-        // ═══ FALLBACK PARAMÉTRIQUE (si LiDAR direct non utilisé) ═══
-        if (!usedDirectLidar) {
-            // 2. Fallback : données BD TOPO altitudes toit
-            if (!hasPitchedRoof && buildingData.alt_toit_min && buildingData.alt_toit_max &&
-                (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
-                hasPitchedRoof = true;
-                ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-                roofShape = 'gable';
-            }
-            
-            // 3. Fallback : tags OSM roof:shape
-            if (!hasPitchedRoof) {
-                if (buildingData.roof_shape === 'gabled') {
-                    hasPitchedRoof = true;
-                    roofShape = 'gable';
-                    ridgeExtra = obb.shortDim * 0.3;
-                } else if (buildingData.roof_shape === 'hipped') {
-                    hasPitchedRoof = true;
-                    roofShape = 'hip';
-                    ridgeExtra = obb.shortDim * 0.3;
-                }
-            }
-            
-            // 4. Fallback universel : toit gable par défaut pour tout bâtiment < 15m
-            if (!hasPitchedRoof && buildingData.roof_shape !== 'flat' && bh < 15) {
-                hasPitchedRoof = true;
-                roofShape = 'gable';
-                ridgeExtra = obb.shortDim * 0.25;
-            }
-            
-            if (hasPitchedRoof) {
-                ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
-                try {
-                    if (roofShape === 'multi-gable') {
-                        this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
-                    } else if (roofShape === 'multi-shed') {
-                        this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
-                    } else if (roofShape === 'hip') {
-                        this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-                    } else if (roofShape === 'shed') {
-                        this._createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, roofAnalysis?.ridgeOffset || 0);
-                    } else {
-                        this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-                    }
-                } catch (roofErr) {
-                    console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr);
-                    try {
-                        this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-                    } catch (e2) {
-                        console.error('⚠️ Fallback gable échoué aussi:', e2);
-                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
-                    }
-                }
-            } else {
-                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
-            }
-        }
-        
-        // === Calculer et stocker les informations des pans de toiture ===
-        // (l'analyse paramétrique reste utilisée pour le calcul des pans PV,
-        //  peu importe si le rendu est LiDAR direct ou paramétrique)
-        this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges, roofAnalysis);
-        
-        // Stocker l'OBB et les infos géométriques pour le matching zone→pan
-        this.roofPanelsInfo.buildingOBB = {
-            cx: obb.cx, cz: obb.cz,
-            angle: obb.angle,
-            longDim: obb.longDim,
-            shortDim: obb.shortDim
-        };
-        // Stocker les valeurs exactes utilisées pour le rendu 3D du bâtiment
-        // pour que autoFillRoofPanels place les modules à la même hauteur
-        this.roofPanelsInfo.buildingTerrainH = terrainH;
-        this.roofPanelsInfo.buildingWallH = bh;
-        // Stocker le polygone réel du bâtiment (coords locales) pour filtrer les modules
+        // Pas de toit construit ici — Google Solar API (applySolarRoofFromInsights) fournit le toit exclusivement.
+        // Le cap ExtrudeGeometry est transparent (opacity:0) → sommet des murs propre sans cap visible.
+        // roofPanelsInfo minimal (sera remplace par Solar quand heatmap chargee)
+        this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, 'flat', 0, bh, terrainH, false, roofType, 1, null);
+        this.roofPanelsInfo.buildingOBB         = { cx: obb.cx, cz: obb.cz, angle: obb.angle, longDim: obb.longDim, shortDim: obb.shortDim };
+        this.roofPanelsInfo.buildingTerrainH    = terrainH;
+        this.roofPanelsInfo.buildingWallH       = bh;
         this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({x: c.x, z: c.z}));
-        // Centre géo du bâtiment (lat/lon) pour comparaison avec les zones 2D
         if (this.pvBuildingCoords) {
             const bCenter = this._polygonCenter(this.pvBuildingCoords);
             this.roofPanelsInfo.buildingCenterGeo = { lat: bCenter.y, lng: bCenter.x };
         }
-        
-        console.log('📐 Pans de toiture:', this.roofPanelsInfo);
+        // Solar heatmap via applySolarRoofFromInsights() remplacera le cap plat
     }
     
     /**
@@ -4027,6 +3939,13 @@ class Calpinage3DViewer {
     _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
         if (!planes || planes.length === 0) return false;
 
+        // Si Solar a déjà injecté ses quads, masquer les meshes RANSAC à la création
+        // (évite l'écrasement visuel quand LiDAR HD arrive après la heatmap Solar)
+        const _solarActive = !!(this._solarRoofMeshes?.length > 0);
+        if (_solarActive) {
+            console.log('ℹ️ _buildRoofFromPlanes: Solar actif → nouveaux meshes RANSAC créés masqués');
+        }
+
         const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
@@ -4088,22 +4007,34 @@ class Calpinage3DViewer {
 
             if (positions.length < 9) continue;   // < 3 sommets
 
-            // Triangulation en éventail (valide pour convex hull)
-            const indices = [];
-            const n = expandedPoly.length;
-            for (let i = 1; i < n - 1; i++) indices.push(0, i, i + 1);
-            if (indices.length < 3) continue;
+            // Triangulation earcut (ShapeUtils) — robuste pour tout polygone
+            // Le fan-triangulation ne fonctionne que pour les polygones convexes
+            // parfaitement ordonnés ; earcut gère toute forme correctement.
+            let flatIndices;
+            try {
+                const shapeVerts2D = expandedPoly.map(([ex, ey]) => new THREE.Vector2(ex, ey));
+                const tris = THREE.ShapeUtils.triangulateShape(shapeVerts2D, []);
+                // tris = [[a,b,c], ...]
+                flatIndices = tris.reduce((acc, t) => { acc.push(...t); return acc; }, []);
+            } catch (_) {
+                // Fallback éventail
+                flatIndices = [];
+                for (let i = 1; i < expandedPoly.length - 1; i++) flatIndices.push(0, i, i + 1);
+            }
+            if (flatIndices.length < 3) continue;
+            const indices = flatIndices;
 
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
-            geo.setIndex(indices);
+            geo.setIndex(flatIndices);
             geo.computeVertexNormals();
 
             const mat = roofMat.clone();
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow    = true;
             mesh.receiveShadow = true;
+            mesh.visible = !_solarActive;
             mesh.userData = {
                 planId:    plane.plane_id,
                 slopeDeg:  plane.slope_deg,
@@ -4139,6 +4070,8 @@ class Calpinage3DViewer {
                 sGeo.computeVertexNormals();
                 const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
                 sMesh.castShadow = false;
+                sMesh.visible    = !_solarActive;
+                sMesh.userData   = { source: 'ransac' };
                 this.scene.add(sMesh);
                 this.buildings.push(sMesh);
             }
@@ -4148,6 +4081,312 @@ class Calpinage3DViewer {
             console.log(`✅ _buildRoofFromPlanes: ${nBuilt} pan(s) depuis ${planes.length} plan(s) RANSAC`);
         }
         return nBuilt > 0;
+    }
+
+    /**
+     * Injecte le toit Google Solar dans la vue 3D.
+     *
+     * Le toit = cap BD TOPO (ExtrudeGeometry) rendu visible à la bonne hauteur.
+     * Les panneaux individuels Google Solar (applyBuildingInsightsPanels3D)
+     * sont posés par-dessus avec position/tilt/azimuth corrects et montrent
+     * la géométrie inclinée réelle du toit.
+     *
+     * On ne crée AUCUNE géométrie de toit ici — le cap ExtrudeGeometry suffit.
+     * Les bboxes de segments se chevauchent → impossible d'en faire des plans corrects.
+     */
+    applySolarRoofFromInsights(segments, bldgCenter, dsmStats, buildingDims) {
+        if (!segments || segments.length === 0 || !bldgCenter) return;
+
+        // ── DIAGNOSTIC ────────────────────────────────────────────────────────────
+        const rawHeights = segments.map(s => s.height_m).filter(h => h != null);
+        const maxH = rawHeights.length ? Math.max(...rawHeights) : 0;
+        const minH = rawHeights.length ? Math.min(...rawHeights) : 0;
+        console.log(`🔍 [SOLAR ROOF] ${segments.length} segs, height_m=[${minH.toFixed(1)}..${maxH.toFixed(1)}]m, wallH=${this._mainBldgBh}`);
+
+        // ── GARDE-FOU : altitude absolue → relative ──────────────────────────────
+        if (minH > 50) {
+            const wallH_est = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
+            const groundEst = minH - wallH_est;
+            console.warn(`⚠️ [GUARD] height_m ABSOLU [${minH.toFixed(1)}..${maxH.toFixed(1)}] → sol≈${groundEst.toFixed(1)}m → conversion`);
+            for (const seg of segments) {
+                if (seg.height_m != null) seg.height_m = Math.max(seg.height_m - groundEst, 1);
+            }
+        }
+
+        // ── Masquer RANSAC ────────────────────────────────────────────────────────
+        this.buildings.forEach(m => {
+            if (m.userData?.source === 'ransac') m.visible = false;
+        });
+
+        // ── Nettoyage meshes Solar précédentes ────────────────────────────────────
+        if (this._solarRoofMeshes) {
+            this._solarRoofMeshes.forEach(m => {
+                this.scene.remove(m);
+                const idx = this.buildings.indexOf(m);
+                if (idx >= 0) this.buildings.splice(idx, 1);
+                m.geometry?.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+                else m.material?.dispose();
+            });
+        }
+        this._solarRoofMeshes = [];
+
+        // ── Constantes ────────────────────────────────────────────────────────────
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const wallH    = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
+
+        // ── Hauteur d'égout = min(height_m) ───────────────────────────────────────
+        const allH = segments.map(s => s.height_m).filter(h => h != null);
+        const eaveH = allH.length ? Math.max(Math.min(...allH), 2.0) : wallH;
+
+        // ── Ajuster murs BD TOPO + rendre le cap visible ──────────────────────────
+        const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
+        if (mainMesh) {
+            const scaleY = eaveH / mainMesh.userData.originalHeight;
+            if (Math.abs(scaleY - 1.0) > 0.02) {
+                mainMesh.scale.y = scaleY;
+                console.log(`📏 Murs: ${mainMesh.userData.originalHeight.toFixed(1)}m → ${eaveH.toFixed(1)}m (×${scaleY.toFixed(2)})`);
+            }
+            // Rendre le cap (face supérieure) VISIBLE — base du toit
+            if (Array.isArray(mainMesh.material) && mainMesh.material[0]) {
+                const capMat = mainMesh.material[0];
+                capMat.color.setHex(0x8A8078);
+                capMat.opacity = 1.0;
+                capMat.transparent = false;
+                capMat.depthWrite = true;
+                capMat.needsUpdate = true;
+            }
+        }
+
+        // ── Offset BD TOPO ↔ Google Solar ─────────────────────────────────────────
+        let offsetX = 0, offsetZ = 0;
+        if (this.roofPanelsInfo?.buildingCenterGeo && bldgCenter) {
+            const bdLat = this.roofPanelsInfo.buildingCenterGeo.lat;
+            const bdLon = this.roofPanelsInfo.buildingCenterGeo.lng;
+            const gsLat = bldgCenter.lat ?? bldgCenter.latitude;
+            const gsLon = bldgCenter.lon ?? bldgCenter.longitude;
+            if (gsLat != null && gsLon != null && bdLat != null && bdLon != null) {
+                offsetX = (bdLon - gsLon) * this.LNG_TO_M;
+                offsetZ = -(bdLat - gsLat) * this.LAT_TO_M;
+                if (Math.abs(offsetX) > 0.5 || Math.abs(offsetZ) > 0.5) {
+                    console.log(`🔧 Offset Solar→BD TOPO: X=${offsetX.toFixed(2)}m, Z=${offsetZ.toFixed(2)}m`);
+                }
+            }
+        }
+
+        // ── Mémoriser données ─────────────────────────────────────────────────────
+        this._solarBldgCenter = bldgCenter;
+        this._solarSegments   = segments;
+        this._solarDsmStats   = dsmStats;
+        this._solarOffset     = { x: offsetX, z: offsetZ };
+        this._hasSolarRoof    = true;
+
+        // ── Mettre à jour roofPanelsInfo ──────────────────────────────────────────
+        this._updateRoofPanelsInfoFromSolar(segments, dsmStats);
+
+        console.log(`🏠 Solar roof: cap BD TOPO visible à ${eaveH.toFixed(1)}m + panneaux Google Solar par-dessus`);
+    }
+
+    /**
+     * Met à jour roofPanelsInfo avec les données réelles des segments Google Solar.
+     * Corrige l'affichage "Toit plat" parasite et fournit les pentes réelles pour addModules3D.
+     */
+    _updateRoofPanelsInfoFromSolar(segments, dsmStats) {
+        if (!segments?.length) return;
+
+        const getOrientLabel = (deg) => {
+            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+            return dirs[Math.round(((deg % 360 + 360) % 360) / 45) % 8];
+        };
+
+        // Filtrer et trier les segments par surface décroissante
+        const validSegs = segments.filter(s => s.area_m2 > 0);
+        validSegs.sort((a, b) => (b.area_m2 || 0) - (a.area_m2 || 0));
+
+        const hasSlopes = validSegs.some(s => (s.pitch_deg ?? 0) > 2);
+        const nSloped = validSegs.filter(s => (s.pitch_deg ?? 0) > 2).length;
+
+        let typeLabel;
+        if (!hasSlopes) {
+            typeLabel = 'Toit plat';
+        } else if (nSloped === 1) {
+            typeLabel = 'Mono-pente (Solar API)';
+        } else if (nSloped === 2) {
+            typeLabel = 'Bi-pan (Solar API)';
+        } else {
+            typeLabel = `${validSegs.length} pans (Solar API)`;
+        }
+
+        const panels = validSegs.map((seg, idx) => {
+            const azDeg = seg.azimuth_deg ?? 0;
+            const pitDeg = seg.pitch_deg ?? 0;
+            const area = seg.area_m2 ?? 0;
+            // Estimer longueur/largeur depuis bbox si disponible
+            let longueur = seg.seg_l_m ?? '—';
+            let largeur = seg.seg_w_m ?? '—';
+            if (longueur !== '—') longueur = Math.round(longueur * 10) / 10;
+            if (largeur !== '—') largeur = Math.round(largeur * 10) / 10;
+
+            return {
+                name: `Pan Solar ${idx + 1}`,
+                longueur: longueur,
+                largeur: largeur,
+                surface: Math.round(area * 10) / 10,
+                pente_deg: Math.round(pitDeg * 10) / 10,
+                orientation_deg: Math.round(azDeg),
+                orientation_label: getOrientLabel(azDeg),
+                sunshineAnnual: seg.irr_med_kwh ?? undefined,
+                // Données brutes pour le matching zone → segment
+                _seg_sw: seg.seg_sw,
+                _seg_ne: seg.seg_ne,
+                _height_m: seg.height_m,
+                _seg_idx: seg.orig_idx ?? (seg.id - 1),
+            };
+        });
+
+        // Préserver les infos OBB existantes si disponibles
+        const existingOBB = this.roofPanelsInfo?.buildingOBB;
+        const existingCenter = this.roofPanelsInfo?.buildingCenterGeo;
+
+        this.roofPanelsInfo = {
+            type: hasSlopes ? 'solar_multi' : 'flat',
+            typeLabel: typeLabel,
+            hauteurMurs: this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5),
+            hauterFaitageRelatif: (dsmStats?.height_faitage_m ?? 0) - (dsmStats?.height_egout_m ?? 0),
+            couverture: this._mainBldgRoofType ?? 'tile',
+            nRidges: 1,
+            panels: panels,
+            surfaceTotale: Math.round(panels.reduce((s, p) => s + (p.surface || 0), 0) * 10) / 10,
+            _source: 'google_solar',
+            buildingOBB: existingOBB,
+            buildingCenterGeo: existingCenter,
+            buildingTerrainH: this._mainBldgTerrainH,
+            buildingWallH: this._mainBldgBh,
+            buildingLocalCoords: this.roofPanelsInfo?.buildingLocalCoords,
+        };
+
+        console.log(`📐 roofPanelsInfo mis à jour (Solar): ${panels.length} pans, type="${typeLabel}"`);
+    }
+
+    /**
+     * Place les panneaux solaires individuels Google Solar en 3D.
+     * Référence: BuildingInsightsSection.svelte (js-solar-potential officiel Google).
+     *
+     * • Chaque panneau = GPS center + orientation (PORTRAIT/LANDSCAPE) + segmentIndex.
+     * • On calcule la hauteur 3D exacte depuis l'équation plane du segment.
+     * • Couleur dégradée bleu→rouge selon irradiance.
+     *
+     * @param {Array}  solarPanels   – tableau {lat, lon, orientation, seg_idx, irr_kwh}
+     * @param {Array}  roofSegments  – _fluxRoofSegments (pitch_deg, azimuth_deg, height_m…)
+     * @param {Object} bldgCenter    – {lat, lon} (this._solarBldgCenter si absent)
+     */
+    applyBuildingInsightsPanels3D(solarPanels, roofSegments, bldgCenter) {
+        // Nettoyage
+        if (this._solarPanelMeshes) {
+            this._solarPanelMeshes.forEach(m => {
+                this.scene.remove(m);
+                m.geometry?.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+                else m.material?.dispose();
+            });
+        }
+        this._solarPanelMeshes = [];
+
+        const center = bldgCenter ?? this._solarBldgCenter;
+        const segs   = roofSegments ?? this._solarSegments ?? [];
+        if (!solarPanels?.length || !center) return;
+
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const wallH    = this._mainBldgBh ?? 5;
+        
+        // Récupérer l'offset calculé lors de la création du toit
+        const offsetX = this._solarOffset?.x ?? 0;
+        const offsetZ = this._solarOffset?.z ?? 0;
+
+        // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
+        const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
+        const toZ = lat => -(lat - this.centerLat) * this.LAT_TO_M;
+
+        // ── Index segments : seg_idx → hauteur-au-point ──────────────────────────
+        const segMap = new Map();
+        for (const seg of segs) {
+            const idx    = seg.orig_idx ?? (seg.id - 1);
+            if (!seg.seg_sw || !seg.seg_ne) continue;
+            const cLat   = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
+            const cLon   = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
+            const azRad  = (seg.azimuth_deg ?? 180) * Math.PI / 180;
+            const pitRad = (seg.pitch_deg   ?? 0)   * Math.PI / 180;
+            
+            let baseH = 0;
+            if (seg.height_m != null) {
+                baseH = terrainH + seg.height_m; // Relatif au terrain
+            } else {
+                baseH = terrainH + wallH + 0.5; // fallback relatif
+            }
+            
+            const cx     = toX(cLon), cz = toZ(cLat);
+            segMap.set(idx, {
+                azRad, pitRad,
+                tanPit: Math.tan(pitRad),
+                baseH, cx, cz,
+            });
+        }
+
+        // ── Plage d'énergie pour la colormap ────────────────────────────────────
+        const energies = solarPanels.map(p => p.irr_kwh || 0).filter(e => e > 0);
+        const minE = energies.length ? Math.min(...energies) : 0;
+        const maxE = energies.length ? Math.max(...energies) : 1;
+
+        // Dimensions des panneaux API Google Solar
+        const pW = (typeof window !== 'undefined' ? window._fluxApiPanelW : null) ?? 1.045;
+        const pH = (typeof window !== 'undefined' ? window._fluxApiPanelH : null) ?? 1.879;
+
+        for (const p of solarPanels) {
+            const info = segMap.get(p.seg_idx);
+            const origX = toX(p.lon);
+            const origZ = toZ(p.lat);
+
+            // Hauteur 3D : calculée sur la position d'origine
+            let py = terrainH + wallH + 0.1; // fallback si segment inconnu
+            if (info) {
+                const proj = (origX - info.cx) * Math.sin(info.azRad) - (origZ - info.cz) * Math.cos(info.azRad);
+                py = info.baseH - proj * info.tanPit + 0.06;
+            }
+
+            // ── Couleur dégradée bleu (faible irr) → rouge (forte irr) ────────
+            const t  = maxE > minE ? Math.max(0, Math.min(1, (p.irr_kwh - minE) / (maxE - minE))) : 0.5;
+            const r  = t * 0.9;
+            const g  = 0.1 + t * 0.1;
+            const b  = 0.9 - t * 0.8;
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(r, g, b),
+                specular: 0x4488ff, shininess: 80,
+                transparent: true, opacity: 0.90,
+                polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+            });
+
+            // ── Géométrie : PlaneGeometry aux dimensions de l'API ─────────────
+            const geo  = new THREE.PlaneGeometry(pW, pH);
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // Rotation Three.js (order YXZ) :
+            //   PlaneGeometry est VERTICAL par défaut (plan XY).
+            //   On le couche à plat (-π/2) puis on l'incline par le pitch.
+            //   orientOff = π/2 si PORTRAIT (long côté horizontal)
+            const orientOffset = (p.orientation === 'PORTRAIT') ? Math.PI / 2 : 0;
+            mesh.rotation.order = 'YXZ';
+            mesh.rotation.y = -(info?.azRad ?? 0) + orientOffset + Math.PI;
+            mesh.rotation.x = (info?.pitRad ?? 0) - Math.PI / 2;
+            
+            // Appliquer l'offset pour l'affichage
+            mesh.position.set(origX + offsetX, py, origZ + offsetZ);
+
+            mesh.castShadow = true;
+            this.scene.add(mesh);
+            this._solarPanelMeshes.push(mesh);
+        }
+
+        console.log(`⚡ ${this._solarPanelMeshes.length} panneaux Google Solar placés en 3D (réf. js-solar-potential)`);
     }
 
     /**
@@ -4481,8 +4720,25 @@ class Calpinage3DViewer {
     /**
      * Crée un toit plat texturé
      */
-    _createFlatRoof(local, bx, bz, bh, terrainH, roofType) {
-        const roofGeo = new THREE.PlaneGeometry(bx, bz);
+    _createFlatRoof(local, bx, bz, bh, terrainH, roofType, localCoords = null) {
+        // Méthode rigoureuse : ShapeGeometry depuis le polygone réel des murs
+        // → le toit plat épouse EXACTEMENT l'emprise BD TOPO, sans débordement OBB
+        let roofGeo;
+        if (localCoords && localCoords.length >= 3) {
+            const shapeCoords = localCoords.map(c => ({ x: c.x, y: -c.z }));
+            if (this._signedArea2D(shapeCoords) < 0) shapeCoords.reverse();
+            const shape = new THREE.Shape();
+            shape.moveTo(shapeCoords[0].x, shapeCoords[0].y);
+            for (let i = 1; i < shapeCoords.length; i++) shape.lineTo(shapeCoords[i].x, shapeCoords[i].y);
+            shape.closePath();
+            roofGeo = new THREE.ShapeGeometry(shape);
+            roofGeo.rotateX(-Math.PI / 2);
+        } else {
+            // Fallback OBB (si localCoords absent, cas rare)
+            roofGeo = new THREE.PlaneGeometry(bx, bz);
+            roofGeo.rotateX(-Math.PI / 2);
+            if (local._obbAngle) roofGeo.rotateY(-local._obbAngle);
+        }
         const roofTex = this._getRoofTexture(roofType);
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex,
@@ -4490,8 +4746,8 @@ class Calpinage3DViewer {
             specular: 0x111111
         });
         const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-        roofMesh.rotation.x = -Math.PI / 2;
-        roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
+        // ShapeGeometry est déjà en espace monde (pas besoin de translation XZ)
+        roofMesh.position.set(localCoords ? 0 : local.x, terrainH + bh + 0.05, localCoords ? 0 : local.z);
         roofMesh.castShadow = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
@@ -4987,13 +5243,36 @@ class Calpinage3DViewer {
         
         const panels = this.roofPanelsInfo.panels;
         const obb = this.roofPanelsInfo.buildingOBB;
+        const results = [];
+
+        // ── Si données Solar : utiliser _matchZoneToPanel (matching GPS) ──
+        if (this.roofPanelsInfo._source === 'google_solar') {
+            zones.forEach(zone => {
+                const matched = this._matchZoneToPanel(zone);
+                if (matched) {
+                    results.push({
+                        zoneId: zone.id,
+                        zoneNumero: zone.numero,
+                        panelName: matched.name,
+                        orientation: matched.orientation_deg,
+                        orientationLabel: matched.orientation_label,
+                        inclinaison: matched.pente_deg,
+                        surface: matched.surface,
+                        longueur: matched.longueur,
+                        largeur: matched.largeur,
+                        matched: true
+                    });
+                    console.log(`🎯 Zone ${zone.numero} → ${matched.name} (${matched.orientation_label}, pente ${matched.pente_deg}°)`);
+                }
+            });
+            return results;
+        }
         
+        // ── Matching OBB classique ──
         if (!obb) {
             console.warn('⚠️ Pas d\'OBB bâtiment disponible');
             return [];
         }
-        
-        const results = [];
         
         zones.forEach(zone => {
             // Centre géo de la zone
@@ -5090,6 +5369,13 @@ class Calpinage3DViewer {
         });
         this.modules3D = [];
         
+        // Si des panneaux Google Solar sont affichés, ne PAS ajouter les modules
+        // zones (rouges) pour éviter la superposition avec les panneaux colorés.
+        if (this._hasSolarRoof && this._solarPanelMeshes && this._solarPanelMeshes.length > 0) {
+            console.log(`⚡ ${this._solarPanelMeshes.length} panneaux Google Solar actifs → modules zones 3D non affichés`);
+            return;
+        }
+        
         if (!zones) return;
         
         let totalModules = 0;
@@ -5104,12 +5390,16 @@ class Calpinage3DViewer {
             // === PENTE : détection automatique depuis la toiture 3D ===
             let penteDeg = 0;
             let penteSource = 'flat';
+            let solarHeightM = null; // Hauteur du segment Solar (relatif au sol)
             
-            if (this.roofPanelsInfo && this.roofPanelsInfo.panels && this.roofPanelsInfo.buildingOBB) {
+            if (this.roofPanelsInfo && this.roofPanelsInfo.panels) {
                 const matchResult = this._matchZoneToPanel(zone);
                 if (matchResult) {
                     penteDeg = matchResult.pente_deg;
                     penteSource = matchResult.name;
+                    if (matchResult._height_m != null) {
+                        solarHeightM = matchResult._height_m;
+                    }
                     zone.inclinaison = penteDeg;
                     zone._detectedPanel = matchResult;
                     console.log(`🏠 Zone ${zone.numero} → ${matchResult.name} : pente ${penteDeg}° auto`);
@@ -5131,12 +5421,17 @@ class Calpinage3DViewer {
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
             
             // === HAUTEUR : terrain + hauteur murs du bâtiment + 8cm au-dessus ===
-            // On utilise la hauteur des MURS (pas MNH qui inclut le faîtage)
-            // pour poser les modules à l'égout du toit ; la pente du groupe
-            // les placera naturellement le long de la pente du pan.
+            // Si Solar disponible : utiliser height_m du segment (relatif au sol)
+            // Sinon : hauteur des MURS (égout) depuis BD TOPO
             const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const roofBaseY = terrainH + wallH + 0.08; // 8cm au-dessus de l'égout
+            let roofBaseY;
+            if (solarHeightM != null) {
+                // Solar height_m est la hauteur du plan de toit au-dessus du sol
+                roofBaseY = terrainH + solarHeightM + 0.10;
+            } else {
+                const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+                roofBaseY = terrainH + wallH + 0.08;
+            }
             
             // === GROUPE : positionné au centre, SANS rotation Y ===
             // Les positions des modules (converties depuis lat/lng) encodent déjà
@@ -5150,7 +5445,11 @@ class Calpinage3DViewer {
                 specular: 0x4444ff,
                 shininess: 80,
                 transparent: true,
-                opacity: 0.92
+                opacity: 0.92,
+                depthWrite: true,
+                polygonOffset: true,
+                polygonOffsetFactor: -4,
+                polygonOffsetUnits: -4,
             });
             
             zone.modulesPositions.forEach(modPos => {
@@ -5183,7 +5482,8 @@ class Calpinage3DViewer {
                 );
                 
                 // Position directe depuis lat/lng (encodent déjà la rotation 2D)
-                panel.position.set(dx, 0, dz);
+                // Y = 0.20m au-dessus de la surface pour éviter z-fighting avec le toit
+                panel.position.set(dx, 0.20, dz);
                 
                 // Rotation individuelle pour aligner les bords du rectangle
                 // BoxGeometry a sa largeur le long de X ; on tourne pour matcher l'arête 2D
@@ -5191,6 +5491,7 @@ class Calpinage3DViewer {
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
+                panel.renderOrder = 10;
                 
                 panGroup.add(panel);
                 totalModules++;
@@ -5237,6 +5538,44 @@ class Calpinage3DViewer {
         } else {
             return null;
         }
+
+        // ── TYPE SOLAR_MULTI : matching GPS direct vers le segment Solar le plus proche ──
+        if (this.roofPanelsInfo._source === 'google_solar') {
+            let bestPanel = null;
+            let bestDist = Infinity;
+            for (const p of panels) {
+                if (p._seg_sw && p._seg_ne) {
+                    // Vérifier si le centre de la zone est dans la bbox du segment
+                    const inLat = zoneCenterLat >= p._seg_sw.lat && zoneCenterLat <= p._seg_ne.lat;
+                    const inLon = zoneCenterLng >= p._seg_sw.lon && zoneCenterLng <= p._seg_ne.lon;
+                    if (inLat && inLon) {
+                        // Préférer le segment avec la plus grande surface (plus représentatif)
+                        if (!bestPanel || (p.surface || 0) > (bestPanel.surface || 0)) {
+                            bestPanel = p;
+                        }
+                    } else {
+                        // Distance au centre de la bbox du segment
+                        const cLat = (p._seg_sw.lat + p._seg_ne.lat) / 2;
+                        const cLon = (p._seg_sw.lon + p._seg_ne.lon) / 2;
+                        const dLat = (zoneCenterLat - cLat) * 111320;
+                        const dLon = (zoneCenterLng - cLon) * 111320 * Math.cos(zoneCenterLat * Math.PI / 180);
+                        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            if (!bestPanel) bestPanel = p; // fallback au plus proche si aucun containment
+                        }
+                    }
+                }
+            }
+            // Si aucun match par containment, prendre le plus grand segment (probable toit principal)
+            if (!bestPanel && panels.length > 0) {
+                bestPanel = panels[0]; // Déjà trié par surface décroissante
+            }
+            return bestPanel;
+        }
+        
+        // ── TYPE OBB classique : matching par projection ──
+        if (!obb) return panels.length > 0 ? panels[0] : null;
         
         const zoneLocal = this._geoToLocal(zoneCenterLat, zoneCenterLng);
         
@@ -5563,58 +5902,86 @@ class Calpinage3DViewer {
 
     // ── Heatmap d'irradiance annuelle (Google Solar annualFlux) ──────────
 
-    /**
-     * Superpose une heatmap de flux annuel sur la toiture en 3D.
-     * Les zones bleues = ombragées, orange/rouge = très ensoleillées.
-     * @param {Object} data - Réponse de /api/solar/flux-heatmap
-     */
     showFluxHeatmap(data) {
         this.hideFluxHeatmap();
         if (!this.scene) return;
-
-        const { bbox, image_base64 } = data;
-
-        // Convertir le bbox géographique → coordonnées locales scène (mètres)
+        const { bbox, image_base64, rgb_base64 } = data;
         const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
         const westX  = (bbox.west  - this.centerLon) * lngToM;
         const eastX  = (bbox.east  - this.centerLon) * lngToM;
         const northZ = -(bbox.north - this.centerLat) * this.LAT_TO_M;
         const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
+        const planeW = eastX  - westX;
+        const planeD = southZ - northZ;
+        const cx = (westX  + eastX)  / 2;
+        const cz = (northZ + southZ) / 2;
 
-        const planeW = eastX  - westX;   // étendue en X
-        const planeD = southZ - northZ;  // étendue en Z
-        const cx     = (westX  + eastX)  / 2;
-        const cz     = (northZ + southZ) / 2;
+        // ── Hauteur du plan heatmap ────────────────────────────────────────────
+        // Priorité 1 : terrainH + height_faitage (DSM absolu depuis terrain)
+        // Priorité 2 : _mainBldgTerrainH + _mainBldgBh  (définis lors du 3D bâtiment)
+        // Priorité 3 : roofPanelsInfo (RANSAC)
+        // Priorité 4 : fallback brut
+        const ds       = data.dsm_stats;
 
-        // Hauteur : au-dessus du faîtage (terrainH + H_mur + H_faîtage + marge)
-        const terrainH = this.roofPanelsInfo?.buildingTerrainH    ?? 0;
-        const wallH    = this.roofPanelsInfo?.buildingWallH       ?? 6;
-        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0;
-        const planeY   = terrainH + wallH + ridgeH + 0.4;
+        // Sanity check DSM : les GeoTIFF mal décodés (byte-order) donnent des valeurs 1e30+
+        const _dsmOk = v => v != null && isFinite(v) && v > 0 && v < 500;
 
-        const loader = new THREE.TextureLoader();
+        const terrainH = this._mainBldgTerrainH
+                      ?? this.roofPanelsInfo?.buildingTerrainH
+                      ?? this._getTerrainHeight(cx, cz)
+                      ?? 0;
+        const wallH    = this._mainBldgBh
+                      ?? this.roofPanelsInfo?.buildingWallH
+                      ?? (_dsmOk(ds?.height_egout_m) ? ds.height_egout_m : 6);
+        // ridge = hauteur du faîtage AU-DESSUS de l'égout (ou roofPanelsInfo)
+        const ridgeH   = (_dsmOk(ds?.height_faitage_m) && _dsmOk(ds?.height_egout_m))
+                      ? Math.max(0, ds.height_faitage_m - ds.height_egout_m)
+                      : (this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0);
+        const planeY   = terrainH + wallH + ridgeH + 0.5;
+        console.log(`📐 showFluxHeatmap planeY=${planeY.toFixed(2)}  (terrainH=${terrainH.toFixed(2)} wallH=${wallH.toFixed(2)} ridgeH=${ridgeH.toFixed(2)})`);
+        const loader   = new THREE.TextureLoader();
+
+        // Plan RGB Solar co-enregistré (fond parfaitement aligné, légèrement en-dessous)
+        if (rgb_base64) {
+            loader.load(rgb_base64, (texRgb) => {
+                const geomRgb = new THREE.PlaneGeometry(planeW, planeD);
+                const matRgb  = new THREE.MeshBasicMaterial({
+                    map: texRgb, transparent: false,
+                    depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+                });
+                const meshRgb = new THREE.Mesh(geomRgb, matRgb);
+                meshRgb.rotation.x = -Math.PI / 2;
+                meshRgb.position.set(cx, planeY - 0.05, cz);
+                meshRgb.renderOrder = 7;
+                this._fluxRgbMesh = meshRgb;
+                this.scene.add(meshRgb);
+            });
+        }
+
+        // Plan heatmap flux semi-transparent par-dessus
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
-            // flipY = true (défaut Three.js) : row 0 du PNG (= Nord géographique)
-            // est mappé à V=1 → bord nord du plan → orientation correcte
             const geom = new THREE.PlaneGeometry(planeW, planeD);
             const mat  = new THREE.MeshBasicMaterial({
-                map:         tex,
-                transparent: true,
-                depthWrite:  false,
-                side:        THREE.DoubleSide,
+                map: tex, transparent: true,
+                depthWrite: false, depthTest: false, side: THREE.DoubleSide,
             });
             const mesh = new THREE.Mesh(geom, mat);
-            mesh.rotation.x  = -Math.PI / 2;  // plan horizontal
+            mesh.rotation.x = -Math.PI / 2;
             mesh.position.set(cx, planeY, cz);
-            mesh.renderOrder = 6;
+            mesh.renderOrder = 8;
             this._fluxMesh = mesh;
             this.scene.add(mesh);
-            console.log(`🌡️ Flux heatmap 3D: ${planeW.toFixed(1)}×${planeD.toFixed(1)}m @ Y=${planeY.toFixed(1)}m`);
         });
     }
 
-    /** Enlève l'overlay heatmap de la scène 3D. */
     hideFluxHeatmap() {
+        if (this._fluxRgbMesh) {
+            this.scene?.remove(this._fluxRgbMesh);
+            this._fluxRgbMesh.material?.map?.dispose();
+            this._fluxRgbMesh.material?.dispose();
+            this._fluxRgbMesh.geometry?.dispose();
+            this._fluxRgbMesh = null;
+        }
         if (this._fluxMesh) {
             this.scene?.remove(this._fluxMesh);
             this._fluxMesh.material?.map?.dispose();
