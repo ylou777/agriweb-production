@@ -5761,11 +5761,35 @@
         
         // Mettre à jour toutes les zones quand on change les paramètres globaux
         function updateAllZones() {
+            const currentDisp = document.getElementById('moduleOrientation')?.value;
+
+            // Détecter si des zones 3D auto-remplies ont une orientation différente
+            // de la sélection courante → il faut les relancer, pas les écraser avec
+            // la grille 2D générique (qui ignore l'azimut du pan)
+            let hasAutoFilled3D = false;
+            let autoFill3DDispChanged = false;
+            zones.forEach(zone => {
+                if (zone._autoFilled3D) {
+                    hasAutoFilled3D = true;
+                    if (zone.moduleOrientation !== currentDisp) autoFill3DDispChanged = true;
+                }
+            });
+
+            if (hasAutoFilled3D && autoFill3DDispChanged) {
+                // Re-lancer le remplissage 3D complet avec la nouvelle disposition
+                autoRemplissageToiture();
+                return;
+            }
+
             zones.forEach(zone => {
                 // Les zones CAS A (positions GPS Solar exactes) ont leurs propres règles
                 // de calpinage (par pan, reculs azimutaux) — ne pas les écraser avec
                 // la grille rectangulaire générique de dessinerModulesDansZone
                 if (zone._fromSolarPanels) return;
+                // Les zones issues du remplissage auto 3D (azimut réel du pan) ne doivent
+                // pas être réinterprétées par la grille 2D agnostique de dessinerModulesDansZone
+                // → elles sont déjà dessinées avec les bonnes positions calculées par autoFillRoofPanels
+                if (zone._autoFilled3D) return;
                 recalculerZone(zone);
                 dessinerModulesDansZone(zone);
             });
