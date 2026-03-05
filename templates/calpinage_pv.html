@@ -9297,107 +9297,46 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const az  = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
                             const pit = seg?.pitch_deg ?? 15;
-                            const az_rad  = az * Math.PI / 180;
-                            const espSeg  = parseFloat(document.getElementById('moduleEspacement')?.value || 5) / 100;
 
-                            // ── Dimensions module selon disposition (paysage/portrait) ──
-                            // axe-D = direction pente (az)      → côté _mW
-                            // axe-P = direction crête (az+90°)  → côté _mH
-                            const mSizeD = _mW; // dimension sur la pente
-                            const mSizeP = _mH; // dimension le long de la crête
-                            const stepD  = mSizeD + espSeg;
-                            const stepP  = mSizeP + espSeg;
-
-                            // ── Projeter les centres Google sur les axes du pan ──
-                            const meanLat = panels.reduce((s, p) => s + p.lat, 0) / panels.length;
-                            const meanLon = panels.reduce((s, p) => s + p.lon, 0) / panels.length;
-                            const cosLat  = Math.cos(meanLat * Math.PI / 180);
-                            const panelProj = panels.map(p => {
-                                const dx = (p.lon - meanLon) * 111320 * cosLat;
-                                const dy = (p.lat - meanLat) * 111320;
-                                return {
-                                    d:  dx * Math.sin(az_rad) + dy * Math.cos(az_rad),
-                                    pp: dx * Math.cos(az_rad) - dy * Math.sin(az_rad),
-                                };
-                            });
-                            const allD  = panelProj.map(x => x.d);
-                            const allPP = panelProj.map(x => x.pp);
-                            const rawMinD = Math.min(...allD),  rawMaxD = Math.max(...allD);
-                            const rawMinP = Math.min(...allPP), rawMaxP = Math.max(...allPP);
-
-                            // Reculs (gouttière = bas D, faîtage = haut D, pignons = P)
-                            const uMinD = rawMinD + poseA.reculBas;
-                            const uMaxD = rawMaxD - poseA.reculHaut;
-                            const uMinP = rawMinP + poseA.reculGauche;
-                            const uMaxP = rawMaxP - poseA.reculDroite;
-                            if (uMaxD < uMinD || uMaxP < uMinP) {
-                                console.log(`⏭️ [Seg ${segIdx}] after reculs empty`); return;
-                            }
-
-                            // ── Grille régulière dans l'espace azimut ──
-                            const nbD = Math.max(1, Math.floor((uMaxD - uMinD) / stepD));
-                            const nbP = Math.max(1, Math.floor((uMaxP - uMinP) / stepP));
-                            const gridStartD = uMinD + ((uMaxD - uMinD) - (nbD - 1) * stepD) / 2 + mSizeD / 2;
-                            const gridStartP = uMinP + ((uMaxP - uMinP) - (nbP - 1) * stepP) / 2 + mSizeP / 2;
-
-                            // Rayon de présence adaptatif = demi-pas de grille + demi-module Google (~0.85m)
-                            // Garantit qu'un point de grille valide trouvera toujours un panneau Google proche.
-                            const presenceR = Math.max(stepD, stepP) / 2 + 0.85;
-
-                            // Fonction de back-projection DP → lat/lon
-                            function _dpToLatLon(d, pp) {
-                                const dx = d * Math.sin(az_rad) + pp * Math.cos(az_rad);
-                                const dy = d * Math.cos(az_rad) - pp * Math.sin(az_rad);
-                                return {
-                                    lat: meanLat + dy / 111320,
-                                    lon: meanLon + dx / (111320 * cosLat),
-                                };
-                            }
+                            // Dimensions module : axe-D = pente (az), axe-P = crête (az+90°)
+                            const mSizeD = _mW;
+                            const mSizeP = _mH;
 
                             const moduleGroup = L.layerGroup();
                             const modulesPositions = [];
                             let zoneMinLat=Infinity,zoneMaxLat=-Infinity,zoneMinLon=Infinity,zoneMaxLon=-Infinity;
 
-                            for (let iD = 0; iD < nbD; iD++) {
-                                for (let iP = 0; iP < nbP; iP++) {
-                                    const cD = gridStartD + iD * stepD;
-                                    const cP = gridStartP + iP * stepP;
+                            // ── Approche directe : un module par panneau Google, centré sur sa position GPS ──
+                            // Google Solar a déjà optimisé la disposition → on réutilise ses centres exactement.
+                            // Seule modification : on applique les dimensions utilisateur et l'azimut du segment.
+                            for (const p of panels) {
+                                if (targetKw > 0 && totalKwAccum + (modulesPositions.length + 1) * modPuissF / 1000 > targetKw) break;
 
-                                    // Test présence : au moins un panneau Google à moins de presenceR
-                                    const inSeg = panelProj.some(({d, pp}) =>
-                                        Math.abs(d - cD) <= presenceR && Math.abs(pp - cP) <= presenceR
-                                    );
-                                    if (!inSeg) continue;
-
-                                    // Filtrage irradiance pixel-précis au centre du module
-                                    const cLL = _dpToLatLon(cD, cP);
-                                    if (_fluxCanvas && _fluxBbox) {
-                                        const px = _sampleCanvas(_fluxCanvas, _fluxBbox, cLL.lat, cLL.lon);
-                                        if (!px || px[3] < 10) continue;
-                                        const irrM = _colorToIrr(px[0], px[1], px[2]);
-                                        if (irrM < irrMin || irrM > irrMax) continue;
-                                    }
-
-                                    // Anti-chevauchement inter-segments
-                                    const _oKey = _segOccKey(cLL.lat, cLL.lon);
-                                    if (_segOccGrid.has(_oKey)) continue;
-
-                                    const corners = _panelCorners(cLL.lat, cLL.lon, mSizeD, mSizeP, az);
-                                    if (targetKw > 0 && totalKwAccum + (modulesPositions.length + 1) * modPuissF / 1000 > targetKw) break;
-
-                                    _segOccGrid.add(_oKey);
-
-                                    const poly = L.polygon(corners, {
-                                        color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
-                                    });
-                                    moduleGroup.addLayer(poly);
-                                    modulesPositions.push({ lat: cLL.lat, lng: cLL.lon, corners: corners.map(c=>({lat:c.lat,lng:c.lng})) });
-                                    corners.forEach(c => {
-                                        zoneMinLat=Math.min(zoneMinLat,c.lat); zoneMaxLat=Math.max(zoneMaxLat,c.lat);
-                                        zoneMinLon=Math.min(zoneMinLon,c.lng); zoneMaxLon=Math.max(zoneMaxLon,c.lng);
-                                    });
+                                // Filtrage irradiance pixel-précis au centre réel du panneau
+                                if (_fluxCanvas && _fluxBbox) {
+                                    const px = _sampleCanvas(_fluxCanvas, _fluxBbox, p.lat, p.lon);
+                                    if (!px || px[3] < 10) continue;
+                                    const irrM = _colorToIrr(px[0], px[1], px[2]);
+                                    if (irrM < irrMin || irrM > irrMax) continue;
                                 }
+
+                                // Anti-chevauchement inter-segments
+                                const _oKey = _segOccKey(p.lat, p.lon);
+                                if (_segOccGrid.has(_oKey)) continue;
+                                _segOccGrid.add(_oKey);
+
+                                const corners = _panelCorners(p.lat, p.lon, mSizeD, mSizeP, az);
+                                const poly = L.polygon(corners, {
+                                    color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
+                                });
+                                moduleGroup.addLayer(poly);
+                                modulesPositions.push({ lat: p.lat, lng: p.lon, corners: corners.map(c=>({lat:c.lat,lng:c.lng})) });
+                                corners.forEach(c => {
+                                    zoneMinLat=Math.min(zoneMinLat,c.lat); zoneMaxLat=Math.max(zoneMaxLat,c.lat);
+                                    zoneMinLon=Math.min(zoneMinLon,c.lng); zoneMaxLon=Math.max(zoneMaxLon,c.lng);
+                                });
                             }
+
                             if (modulesPositions.length === 0) {
                                 console.log(`⏭️ [Seg ${segIdx}] az=${az}° pit=${pit}° aucun module placé`); return;
                             }
@@ -9417,7 +9356,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 id: zoneLayer._leaflet_id, numero: zoneNum, layer: zoneLayer,
                                 surfaceM2: largeurM * longueurM,
                                 nbModules: modulesPositions.length,
-                                nbCols: nbP, nbRows: nbD,
+                                nbCols: 1, nbRows: modulesPositions.length,
                                 puissanceKw: (modulesPositions.length * modPuissF) / 1000,
                                 orientation: az, inclinaison: pit, rotationAngle: 0,
                                 productible: 0, moduleOrientation: dispF,
@@ -9437,7 +9376,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             afficherZone(zone);
                             calculerProductibleZone(zone.id);
                             totalKwAccum += zone.puissanceKw;
-                            console.log(`✅ [Seg ${segIdx}] az=${az}° pit=${pit}° → grille ${nbD}×${nbP} = ${modulesPositions.length} modules (${dispF})`);
+                            console.log(`✅ [Seg ${segIdx}] az=${az}° pit=${pit}° → ${modulesPositions.length} modules (${dispF})`);
                         });
 
                     } else {
