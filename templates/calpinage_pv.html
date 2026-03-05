@@ -9166,10 +9166,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     const dispF     = document.getElementById('moduleOrientation').value;
                     const _modL     = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
                     const _modW     = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
-                    // En portrait : long côté vertical → largeur horiz = modW, haut = modL
-                    // En paysage  : long côté horizontal → largeur horiz = modL, haut = modW
-                    const _mW = dispF === 'paysage' ? _modL : _modW; // demi-largeur ×2
-                    const _mH = dispF === 'paysage' ? _modW : _modL; // demi-hauteur ×2
+                    // Formule _computeOffset : heading=0→Nord, 90→Est.
+                    // Pour az=180° (Sud) : axe-x → heading=az=180°(N-S), axe-y → heading=90+az=270°(E-O).
+                    // → grande dim E-O (paysage) = axe-y = _mH, petite dim N-S = axe-x = _mW.
+                    // → grande dim N-S (portrait) = axe-x = _mW, petite dim E-O = axe-y = _mH.
+                    const _mW = dispF === 'paysage' ? _modW : _modL; // paysage : petit sur axe-x(pente), portrait : grand
+                    const _mH = dispF === 'paysage' ? _modL : _modW; // paysage : grand sur axe-y(crête), portrait : petit
 
                     // ─── computeOffset + formule EXACTE du démo Google js-solar-potential ───
                     // Source: BuildingInsightsSection.svelte
@@ -9192,15 +9194,16 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         );
                         return L.latLng(lat2 * 180 / Math.PI, lng2 * 180 / Math.PI);
                     }
-                    // panelOrientation: 'PORTRAIT' | 'LANDSCAPE'  (champ API Google)
-                    function _panelCorners(clat, clon, mw, mh, panelOrientation, azimuthDeg) {
+                    // orientOffset=0 toujours : les dimensions _mW/_mH encodent déjà la disposition
+                    // choisie par l'utilisateur (dispF). p.orientation Google est ignoré.
+                    function _panelCorners(clat, clon, mw, mh, azimuthDeg) {
                         const w = mw / 2, h = mh / 2;
-                        // PORTRAIT → rotation supplémentaire +90° (comme le démo Google)
-                        const orientOffset = (panelOrientation === 'PORTRAIT') ? 90 : 0;
-                        // Coins rectangulaires centrés sur (0,0) — même ordre que le démo
+                        // Coins rectangulaires centrés sur (0,0)
+                        // axe-x (±w) → heading = az       → direction de la pente
+                        // axe-y (±h) → heading = az+90°   → direction de la crête
                         return [{x:+w,y:+h},{x:+w,y:-h},{x:-w,y:-h},{x:-w,y:+h}].map(({x, y}) => {
                             const dist    = Math.sqrt(x * x + y * y);
-                            const heading = Math.atan2(y, x) * (180 / Math.PI) + orientOffset + azimuthDeg;
+                            const heading = Math.atan2(y, x) * (180 / Math.PI) + azimuthDeg;
                             return _computeOffset(clat, clon, dist, heading);
                         });
                     }
@@ -9400,7 +9403,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const moduleGroup = L.layerGroup();
                             panelsFiltered.forEach(p => {
                                 const azP     = segAzimuth.get(p.seg_idx) ?? az;
-                                const corners = _panelCorners(p.lat, p.lon, _mW, _mH, p.orientation, azP);
+                                const corners = _panelCorners(p.lat, p.lon, _mW, _mH, azP);
                                 const poly = L.polygon(corners, {
                                     color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
                                 });
