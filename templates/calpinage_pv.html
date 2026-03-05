@@ -373,6 +373,22 @@
             transform: scale(1.1);
         }
 
+        /* Poignées de redimensionnement zone PV */
+        .zone-resize-handle {
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border: 2.5px solid #0d6efd;
+            border-radius: 3px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+            transition: background 0.1s, transform 0.1s;
+            pointer-events: auto;
+        }
+        .zone-resize-handle:hover {
+            background: #0d6efd;
+            transform: scale(1.35);
+        }
+
         /* HR & separators */
         hr { border-color: var(--c-border); opacity: 0.5; }
         .border-bottom { border-color: var(--c-border) !important; }
@@ -1343,7 +1359,8 @@
                             <tbody id="fluxRoofBody"></tbody>
                         </table>
                         </div>
-                        <!-- Barre calepinage auto : plage d'irradiance + cible kWc -->
+                        <!-- Barre calepinage auto : plage d'irradiance + cible kWc (admin uniquement) -->
+                        {% if is_admin %}
                         <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.10);
                              display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
                             <button class="btn btn-sm btn-success" onclick="autoRemplissageToiture()"
@@ -1359,6 +1376,7 @@
                                 title="Puissance cible (kWc) — laisser vide pour tout remplir">
                             <span style="font-size:0.75rem;color:rgba(255,255,255,0.4);">kWc</span>
                         </div>
+                        {% endif %}
                     </div>
             </div><!-- /fluxLegendPanel -->
 
@@ -1858,6 +1876,7 @@
         let zoneCounter = 0;
         let _moduleEditMode = false; // Mode édition manuelle des modules (suppr/ajout)
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
+        let zoneResizeHandles = {}; // Poignées de coin pour redimensionner les zones PV
         let lidarDetecting = false; // Mode auto-détection toiture LiDAR
         let lidarClickHandler = null; // Handler click map pour détection
         let auto3DInclinaisonEnabled = true; // Auto-ajustement inclinaison depuis analyse toiture (peut être désactivé)
@@ -2278,6 +2297,137 @@
                 }
             });
         }
+
+        // ── Poignées de coin pour redimensionner les zones PV ─────────────────────
+
+        function _createZoneResizeHandles(zone, layer) {
+            _removeZoneResizeHandles(zone.id);
+            const b = layer.getBounds();
+            const corners = [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()];
+            const cursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
+            const markers = [];
+
+            corners.forEach(function(pos, i) {
+                const m = L.marker(pos, {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div class="zone-resize-handle" style="cursor:' + cursors[i] + '"></div>',
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7]
+                    }),
+                    draggable: true,
+                    zIndexOffset: 2000
+                });
+                m.addTo(map);
+                markers.push(m);
+
+                m.on('dragstart', function() { map.dragging.disable(); });
+
+                m.on('drag', function(e) {
+                    const oppIdx = (i + 2) % 4;
+                    const oppPos = markers[oppIdx].getLatLng();
+                    const newB = L.latLngBounds(e.latlng, oppPos);
+                    layer.setBounds(newB);
+                    const nc = [newB.getNorthWest(), newB.getNorthEast(), newB.getSouthEast(), newB.getSouthWest()];
+                    markers.forEach(function(mk, j) { if (j !== i) mk.setLatLng(nc[j]); });
+                    const sw = newB.getSouthWest(), ne = newB.getNorthEast();
+                    zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                    zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                    dessinerModulesDansZone(zone);
+                    if (rotationHandles[zone.id]) updateHandlePosition(zone, rotationHandles[zone.id]);
+                });
+
+                m.on('dragend', function() {
+                    map.dragging.enable();
+                    const fb = layer.getBounds();
+                    const fc = [fb.getNorthWest(), fb.getNorthEast(), fb.getSouthEast(), fb.getSouthWest()];
+                    markers.forEach(function(mk, j) { mk.setLatLng(fc[j]); });
+                    zone.originalBounds = { sw: fb.getSouthWest(), ne: fb.getNorthEast() };
+                    zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                    recalculerZone(zone);
+                    dessinerModulesDansZone(zone);
+                    afficherZone(zone);
+                });
+            });
+
+            zoneResizeHandles[zone.id] = markers;
+            return markers;
+        }
+
+        function _removeZoneResizeHandles(zoneId) {
+            if (zoneResizeHandles[zoneId]) {
+                zoneResizeHandles[zoneId].forEach(function(m) { map.removeLayer(m); });
+                delete zoneResizeHandles[zoneId];
+            }
+        }
+
+        function _removeAllZoneResizeHandles() {
+            Object.keys(zoneResizeHandles).forEach(function(id) { _removeZoneResizeHandles(id); });
+        }
+
+        function _enableZoneDragging(zone, layer, handleMarkers) {
+            let dragStart = null, origSW = null, origNE = null, dragging = false;
+
+            layer._zoneDragDown = function(e) {
+                if (e.originalEvent.button !== 0) return;
+                dragging = true;
+                dragStart = e.latlng;
+                const ob = layer.getBounds();
+                origSW = ob.getSouthWest();
+                origNE = ob.getNorthEast();
+                map.dragging.disable();
+                map.on('mousemove', layer._zoneDragMove);
+                map.on('mouseup', layer._zoneDragUp);
+                L.DomEvent.preventDefault(e.originalEvent);
+            };
+
+            layer._zoneDragMove = function(e) {
+                if (!dragging) return;
+                const dlat = e.latlng.lat - dragStart.lat;
+                const dlng = e.latlng.lng - dragStart.lng;
+                const newSW = L.latLng(origSW.lat + dlat, origSW.lng + dlng);
+                const newNE = L.latLng(origNE.lat + dlat, origNE.lng + dlng);
+                const newB = L.latLngBounds(newSW, newNE);
+                layer.setBounds(newB);
+                const nc = [newB.getNorthWest(), newB.getNorthEast(), newB.getSouthEast(), newB.getSouthWest()];
+                handleMarkers.forEach(function(m, j) { m.setLatLng(nc[j]); });
+                zone.largeurMetres = map.distance(newSW, [newSW.lat, newNE.lng]);
+                zone.longueurMetres = map.distance(newSW, [newNE.lat, newSW.lng]);
+                dessinerModulesDansZone(zone);
+                if (rotationHandles[zone.id]) updateHandlePosition(zone, rotationHandles[zone.id]);
+            };
+
+            layer._zoneDragUp = function() {
+                if (!dragging) return;
+                dragging = false;
+                map.dragging.enable();
+                map.off('mousemove', layer._zoneDragMove);
+                map.off('mouseup', layer._zoneDragUp);
+                const fb = layer.getBounds();
+                zone.originalBounds = { sw: fb.getSouthWest(), ne: fb.getNorthEast() };
+                zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                recalculerZone(zone);
+                dessinerModulesDansZone(zone);
+                afficherZone(zone);
+            };
+
+            layer.on('mousedown', layer._zoneDragDown);
+            if (layer._path) layer._path.style.cursor = 'move';
+        }
+
+        function _disableZoneDragging(layer) {
+            if (layer._zoneDragDown) {
+                layer.off('mousedown', layer._zoneDragDown);
+                if (layer._zoneDragMove) map.off('mousemove', layer._zoneDragMove);
+                if (layer._zoneDragUp) map.off('mouseup', layer._zoneDragUp);
+                delete layer._zoneDragDown;
+                delete layer._zoneDragMove;
+                delete layer._zoneDragUp;
+            }
+            if (layer._path) layer._path.style.cursor = '';
+        }
+
+        // ── Fin poignées de coin ───────────────────────────────────────────────────
 
         // Fonction globale pour ajouter une poignée de rotation à une zone
         function ajouterPoigneeRotation(layer) {
@@ -3274,80 +3424,40 @@
             document.getElementById('toolEdit').addEventListener('click', function() {
                 setActiveTool('edit');
                 if (activeDrawHandler) activeDrawHandler.disable();
-                
-                // Activer le mode édition pour toutes les zones
-                if (!editHandler) {
-                    editHandler = new L.EditToolbar.Edit(map, {
-                        featureGroup: drawnItems
-                    });
-                }
-                editHandler.enable();
-                
-                // Rendre les rectangles visibles et draggables pour l'édition
+                if (editHandler) { editHandler.disable(); editHandler = null; }
+
+                // Créer les poignées de coin et activer le déplacement pour chaque zone
                 drawnItems.eachLayer(function(layer) {
-                    if (layer instanceof L.Rectangle) {
-                        // Style d'édition visible
-                        layer.setStyle({
-                            opacity: 0.7,
-                            fillOpacity: 0.15,
-                            color: '#0d6efd',
-                            fillColor: '#0d6efd',
-                            weight: 3,
-                            dashArray: '5, 5'
-                        });
-                        
-                        // Activer le dragging (déplacement)
-                        if (!layer.dragging) {
-                            layer.dragging = new L.Handler.MarkerDrag(layer);
-                        }
-                        layer.dragging.enable();
-                        
-                        // Curseur move au survol
-                        layer.on('mouseover', function() {
-                            if (currentTool === 'edit' && this._path) {
-                                this._path.style.cursor = 'move';
-                            }
-                        });
-                        
-                        // Events de déplacement
-                        layer.on('drag', function(e) {
-                            const zone = zones.find(z => z.id === e.target._leaflet_id);
-                            if (zone) {
-                                dessinerModulesDansZone(zone);
-                                if (rotationHandles[zone.id]) {
-                                    updateHandlePosition(zone, rotationHandles[zone.id]);
-                                }
-                            }
-                        });
-                        
-                        layer.on('dragend', function(e) {
-                            const zone = zones.find(z => z.id === e.target._leaflet_id);
-                            if (zone) {
-                                zone.originalBounds = {
-                                    sw: layer.getBounds().getSouthWest(),
-                                    ne: layer.getBounds().getNorthEast()
-                                };
-                                dessinerModulesDansZone(zone);
-                                if (rotationHandles[zone.id]) {
-                                    updateHandlePosition(zone, rotationHandles[zone.id]);
-                                }
-                            }
-                        });
-                    }
+                    if (!(layer instanceof L.Rectangle)) return;
+                    const zone = zones.find(function(z) { return z.id === layer._leaflet_id; });
+                    if (!zone) return;
+
+                    // Style visible pour l'édition
+                    layer.setStyle({
+                        opacity: 0.7,
+                        fillOpacity: 0.12,
+                        color: '#0d6efd',
+                        fillColor: '#0d6efd',
+                        weight: 2.5,
+                        dashArray: '6, 4'
+                    });
+
+                    // Poignées de coin + drag de la zone entière
+                    const handles = _createZoneResizeHandles(zone, layer);
+                    _enableZoneDragging(zone, layer, handles);
                 });
-                
-                // Afficher les poignées de rotation avec style amélioré
-                Object.entries(rotationHandles).forEach(([zoneId, handle]) => {
-                    handle.setOpacity(1);
-                    const iconEl = handle.getElement();
+
+                // Afficher les poignées de rotation
+                toggleRotationHandles(true);
+                Object.entries(rotationHandles).forEach(function(entry) {
+                    const iconEl = entry[1].getElement();
                     if (iconEl) {
                         iconEl.style.cursor = 'grab';
-                        iconEl.style.transform = 'scale(1.2)';
                         iconEl.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
                     }
                 });
             });
-            
+
             // Bouton Supprimer zones
             document.getElementById('toolDelete').addEventListener('click', function() {
                 setActiveTool('delete');
@@ -3455,11 +3565,16 @@
             currentTool = tool;
             
             // Désactiver les handlers d'édition et suppression si actifs
-            if (editHandler && tool !== 'edit') {
-                editHandler.disable();
-                // Recalculer et mettre à jour toutes les zones après édition
+            if (previousTool === 'edit' && tool !== 'edit') {
+                // Supprimer les poignées de coin personnalisées
+                _removeAllZoneResizeHandles();
+                if (editHandler) { editHandler.disable(); editHandler = null; }
+
                 drawnItems.eachLayer(function(layer) {
                     if (layer instanceof L.Rectangle) {
+                        // Désactiver le drag de zone
+                        _disableZoneDragging(layer);
+
                         // Restaurer le style invisible
                         layer.setStyle({
                             opacity: 0,
@@ -3468,22 +3583,9 @@
                             weight: 2,
                             dashArray: null
                         });
-                        
-                        // Désactiver le dragging
-                        if (layer.dragging) {
-                            layer.dragging.disable();
-                        }
-                        
-                        // Retirer le curseur et les events
-                        layer.off('mouseover');
-                        layer.off('drag');
-                        layer.off('dragend');
-                        if (layer._path) {
-                            layer._path.style.cursor = '';
-                        }
-                        
+
                         // Recalculer la zone
-                        const zone = zones.find(z => z.id === layer._leaflet_id);
+                        const zone = zones.find(function(z) { return z.id === layer._leaflet_id; });
                         if (zone) {
                             const bounds = layer.getBounds();
                             const ne = bounds.getNorthEast();
@@ -3491,30 +3593,24 @@
                             zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
                             zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
                             zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
-                            
-                            zone.originalBounds = {
-                                sw: bounds.getSouthWest(),
-                                ne: bounds.getNorthEast()
-                            };
-                            
+                            zone.originalBounds = { sw: bounds.getSouthWest(), ne: bounds.getNorthEast() };
                             recalculerZone(zone);
                             dessinerModulesDansZone(zone);
                         }
                     }
                 });
-                
+
                 // Masquer et réinitialiser les poignées de rotation
-                Object.entries(rotationHandles).forEach(([zoneId, handle]) => {
-                    handle.setOpacity(0);
-                    const iconEl = handle.getElement();
+                toggleRotationHandles(false);
+                Object.entries(rotationHandles).forEach(function(entry) {
+                    const iconEl = entry[1].getElement();
                     if (iconEl) {
                         iconEl.style.cursor = '';
                         iconEl.style.transform = '';
                         iconEl.style.filter = '';
                     }
                 });
-                
-                // 🔥 ARRÊTER l'interval de mise à jour en boucle
+
                 if (dragUpdateInterval) {
                     clearInterval(dragUpdateInterval);
                     dragUpdateInterval = null;
@@ -10940,3 +11036,4 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
 </body>
 </html>
+ windiw
