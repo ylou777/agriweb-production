@@ -9292,6 +9292,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const pgW = window._fluxApiPanelW || 1.045;
                         const pgH = window._fluxApiPanelH || 1.879;
 
+                        // Grille d'occupation globale – résolution ≈ 0.11 m
+                        // Empêche tout chevauchement quand les bbox de segments se chevauchent
+                        const _segOccGrid = new Set();
+                        const _segOccKey  = (lat, lon) =>
+                            `${Math.round(lat * 1000000)},${Math.round(lon * 1000000)}`;
+
                         // ── PCA : azimut effectif depuis les positions réelles des panneaux ──
                         function _refineAzimuthPCA(panels, rawAzDeg) {
                             if (panels.length < 4) return rawAzDeg;
@@ -9320,8 +9326,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             return best;
                         }
 
-                        // ── Traitement par segment : rectangle parfait → filtrage irradiance ──
-                        bySegment.forEach((panels, segIdx) => {
+                        // ── Traitement par segment : du plus grand au plus petit ──
+                        // Le plus grand segment remplit en premier et réserve ses cellules
+                        const _sortedSegKeys = [...bySegment.keys()].sort((a, b) =>
+                            bySegment.get(b).length - bySegment.get(a).length
+                        );
+                        _sortedSegKeys.forEach(segIdx => {
+                            const panels = bySegment.get(segIdx);
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
                             const azRaw = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
@@ -9404,16 +9415,32 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const modulesLayers = [];
                             let zoneMinLat=Infinity, zoneMaxLat=-Infinity, zoneMinLon=Infinity, zoneMaxLon=-Infinity;
 
-                            // ── ÉTAPE 1 : Remplir intégralement le rectangle (bbox − reculs) ──
+                            // ── ÉTAPE 1 : Remplir le rectangle (bbox − reculs) sans chevauchement ──
                             for (let iD = iDmin; iD <= iDmax; iD++) {
                                 for (let iP = iPmin; iP <= iPmax; iP++) {
                                     const cD = centerD  + iD * stepD;
                                     const cP = centerPP + iP * stepP;
                                     const cLL = _dpToLatLon(cD, cP);
 
+                                    // Anti-doublon : centre déjà pris par un autre segment ?
+                                    const _oKey = _segOccKey(cLL.lat, cLL.lon);
+                                    if (_segOccGrid.has(_oKey)) continue;
+
                                     if (targetKw > 0 && totalKwAccum + (modulesPositions.length + 1) * modPuissF / 1000 > targetKw) break;
 
                                     const corners = _panelCorners(cLL.lat, cLL.lon, mSizeD, mSizeP, az);
+
+                                    // Vérifier qu'aucun coin ne chevauche une cellule déjà occupée
+                                    let _conflict = false;
+                                    for (const cc of corners) {
+                                        if (_segOccGrid.has(_segOccKey(cc.lat, cc.lng))) { _conflict = true; break; }
+                                    }
+                                    if (_conflict) continue;
+
+                                    // Réserver centre + coins dans la grille
+                                    _segOccGrid.add(_oKey);
+                                    corners.forEach(cc => _segOccGrid.add(_segOccKey(cc.lat, cc.lng)));
+
                                     const poly = L.polygon(corners, {
                                         color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
                                     });
