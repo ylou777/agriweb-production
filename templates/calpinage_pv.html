@@ -4731,7 +4731,7 @@
                     </div>
                     <div class="col-12 mt-2" id="inclinaison-container-${zone.id}">
                         <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}</span>°
-                            ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Valeur mise à jour automatiquement depuis l'analyse toiture — modifiable">☀️ auto</span>' : ''}
+                            ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Valeur mise \u00e0 jour automatiquement — modifiable">\u2600\ufe0f auto</span>' : ''}
                         </small></label>
                         <input type="range" class="form-range" min="0" max="90" step="1" value="${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}"
                                id="inclinaison-slider-${zone.id}"
