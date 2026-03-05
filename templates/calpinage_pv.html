@@ -9338,6 +9338,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             }
                         });
 
+                        // Grille d'occupation globale inter-segments (~1m de résolution en lat/lon)
+                        // Empêche deux segments de placer un module au même endroit.
+                        const _segOccGrid = new Set();
+                        const _segOccKey  = (lat, lon) =>
+                            `${Math.round(lat * 100000)},${Math.round(lon * 100000)}`;
+
                         bySegment.forEach((panels, segIdx) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
                             const az  = segAzimuth.get(segIdx) ?? 180;
@@ -9386,11 +9392,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const gridStartD = uMinD + ((uMaxD - uMinD) - (nbD - 1) * stepD) / 2 + mSizeD / 2;
                             const gridStartP = uMinP + ((uMaxP - uMinP) - (nbP - 1) * stepP) / 2 + mSizeP / 2;
 
-                            // Rayon de présence : distance max à laquelle un point de grille est
-                            // considéré "dans" le segment Solar.
-                            // Google place ses panneaux ~1.0m × 1.65m espacés de ~0.1m
-                            // → rayon = ~0.95m * sqrt(2) / 2 ≈ 0.95m (tolérant)
-                            const presenceR = 1.1; // mètres
+                            // Rayon de présence adaptatif = demi-pas de grille + demi-module Google (~0.85m)
+                            // Garantit qu'un point de grille valide trouvera toujours un panneau Google proche.
+                            const presenceR = Math.max(stepD, stepP) / 2 + 0.85;
 
                             // Fonction de back-projection DP → lat/lon
                             function _dpToLatLon(d, pp) {
@@ -9426,8 +9430,14 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                         if (irrM < irrMin || irrM > irrMax) continue;
                                     }
 
+                                    // Anti-chevauchement inter-segments
+                                    const _oKey = _segOccKey(cLL.lat, cLL.lon);
+                                    if (_segOccGrid.has(_oKey)) continue;
+
                                     const corners = _panelCorners(cLL.lat, cLL.lon, mSizeD, mSizeP, az);
                                     if (targetKw > 0 && totalKwAccum + (modulesPositions.length + 1) * modPuissF / 1000 > targetKw) break;
+
+                                    _segOccGrid.add(_oKey);
 
                                     const poly = L.polygon(corners, {
                                         color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
