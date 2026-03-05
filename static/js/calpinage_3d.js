@@ -640,44 +640,21 @@ class Calpinage3DViewer {
             const azimutDeg = panel.orientation_deg;
             const azimutRad = azimutDeg * Math.PI / 180;
 
-            // ── Vecteurs unitaires du pan en espace monde (X=est, Z=sud) ──
-            // Axe long  (d_al) : parallèle à la rive / au faîtage
-            // Axe court (d_ac) : dans le sens de la pente (descente)
-            // Dérivés de rotation.y = π - az comme en 3D :
-            //   d_al = (-cos az, -sin az)   d_ac = (sin az, -cos az)
+            // Angle 2D pour la projection des coins en coordonnées Leaflet.
+            // Les pans Solar (mnh_a/b définis) sont orientés par leur azimut réel :
+            //   rotation.y = π - azimutRad en 3D  →  long axe = (-cos az, sin az) dans XZ.
+            // Pour les pans OBB paramétriques (fallback), on garde l'axe OBB du bâtiment.
             const _isSolarPan = (panel.mnh_a !== undefined && panel.mnh_b !== undefined);
-            // Long axis (faîtage) et short axis (pente)
-            const d_al_x = _isSolarPan ? -Math.cos(azimutRad) : cosA;
-            const d_al_z = _isSolarPan ? -Math.sin(azimutRad) : sinA;
-            const d_ac_x = _isSolarPan ?  Math.sin(azimutRad) : -sinA;
-            const d_ac_z = _isSolarPan ? -Math.cos(azimutRad) :  cosA;
-
+            const cos2D = _isSolarPan ? -Math.cos(azimutRad) : cosA;
+            const sin2D = _isSolarPan ?  Math.sin(azimutRad) : sinA;
+            
             // === Calculer le rectangle disponible sur ce pan ===
             let panAlongStart, panAlongEnd, panAcrossStart, panAcrossEnd;
 
-            // ── Priorité : bornes projetées sur les axes azimut du pan ──
-            // Pour les pans Solar : on projette polygon_2d sur d_al / d_ac
-            // (coordonnées absolues monde, pas relatives à l'OBB) pour que la
-            // grille soit cohérente avec l'orientation réelle des modules.
-            if (_isSolarPan && panel.polygon_2d && panel.polygon_2d.length >= 3) {
-                let minAl = Infinity, maxAl = -Infinity;
-                let minAc = Infinity, maxAc = -Infinity;
-                for (const [px, py] of panel.polygon_2d) {
-                    const wx = _bldgOffX + px;
-                    const wz = _bldgOffZ - py;
-                    const al = wx * d_al_x + wz * d_al_z;
-                    const ac = wx * d_ac_x + wz * d_ac_z;
-                    if (al < minAl) minAl = al;
-                    if (al > maxAl) maxAl = al;
-                    if (ac < minAc) minAc = ac;
-                    if (ac > maxAc) maxAc = ac;
-                }
-                panAlongStart  = minAl + marge;
-                panAlongEnd    = maxAl - marge;
-                panAcrossStart = minAc + marge;
-                panAcrossEnd   = maxAc - marge;
-            } else if (!_isSolarPan && panel.polygon_2d && panel.polygon_2d.length >= 3) {
-                // Pans non-Solar avec polygone : projection sur axes OBB
+            // ── Priorité : bornes dérivées du polygone Google Solar ──
+            // Évite toute hypothèse sur l'ordre des pans (pi===0 → côté positif, etc.)
+            // et place les modules exactement dans l'emprise réelle de chaque plan.
+            if (panel.polygon_2d && panel.polygon_2d.length >= 3) {
                 let minAl = Infinity, maxAl = -Infinity;
                 let minAc = Infinity, maxAc = -Infinity;
                 for (const [px, py] of panel.polygon_2d) {
@@ -807,21 +784,16 @@ class Calpinage3DViewer {
             panGroup.position.set(_pivotX, _pivotY, _pivotZ);
             
             const modules = [];
-            // Origine du repère grille :
-            // - Solar : coordonnées absolues (projetées sur d_al/d_ac directement)
-            // - OBB   : relatives au centre obb.cx / obb.cz
-            const _refX = _isSolarPan ? 0 : obb.cx;
-            const _refZ = _isSolarPan ? 0 : obb.cz;
             
             outerLoop: for (let iAlong = 0; iAlong < nbAlong; iAlong++) {
                 for (let iAcross = 0; iAcross < nbAcross; iAcross++) {
-                    // Position scalaire dans l'espace grille (along = faîtage, across = pente)
+                    // Position dans le repère OBB (along = axe principal, across = perpendiculaire)
                     const along = offsetAlong + iAlong * (modAlong + espacement) + modAlong / 2;
                     const across = offsetAcross + iAcross * (modAcross + espacement) + modAcross / 2;
                     
-                    // Convertir en coordonnées monde via les vecteurs unitaires du pan
-                    const worldX = _refX + along * d_al_x + across * d_ac_x;
-                    const worldZ = _refZ + along * d_al_z + across * d_ac_z;
+                    // Convertir en coordonnées locales monde (rotation OBB)
+                    const worldX = obb.cx + along * cosA - across * sinA;
+                    const worldZ = obb.cz + along * sinA + across * cosA;
 
                     // === Filtrage par polygone Solar du plan (PRIORITÉ 0) ===
                     // Evite tout chevauchement inter-zones lorsque les AABB OBB se recoupent.
@@ -848,10 +820,10 @@ class Calpinage3DViewer {
                         const halfW = modAlong / 2;
                         const halfH = modAcross / 2;
                         const corners = [
-                            { x: worldX + (-halfW)*d_al_x + (-halfH)*d_ac_x, z: worldZ + (-halfW)*d_al_z + (-halfH)*d_ac_z },
-                            { x: worldX + ( halfW)*d_al_x + (-halfH)*d_ac_x, z: worldZ + ( halfW)*d_al_z + (-halfH)*d_ac_z },
-                            { x: worldX + ( halfW)*d_al_x + ( halfH)*d_ac_x, z: worldZ + ( halfW)*d_al_z + ( halfH)*d_ac_z },
-                            { x: worldX + (-halfW)*d_al_x + ( halfH)*d_ac_x, z: worldZ + (-halfW)*d_al_z + ( halfH)*d_ac_z },
+                            { x: worldX + (-halfW)*cos2D - (-halfH)*sin2D, z: worldZ + (-halfW)*sin2D + (-halfH)*cos2D },
+                            { x: worldX + ( halfW)*cos2D - (-halfH)*sin2D, z: worldZ + ( halfW)*sin2D + (-halfH)*cos2D },
+                            { x: worldX + ( halfW)*cos2D - ( halfH)*sin2D, z: worldZ + ( halfW)*sin2D + ( halfH)*cos2D },
+                            { x: worldX + (-halfW)*cos2D - ( halfH)*sin2D, z: worldZ + (-halfW)*sin2D + ( halfH)*cos2D },
                         ];
                         // Au moins 3 coins sur 4 doivent être dans le polygone
                         const insideCount = corners.filter(c => 
@@ -868,10 +840,10 @@ class Calpinage3DViewer {
                         const halfW2 = modAlong / 2;
                         const halfH2 = modAcross / 2;
                         const modCorners = [
-                            this._localToGeo(worldX + (-halfW2)*d_al_x + (-halfH2)*d_ac_x, worldZ + (-halfW2)*d_al_z + (-halfH2)*d_ac_z),
-                            this._localToGeo(worldX + ( halfW2)*d_al_x + (-halfH2)*d_ac_x, worldZ + ( halfW2)*d_al_z + (-halfH2)*d_ac_z),
-                            this._localToGeo(worldX + ( halfW2)*d_al_x + ( halfH2)*d_ac_x, worldZ + ( halfW2)*d_al_z + ( halfH2)*d_ac_z),
-                            this._localToGeo(worldX + (-halfW2)*d_al_x + ( halfH2)*d_ac_x, worldZ + (-halfW2)*d_al_z + ( halfH2)*d_ac_z),
+                            this._localToGeo(worldX + (-halfW2)*cos2D - (-halfH2)*sin2D, worldZ + (-halfW2)*sin2D + (-halfH2)*cos2D),
+                            this._localToGeo(worldX + ( halfW2)*cos2D - (-halfH2)*sin2D, worldZ + ( halfW2)*sin2D + (-halfH2)*cos2D),
+                            this._localToGeo(worldX + ( halfW2)*cos2D - ( halfH2)*sin2D, worldZ + ( halfW2)*sin2D + ( halfH2)*cos2D),
+                            this._localToGeo(worldX + (-halfW2)*cos2D - ( halfH2)*sin2D, worldZ + (-halfW2)*sin2D + ( halfH2)*cos2D),
                         ];
                         
                         let hitObstacle = false;
@@ -941,14 +913,15 @@ class Calpinage3DViewer {
                     panGroup.add(panel3d);
                     
                     // Calculer les 4 coins en coordonnées géo (lat/lng) pour la projection 2D
-                    // d_al = axe long (faîtage), d_ac = axe court (pente) — cohérent avec rotation 3D
+                    // Utiliser cos2D/sin2D (azimut réel du pan) pour aligner les modules
+                    // sur la pente de toiture et non sur l'OBB du bâtiment.
                     const halfW = modAlong / 2;
                     const halfH = modAcross / 2;
                     const cornersLocal = [
-                        { x: worldX + (-halfW) * d_al_x + (-halfH) * d_ac_x, z: worldZ + (-halfW) * d_al_z + (-halfH) * d_ac_z },
-                        { x: worldX + ( halfW) * d_al_x + (-halfH) * d_ac_x, z: worldZ + ( halfW) * d_al_z + (-halfH) * d_ac_z },
-                        { x: worldX + ( halfW) * d_al_x + ( halfH) * d_ac_x, z: worldZ + ( halfW) * d_al_z + ( halfH) * d_ac_z },
-                        { x: worldX + (-halfW) * d_al_x + ( halfH) * d_ac_x, z: worldZ + (-halfW) * d_al_z + ( halfH) * d_ac_z },
+                        { x: worldX + (-halfW) * cos2D - (-halfH) * sin2D, z: worldZ + (-halfW) * sin2D + (-halfH) * cos2D },
+                        { x: worldX + ( halfW) * cos2D - (-halfH) * sin2D, z: worldZ + ( halfW) * sin2D + (-halfH) * cos2D },
+                        { x: worldX + ( halfW) * cos2D - ( halfH) * sin2D, z: worldZ + ( halfW) * sin2D + ( halfH) * cos2D },
+                        { x: worldX + (-halfW) * cos2D - ( halfH) * sin2D, z: worldZ + (-halfW) * sin2D + ( halfH) * cos2D },
                     ];
                     
                     const cornersGeo = cornersLocal.map(c => this._localToGeo(c.x, c.z));
@@ -970,7 +943,8 @@ class Calpinage3DViewer {
             
             // Appliquer la pente au groupe (uniquement pans paramétriques OBB)
             // Les pans Solar sont déjà positionnés directement en world space → pas de rotation groupe
-            if (!_isSolarPan && penteRad > 0.001) {
+            const isSolarPlan = (panel.mnh_a !== undefined && panel.mnh_b !== undefined);
+            if (!isSolarPlan && penteRad > 0.001) {
                 const tiltAxis = new THREE.Vector3(
                     -Math.cos(azimutRad), 0, -Math.sin(azimutRad)
                 ).normalize();
