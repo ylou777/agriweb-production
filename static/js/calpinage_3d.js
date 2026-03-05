@@ -651,10 +651,32 @@ class Calpinage3DViewer {
             // === Calculer le rectangle disponible sur ce pan ===
             let panAlongStart, panAlongEnd, panAcrossStart, panAcrossEnd;
 
-            // ── Priorité : bornes dérivées du polygone Google Solar ──
-            // Évite toute hypothèse sur l'ordre des pans (pi===0 → côté positif, etc.)
-            // et place les modules exactement dans l'emprise réelle de chaque plan.
-            if (panel.polygon_2d && panel.polygon_2d.length >= 3) {
+            // ── Priorité : bornes projetées sur les axes du pan (azimut pour Solar, OBB sinon) ──
+            // Les axes du pan sont dérivés de rotation.y = π - az (cohérent avec cos2D/sin2D) :
+            //   along : d_al = (-cos az, sin az)   (parallèle au faîtage)
+            //   across : d_ac = (-sin az, -cos az)  (sens de la pente)
+            // On projette en coordonnées monde absolues (pas relatives à obb.cx)
+            // pour que les centres worldX/worldZ soient dans le même repère que les coins.
+            if (_isSolarPan && panel.polygon_2d && panel.polygon_2d.length >= 3) {
+                const d_al_x = -Math.cos(azimutRad), d_al_z =  Math.sin(azimutRad);
+                const d_ac_x = -Math.sin(azimutRad), d_ac_z = -Math.cos(azimutRad);
+                let minAl = Infinity, maxAl = -Infinity;
+                let minAc = Infinity, maxAc = -Infinity;
+                for (const [px, py] of panel.polygon_2d) {
+                    const wx = _bldgOffX + px;
+                    const wz = _bldgOffZ - py;
+                    const al = wx * d_al_x + wz * d_al_z;
+                    const ac = wx * d_ac_x + wz * d_ac_z;
+                    if (al < minAl) minAl = al;
+                    if (al > maxAl) maxAl = al;
+                    if (ac < minAc) minAc = ac;
+                    if (ac > maxAc) maxAc = ac;
+                }
+                panAlongStart  = minAl + marge;
+                panAlongEnd    = maxAl - marge;
+                panAcrossStart = minAc + marge;
+                panAcrossEnd   = maxAc - marge;
+            } else if (!_isSolarPan && panel.polygon_2d && panel.polygon_2d.length >= 3) {
                 let minAl = Infinity, maxAl = -Infinity;
                 let minAc = Infinity, maxAc = -Infinity;
                 for (const [px, py] of panel.polygon_2d) {
@@ -785,15 +807,22 @@ class Calpinage3DViewer {
             
             const modules = [];
             
+            // Vecteurs pour back-projection des centres (Solar = azimut absolu, OBB sinon)
+            const _d_al_x = _isSolarPan ? -Math.cos(azimutRad) : cosA;
+            const _d_al_z = _isSolarPan ?  Math.sin(azimutRad) : sinA;
+            const _d_ac_x = _isSolarPan ? -Math.sin(azimutRad) : -sinA;
+            const _d_ac_z = _isSolarPan ? -Math.cos(azimutRad) :  cosA;
+            const _refX   = _isSolarPan ? 0 : obb.cx;
+            const _refZ   = _isSolarPan ? 0 : obb.cz;
+
             outerLoop: for (let iAlong = 0; iAlong < nbAlong; iAlong++) {
                 for (let iAcross = 0; iAcross < nbAcross; iAcross++) {
-                    // Position dans le repère OBB (along = axe principal, across = perpendiculaire)
                     const along = offsetAlong + iAlong * (modAlong + espacement) + modAlong / 2;
                     const across = offsetAcross + iAcross * (modAcross + espacement) + modAcross / 2;
                     
-                    // Convertir en coordonnées locales monde (rotation OBB)
-                    const worldX = obb.cx + along * cosA - across * sinA;
-                    const worldZ = obb.cz + along * sinA + across * cosA;
+                    // Back-projeter en coordonnées monde via les vecteurs du pan
+                    const worldX = _refX + along * _d_al_x + across * _d_ac_x;
+                    const worldZ = _refZ + along * _d_al_z + across * _d_ac_z;
 
                     // === Filtrage par polygone Solar du plan (PRIORITÉ 0) ===
                     // Evite tout chevauchement inter-zones lorsque les AABB OBB se recoupent.
