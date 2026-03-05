@@ -9296,11 +9296,53 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const pgW = window._fluxApiPanelW || 1.045;
                         const pgH = window._fluxApiPanelH || 1.879;
 
+                        // ── PCA : azimut effectif depuis les positions réelles des panneaux ──
+                        // L'azimuthDegrees de l'API Google Solar vient d'un plane-fit LIDAR
+                        // qui peut différer de plusieurs degrés de la géométrie visible du toit.
+                        // On recalcule l'azimut réel via ACP sur les centres GPS des panneaux.
+                        function _refineAzimuthPCA(panels, rawAzDeg) {
+                            if (panels.length < 4) return rawAzDeg; // pas assez de points
+                            const n = panels.length;
+                            const mLat = panels.reduce((s,p) => s + p.lat, 0) / n;
+                            const mLon = panels.reduce((s,p) => s + p.lon, 0) / n;
+                            const cL   = Math.cos(mLat * Math.PI / 180);
+                            // Covarianceᵢ sur coordonnées métriques locales
+                            let sxx = 0, syy = 0, sxy = 0;
+                            panels.forEach(p => {
+                                const dx = (p.lon - mLon) * 111320 * cL;
+                                const dy = (p.lat - mLat) * 111320;
+                                sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
+                            });
+                            sxx /= n; syy /= n; sxy /= n;
+                            // Angle du 1er axe principal (direction de dispersion maximale = crête)
+                            // θ mesuré depuis l'axe +x (Est), sens trigonométrique
+                            const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+                            // Deux axes perpendiculaires : θ (crête?) et θ+π/2 (pente?)
+                            // Convertir en bearing (depuis Nord, sens horaire)
+                            // bearing = 90° − θ_degrés  (pour axe East → bearing)
+                            const b1 = ((90 - theta * 180 / Math.PI) % 360 + 360) % 360;
+                            const b2 = (b1 + 90) % 360;
+                            // L'axe perpendiculaire à la crête = direction de pente (azimut)
+                            // Choisir le bearing le plus proche du rawAzDeg parmi b1, b2, b1+180, b2+180
+                            const candidates = [b1, b2, (b1 + 180) % 360, (b2 + 180) % 360];
+                            let best = rawAzDeg, bestDiff = 999;
+                            candidates.forEach(c => {
+                                let diff = Math.abs(((c - rawAzDeg) + 540) % 360 - 180);
+                                if (diff < bestDiff) { bestDiff = diff; best = c; }
+                            });
+                            // Ne corriger que si l'écart est raisonnable (< 25°), sinon garder le brut
+                            if (bestDiff > 25) return rawAzDeg;
+                            console.log(`🧭 [PCA] Seg rawAz=${rawAzDeg.toFixed(1)}° → refinedAz=${best.toFixed(1)}° (Δ=${bestDiff.toFixed(1)}°)`);
+                            return best;
+                        }
+
                         bySegment.forEach((panels, segIdx) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
-                            const az  = segAzimuth.get(segIdx) ?? 180;
+                            const azRaw = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
                             const pit = seg?.pitch_deg ?? 15;
+                            // Azimut affiné par PCA sur les positions réelles des panneaux
+                            const az     = _refineAzimuthPCA(panels, azRaw);
                             const az_rad = az * Math.PI / 180;
                             const espSeg = parseFloat(document.getElementById('moduleEspacement')?.value || 5) / 100;
 
@@ -9429,7 +9471,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 largeurMetres: largeurM, longueurMetres: longueurM,
                                 typeInstallation: 'toiture',
                                 modulesPositions,
-                                panToiture: `Pan ${zoneNum} (az ${az}° ${pit}° — ${modulesPositions.length} mod.)`,
+                                panToiture: `Pan ${zoneNum} (az ${az.toFixed(1)}° ${pit}° — ${modulesPositions.length} mod.)`,
                                 _fromSolarPanels: true,
                                 _autoFilled3D: true,
                             };
@@ -9442,7 +9484,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             afficherZone(zone);
                             calculerProductibleZone(zone.id);
                             totalKwAccum += zone.puissanceKw;
-                            console.log(`✅ [Seg ${segIdx}] az=${az}° pit=${pit}° grille ancrée ${iDmax-iDmin+1}×${iPmax-iPmin+1} → ${modulesPositions.length} mod. (${dispF}) ancre=(${anchorD.toFixed(1)},${anchorPP.toFixed(1)})`);
+                            console.log(`✅ [Seg ${segIdx}] az=${az.toFixed(1)}° (brut ${azRaw}°) pit=${pit}° grille ${iDmax-iDmin+1}×${iPmax-iPmin+1} → ${modulesPositions.length} mod. (${dispF})`);
                         });
 
                     } else {
