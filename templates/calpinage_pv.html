@@ -9279,9 +9279,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         let totalKwAccum = 0;
                         const poseA = getPoseParams();
 
-                        // ── Regrouper les panneaux par segment ──
+                        // ── Regrouper TOUS les panneaux par segment (pas seulement panelsOk) ──
+                        // La géométrie (centroïde, bbox, PCA) doit rester stable quel que
+                        // soit le filtre d'irradiance. Le filtrage se fait en ÉTAPE 2 uniquement.
                         const bySegment = new Map();
-                        panelsOk.forEach(p => {
+                        solarPanels.forEach(p => {
                             if (!bySegment.has(p.seg_idx)) bySegment.set(p.seg_idx, []);
                             bySegment.get(p.seg_idx).push(p);
                         });
@@ -9378,6 +9380,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const uMaxD = segMaxD - poseA.reculHaut;
                             const uMinP = segMinP + poseA.reculGauche;
                             const uMaxP = segMaxP - poseA.reculDroite;
+                            console.log(`📐 [Seg ${segIdx}] bbox D=[${segMinD.toFixed(2)}..${segMaxD.toFixed(2)}] PP=[${segMinP.toFixed(2)}..${segMaxP.toFixed(2)}]`
+                                + ` reculs: gouttière=${poseA.reculBas}m faîtage=${poseA.reculHaut}m pignon=${poseA.reculGauche}/${poseA.reculDroite}m`
+                                + ` → utile D=[${uMinD.toFixed(2)}..${uMaxD.toFixed(2)}] PP=[${uMinP.toFixed(2)}..${uMaxP.toFixed(2)}]`);
                             if (uMaxD < uMinD || uMaxP < uMinP) return;
 
                             // ── Grille rectangulaire parfaite ──
