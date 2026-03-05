@@ -645,7 +645,12 @@ class Calpinage3DViewer {
             //   rotation.y = π - azimutRad en 3D  →  long axe = (-cos az, sin az) dans XZ.
             // Pour les pans OBB paramétriques (fallback), on garde l'axe OBB du bâtiment.
             const _isSolarPan = (panel.mnh_a !== undefined && panel.mnh_b !== undefined);
-            const cos2D = _isSolarPan ? -Math.cos(azimutRad) : cosA;
+            // Axes du pan en coordonnées monde (X=Est, Z=Sud) :
+            //   crête (along)  : d_al = ( cos az,  sin az)  — parallèle au faîtage
+            //   pente (across) : d_ac = ( sin az, -cos az)  — sens de la descente
+            // Note : cos2D/sin2D forment la matrice de rotation pour les coins Leaflet
+            // et doivent être identiques à d_al pour que grille et coins soient cohérents.
+            const cos2D = _isSolarPan ?  Math.cos(azimutRad) : cosA;
             const sin2D = _isSolarPan ?  Math.sin(azimutRad) : sinA;
             
             // === Calculer le rectangle disponible sur ce pan ===
@@ -658,8 +663,8 @@ class Calpinage3DViewer {
             // On projette en coordonnées monde absolues (pas relatives à obb.cx)
             // pour que les centres worldX/worldZ soient dans le même repère que les coins.
             if (_isSolarPan && panel.polygon_2d && panel.polygon_2d.length >= 3) {
-                const d_al_x = -Math.cos(azimutRad), d_al_z =  Math.sin(azimutRad);
-                const d_ac_x = -Math.sin(azimutRad), d_ac_z = -Math.cos(azimutRad);
+                const d_al_x =  Math.cos(azimutRad), d_al_z =  Math.sin(azimutRad);
+                const d_ac_x =  Math.sin(azimutRad), d_ac_z = -Math.cos(azimutRad);
                 let minAl = Infinity, maxAl = -Infinity;
                 let minAc = Infinity, maxAc = -Infinity;
                 for (const [px, py] of panel.polygon_2d) {
@@ -808,9 +813,10 @@ class Calpinage3DViewer {
             const modules = [];
             
             // Vecteurs pour back-projection des centres (Solar = azimut absolu, OBB sinon)
-            const _d_al_x = _isSolarPan ? -Math.cos(azimutRad) : cosA;
+            // crête : (cos az, sin az), pente : (sin az, -cos az) — cohérent avec cos2D/sin2D
+            const _d_al_x = _isSolarPan ?  Math.cos(azimutRad) : cosA;
             const _d_al_z = _isSolarPan ?  Math.sin(azimutRad) : sinA;
-            const _d_ac_x = _isSolarPan ? -Math.sin(azimutRad) : -sinA;
+            const _d_ac_x = _isSolarPan ?  Math.sin(azimutRad) : -sinA;
             const _d_ac_z = _isSolarPan ? -Math.cos(azimutRad) :  cosA;
             const _refX   = _isSolarPan ? 0 : obb.cx;
             const _refZ   = _isSolarPan ? 0 : obb.cz;
