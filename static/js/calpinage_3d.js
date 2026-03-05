@@ -639,6 +639,14 @@ class Calpinage3DViewer {
             const penteRad = penteDeg * Math.PI / 180;
             const azimutDeg = panel.orientation_deg;
             const azimutRad = azimutDeg * Math.PI / 180;
+
+            // Angle 2D pour la projection des coins en coordonnées Leaflet.
+            // Les pans Solar (mnh_a/b définis) sont orientés par leur azimut réel :
+            //   rotation.y = π - azimutRad en 3D  →  long axe = (-cos az, sin az) dans XZ.
+            // Pour les pans OBB paramétriques (fallback), on garde l'axe OBB du bâtiment.
+            const _isSolarPan = (panel.mnh_a !== undefined && panel.mnh_b !== undefined);
+            const cos2D = _isSolarPan ? -Math.cos(azimutRad) : cosA;
+            const sin2D = _isSolarPan ?  Math.sin(azimutRad) : sinA;
             
             // === Calculer le rectangle disponible sur ce pan ===
             let panAlongStart, panAlongEnd, panAcrossStart, panAcrossEnd;
@@ -812,10 +820,10 @@ class Calpinage3DViewer {
                         const halfW = modAlong / 2;
                         const halfH = modAcross / 2;
                         const corners = [
-                            { x: worldX + (-halfW)*cosA - (-halfH)*sinA, z: worldZ + (-halfW)*sinA + (-halfH)*cosA },
-                            { x: worldX + ( halfW)*cosA - (-halfH)*sinA, z: worldZ + ( halfW)*sinA + (-halfH)*cosA },
-                            { x: worldX + ( halfW)*cosA - ( halfH)*sinA, z: worldZ + ( halfW)*sinA + ( halfH)*cosA },
-                            { x: worldX + (-halfW)*cosA - ( halfH)*sinA, z: worldZ + (-halfW)*sinA + ( halfH)*cosA },
+                            { x: worldX + (-halfW)*cos2D - (-halfH)*sin2D, z: worldZ + (-halfW)*sin2D + (-halfH)*cos2D },
+                            { x: worldX + ( halfW)*cos2D - (-halfH)*sin2D, z: worldZ + ( halfW)*sin2D + (-halfH)*cos2D },
+                            { x: worldX + ( halfW)*cos2D - ( halfH)*sin2D, z: worldZ + ( halfW)*sin2D + ( halfH)*cos2D },
+                            { x: worldX + (-halfW)*cos2D - ( halfH)*sin2D, z: worldZ + (-halfW)*sin2D + ( halfH)*cos2D },
                         ];
                         // Au moins 3 coins sur 4 doivent être dans le polygone
                         const insideCount = corners.filter(c => 
@@ -832,10 +840,10 @@ class Calpinage3DViewer {
                         const halfW2 = modAlong / 2;
                         const halfH2 = modAcross / 2;
                         const modCorners = [
-                            this._localToGeo(worldX + (-halfW2)*cosA - (-halfH2)*sinA, worldZ + (-halfW2)*sinA + (-halfH2)*cosA),
-                            this._localToGeo(worldX + ( halfW2)*cosA - (-halfH2)*sinA, worldZ + ( halfW2)*sinA + (-halfH2)*cosA),
-                            this._localToGeo(worldX + ( halfW2)*cosA - ( halfH2)*sinA, worldZ + ( halfW2)*sinA + ( halfH2)*cosA),
-                            this._localToGeo(worldX + (-halfW2)*cosA - ( halfH2)*sinA, worldZ + (-halfW2)*sinA + ( halfH2)*cosA),
+                            this._localToGeo(worldX + (-halfW2)*cos2D - (-halfH2)*sin2D, worldZ + (-halfW2)*sin2D + (-halfH2)*cos2D),
+                            this._localToGeo(worldX + ( halfW2)*cos2D - (-halfH2)*sin2D, worldZ + ( halfW2)*sin2D + (-halfH2)*cos2D),
+                            this._localToGeo(worldX + ( halfW2)*cos2D - ( halfH2)*sin2D, worldZ + ( halfW2)*sin2D + ( halfH2)*cos2D),
+                            this._localToGeo(worldX + (-halfW2)*cos2D - ( halfH2)*sin2D, worldZ + (-halfW2)*sin2D + ( halfH2)*cos2D),
                         ];
                         
                         let hitObstacle = false;
@@ -905,13 +913,15 @@ class Calpinage3DViewer {
                     panGroup.add(panel3d);
                     
                     // Calculer les 4 coins en coordonnées géo (lat/lng) pour la projection 2D
+                    // Utiliser cos2D/sin2D (azimut réel du pan) pour aligner les modules
+                    // sur la pente de toiture et non sur l'OBB du bâtiment.
                     const halfW = modAlong / 2;
                     const halfH = modAcross / 2;
                     const cornersLocal = [
-                        { x: worldX + (-halfW) * cosA - (-halfH) * sinA, z: worldZ + (-halfW) * sinA + (-halfH) * cosA },
-                        { x: worldX + ( halfW) * cosA - (-halfH) * sinA, z: worldZ + ( halfW) * sinA + (-halfH) * cosA },
-                        { x: worldX + ( halfW) * cosA - ( halfH) * sinA, z: worldZ + ( halfW) * sinA + ( halfH) * cosA },
-                        { x: worldX + (-halfW) * cosA - ( halfH) * sinA, z: worldZ + (-halfW) * sinA + ( halfH) * cosA },
+                        { x: worldX + (-halfW) * cos2D - (-halfH) * sin2D, z: worldZ + (-halfW) * sin2D + (-halfH) * cos2D },
+                        { x: worldX + ( halfW) * cos2D - (-halfH) * sin2D, z: worldZ + ( halfW) * sin2D + (-halfH) * cos2D },
+                        { x: worldX + ( halfW) * cos2D - ( halfH) * sin2D, z: worldZ + ( halfW) * sin2D + ( halfH) * cos2D },
+                        { x: worldX + (-halfW) * cos2D - ( halfH) * sin2D, z: worldZ + (-halfW) * sin2D + ( halfH) * cos2D },
                     ];
                     
                     const cornersGeo = cornersLocal.map(c => this._localToGeo(c.x, c.z));
