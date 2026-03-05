@@ -9279,53 +9279,133 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         let totalKwAccum = 0;
                         const poseA = getPoseParams();
 
-                        // ── 1. Extraire les panneaux plats (pit < 4°) → UNE seule zone grille ──
+                        // Grille d'occupation globale (flat + segments inclinés) pour éviter tout chevauchement
+                        const _segOccGrid = new Set();
+                        const _segOccKey  = (lat, lon) =>
+                            `${Math.round(lat * 100000)},${Math.round(lon * 100000)}`;
+
+                        // ── 1. Extraire les panneaux plats (pit < 4°) → grille orientée par OBB des panneaux ──
                         const flatPanels = panelsOk.filter(p => {
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === p.seg_idx);
                             return (seg?.pitch_deg ?? 15) < 4;
                         });
 
                         if (flatPanels.length > 0) {
-                            // Bbox globale de tous les panneaux plats
+                            // Calculer l'orientation dominante du toit plat par PCA des positions
+                            const fMeanLat = flatPanels.reduce((s,p)=>s+p.lat,0)/flatPanels.length;
+                            const fMeanLon = flatPanels.reduce((s,p)=>s+p.lon,0)/flatPanels.length;
+                            const fCosLat  = Math.cos(fMeanLat * Math.PI / 180);
+                            const fPts = flatPanels.map(p=>({
+                                x:(p.lon-fMeanLon)*111320*fCosLat,
+                                y:(p.lat-fMeanLat)*111320
+                            }));
+                            // Matrice de covariance
+                            let cxx=0,cyy=0,cxy=0;
+                            fPts.forEach(({x,y})=>{cxx+=x*x;cyy+=y*y;cxy+=x*y;});
+                            cxx/=fPts.length;cyy/=fPts.length;cxy/=fPts.length;
+                            // Angle du 1er vecteur propre
+                            const fAngleRad = 0.5*Math.atan2(2*cxy, cxx-cyy);
+                            // az = angle géographique : Nord=0, Est=90 (fAngleRad est en rad depuis Est)
+                            let fAz = (90 - fAngleRad*180/Math.PI + 360) % 360;
+                            // S'assurer que az pointe "vers le bas" (convention) → prendre le plus proche des az des segments inclinés
+                            const inclinedAzs = fluxSegs.filter(s=>(s.pitch_deg??15)>=4).map(s=>s.azimuth_deg??180);
+                            if (inclinedAzs.length > 0) {
+                                const meanIncAz = inclinedAzs.reduce((a,b)=>a+b,0)/inclinedAzs.length;
+                                const diff = ((fAz - meanIncAz + 360) % 360);
+                                if (diff > 90 && diff < 270) fAz = (fAz + 180) % 360; // flip si anti-parallèle
+                                fAz = meanIncAz; // utiliser directement l'az moyen des pans inclinés
+                            }
+                            const fAzRad   = fAz * Math.PI / 180;
+                            const fEspSeg  = parseFloat(document.getElementById('moduleEspacement')?.value || 5) / 100;
+                            const fMSizeD  = _mW;
+                            const fMSizeP  = _mH;
+                            const fStepD   = fMSizeD + fEspSeg;
+                            const fStepP   = fMSizeP + fEspSeg;
+
+                            // Projeter les centres plats sur les axes az
+                            const fProj = fPts.map(({x,y})=>({
+                                d:  x*Math.sin(fAzRad)+y*Math.cos(fAzRad),
+                                pp: x*Math.cos(fAzRad)-y*Math.sin(fAzRad)
+                            }));
+                            const fAllD  = fProj.map(v=>v.d),  fAllP = fProj.map(v=>v.pp);
+                            const fMinD0=Math.min(...fAllD),fMaxD0=Math.max(...fAllD);
+                            const fMinP0=Math.min(...fAllP),fMaxP0=Math.max(...fAllP);
+                            const fMinD=fMinD0+poseA.reculBas,   fMaxD=fMaxD0-poseA.reculHaut;
+                            const fMinP=fMinP0+poseA.reculGauche,fMaxP=fMaxP0-poseA.reculDroite;
+                            const fNbD=Math.max(1,Math.floor((fMaxD-fMinD)/fStepD));
+                            const fNbP=Math.max(1,Math.floor((fMaxP-fMinP)/fStepP));
+                            const fGSD=fMinD+((fMaxD-fMinD)-(fNbD-1)*fStepD)/2+fMSizeD/2;
+                            const fGSP=fMinP+((fMaxP-fMinP)-(fNbP-1)*fStepP)/2+fMSizeP/2;
+                            const fPresR=Math.max(fStepD,fStepP)/2+0.85;
+
+                            function _fDpToLatLon(d,pp){
+                                const dx=d*Math.sin(fAzRad)+pp*Math.cos(fAzRad);
+                                const dy=d*Math.cos(fAzRad)-pp*Math.sin(fAzRad);
+                                return{lat:fMeanLat+dy/111320,lon:fMeanLon+dx/(111320*fCosLat)};
+                            }
+
+                            const fModGrp=L.layerGroup();
+                            const fModPos=[];
                             let fMinLat=Infinity,fMaxLat=-Infinity,fMinLon=Infinity,fMaxLon=-Infinity;
-                            flatPanels.forEach(p => {
-                                fMinLat=Math.min(fMinLat,p.lat); fMaxLat=Math.max(fMaxLat,p.lat);
-                                fMinLon=Math.min(fMinLon,p.lon); fMaxLon=Math.max(fMaxLon,p.lon);
-                            });
-                            const fBuf = 0.00003;
-                            const fBounds = L.latLngBounds(
-                                [fMinLat - fBuf, fMinLon - fBuf], [fMaxLat + fBuf, fMaxLon + fBuf]
-                            );
-                            const fLayer = L.rectangle(fBounds, {
-                                color: '#ff7800', weight: 2, fillOpacity: 0.03, dashArray: '5,5', interactive: true
-                            });
-                            fLayer.addTo(drawnItems);
-                            const fLargM  = map.distance([fMinLat,fMinLon],[fMinLat,fMaxLon]);
-                            const fLongM  = map.distance([fMinLat,fMinLon],[fMaxLat,fMinLon]);
-                            const fMW = dispF === 'paysage' ? _modL : _modW;
-                            const fMV = dispF === 'paysage' ? _modW : _modL;
-                            const fCols = Math.floor(Math.max(0, fLargM - poseA.reculGauche - poseA.reculDroite) / (fMW + poseA.spacingH));
-                            const fRows = Math.floor(Math.max(0, fLongM - poseA.reculBas    - poseA.reculHaut)   / (fMV + poseA.spacingV));
-                            const fNb   = fCols * fRows;
-                            zoneNum++;
-                            const flatZone = {
-                                id: fLayer._leaflet_id, numero: zoneNum, layer: fLayer,
-                                surfaceM2: fLargM * fLongM,
-                                nbModules: fNb, nbCols: fCols, nbRows: fRows,
-                                puissanceKw: (fNb * modPuissF) / 1000,
-                                orientation: 180, inclinaison: 0, rotationAngle: 0,
-                                productible: 0, moduleOrientation: dispF,
-                                largeurMetres: fLargM, longueurMetres: fLongM,
-                                typeInstallation: 'toiture', modulesPositions: [],
-                                panToiture: `Pan ${zoneNum} toit plat (${fNb} mod.)`,
-                                _fromFluxSegment: true,  // redessiner par updateAllZones (filtre irr)
-                            };
-                            zones.push(flatZone);
-                            dessinerModulesDansZone(flatZone);
-                            afficherZone(flatZone);
-                            calculerProductibleZone(flatZone.id);
-                            totalKwAccum += flatZone.puissanceKw;
-                            console.log(`🏠 [PLAT] bbox globale ${flatPanels.length} panneaux → grille ${fCols}×${fRows}=${fNb} mod.`);
+
+                            for(let iD=0;iD<fNbD;iD++){
+                                for(let iP=0;iP<fNbP;iP++){
+                                    const cD=fGSD+iD*fStepD, cP=fGSP+iP*fStepP;
+                                    // Test présence
+                                    const inF=fProj.some(({d,pp})=>Math.abs(d-cD)<=fPresR&&Math.abs(pp-cP)<=fPresR);
+                                    if(!inF) continue;
+                                    const cLL=_fDpToLatLon(cD,cP);
+                                    // Filtrage irradiance
+                                    if(_fluxCanvas&&_fluxBbox){
+                                        const px=_sampleCanvas(_fluxCanvas,_fluxBbox,cLL.lat,cLL.lon);
+                                        if(!px||px[3]<10) continue;
+                                        const irrM=_colorToIrr(px[0],px[1],px[2]);
+                                        if(irrM<irrMin||irrM>irrMax) continue;
+                                    }
+                                    // Anti-chevauchement inter-zones (réutilise _segOccGrid déclaré plus bas)
+                                    // Note: _segOccGrid n'est pas encore déclaré ici → on l'utilisera post-hoc
+                                    const _fKey=_segOccKey(cLL.lat,cLL.lon);
+                                    if(_segOccGrid.has(_fKey)) continue;
+                                    _segOccGrid.add(_fKey);
+                                    const corners=_panelCorners(cLL.lat,cLL.lon,fMSizeD,fMSizeP,fAz);
+                                    const poly=L.polygon(corners,{color:'#0066cc',weight:1,fillColor:'#4d94ff',fillOpacity:0.7,interactive:false});
+                                    fModGrp.addLayer(poly);
+                                    fModPos.push({lat:cLL.lat,lng:cLL.lon,corners:corners.map(c=>({lat:c.lat,lng:c.lng}))});
+                                    corners.forEach(c=>{fMinLat=Math.min(fMinLat,c.lat);fMaxLat=Math.max(fMaxLat,c.lat);fMinLon=Math.min(fMinLon,c.lng);fMaxLon=Math.max(fMaxLon,c.lng);});
+                                }
+                            }
+
+                            if(fModPos.length>0){
+                                const fBuf=0.000015;
+                                const fBounds=L.latLngBounds([fMinLat-fBuf,fMinLon-fBuf],[fMaxLat+fBuf,fMaxLon+fBuf]);
+                                const fLayer=L.rectangle(fBounds,{color:'#ff7800',weight:2,fillOpacity:0.03,dashArray:'5,5',interactive:true});
+                                fLayer.addTo(drawnItems);
+                                const fLargM=map.distance([fMinLat,fMinLon],[fMinLat,fMaxLon]);
+                                const fLongM=map.distance([fMinLat,fMinLon],[fMaxLat,fMinLon]);
+                                const fOutline=L.rectangle(fBounds,{color:'#ff7800',weight:2,fillOpacity:0,dashArray:'5,5',interactive:false});
+                                fOutline._isZoneOutline=true;
+                                fModGrp.addLayer(fOutline);
+                                fModGrp.addTo(map);
+                                zoneNum++;
+                                const flatZone={
+                                    id:fLayer._leaflet_id,numero:zoneNum,layer:fLayer,
+                                    surfaceM2:fLargM*fLongM,
+                                    nbModules:fModPos.length,nbCols:fNbP,nbRows:fNbD,
+                                    puissanceKw:(fModPos.length*modPuissF)/1000,
+                                    orientation:fAz,inclinaison:0,rotationAngle:0,
+                                    productible:0,moduleOrientation:dispF,
+                                    largeurMetres:fLargM,longueurMetres:fLongM,
+                                    typeInstallation:'toiture',modulesPositions:fModPos,
+                                    panToiture:`Pan ${zoneNum} toit plat (${fModPos.length} mod.)`,
+                                    _fromSolarPanels:true,_autoFilled3D:true,
+                                    moduleGroup:fModGrp,
+                                };
+                                zones.push(flatZone);
+                                afficherZone(flatZone);
+                                calculerProductibleZone(flatZone.id);
+                                totalKwAccum+=flatZone.puissanceKw;
+                                console.log(`🏠 [PLAT] az=${fAz.toFixed(1)}° grille ${fNbD}×${fNbP}=${fModPos.length} mod. (${dispF})`);
+                            }
                         }
 
                         // ── 2. Segments inclinés (pit ≥ 4°) : une zone par seg, positions GPS exactes ──
@@ -9337,12 +9417,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 bySegment.get(p.seg_idx).push(p);
                             }
                         });
-
-                        // Grille d'occupation globale inter-segments (~1m de résolution en lat/lon)
-                        // Empêche deux segments de placer un module au même endroit.
-                        const _segOccGrid = new Set();
-                        const _segOccKey  = (lat, lon) =>
-                            `${Math.round(lat * 100000)},${Math.round(lon * 100000)}`;
 
                         bySegment.forEach((panels, segIdx) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
