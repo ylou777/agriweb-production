@@ -3554,6 +3554,7 @@
                     });
                     layer.on('click.delete', function(e) {
                         L.DomEvent.stopPropagation(e);
+                        drawnItems.removeLayer(this);
                         supprimerZone(this._leaflet_id);
                         // Quitter le mode delete s'il n'y a plus de zones
                         if (zones.length === 0) setActiveTool('rectangle');
