@@ -3541,24 +3541,47 @@
                 if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
                 if (editHandler) editHandler.disable();
 
-                // ── Clic direct sur zone → suppression immédiate ───────────────────
-                drawnItems.eachLayer(function(layer) {
-                    // Rendre visible pour indiquer la zone cliquable
-                    layer.setStyle({ color: '#dc3545', weight: 2, opacity: 0.8, fillOpacity: 0.25 });
-                    layer.on('mouseover.delete', function() {
-                        this.setStyle({ fillColor: '#dc3545', fillOpacity: 0.5 });
-                        if (this._path) this._path.style.cursor = 'pointer';
-                    });
-                    layer.on('mouseout.delete', function() {
-                        this.setStyle({ fillColor: '#ff7800', fillOpacity: 0.25 });
-                    });
-                    layer.on('click.delete', function(e) {
-                        L.DomEvent.stopPropagation(e);
-                        drawnItems.removeLayer(this);
-                        supprimerZone(this._leaflet_id);
-                        // Quitter le mode delete s'il n'y a plus de zones
-                        if (zones.length === 0) setActiveTool('rectangle');
-                    });
+                // ── Clic sur le contour visible (zoneOutline) de chaque zone ──────
+                // Le contour orange pointillé EST l'élément visuel que l'utilisateur voit.
+                // Les rectangles drawnItems sont derrière les moduleGroups dans le SVG.
+                zones.forEach(function(zone) {
+                    var zId = zone.id;
+                    // Fallback : clic sur le rectangle drawnItems (bringToFront)
+                    if (zone.layer) {
+                        zone.layer.bringToFront();
+                        zone.layer.setStyle({ color: '#dc3545', weight: 2, opacity: 0.8, fillOpacity: 0.15 });
+                        zone.layer.on('click.delete', function(e) {
+                            L.DomEvent.stopPropagation(e);
+                            drawnItems.removeLayer(zone.layer);
+                            supprimerZone(zId);
+                            if (zones.length === 0) setActiveTool('rectangle');
+                        });
+                    }
+                    // Cibler le contour orange visible (zoneOutline dans moduleGroup)
+                    if (zone.moduleGroup) {
+                        zone.moduleGroup.eachLayer(function(l) {
+                            if (!l._isZoneOutline) return;
+                            l.options.interactive = true;
+                            if (l._path) {
+                                l._path.setAttribute('pointer-events', 'all');
+                                l._path.style.cursor = 'pointer';
+                            }
+                            l.setStyle({ color: '#dc3545', weight: 3, fillColor: '#dc3545', fillOpacity: 0.25, dashArray: null });
+                            l.on('mouseover.delete', function() {
+                                this.setStyle({ fillOpacity: 0.45 });
+                                if (this._path) this._path.style.cursor = 'pointer';
+                            });
+                            l.on('mouseout.delete', function() {
+                                this.setStyle({ fillOpacity: 0.25 });
+                            });
+                            l.on('click.delete', function(e) {
+                                L.DomEvent.stopPropagation(e);
+                                drawnItems.removeLayer(zone.layer);
+                                supprimerZone(zId);
+                                if (zones.length === 0) setActiveTool('rectangle');
+                            });
+                        });
+                    }
                 });
             });
             
@@ -3702,6 +3725,22 @@
                     layer.off('mouseout.delete');
                     layer.setStyle({ color: '#ff7800', weight: 2, opacity: 0, fillOpacity: 0 });
                     if (layer._path) layer._path.style.cursor = '';
+                });
+                // Restaurer les contours de zone (zoneOutline)
+                zones.forEach(function(zone) {
+                    if (!zone.moduleGroup) return;
+                    zone.moduleGroup.eachLayer(function(l) {
+                        if (!l._isZoneOutline) return;
+                        l.off('click.delete');
+                        l.off('mouseover.delete');
+                        l.off('mouseout.delete');
+                        l.options.interactive = false;
+                        if (l._path) {
+                            l._path.setAttribute('pointer-events', 'none');
+                            l._path.style.cursor = '';
+                        }
+                        l.setStyle({ color: '#ff7800', weight: 2, fillOpacity: 0, dashArray: '5, 5' });
+                    });
                 });
             }
             
