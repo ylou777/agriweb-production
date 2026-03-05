@@ -2300,18 +2300,65 @@
 
         // ── Poignées de coin pour redimensionner les zones PV ─────────────────────
 
+        /**
+         * Retourne les facteurs de conversion lat/lng ↔ mètres et le sinus/cosinus
+         * de l'angle de rotation, calculés identiquement à dessinerModulesDansZone.
+         */
+        function _getZoneInfo(zone) {
+            const b = zone.layer.getBounds();
+            const center = b.getCenter();
+            const sw = b.getSouthWest(), ne = b.getNorthEast();
+            const rW = map.distance(sw, [sw.lat, ne.lng]) || 1;
+            const rH = map.distance(sw, [ne.lat, sw.lng]) || 1;
+            const mLng = (ne.lng - sw.lng) / rW;   // degrés lng par mètre
+            const mLat = (ne.lat - sw.lat) / rH;   // degrés lat par mètre
+            const theta = (zone.rotationAngle || 0) * Math.PI / 180;
+            return { center, mLng, mLat, theta };
+        }
+
+        /**
+         * Convertit des coordonnées locales (xM, yM) en mètres par rapport au
+         * centre vers un L.LatLng, avec la même rotation que dessinerModulesDansZone.
+         */
+        function _localToLatLng(info, xM, yM) {
+            const a = -info.theta;               // identique à dessinerModulesDansZone
+            const xRot = xM * Math.cos(a) - yM * Math.sin(a);
+            const yRot = xM * Math.sin(a) + yM * Math.cos(a);
+            return L.latLng(
+                info.center.lat + yRot * info.mLat,
+                info.center.lng + xRot * info.mLng
+            );
+        }
+
+        /**
+         * Replace les 4 poignées de coin aux positions exactes du contour visible.
+         * Ordre des poignées : [NW, NE, SE, SW].
+         */
+        function _repositionZoneHandles(zone, handles) {
+            const info = _getZoneInfo(zone);
+            const W = zone.largeurMetres / 2, H = zone.longueurMetres / 2;
+            const lc = [[-W, H], [W, H], [W, -H], [-W, -H]]; // NW NE SE SW
+            handles.forEach(function(m, j) {
+                m.setLatLng(_localToLatLng(info, lc[j][0], lc[j][1]));
+            });
+        }
+
         function _createZoneResizeHandles(zone, layer) {
             _removeZoneResizeHandles(zone.id);
-            const b = layer.getBounds();
-            const corners = [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()];
             const cursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
+            // Signes pour [NW, NE, SE, SW]  (x=largeur, y=longueur)
+            const lcSigns = [[-1, 1], [1, 1], [1, -1], [-1, -1]];
             const markers = [];
 
-            corners.forEach(function(pos, i) {
+            lcSigns.forEach(function(lcs, i) {
+                const info0 = _getZoneInfo(zone);
+                const W0 = zone.largeurMetres / 2, H0 = zone.longueurMetres / 2;
+                const pos = _localToLatLng(info0, lcs[0] * W0, lcs[1] * H0);
+
                 const m = L.marker(pos, {
                     icon: L.divIcon({
                         className: '',
-                        html: '<div class="zone-resize-handle" style="cursor:' + cursors[i] + '"></div>',
+                        html: '<div style="width:14px;height:14px;background:#fff;border:2.5px solid #0d6efd;border-radius:3px;cursor:' + cursors[i] + ';box-shadow:0 2px 6px rgba(0,0,0,0.4);transition:background .1s;"></div>',
                         iconSize: [14, 14],
                         iconAnchor: [7, 7]
                     }),
@@ -2321,28 +2368,58 @@
                 m.addTo(map);
                 markers.push(m);
 
-                m.on('dragstart', function() { map.dragging.disable(); });
+                // Infos figées au début du drag pour cohérence des calculs
+                let dInfo = null;
+
+                m.on('dragstart', function() {
+                    map.dragging.disable();
+                    dInfo = _getZoneInfo(zone);
+                });
 
                 m.on('drag', function(e) {
+                    if (!dInfo) return;
                     const oppIdx = (i + 2) % 4;
-                    const oppPos = markers[oppIdx].getLatLng();
-                    const newB = L.latLngBounds(e.latlng, oppPos);
-                    layer.setBounds(newB);
-                    const nc = [newB.getNorthWest(), newB.getNorthEast(), newB.getSouthEast(), newB.getSouthWest()];
-                    markers.forEach(function(mk, j) { if (j !== i) mk.setLatLng(nc[j]); });
-                    const sw = newB.getSouthWest(), ne = newB.getNorthEast();
-                    zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                    zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                    const oppPos = markers[oppIdx].getLatLng(); // coin opposé fixe
+
+                    // Nouveau centre = milieu entre coin tiré et coin opposé
+                    const nc = L.latLng(
+                        (e.latlng.lat + oppPos.lat) / 2,
+                        (e.latlng.lng + oppPos.lng) / 2
+                    );
+
+                    // Vecteur centre → coin tiré, en mètres
+                    const dxM = (e.latlng.lng - nc.lng) / dInfo.mLng;
+                    const dyM = (e.latlng.lat - nc.lat) / dInfo.mLat;
+
+                    // Rotation inverse (monde → local) pour récupérer les demi-dimensions
+                    const cosT = Math.cos(dInfo.theta), sinT = Math.sin(dInfo.theta);
+                    const xLocal =  cosT * dxM - sinT * dyM;
+                    const yLocal =  sinT * dxM + cosT * dyM;
+
+                    const newHalfW = Math.max(0.5, Math.abs(xLocal));
+                    const newHalfH = Math.max(0.5, Math.abs(yLocal));
+                    zone.largeurMetres = newHalfW * 2;
+                    zone.longueurMetres = newHalfH * 2;
+
+                    // AABB du rectangle pivoté → mis à jour sur le layer Leaflet
+                    const halfW_bb = Math.abs(newHalfW * cosT) + Math.abs(newHalfH * sinT);
+                    const halfH_bb = Math.abs(newHalfW * sinT) + Math.abs(newHalfH * cosT);
+                    layer.setBounds(L.latLngBounds(
+                        L.latLng(nc.lat - halfH_bb * dInfo.mLat, nc.lng - halfW_bb * dInfo.mLng),
+                        L.latLng(nc.lat + halfH_bb * dInfo.mLat, nc.lng + halfW_bb * dInfo.mLng)
+                    ));
+
+                    // Repositionner les 3 autres poignées
+                    _repositionZoneHandles(zone, markers);
                     dessinerModulesDansZone(zone);
                     if (rotationHandles[zone.id]) updateHandlePosition(zone, rotationHandles[zone.id]);
                 });
 
                 m.on('dragend', function() {
                     map.dragging.enable();
-                    const fb = layer.getBounds();
-                    const fc = [fb.getNorthWest(), fb.getNorthEast(), fb.getSouthEast(), fb.getSouthWest()];
-                    markers.forEach(function(mk, j) { mk.setLatLng(fc[j]); });
-                    zone.originalBounds = { sw: fb.getSouthWest(), ne: fb.getNorthEast() };
+                    dInfo = null;
+                    _repositionZoneHandles(zone, markers);
+                    zone.originalBounds = { sw: layer.getBounds().getSouthWest(), ne: layer.getBounds().getNorthEast() };
                     zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
                     recalculerZone(zone);
                     dessinerModulesDansZone(zone);
@@ -2366,15 +2443,16 @@
         }
 
         function _enableZoneDragging(zone, layer, handleMarkers) {
-            let dragStart = null, origSW = null, origNE = null, dragging = false;
+            let dragStart = null, origCenter = null, origHalfW = 0, origHalfH = 0, dragging = false;
 
             layer._zoneDragDown = function(e) {
                 if (e.originalEvent.button !== 0) return;
                 dragging = true;
                 dragStart = e.latlng;
                 const ob = layer.getBounds();
-                origSW = ob.getSouthWest();
-                origNE = ob.getNorthEast();
+                origCenter = ob.getCenter();
+                origHalfW  = (ob.getNorthEast().lng - ob.getSouthWest().lng) / 2;
+                origHalfH  = (ob.getNorthEast().lat - ob.getSouthWest().lat) / 2;
                 map.dragging.disable();
                 map.on('mousemove', layer._zoneDragMove);
                 map.on('mouseup', layer._zoneDragUp);
@@ -2385,14 +2463,13 @@
                 if (!dragging) return;
                 const dlat = e.latlng.lat - dragStart.lat;
                 const dlng = e.latlng.lng - dragStart.lng;
-                const newSW = L.latLng(origSW.lat + dlat, origSW.lng + dlng);
-                const newNE = L.latLng(origNE.lat + dlat, origNE.lng + dlng);
-                const newB = L.latLngBounds(newSW, newNE);
-                layer.setBounds(newB);
-                const nc = [newB.getNorthWest(), newB.getNorthEast(), newB.getSouthEast(), newB.getSouthWest()];
-                handleMarkers.forEach(function(m, j) { m.setLatLng(nc[j]); });
-                zone.largeurMetres = map.distance(newSW, [newSW.lat, newNE.lng]);
-                zone.longueurMetres = map.distance(newSW, [newNE.lat, newSW.lng]);
+                const nc = L.latLng(origCenter.lat + dlat, origCenter.lng + dlng);
+                layer.setBounds(L.latLngBounds(
+                    L.latLng(nc.lat - origHalfH, nc.lng - origHalfW),
+                    L.latLng(nc.lat + origHalfH, nc.lng + origHalfW)
+                ));
+                // Déplacer les poignées de coin aux nouvelles positions rotées
+                _repositionZoneHandles(zone, handleMarkers);
                 dessinerModulesDansZone(zone);
                 if (rotationHandles[zone.id]) updateHandlePosition(zone, rotationHandles[zone.id]);
             };
