@@ -9347,8 +9347,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const iPmin = Math.ceil((uMinP - anchorPP + mSizeP/2) / stepP);
                             const iPmax = Math.floor((uMaxP - anchorPP - mSizeP/2) / stepP);
 
-                            // Masque de présence : demi-diagonale du panneau Google + petite marge
-                            const presR = Math.sqrt(pgW*pgW + pgH*pgH) / 2 + 0.10;
+                            // Masque de présence par axe : un point de grille est valide ssi
+                            // un panneau Google en couvre le centre.
+                            // pgH = hauteur (axe D = pente), pgW = largeur (axe P = crête)
+                            const presRd  = pgH / 2 + 0.05;   // tolérance sur l'axe pente
+                            const presRpp = pgW / 2 + 0.05;   // tolérance sur l'axe crête
 
                             // Back-projection DP → GPS
                             function _dpToLatLon(d, pp) {
@@ -9368,7 +9371,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
                                     // Masque de toit : le centre de grille doit tomber sur un panneau Google
                                     const inSeg = panelProj.some(({d, pp}) =>
-                                        Math.abs(d - cD) <= presR && Math.abs(pp - cP) <= presR
+                                        Math.abs(d - cD) <= presRd && Math.abs(pp - cP) <= presRpp
                                     );
                                     if (!inSeg) continue;
 
