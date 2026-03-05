@@ -9279,14 +9279,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         let totalKwAccum = 0;
                         const poseA = getPoseParams();
 
-                        // Grille d'occupation globale – résolution ≈ 0.11 m
-                        // pour détecter les chevauchements entre segments adjacents
-                        const _segOccGrid = new Set();
-                        const _segOccKey  = (lat, lon) =>
-                            `${Math.round(lat * 1000000)},${Math.round(lon * 1000000)}`;
-
-                        // ── Tous les segments → grille azimutale (aucune distinction plat/incliné) ──
-                        // Les segments à faible pente ont quand même un azimut réel → traités identiquement.
+                        // ── Regrouper les panneaux par segment ──
                         const bySegment = new Map();
                         panelsOk.forEach(p => {
                             if (!bySegment.has(p.seg_idx)) bySegment.set(p.seg_idx, []);
@@ -9297,21 +9290,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const pgW = window._fluxApiPanelW || 1.045;
                         const pgH = window._fluxApiPanelH || 1.879;
 
-                        // Plus de Voronoï : la grille d'occupation haute résolution
-                        // empêche tout chevauchement. Les segments sont traités du plus
-                        // grand au plus petit → le segment principal remplit en premier.
-
                         // ── PCA : azimut effectif depuis les positions réelles des panneaux ──
-                        // L'azimuthDegrees de l'API Google Solar vient d'un plane-fit LIDAR
-                        // qui peut différer de plusieurs degrés de la géométrie visible du toit.
-                        // On recalcule l'azimut réel via ACP sur les centres GPS des panneaux.
                         function _refineAzimuthPCA(panels, rawAzDeg) {
-                            if (panels.length < 4) return rawAzDeg; // pas assez de points
+                            if (panels.length < 4) return rawAzDeg;
                             const n = panels.length;
                             const mLat = panels.reduce((s,p) => s + p.lat, 0) / n;
                             const mLon = panels.reduce((s,p) => s + p.lon, 0) / n;
                             const cL   = Math.cos(mLat * Math.PI / 180);
-                            // Covarianceᵢ sur coordonnées métriques locales
                             let sxx = 0, syy = 0, sxy = 0;
                             panels.forEach(p => {
                                 const dx = (p.lon - mLon) * 111320 * cL;
@@ -9319,57 +9304,42 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
                             });
                             sxx /= n; syy /= n; sxy /= n;
-                            // Angle du 1er axe principal (direction de dispersion maximale = crête)
-                            // θ mesuré depuis l'axe +x (Est), sens trigonométrique
                             const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-                            // Deux axes perpendiculaires : θ (crête?) et θ+π/2 (pente?)
-                            // Convertir en bearing (depuis Nord, sens horaire)
-                            // bearing = 90° − θ_degrés  (pour axe East → bearing)
                             const b1 = ((90 - theta * 180 / Math.PI) % 360 + 360) % 360;
                             const b2 = (b1 + 90) % 360;
-                            // L'axe perpendiculaire à la crête = direction de pente (azimut)
-                            // Choisir le bearing le plus proche du rawAzDeg parmi b1, b2, b1+180, b2+180
                             const candidates = [b1, b2, (b1 + 180) % 360, (b2 + 180) % 360];
                             let best = rawAzDeg, bestDiff = 999;
                             candidates.forEach(c => {
                                 let diff = Math.abs(((c - rawAzDeg) + 540) % 360 - 180);
                                 if (diff < bestDiff) { bestDiff = diff; best = c; }
                             });
-                            // Ne corriger que si l'écart est raisonnable (< 25°), sinon garder le brut
                             if (bestDiff > 25) return rawAzDeg;
                             console.log(`🧭 [PCA] Seg rawAz=${rawAzDeg.toFixed(1)}° → refinedAz=${best.toFixed(1)}° (Δ=${bestDiff.toFixed(1)}°)`);
                             return best;
                         }
 
-                        // Trier segments par taille décroissante → le plus grand remplit en premier
-                        const _sortedSegKeys = [...bySegment.keys()].sort((a, b) =>
-                            bySegment.get(b).length - bySegment.get(a).length
-                        );
-                        _sortedSegKeys.forEach(segIdx => {
-                            const panels = bySegment.get(segIdx);
+                        // ── Traitement par segment : rectangle parfait → filtrage irradiance ──
+                        bySegment.forEach((panels, segIdx) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
                             const azRaw = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
                             const pit = seg?.pitch_deg ?? 15;
-                            // Azimut affiné par PCA sur les positions réelles des panneaux
                             const az     = _refineAzimuthPCA(panels, azRaw);
                             const az_rad = az * Math.PI / 180;
                             const espSeg = parseFloat(document.getElementById('moduleEspacement')?.value || 5) / 100;
 
-                            // Dimensions module : axe-D = pente (az), axe-P = crête (az+90°)
+                            // Dimensions module (axe-D = pente, axe-P = crête)
                             const mSizeD = _mW;
                             const mSizeP = _mH;
                             const stepD  = mSizeD + espSeg;
                             const stepP  = mSizeP + espSeg;
 
-                            // ── Centre de référence : centroïde des panneaux Google du segment ──
+                            // Centroïde de référence
                             const meanLat = panels.reduce((s, p) => s + p.lat, 0) / panels.length;
                             const meanLon = panels.reduce((s, p) => s + p.lon, 0) / panels.length;
                             const cosLat  = Math.cos(meanLat * Math.PI / 180);
 
-                            // ── BORNES : bbox du segment projetée sur les axes D/PP ──
-                            // La bbox du segment donne les limites réelles du pan de toiture.
-                            // On y applique les reculs (gouttière, faîtage, pignon).
+                            // ── BORNES : bbox du segment → projection sur axes D/PP ──
                             let segMinD, segMaxD, segMinP, segMaxP;
                             if (seg?.seg_sw && seg?.seg_ne) {
                                 const bboxCorners = [
@@ -9385,13 +9355,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                     const dyB = (c.lat - meanLat) * 111320;
                                     const bd = dxB * Math.sin(az_rad) + dyB * Math.cos(az_rad);
                                     const bp = dxB * Math.cos(az_rad) - dyB * Math.sin(az_rad);
-                                    segMinD = Math.min(segMinD, bd);
-                                    segMaxD = Math.max(segMaxD, bd);
-                                    segMinP = Math.min(segMinP, bp);
-                                    segMaxP = Math.max(segMaxP, bp);
+                                    segMinD = Math.min(segMinD, bd); segMaxD = Math.max(segMaxD, bd);
+                                    segMinP = Math.min(segMinP, bp); segMaxP = Math.max(segMaxP, bp);
                                 });
                             } else {
-                                // Fallback : enveloppe des panneaux Google + demi-panneau
                                 const panelProj = panels.map(p => {
                                     const dx = (p.lon - meanLon) * 111320 * cosLat;
                                     const dy = (p.lat - meanLat) * 111320;
@@ -9400,33 +9367,27 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                         pp: dx * Math.cos(az_rad) - dy * Math.sin(az_rad),
                                     };
                                 });
-                                const allD  = panelProj.map(x => x.d);
-                                const allPP = panelProj.map(x => x.pp);
-                                segMinD = Math.min(...allD)  - pgH / 2;
-                                segMaxD = Math.max(...allD)  + pgH / 2;
-                                segMinP = Math.min(...allPP) - pgW / 2;
-                                segMaxP = Math.max(...allPP) + pgW / 2;
+                                segMinD = Math.min(...panelProj.map(x => x.d))  - pgH / 2;
+                                segMaxD = Math.max(...panelProj.map(x => x.d))  + pgH / 2;
+                                segMinP = Math.min(...panelProj.map(x => x.pp)) - pgW / 2;
+                                segMaxP = Math.max(...panelProj.map(x => x.pp)) + pgW / 2;
                             }
 
-                            // Appliquer les reculs :
-                            // reculBas = gouttière (bas de pente → D min)
-                            // reculHaut = faîtage (haut de pente → D max)
-                            // reculGauche/Droite = pignon (axe crête → P min/max)
+                            // Appliquer les reculs (gouttière, faîtage, pignon)
                             const uMinD = segMinD + poseA.reculBas;
                             const uMaxD = segMaxD - poseA.reculHaut;
                             const uMinP = segMinP + poseA.reculGauche;
                             const uMaxP = segMaxP - poseA.reculDroite;
                             if (uMaxD < uMinD || uMaxP < uMinP) return;
 
-                            // ── Grille ancrée sur le centre de la zone utile ──
+                            // ── Grille rectangulaire parfaite ──
                             const centerD  = (uMinD + uMaxD) / 2;
                             const centerPP = (uMinP + uMaxP) / 2;
-                            const iDmin = Math.ceil((uMinD - centerD + mSizeD/2) / stepD);
-                            const iDmax = Math.floor((uMaxD - centerD - mSizeD/2) / stepD);
-                            const iPmin = Math.ceil((uMinP - centerPP + mSizeP/2) / stepP);
+                            const iDmin = Math.ceil ((uMinD - centerD  + mSizeD/2) / stepD);
+                            const iDmax = Math.floor((uMaxD - centerD  - mSizeD/2) / stepD);
+                            const iPmin = Math.ceil ((uMinP - centerPP + mSizeP/2) / stepP);
                             const iPmax = Math.floor((uMaxP - centerPP - mSizeP/2) / stepP);
 
-                            // Back-projection DP → GPS
                             function _dpToLatLon(d, pp) {
                                 const dx = d * Math.sin(az_rad) + pp * Math.cos(az_rad);
                                 const dy = d * Math.cos(az_rad) - pp * Math.sin(az_rad);
@@ -9435,37 +9396,19 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
                             const moduleGroup = L.layerGroup();
                             const modulesPositions = [];
-                            const modulesLayers = [];  // pour retrait post-irradiance
-                            let zoneMinLat=Infinity,zoneMaxLat=-Infinity,zoneMinLon=Infinity,zoneMaxLon=-Infinity;
+                            const modulesLayers = [];
+                            let zoneMinLat=Infinity, zoneMaxLat=-Infinity, zoneMinLon=Infinity, zoneMaxLon=-Infinity;
 
-                            // ── ÉTAPE 1 : Remplir intégralement la zone (bbox − reculs) ──
+                            // ── ÉTAPE 1 : Remplir intégralement le rectangle (bbox − reculs) ──
                             for (let iD = iDmin; iD <= iDmax; iD++) {
                                 for (let iP = iPmin; iP <= iPmax; iP++) {
                                     const cD = centerD  + iD * stepD;
                                     const cP = centerPP + iP * stepP;
-
                                     const cLL = _dpToLatLon(cD, cP);
-
-                                    // Anti-doublon inter-segments (grille haute résolution)
-                                    // Vérifier centre + 4 coins pour éviter tout chevauchement partiel
-                                    const _oKey = _segOccKey(cLL.lat, cLL.lon);
-                                    if (_segOccGrid.has(_oKey)) continue;
 
                                     if (targetKw > 0 && totalKwAccum + (modulesPositions.length + 1) * modPuissF / 1000 > targetKw) break;
 
                                     const corners = _panelCorners(cLL.lat, cLL.lon, mSizeD, mSizeP, az);
-
-                                    // Vérifier qu'aucun coin ne tombe sur une cellule déjà occupée
-                                    let _cornerConflict = false;
-                                    for (const cc of corners) {
-                                        if (_segOccGrid.has(_segOccKey(cc.lat, cc.lng))) { _cornerConflict = true; break; }
-                                    }
-                                    if (_cornerConflict) continue;
-
-                                    // Marquer centre + coins comme occupés
-                                    _segOccGrid.add(_oKey);
-                                    corners.forEach(cc => _segOccGrid.add(_segOccKey(cc.lat, cc.lng)));
-
                                     const poly = L.polygon(corners, {
                                         color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
                                     });
@@ -9479,7 +9422,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 }
                             }
 
-                            // ── ÉTAPE 2 : Retirer les modules hors plage d'irradiation ──
+                            // ── ÉTAPE 2 : Retirer les modules hors zone d'irradiation ──
                             if (_fluxCanvas && _fluxBbox) {
                                 const toRemove = [];
                                 for (let i = modulesPositions.length - 1; i >= 0; i--) {
