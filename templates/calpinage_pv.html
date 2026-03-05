@@ -9292,9 +9292,31 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             bySegment.get(p.seg_idx).push(p);
                         });
 
-                        // Taille des panneaux Google → sert au masque de présence uniquement
+                        // Taille des panneaux Google → sert au fallback bbox uniquement
                         const pgW = window._fluxApiPanelW || 1.045;
                         const pgH = window._fluxApiPanelH || 1.879;
+
+                        // ── Centroïdes de tous les segments (pour Voronoï spatial) ──
+                        // Chaque point du toit est assigné au segment dont le centroïde est
+                        // le plus proche → empêche la superposition dans les zones de
+                        // chevauchement entre bbox de segments adjacents.
+                        const _segCentroids = new Map();
+                        bySegment.forEach((panels, segIdx) => {
+                            const cLat = panels.reduce((s,p) => s + p.lat, 0) / panels.length;
+                            const cLon = panels.reduce((s,p) => s + p.lon, 0) / panels.length;
+                            _segCentroids.set(segIdx, { lat: cLat, lon: cLon });
+                        });
+                        function _nearestSegIdx(lat, lon) {
+                            let bestIdx = -1, bestDist = Infinity;
+                            const cL = Math.cos(lat * Math.PI / 180);
+                            _segCentroids.forEach((c, idx) => {
+                                const dx = (lon - c.lon) * 111320 * cL;
+                                const dy = (lat - c.lat) * 111320;
+                                const d2 = dx*dx + dy*dy;
+                                if (d2 < bestDist) { bestDist = d2; bestIdx = idx; }
+                            });
+                            return bestIdx;
+                        }
 
                         // ── PCA : azimut effectif depuis les positions réelles des panneaux ──
                         // L'azimuthDegrees de l'API Google Solar vient d'un plane-fit LIDAR
@@ -9435,6 +9457,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                     const cP = centerPP + iP * stepP;
 
                                     const cLL = _dpToLatLon(cD, cP);
+
+                                    // Voronoï spatial : ce point appartient-il à CE segment ?
+                                    // Si un autre segment est plus proche → skip (il le remplira)
+                                    if (_nearestSegIdx(cLL.lat, cLL.lon) !== segIdx) continue;
 
                                     // Anti-doublon inter-segments
                                     const _oKey = _segOccKey(cLL.lat, cLL.lon);
