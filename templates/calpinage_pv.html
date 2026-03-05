@@ -9292,11 +9292,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             bySegment.get(p.seg_idx).push(p);
                         });
 
-                        // Taille des panneaux Google (rayon de présence pour le masque de toit)
+                        // Taille des panneaux Google → sert au masque de présence uniquement
                         const pgW = window._fluxApiPanelW || 1.045;
                         const pgH = window._fluxApiPanelH || 1.879;
-                        // presenceR = demi-diagonale du panneau Google + marge → masque précis du toit
-                        const _presenceR = Math.sqrt(pgW*pgW + pgH*pgH) / 2 + 0.15;
 
                         bySegment.forEach((panels, segIdx) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
@@ -9336,11 +9334,21 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const uMaxP = rawMaxP - poseA.reculDroite;
                             if (uMaxD < uMinD || uMaxP < uMinP) return;
 
-                            // Grille régulière aux dimensions utilisateur, centrée dans la plage utile
-                            const nbD = Math.max(1, Math.floor((uMaxD - uMinD) / stepD));
-                            const nbP = Math.max(1, Math.floor((uMaxP - uMinP) / stepP));
-                            const gSD = uMinD + ((uMaxD - uMinD) - (nbD - 1) * stepD) / 2 + mSizeD / 2;
-                            const gSP = uMinP + ((uMaxP - uMinP) - (nbP - 1) * stepP) / 2 + mSizeP / 2;
+                            // ── Ancrage de la grille sur la position médiane des panneaux Google ──
+                            // Garantit que la grille utilisateur est alignée sur la disposition Google,
+                            // quel que soit le rapport de taille module utilisateur / module Google.
+                            const sortedD  = [...allD].sort((a,b)=>a-b);
+                            const sortedPP = [...allPP].sort((a,b)=>a-b);
+                            const anchorD  = sortedD[Math.floor(sortedD.length / 2)];
+                            const anchorPP = sortedPP[Math.floor(sortedPP.length / 2)];
+                            // Étendre la grille depuis l'ancre dans les deux directions
+                            const iDmin = Math.ceil((uMinD - anchorD + mSizeD/2) / stepD);
+                            const iDmax = Math.floor((uMaxD - anchorD - mSizeD/2) / stepD);
+                            const iPmin = Math.ceil((uMinP - anchorPP + mSizeP/2) / stepP);
+                            const iPmax = Math.floor((uMaxP - anchorPP - mSizeP/2) / stepP);
+
+                            // Masque de présence : demi-diagonale du panneau Google + petite marge
+                            const presR = Math.sqrt(pgW*pgW + pgH*pgH) / 2 + 0.10;
 
                             // Back-projection DP → GPS
                             function _dpToLatLon(d, pp) {
@@ -9353,15 +9361,14 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             const modulesPositions = [];
                             let zoneMinLat=Infinity,zoneMaxLat=-Infinity,zoneMinLon=Infinity,zoneMaxLon=-Infinity;
 
-                            for (let iD = 0; iD < nbD; iD++) {
-                                for (let iP = 0; iP < nbP; iP++) {
-                                    const cD = gSD + iD * stepD;
-                                    const cP = gSP + iP * stepP;
+                            for (let iD = iDmin; iD <= iDmax; iD++) {
+                                for (let iP = iPmin; iP <= iPmax; iP++) {
+                                    const cD = anchorD  + iD * stepD;
+                                    const cP = anchorPP + iP * stepP;
 
-                                    // Masque de toit : le point de grille doit être couvert par un panneau Google
-                                    // presenceR basé sur la taille Google → pas biaisé par la taille utilisateur
+                                    // Masque de toit : le centre de grille doit tomber sur un panneau Google
                                     const inSeg = panelProj.some(({d, pp}) =>
-                                        Math.abs(d - cD) <= _presenceR && Math.abs(pp - cP) <= _presenceR
+                                        Math.abs(d - cD) <= presR && Math.abs(pp - cP) <= presR
                                     );
                                     if (!inSeg) continue;
 
@@ -9412,7 +9419,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 id: zoneLayer._leaflet_id, numero: zoneNum, layer: zoneLayer,
                                 surfaceM2: largeurM * longueurM,
                                 nbModules: modulesPositions.length,
-                                nbCols: nbP, nbRows: nbD,
+                                nbCols: Math.max(1, iPmax - iPmin + 1), nbRows: Math.max(1, iDmax - iDmin + 1),
                                 puissanceKw: (modulesPositions.length * modPuissF) / 1000,
                                 orientation: az, inclinaison: pit, rotationAngle: 0,
                                 productible: 0, moduleOrientation: dispF,
@@ -9432,7 +9439,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             afficherZone(zone);
                             calculerProductibleZone(zone.id);
                             totalKwAccum += zone.puissanceKw;
-                            console.log(`✅ [Seg ${segIdx}] az=${az}° pit=${pit}° → grille ${nbD}×${nbP} = ${modulesPositions.length} modules (${dispF}) presenceR=${_presenceR.toFixed(2)}m`);
+                            console.log(`✅ [Seg ${segIdx}] az=${az}° pit=${pit}° grille ancrée ${iDmax-iDmin+1}×${iPmax-iPmin+1} → ${modulesPositions.length} mod. (${dispF}) ancre=(${anchorD.toFixed(1)},${anchorPP.toFixed(1)})`);
                         });
 
                     } else {
