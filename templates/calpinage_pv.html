@@ -3541,48 +3541,35 @@
                 if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
                 if (editHandler) editHandler.disable();
 
-                // ── Clic sur le contour visible (zoneOutline) de chaque zone ──────
-                // Le contour orange pointillé EST l'élément visuel que l'utilisateur voit.
-                // Les rectangles drawnItems sont derrière les moduleGroups dans le SVG.
+                // ── Mettre les zones en rouge (visuel) ────────────────────────────
                 zones.forEach(function(zone) {
-                    var zId = zone.id;
-                    // Fallback : clic sur le rectangle drawnItems (bringToFront)
-                    if (zone.layer) {
-                        zone.layer.bringToFront();
-                        zone.layer.setStyle({ color: '#dc3545', weight: 2, opacity: 0.8, fillOpacity: 0.15 });
-                        zone.layer.on('click.delete', function(e) {
-                            L.DomEvent.stopPropagation(e);
-                            drawnItems.removeLayer(zone.layer);
-                            supprimerZone(zId);
-                            if (zones.length === 0) setActiveTool('rectangle');
-                        });
-                    }
-                    // Cibler le contour orange visible (zoneOutline dans moduleGroup)
                     if (zone.moduleGroup) {
                         zone.moduleGroup.eachLayer(function(l) {
                             if (!l._isZoneOutline) return;
-                            l.options.interactive = true;
-                            if (l._path) {
-                                l._path.setAttribute('pointer-events', 'all');
-                                l._path.style.cursor = 'pointer';
-                            }
                             l.setStyle({ color: '#dc3545', weight: 3, fillColor: '#dc3545', fillOpacity: 0.25, dashArray: null });
-                            l.on('mouseover.delete', function() {
-                                this.setStyle({ fillOpacity: 0.45 });
-                                if (this._path) this._path.style.cursor = 'pointer';
-                            });
-                            l.on('mouseout.delete', function() {
-                                this.setStyle({ fillOpacity: 0.25 });
-                            });
-                            l.on('click.delete', function(e) {
-                                L.DomEvent.stopPropagation(e);
-                                drawnItems.removeLayer(zone.layer);
-                                supprimerZone(zId);
-                                if (zones.length === 0) setActiveTool('rectangle');
-                            });
                         });
                     }
                 });
+                document.getElementById('map').style.cursor = 'pointer';
+
+                // ── Handler map-level (fonctionne quelle que soit la couche au-dessus) ──
+                map._deleteClickHandler = function(e) {
+                    // Trouver la zone cliquée par bounding-box
+                    var clicked = null;
+                    for (var i = 0; i < zones.length; i++) {
+                        var z = zones[i];
+                        if (z.layer && z.layer.getBounds().contains(e.latlng)) {
+                            clicked = z; break;
+                        }
+                    }
+                    if (!clicked) return;
+                    var zLayer = clicked.layer;
+                    var zId = clicked.id;
+                    drawnItems.removeLayer(zLayer);
+                    supprimerZone(zId);
+                    if (zones.length === 0) setActiveTool('rectangle');
+                };
+                map.on('click', map._deleteClickHandler);
             });
             
             // Bouton effacer mesures
@@ -3718,27 +3705,17 @@
                 }
             }
             if (previousTool === 'delete' && tool !== 'delete') {
-                // Désattacher les listeners de suppression directe et remettre les zones invisibles
-                drawnItems.eachLayer(function(layer) {
-                    layer.off('click.delete');
-                    layer.off('mouseover.delete');
-                    layer.off('mouseout.delete');
-                    layer.setStyle({ color: '#ff7800', weight: 2, opacity: 0, fillOpacity: 0 });
-                    if (layer._path) layer._path.style.cursor = '';
-                });
-                // Restaurer les contours de zone (zoneOutline)
+                // Retirer le handler map-level
+                if (map._deleteClickHandler) {
+                    map.off('click', map._deleteClickHandler);
+                    map._deleteClickHandler = null;
+                }
+                document.getElementById('map').style.cursor = '';
+                // Restaurer le style des contours de zone
                 zones.forEach(function(zone) {
                     if (!zone.moduleGroup) return;
                     zone.moduleGroup.eachLayer(function(l) {
                         if (!l._isZoneOutline) return;
-                        l.off('click.delete');
-                        l.off('mouseover.delete');
-                        l.off('mouseout.delete');
-                        l.options.interactive = false;
-                        if (l._path) {
-                            l._path.setAttribute('pointer-events', 'none');
-                            l._path.style.cursor = '';
-                        }
                         l.setStyle({ color: '#ff7800', weight: 2, fillOpacity: 0, dashArray: '5, 5' });
                     });
                 });
