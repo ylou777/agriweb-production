@@ -9279,10 +9279,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         let totalKwAccum = 0;
                         const poseA = getPoseParams();
 
-                        // Grille d'occupation globale (flat + segments inclinés) pour éviter tout chevauchement
+                        // Grille d'occupation globale – résolution ≈ 0.11 m
+                        // pour détecter les chevauchements entre segments adjacents
                         const _segOccGrid = new Set();
                         const _segOccKey  = (lat, lon) =>
-                            `${Math.round(lat * 100000)},${Math.round(lon * 100000)}`;
+                            `${Math.round(lat * 1000000)},${Math.round(lon * 1000000)}`;
 
                         // ── Tous les segments → grille azimutale (aucune distinction plat/incliné) ──
                         // Les segments à faible pente ont quand même un azimut réel → traités identiquement.
@@ -9296,27 +9297,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const pgW = window._fluxApiPanelW || 1.045;
                         const pgH = window._fluxApiPanelH || 1.879;
 
-                        // ── Centroïdes de tous les segments (pour Voronoï spatial) ──
-                        // Chaque point du toit est assigné au segment dont le centroïde est
-                        // le plus proche → empêche la superposition dans les zones de
-                        // chevauchement entre bbox de segments adjacents.
-                        const _segCentroids = new Map();
-                        bySegment.forEach((panels, segIdx) => {
-                            const cLat = panels.reduce((s,p) => s + p.lat, 0) / panels.length;
-                            const cLon = panels.reduce((s,p) => s + p.lon, 0) / panels.length;
-                            _segCentroids.set(segIdx, { lat: cLat, lon: cLon });
-                        });
-                        function _nearestSegIdx(lat, lon) {
-                            let bestIdx = -1, bestDist = Infinity;
-                            const cL = Math.cos(lat * Math.PI / 180);
-                            _segCentroids.forEach((c, idx) => {
-                                const dx = (lon - c.lon) * 111320 * cL;
-                                const dy = (lat - c.lat) * 111320;
-                                const d2 = dx*dx + dy*dy;
-                                if (d2 < bestDist) { bestDist = d2; bestIdx = idx; }
-                            });
-                            return bestIdx;
-                        }
+                        // Plus de Voronoï : la grille d'occupation haute résolution
+                        // empêche tout chevauchement. Les segments sont traités du plus
+                        // grand au plus petit → le segment principal remplit en premier.
 
                         // ── PCA : azimut effectif depuis les positions réelles des panneaux ──
                         // L'azimuthDegrees de l'API Google Solar vient d'un plane-fit LIDAR
@@ -9358,7 +9341,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             return best;
                         }
 
-                        bySegment.forEach((panels, segIdx) => {
+                        // Trier segments par taille décroissante → le plus grand remplit en premier
+                        const _sortedSegKeys = [...bySegment.keys()].sort((a, b) =>
+                            bySegment.get(b).length - bySegment.get(a).length
+                        );
+                        _sortedSegKeys.forEach(segIdx => {
+                            const panels = bySegment.get(segIdx);
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
                             const azRaw = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
@@ -9458,18 +9446,26 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
                                     const cLL = _dpToLatLon(cD, cP);
 
-                                    // Voronoï spatial : ce point appartient-il à CE segment ?
-                                    // Si un autre segment est plus proche → skip (il le remplira)
-                                    if (_nearestSegIdx(cLL.lat, cLL.lon) !== segIdx) continue;
-
-                                    // Anti-doublon inter-segments
+                                    // Anti-doublon inter-segments (grille haute résolution)
+                                    // Vérifier centre + 4 coins pour éviter tout chevauchement partiel
                                     const _oKey = _segOccKey(cLL.lat, cLL.lon);
                                     if (_segOccGrid.has(_oKey)) continue;
 
                                     if (targetKw > 0 && totalKwAccum + (modulesPositions.length + 1) * modPuissF / 1000 > targetKw) break;
-                                    _segOccGrid.add(_oKey);
 
                                     const corners = _panelCorners(cLL.lat, cLL.lon, mSizeD, mSizeP, az);
+
+                                    // Vérifier qu'aucun coin ne tombe sur une cellule déjà occupée
+                                    let _cornerConflict = false;
+                                    for (const cc of corners) {
+                                        if (_segOccGrid.has(_segOccKey(cc.lat, cc.lng))) { _cornerConflict = true; break; }
+                                    }
+                                    if (_cornerConflict) continue;
+
+                                    // Marquer centre + coins comme occupés
+                                    _segOccGrid.add(_oKey);
+                                    corners.forEach(cc => _segOccGrid.add(_segOccKey(cc.lat, cc.lng)));
+
                                     const poly = L.polygon(corners, {
                                         color: '#0066cc', weight: 1, fillColor: '#4d94ff', fillOpacity: 0.7, interactive: false
                                     });
