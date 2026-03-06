@@ -3899,6 +3899,36 @@
         
         // Fonction pour le mode plein écran
         let isFullscreen = false;
+
+        /** Repositionne le panneau irradiance en overlay fixe (plein écran) ou le remet en flux normal */
+        function _positionLegendForFullscreen(on) {
+            const legend = document.getElementById('fluxLegendPanel');
+            if (!legend) return;
+            if (on) {
+                legend.style.position     = 'fixed';
+                legend.style.bottom      = '0';
+                legend.style.left        = '0';
+                legend.style.right       = '0';
+                legend.style.width       = '100%';
+                legend.style.zIndex      = '10000';
+                legend.style.borderRadius = '12px 12px 0 0';
+                legend.style.marginTop   = '0';
+                legend.style.maxHeight   = '45vh';
+                legend.style.overflowY   = 'auto';
+            } else {
+                legend.style.position     = '';
+                legend.style.bottom      = '';
+                legend.style.left        = '';
+                legend.style.right       = '';
+                legend.style.width       = '';
+                legend.style.zIndex      = '';
+                legend.style.borderRadius = '';
+                legend.style.marginTop   = '';
+                legend.style.maxHeight   = '';
+                legend.style.overflowY   = '';
+            }
+        }
+
         function toggleFullscreen() {
             const mapCard = document.getElementById('mapCard');
             const btn = document.getElementById('toggleFullscreen');
@@ -3923,7 +3953,9 @@
                 
                 // Empêcher le scroll du body
                 document.body.style.overflow = 'hidden';
-                
+                // Repositionner le panneau irradiance si actif
+                const _leg = document.getElementById('fluxLegendPanel');
+                if (_leg && _leg.style.display !== 'none') _positionLegendForFullscreen(true);
                 isFullscreen = true;
             } else {
                 // Désactiver le plein écran
@@ -3945,7 +3977,8 @@
                 
                 // Réactiver le scroll du body
                 document.body.style.overflow = '';
-                
+                // Remettre le panneau irradiance dans la colonne gauche
+                _positionLegendForFullscreen(false);
                 isFullscreen = false;
             }
             
@@ -8937,6 +8970,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 // Légende — color_min/color_max = plage colorimétrique réelle
                 if (legend) {
                     legend.style.display = 'block';
+                    if (isFullscreen) _positionLegendForFullscreen(true);
                     const cMin = data.color_min ?? data.flux_min;
                     const cMax = data.color_max ?? data.flux_max;
                     document.getElementById('fluxLegendMin').textContent  = `${cMin} kWh/m²/an`;
