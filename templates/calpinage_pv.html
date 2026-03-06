@@ -1041,7 +1041,7 @@
                                 <button id="toolRectangle" class="vtb-btn active" title="Dessiner une zone PV rectangle">▢ <span class="vtb-label">Nouvelle zone</span></button>
                                 <button id="toolEdit" class="vtb-btn" title="Modifier les zones PV">✏️ <span class="vtb-label">Modifier</span></button>
                                 <button id="toolDelete" class="vtb-btn" title="Supprimer des zones PV">🗑️ <span class="vtb-label">Supprimer</span></button>
-                                <button id="toolEditModules" class="vtb-btn" onclick="toggleModuleEditMode()" title="Mode édition modules ▸ clic sur module = supprimer ▸ clic sur zone = ajouter">🖱️ <span class="vtb-label">Édit modules</span></button>
+                                <button id="toolEditModules" class="vtb-btn" onclick="toggleModuleEditMode()" title="Mode édition modules ▸ clic sur module = supprimer ▸ clic sur zone = ajouter">🖱️ <span class="vtb-label">Modifier modules</span></button>
                             </div>
                             <!-- Dessin libre -->
                             <div class="vtb-section">
@@ -3499,6 +3499,7 @@
             
             // Bouton Modifier zones
             document.getElementById('toolEdit').addEventListener('click', function() {
+                if (currentTool === 'edit') { setActiveTool('rectangle'); return; }
                 setActiveTool('edit');
                 if (activeDrawHandler) activeDrawHandler.disable();
                 if (editHandler) { editHandler.disable(); editHandler = null; }
@@ -3537,6 +3538,7 @@
 
             // Bouton Supprimer zones
             document.getElementById('toolDelete').addEventListener('click', function() {
+                if (currentTool === 'delete') { setActiveTool('rectangle'); return; }
                 setActiveTool('delete');
                 if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
                 if (editHandler) editHandler.disable();
