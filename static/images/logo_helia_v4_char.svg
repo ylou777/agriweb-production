@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" width="300" height="120">
+  <defs>
+    <linearGradient id="bgGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F8F0E3;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#FEE8B0;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="sunGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#CC5500;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="chariotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B4513;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#5C2D0A;stop-opacity:1"/>
+    </linearGradient>
+    <filter id="shadow4">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#CC5500" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Fond parchemin doré (style antiquité) -->
+  <rect width="300" height="120" rx="12" fill="url(#bgGrad4)"/>
+  <!-- Textures subtiles coin -->
+  <line x1="0" y1="0" x2="300" y2="0" stroke="#E8A000" stroke-width="4" opacity="0.3"/>
+  <line x1="0" y1="120" x2="300" y2="120" stroke="#E8A000" stroke-width="4" opacity="0.3"/>
+
+  <!-- Scène : Char d'Hélios traversant le ciel -->
+  <g transform="translate(10, 8)" filter="url(#shadow4)">
+    <!-- Soleil derrière le char -->
+    <circle cx="55" cy="58" r="30" fill="url(#sunGrad4)" opacity="0.15"/>
+    <circle cx="55" cy="58" r="22" fill="url(#sunGrad4)" opacity="0.3"/>
+    <!-- Rayons solaires -->
+    <g transform="translate(55,58)" stroke="#CC5500" stroke-linecap="round" opacity="0.5">
+      <line x1="0" y1="-34" x2="0" y2="-40" stroke-width="2"/>
+      <line x1="0" y1="34" x2="0" y2="40" stroke-width="2"/>
+      <line x1="-34" y1="0" x2="-40" y2="0" stroke-width="2"/>
+      <line x1="34" y1="0" x2="40" y2="0" stroke-width="2"/>
+      <line x1="-24" y1="-24" x2="-28" y2="-28" stroke-width="1.5"/>
+      <line x1="24" y1="-24" x2="28" y2="-28" stroke-width="1.5"/>
+      <line x1="24" y1="24" x2="28" y2="28" stroke-width="1.5"/>
+      <line x1="-24" y1="24" x2="-28" y2="28" stroke-width="1.5"/>
+    </g>
+    <!-- Disque solaire de la couronne -->
+    <circle cx="55" cy="58" r="14" fill="url(#sunGrad4)"/>
+    <circle cx="55" cy="58" r="10" fill="#FFD700"/>
+    <circle cx="55" cy="58" r="5" fill="#FFF5DC"/>
+
+    <!-- Panneau solaire superposé (fusio mythologie + tech) -->
+    <rect x="43" y="46" width="24" height="16" rx="1" fill="none" stroke="#CC5500" stroke-width="1" opacity="0.6"/>
+    <line x1="43" y1="51" x2="67" y2="51" stroke="#CC5500" stroke-width="0.6" opacity="0.5"/>
+    <line x1="43" y1="56" x2="67" y2="56" stroke="#CC5500" stroke-width="0.6" opacity="0.5"/>
+    <line x1="51" y1="46" x2="51" y2="62" stroke="#CC5500" stroke-width="0.6" opacity="0.5"/>
+    <line x1="59" y1="46" x2="59" y2="62" stroke="#CC5500" stroke-width="0.6" opacity="0.5"/>
+
+    <!-- Char: corps principal -->
+    <path d="M22,72 Q30,64 45,66 Q60,64 68,72 L64,82 Q45,84 30,82 Z" fill="url(#chariotGrad)"/>
+    <!-- Décor du char -->
+    <path d="M30,68 Q45,65 64,68" fill="none" stroke="#FFD700" stroke-width="1.2" opacity="0.7"/>
+    <!-- Ornement roue de char -->
+    <circle cx="32" cy="82" r="8" fill="none" stroke="#8B4513" stroke-width="2"/>
+    <line x1="32" y1="74" x2="32" y2="90" stroke="#8B4513" stroke-width="1.2"/>
+    <line x1="24" y1="82" x2="40" y2="82" stroke="#8B4513" stroke-width="1.2"/>
+    <circle cx="32" cy="82" r="3" fill="#8B4513"/>
+    <circle cx="62" cy="82" r="8" fill="none" stroke="#8B4513" stroke-width="2"/>
+    <line x1="62" y1="74" x2="62" y2="90" stroke="#8B4513" stroke-width="1.2"/>
+    <line x1="54" y1="82" x2="70" y2="82" stroke="#8B4513" stroke-width="1.2"/>
+    <circle cx="62" cy="82" r="3" fill="#8B4513"/>
+    <!-- Conducteur / Hélios stylisé (silhouette) -->
+    <ellipse cx="45" cy="62" rx="5" ry="6" fill="#CC5500" opacity="0.8"/>
+    <!-- Couronne rayonnante du conducteur -->
+    <g transform="translate(45,56)" stroke="#FFD700" stroke-width="1" stroke-linecap="round">
+      <line x1="0" y1="-3" x2="0" y2="-7"/>
+      <line x1="-3" y1="-2" x2="-6" y2="-5"/>
+      <line x1="3" y1="-2" x2="6" y2="-5"/>
+    </g>
+    <!-- Flammes / élan du char -->
+    <path d="M22,76 Q12,68 8,58 Q14,62 16,72" fill="#FF8C00" opacity="0.4"/>
+    <path d="M22,78 Q10,72 6,64 Q12,67 14,76" fill="#FFD700" opacity="0.3"/>
+  </g>
+
+  <!-- Séparateur vertical avec ornement grec -->
+  <line x1="112" y1="10" x2="112" y2="110" stroke="#CC5500" stroke-width="1" opacity="0.4"/>
+  <text x="112" y="62" font-family="serif" font-size="12" fill="#CC5500" text-anchor="middle" opacity="0.5">⊕</text>
+
+  <!-- HELIA texte principal -->
+  <text x="125" y="50" font-family="'Times New Roman', Georgia, serif" font-size="34" font-weight="bold"
+        fill="#8B4513" letter-spacing="4">HELIA</text>
+  <!-- Ornement typographique -->
+  <text x="125" y="62" font-family="serif" font-size="9" fill="#CC5500" letter-spacing="2" opacity="0.8">── ☀ CHAR D'HÉLIOS ☀ ──</text>
+  <!-- Sous-titres -->
+  <text x="125" y="80" font-family="Georgia, serif" font-size="11" fill="#8B4513" letter-spacing="3" font-style="italic">Énergie Photovoltaïque</text>
+  <!-- Frise méandre grec -->
+  <path d="M125,88 l5,0 l0,-4 l5,0 l0,4 l5,0 l0,-4 l5,0 l0,4 l5,0 l0,-4 l5,0 l0,4 l5,0 l0,-4 l5,0 l0,4 l5,0 l0,-4 l5,0 l0,4 l5,0 l0,-4 l5,0 l0,4 l5,0 l0,-4 l5,0 l0,4 l5,0"
+        fill="none" stroke="#CC5500" stroke-width="1" opacity="0.4"/>
+  <!-- Texte bas -->
+  <text x="125" y="104" font-family="Arial, sans-serif" font-size="8.5" fill="#8B4513" letter-spacing="2" opacity="0.7">AGRICULTURE · SOLAIRE · INNOVATION</text>
+</svg>

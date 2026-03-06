@@ -2590,6 +2590,8 @@ def register_crm_routes(app):
           profil_type      : str    – RES1|RES2|PRO1|PRO2|AGR|ENT
           tarif_achat      : float  – € / kWh (optionnel, défaut 0.2516)
           tarif_revente    : float  – € / kWh surplus (optionnel, défaut 0.1276)
+          enedis_pdl       : str    – (optionnel) PDL à 14 chiffres pour courbe réelle Linky
+          enedis_token     : str    – (optionnel) access_token Enedis Data Connect
         """
         try:
             from autoconsommation import (
@@ -2598,6 +2600,7 @@ def register_crm_routes(app):
                 compute_economics,
                 PROFILE_LABELS,
                 TARIFF_LABELS,
+                get_enedis_dataconnect_profile,
             )
 
             data = request.json or {}
@@ -2608,6 +2611,9 @@ def register_crm_routes(app):
             tarif_revente     = float(data.get('tarif_revente', 0.1276))
             duree_contrat_ans = int(data.get('duree_contrat_ans', 20))
             hc_plages_custom  = data.get('hc_plages_custom', None)  # ex: [[22,6]]
+            # ── Option Enedis Data Connect (courbe réelle Linky) ─────────────────
+            enedis_pdl        = (data.get('enedis_pdl') or '').strip()
+            enedis_token      = (data.get('enedis_token') or '').strip()
 
             if not zones:
                 return jsonify({'error': 'Aucune zone fournie'}), 400
@@ -2680,14 +2686,69 @@ def register_crm_routes(app):
                     'error': 'Aucune donnée PVGIS disponible. Cliquez d\'abord sur "Télécharger données 8760h" pour chaque zone.'
                 }), 400
 
-            # ── 2. Calcul autoconsommation ────────────────────────────────────────
-            result = compute_autoconsommation(
-                hourly_production_wh=combined_wh,
-                annual_consumption_kwh=consommation_kwh,
-                profile_type=profil_type,
-            )
+            # ── 2. Profil de consommation : Enedis Data Connect ou profil type ────
+            data_source        = 'profil_type'
+            enedis_dc_profile  = None
+            enedis_dc_warning  = None
 
-            # ── 3. Calcul économique avec tarifs horaires ─────────────────────────
+            if enedis_pdl and enedis_token:
+                import config as _cfg
+                real_profile = get_enedis_dataconnect_profile(
+                    pdl=enedis_pdl,
+                    access_token=enedis_token,
+                    sandbox=getattr(_cfg, 'ENEDIS_SANDBOX', True),
+                )
+                if real_profile and len(real_profile) == 8760:
+                    enedis_dc_profile = real_profile
+                    data_source       = 'enedis_dataconnect'
+                    print(f"[AUTOCONSO] ✅ Profil Enedis Data Connect utilisé (PDL={enedis_pdl})")
+                else:
+                    enedis_dc_warning = (
+                        f"Données Enedis Data Connect indisponibles pour le PDL {enedis_pdl}. "
+                        f"Calcul effectué avec le profil type {profil_type}."
+                    )
+                    print(f"[AUTOCONSO] ⚠️  Fallback profil type {profil_type} (PDL={enedis_pdl})")
+
+            # ── 3. Calcul autoconsommation ────────────────────────────────────────
+            if enedis_dc_profile:
+                # Injecter le profil réel directement dans compute_autoconsommation
+                annual_consumption_wh = consommation_kwh * 1000.0
+                custom_consumption_wh = [annual_consumption_wh * v for v in enedis_dc_profile]
+                result = compute_autoconsommation(
+                    hourly_production_wh=combined_wh,
+                    annual_consumption_kwh=consommation_kwh,
+                    profile_type=profil_type,
+                )
+                # Remplacer la consommation profilée par la courbe réelle
+                h_autoconso = [min(p, c) for p, c in zip(combined_wh, custom_consumption_wh)]
+                h_surplus   = [max(p - c, 0.0) for p, c in zip(combined_wh, custom_consumption_wh)]
+                h_deficit   = [max(c - p, 0.0) for p, c in zip(combined_wh, custom_consumption_wh)]
+                result['hourly_consumption_wh'] = custom_consumption_wh
+                result['hourly_autoconso_wh']   = h_autoconso
+                result['hourly_surplus_wh']     = h_surplus
+                result['hourly_deficit_wh']     = h_deficit
+                # Recalcul KPIs avec courbe réelle
+                total_prod  = sum(combined_wh)
+                total_conso = sum(custom_consumption_wh)
+                total_auto  = sum(h_autoconso)
+                total_surp  = sum(h_surplus)
+                result['kpis'] = {
+                    'production_annuelle_kwh'  : round(total_prod / 1000.0, 1),
+                    'consommation_annuelle_kwh': round(total_conso / 1000.0, 1),
+                    'autoconso_kwh'            : round(total_auto / 1000.0, 1),
+                    'surplus_kwh'              : round(total_surp / 1000.0, 1),
+                    'deficit_kwh'              : round((total_conso - total_auto) / 1000.0, 1),
+                    'taux_autoconsommation'    : round((total_auto / total_prod * 100) if total_prod > 0 else 0, 1),
+                    'taux_autosuffisance'      : round((total_auto / total_conso * 100) if total_conso > 0 else 0, 1),
+                }
+            else:
+                result = compute_autoconsommation(
+                    hourly_production_wh=combined_wh,
+                    annual_consumption_kwh=consommation_kwh,
+                    profile_type=profil_type,
+                )
+
+            # ── 4. Calcul économique avec tarifs horaires ─────────────────────────
             economics = compute_economics(
                 kpis=result['kpis'],
                 prix_revente_kwh=tarif_revente,
@@ -2733,16 +2794,19 @@ def register_crm_routes(app):
                 print(f"[AUTOCONSO] Warn: impossible de sauvegarder résultats BDD: {_save_err}")
 
             return jsonify({
-                'success'       : True,
-                'zones_traitees': zones_ok,
-                'profil_type'   : profil_type,
-                'profil_label'  : PROFILE_LABELS.get(profil_type, profil_type),
-                'tariff_type'   : tariff_type,
-                'tariff_label'  : TARIFF_LABELS.get(tariff_type, tariff_type),
-                'monthly'       : result['monthly'],
-                'daily_profiles': result['daily_profiles'],
-                'kpis'          : result['kpis'],
-                'economics'     : economics,
+                'success'        : True,
+                'zones_traitees' : zones_ok,
+                'profil_type'    : profil_type,
+                'profil_label'   : PROFILE_LABELS.get(profil_type, profil_type),
+                'tariff_type'    : tariff_type,
+                'tariff_label'   : TARIFF_LABELS.get(tariff_type, tariff_type),
+                'data_source'    : data_source,
+                'enedis_pdl'     : enedis_pdl or None,
+                'enedis_warning' : enedis_dc_warning,
+                'monthly'        : result['monthly'],
+                'daily_profiles' : result['daily_profiles'],
+                'kpis'           : result['kpis'],
+                'economics'      : economics,
             })
 
         except Exception as e:
@@ -2764,10 +2828,109 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # ENEDIS DATA CONNECT – Routes OAuth 2.0
+    # ──────────────────────────────────────────────────────────────────────────
+
+    @app.route('/api/enedis/dc/authorize-url', methods=['GET'])
+    def enedis_dc_authorize_url():
+        """
+        Retourne l'URL de consentement Enedis Data Connect.
+        Le front affiche un bouton/lien vers cette URL pour que le client
+        s'authentifie sur son espace Enedis et autorise le partage de son PDL.
+
+        Query params optionnels :
+          state : valeur aléatoire anti-CSRF (recommandé, générer côté front)
+        """
+        import config as _cfg
+        import secrets
+
+        client_id    = getattr(_cfg, 'ENEDIS_CLIENT_ID', '')
+        redirect_uri = getattr(_cfg, 'ENEDIS_REDIRECT_URI', '')
+
+        if not client_id or not redirect_uri:
+            return jsonify({
+                'error': (
+                    'Enedis Data Connect non configuré. '
+                    'Définissez ENEDIS_CLIENT_ID et ENEDIS_REDIRECT_URI dans les variables d\'environnement.'
+                )
+            }), 503
+
+        from autoconsommation import get_enedis_authorize_url
+        state = request.args.get('state') or secrets.token_urlsafe(16)
+        url   = get_enedis_authorize_url(client_id, redirect_uri, state)
+
+        return jsonify({
+            'authorize_url': url,
+            'state'        : state,
+            'redirect_uri' : redirect_uri,
+        })
+
+    @app.route('/api/enedis/dc/callback', methods=['GET'])
+    def enedis_dc_callback():
+        """
+        Callback OAuth Enedis Data Connect.
+        Enedis redirige ici après le consentement du client avec ?code=XXX&state=YYY.
+        Ce endpoint échange le code contre un access_token et renvoie les infos au front.
+
+        Le token retourné doit être fourni dans le body de /autoconsommation
+        sous la clé 'enedis_token', accompagné du PDL ('enedis_pdl').
+        """
+        import config as _cfg
+        from autoconsommation import exchange_enedis_code_for_token
+
+        code  = request.args.get('code', '')
+        state = request.args.get('state', '')
+        error = request.args.get('error', '')
+
+        if error:
+            # Le client a refusé ou une erreur s'est produite côté Enedis
+            return jsonify({
+                'success': False,
+                'error'  : error,
+                'message': request.args.get('error_description', 'Autorisation refusée par le client'),
+            }), 400
+
+        if not code:
+            return jsonify({'success': False, 'error': 'missing_code'}), 400
+
+        client_id     = getattr(_cfg, 'ENEDIS_CLIENT_ID', '')
+        client_secret = getattr(_cfg, 'ENEDIS_CLIENT_SECRET', '')
+        redirect_uri  = getattr(_cfg, 'ENEDIS_REDIRECT_URI', '')
+        sandbox       = getattr(_cfg, 'ENEDIS_SANDBOX', True)
+
+        if not client_id or not client_secret:
+            return jsonify({'success': False, 'error': 'enedis_not_configured'}), 503
+
+        try:
+            token_data = exchange_enedis_code_for_token(
+                code=code,
+                client_id=client_id,
+                client_secret=client_secret,
+                redirect_uri=redirect_uri,
+                sandbox=sandbox,
+            )
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 502
+
+        # usage_points_id liste les PDL autorisés par le client (séparés par virgule)
+        usage_points = token_data.get('usage_points_id', '')
+        pdl_list = [p.strip() for p in usage_points.split(',') if p.strip()] if usage_points else []
+
+        return jsonify({
+            'success'       : True,
+            'access_token'  : token_data.get('access_token'),
+            'token_type'    : token_data.get('token_type', 'Bearer'),
+            'expires_in'    : token_data.get('expires_in'),
+            'refresh_token' : token_data.get('refresh_token'),
+            'pdl_list'      : pdl_list,
+            'state'         : state,
+        })
+
     # ========================================
     # ROUTES VISITE TECHNIQUE
     # ========================================
-    
+
     @app.route('/crm/prospect/<int:prospect_id>/visite-technique')
     def page_visite_technique(prospect_id):
         """Page de formulaire visite technique pour un prospect"""

@@ -818,3 +818,251 @@ PROFILE_LABELS = {
     'AGR' : 'Agricole – Exploitation agricole',
     'ENT' : 'Entreprise / Industrie – Process continu',
 }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ENEDIS DATA CONNECT – Courbes de charge réelles (compteur Linky)
+# ──────────────────────────────────────────────────────────────────────────────
+# Prérequis : inscription sur datahub-enedis.fr + consentement signé du client.
+# Flux OAuth 2.0 Authorization Code :
+#   1. Ton app redirige le client vers ENEDIS_AUTHORIZE_URL
+#   2. Le client se connecte à son compte Enedis et donne son consentement
+#   3. Enedis redirige vers ta redirect_uri avec un ?code=
+#   4. Tu échanges ce code contre un access_token via /oauth2/v3/token
+#   5. Tu appelles Metering v5 avec ce token pour récupérer les courbes 30min
+# Doc : https://datahub-enedis.fr/services-api/data-connect/
+# ──────────────────────────────────────────────────────────────────────────────
+
+ENEDIS_SANDBOX_BASE  = "https://gw.ext.prod-sandbox.api.enedis.fr"
+ENEDIS_PROD_BASE     = "https://gw.ext.prod.api.enedis.fr"
+ENEDIS_AUTHORIZE_URL = "https://mon-compte-particulier.enedis.fr/dataconnect/v1/oauth2/authorize"
+ENEDIS_TOKEN_PATH    = "/oauth2/v3/token"
+ENEDIS_LOAD_CURVE_PATH = "/metering_data/v5/consumption_load_curve"
+
+
+def get_enedis_authorize_url(client_id: str, redirect_uri: str, state: str = '') -> str:
+    """
+    Génère l'URL de consentement Enedis (OAuth 2.0 Authorization Code flow).
+    Le client doit visiter cette URL pour autoriser l'accès à son compteur Linky.
+
+    Args:
+        client_id    : identifiant de ton application (fourni par Enedis)
+        redirect_uri : URL de callback de ton app (doit être enregistrée chez Enedis)
+        state        : valeur aléatoire anti-CSRF (recommandé)
+
+    Returns:
+        URL complète vers la page de consentement Enedis.
+    """
+    import urllib.parse
+    params = {
+        'client_id'    : client_id,
+        'redirect_uri' : redirect_uri,
+        'response_type': 'code',
+    }
+    if state:
+        params['state'] = state
+    return ENEDIS_AUTHORIZE_URL + '?' + urllib.parse.urlencode(params)
+
+
+def exchange_enedis_code_for_token(
+    code: str,
+    client_id: str,
+    client_secret: str,
+    redirect_uri: str,
+    sandbox: bool = False,
+) -> dict:
+    """
+    Échange le code d'autorisation (reçu en callback) contre un access_token.
+    Utilise le grant type Authorization Code (OAuth 2.0).
+
+    Returns:
+        dict Enedis : {access_token, token_type, expires_in,
+                       refresh_token, usage_points_id, ...}
+    Raises:
+        ValueError si l'échange échoue (code expiré, credentials invalides, etc.)
+    """
+    import urllib.request
+    import urllib.parse
+    import json as _json
+
+    base = ENEDIS_SANDBOX_BASE if sandbox else ENEDIS_PROD_BASE
+    url  = base + ENEDIS_TOKEN_PATH
+    body = urllib.parse.urlencode({
+        'grant_type'   : 'authorization_code',
+        'code'         : code,
+        'client_id'    : client_id,
+        'client_secret': client_secret,
+        'redirect_uri' : redirect_uri,
+    }).encode()
+    req = urllib.request.Request(
+        url, data=body, method='POST',
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return _json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"Enedis token exchange HTTP {e.code}: {e.read().decode(errors='replace')}")
+    except Exception as e:
+        raise ValueError(f"Enedis token exchange failed: {e}")
+
+
+def fetch_enedis_load_curve_30min(
+    pdl: str,
+    access_token: str,
+    date_start: str,    # YYYY-MM-DD
+    date_end: str,      # YYYY-MM-DD (max 24 mois d'écart)
+    sandbox: bool = False,
+) -> list:
+    """
+    Télécharge les données de consommation au pas 30 min via Metering v5.
+
+    Returns:
+        Liste d'intervalles : [{'date': 'YYYY-MM-DD HH:MM:SS', 'value': float (Wh)}, ...]
+        La valeur est en Wh (puissance W × 0.5h convertie en énergie).
+
+    Raises:
+        ValueError si le PDL est inconnu, le consentement absent, ou l'API répond en erreur.
+    """
+    import urllib.request
+    import urllib.parse
+    import json as _json
+
+    base   = ENEDIS_SANDBOX_BASE if sandbox else ENEDIS_PROD_BASE
+    params = urllib.parse.urlencode({
+        'usage_point_id': pdl,
+        'start'         : date_start,
+        'end'           : date_end,
+    })
+    url = base + ENEDIS_LOAD_CURVE_PATH + '?' + params
+    req = urllib.request.Request(url, headers={
+        'Authorization': f'Bearer {access_token}',
+        'Accept'       : 'application/json',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = _json.loads(r.read())
+            # Format : {meter_reading: {interval_reading: [{date, value}, ...]}}
+            readings = (
+                resp.get('meter_reading', resp)
+                    .get('interval_reading', [])
+            )
+            # Les valeurs sont en W (puissance), pas en Wh (énergie).
+            # Sur 30 min : énergie (Wh) = puissance (W) × 0.5
+            return [
+                {
+                    'date' : item['date'],
+                    'value': float(item.get('value') or 0) * 0.5,
+                }
+                for item in readings
+            ]
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"Enedis Metering API HTTP {e.code}: {e.read().decode(errors='replace')}")
+    except Exception as e:
+        raise ValueError(f"Enedis Metering API error: {e}")
+
+
+def build_8760h_profile_from_enedis(intervals: list) -> list:
+    """
+    Convertit les données 30min Enedis en profil horaire normalisé 8760h (somme = 1.0).
+
+    Étapes :
+      1. Agréger les deux créneaux 30min → valeur horaire (Wh)
+      2. Mapper sur le calendrier 8760h d'une année non-bissextile de référence (jan-déc)
+      3. Interpoler les heures manquantes (forward/backward fill)
+      4. Normaliser pour que la somme = 1.0 (compatible avec get_consumption_profile)
+
+    Returns:
+        Liste de 8760 floats normalisés, ou [] si les données sont insuffisantes.
+    """
+    # ── Étape 1 : construire un dict (mois, jour, heure) → énergie Wh ────────
+    hourly: dict = {}
+    for item in intervals:
+        raw_date = item.get('date', '')
+        try:
+            # Accepter 'YYYY-MM-DD HH:MM:SS' et 'YYYY-MM-DDTHH:MM:SS'
+            raw_date = raw_date.replace('T', ' ').split('+')[0].strip()
+            parts = raw_date.split(' ')
+            day_parts  = parts[0].split('-')
+            time_parts = parts[1].split(':')
+            month = int(day_parts[1])
+            day   = int(day_parts[2])
+            hour  = int(time_parts[0])
+        except (IndexError, ValueError):
+            continue
+        key = (month, day, hour)
+        hourly[key] = hourly.get(key, 0.0) + item.get('value', 0.0)
+
+    if not hourly:
+        return []
+
+    # ── Étape 2 : mapper sur 8760h (année référence non-bissextile) ──────────
+    MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    profile = []
+    for mi, nd in enumerate(MONTH_DAYS):
+        month = mi + 1
+        for d in range(1, nd + 1):
+            for h in range(24):
+                profile.append(hourly.get((month, d, h), None))
+
+    # ── Étape 3 : interpoler les valeurs manquantes ───────────────────────────
+    filled = list(profile)
+    last = None
+    for i, v in enumerate(filled):
+        if v is not None:
+            last = v
+        elif last is not None:
+            filled[i] = last
+    last = None
+    for i in range(len(filled) - 1, -1, -1):
+        if filled[i] is not None:
+            last = filled[i]
+        elif last is not None:
+            filled[i] = last
+    filled = [v if v is not None else 0.0 for v in filled]
+
+    # ── Étape 4 : normaliser ──────────────────────────────────────────────────
+    total = sum(filled)
+    if total <= 0:
+        return []
+    return [v / total for v in filled]
+
+
+def get_enedis_dataconnect_profile(
+    pdl: str,
+    access_token: str,
+    date_start: str = None,   # YYYY-MM-DD, défaut : il y a 365 jours
+    date_end: str   = None,   # YYYY-MM-DD, défaut : aujourd'hui
+    sandbox: bool   = False,
+) -> list:
+    """
+    Télécharge la courbe de charge réelle depuis l'API Enedis Data Connect (Metering v5)
+    et retourne un profil normalisé 8760h (somme = 1.0) directement utilisable dans
+    compute_autoconsommation() à la place des profils types synthétiques.
+
+    Args:
+        pdl          : Numéro de Point De Livraison (14 chiffres)
+        access_token : Token OAuth 2.0 obtenu avec consentement du client
+        date_start   : début de la période de mesure (défaut : J-365)
+        date_end     : fin de la période de mesure   (défaut : aujourd'hui)
+        sandbox      : True pour utiliser l'environnement bac à sable Enedis
+
+    Returns:
+        Liste de 8760 floats normalisés si succès, [] sinon (le module appelant
+        doit alors basculer sur un profil type synthétique).
+    """
+    from datetime import date, timedelta
+
+    if date_end is None:
+        date_end = date.today().isoformat()
+    if date_start is None:
+        date_start = (date.today() - timedelta(days=365)).isoformat()
+
+    try:
+        intervals = fetch_enedis_load_curve_30min(pdl, access_token, date_start, date_end, sandbox)
+        if not intervals:
+            return []
+        return build_8760h_profile_from_enedis(intervals)
+    except ValueError as e:
+        print(f"[ENEDIS_DC] get_enedis_dataconnect_profile erreur PDL={pdl}: {e}")
+        return []

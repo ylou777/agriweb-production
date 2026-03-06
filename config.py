@@ -2,6 +2,15 @@
 import os as _os
 GOOGLE_SOLAR_API_KEY = _os.environ.get('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
 
+# ── Enedis Data Connect (OAuth 2.0 – courbes de charge Linky) ─────────────────
+# Inscription préalable sur https://datahub-enedis.fr/fournisseurs-de-services/
+# Les credentiels sont fournis par Enedis après validation de votre dossier.
+# ENEDIS_REDIRECT_URI doit être enregistrée dans votre compte Enedis (ex: https://votre-domaine.fr/api/enedis/dc/callback)
+ENEDIS_CLIENT_ID     = _os.environ.get('ENEDIS_CLIENT_ID', '')
+ENEDIS_CLIENT_SECRET = _os.environ.get('ENEDIS_CLIENT_SECRET', '')
+ENEDIS_REDIRECT_URI  = _os.environ.get('ENEDIS_REDIRECT_URI', '')
+ENEDIS_SANDBOX       = _os.environ.get('ENEDIS_SANDBOX', 'true').lower() == 'true'
+
 # ── Configuration GeoServer ───────────────────────────────────────────────────
 # Configuration pour le serveur GeoServer
 # URL locale pour développement
