@@ -8445,10 +8445,54 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _roofHighlightTr = null;
             }
             if (isSelected) return; // désélection au deuxième clic
-            // Dessiner le rectangle
-            const sw = [s.seg_sw.lat, s.seg_sw.lon];
-            const ne = [s.seg_ne.lat, s.seg_ne.lon];
-            _roofHighlightLayer = L.rectangle([sw, ne], {
+
+            const cLat = (s.seg_sw.lat + s.seg_ne.lat) / 2;
+            const cLon = (s.seg_sw.lon + s.seg_ne.lon) / 2;
+            const mPerDegLat = 111320;
+            const mPerDegLon = 111320 * Math.cos(cLat * Math.PI / 180);
+
+            const Az   = (s.azimuth_deg ?? 180) * Math.PI / 180;
+            const sinA = Math.abs(Math.sin(Az));
+            const cosA = Math.abs(Math.cos(Az));
+
+            // Dimensions de la bbox en mètres (NS = seg_l, EW = seg_w)
+            const bboxNS = (s.seg_ne.lat - s.seg_sw.lat) * mPerDegLat;
+            const bboxEW = (s.seg_ne.lon - s.seg_sw.lon) * mPerDegLon;
+
+            // Résolution via Cramer : p*sinA + q*cosA = bboxNS ; p*cosA + q*sinA = bboxEW
+            // → p = dimension le long du faîtage (Az+90°), q = dimension le long de la pente (Az)
+            // Les dimensions p×q reconstruites garantissent la même bbox axiale que SW/NE.
+            let pHalf, qHalf;
+            const det = sinA * sinA - cosA * cosA;  // = –cos(2Az)
+            if (Math.abs(det) > 0.01) {
+                const p = (bboxNS * sinA - bboxEW * cosA) / det;
+                const q = (bboxEW * sinA - bboxNS * cosA) / det;
+                pHalf = Math.max(1, Math.abs(p)) / 2;
+                qHalf = Math.max(1, Math.abs(q)) / 2;
+            } else {
+                // Az ≈ 45°/135°/225°/315° → bbox du carré = côté*√2 → fallback
+                pHalf = Math.max(bboxNS, bboxEW) / 2;
+                qHalf = Math.min(bboxNS, bboxEW) / 2;
+            }
+
+            // Vecteurs unitaires en degrés lat/lon
+            // Faîtage = Az + 90°
+            const ridgeAz = Az + Math.PI / 2;
+            const rDlat = Math.cos(ridgeAz) * pHalf / mPerDegLat;
+            const rDlon = Math.sin(ridgeAz) * pHalf / mPerDegLon;
+            // Pente = Az
+            const sDlat = Math.cos(Az) * qHalf / mPerDegLat;
+            const sDlon = Math.sin(Az) * qHalf / mPerDegLon;
+
+            // 4 coins du rectangle tourné
+            const corners = [
+                [cLat + rDlat + sDlat, cLon + rDlon + sDlon],
+                [cLat - rDlat + sDlat, cLon - rDlon + sDlon],
+                [cLat - rDlat - sDlat, cLon - rDlon - sDlon],
+                [cLat + rDlat - sDlat, cLon + rDlon - sDlon],
+            ];
+
+            _roofHighlightLayer = L.polygon(corners, {
                 color:       '#ffe600',
                 weight:      3,
                 opacity:     0.95,
@@ -8457,8 +8501,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 dashArray:   '6 4',
                 interactive: false
             }).addTo(map);
-            // Centrer la carte sur le pan
-            map.fitBounds([sw, ne], { padding: [40, 40], animate: true, maxZoom: map.getZoom() });
+            map.fitBounds(_roofHighlightLayer.getBounds(), { padding: [40, 40], animate: true, maxZoom: map.getZoom() });
             // Surbrillance de la ligne
             tr.style.background = 'rgba(255,230,0,0.12)';
             tr.style.outline    = '1px solid rgba(255,230,0,0.35)';
