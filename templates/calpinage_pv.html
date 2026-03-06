@@ -1962,6 +1962,8 @@
         let zones = [];
         let zoneCounter = 0;
         let _moduleEditMode = false; // Mode édition manuelle des modules (suppr/ajout)
+        let _moduleBrushActive = false; // Vrai pendant un clic maintenu (mode pinceau effaceur)
+        let _moduleBrushDirty  = false; // Au moins un module effacé par le pinceau ce geste
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
         let zoneResizeHandles = {}; // Poignées de coin pour redimensionner les zones PV
         let _lockedZoneId = null; // Zone "saisie" (calque actif) — seule zone éditable
@@ -3577,19 +3579,46 @@
                         + 'pointer-events:none;';
                     document.body.appendChild(banner);
                 }
-                banner.innerHTML = '🖱️ Mode édition modules — <span style="color:#cc0000">● clic sur module = supprimer</span>'
-                    + ' &nbsp;|&nbsp; <span style="color:#166534">● clic sur zone vide = ajouter</span>'
-                    + ' &nbsp;|&nbsp; <em>cliquer sur "Édit modules" pour quitter</em>';
+                banner.innerHTML = '🖱️ Mode édition modules — <span style="color:#cc0000">● clic = supprimer</span>'
+                    + ' &nbsp;|&nbsp; <span style="color:#f97316">● maintenir + glisser = pinceau effaceur</span>'
+                    + ' &nbsp;|&nbsp; <span style="color:#166534">● clic zone vide = ajouter</span>';
                 banner.style.display = 'block';
                 document.getElementById('map')?.classList.add('module-edit-active');
                 if (typeof map !== 'undefined') map.getContainer().style.cursor = 'crosshair';
+                // Écouter mousedown/mouseup sur le conteneur carte pour le pinceau effaceur
+                map.getContainer().addEventListener('mousedown', _onBrushStart);
+                document.addEventListener('mouseup', _onBrushEnd);
             } else {
                 if (banner) banner.style.display = 'none';
                 document.getElementById('map')?.classList.remove('module-edit-active');
                 if (typeof map !== 'undefined') map.getContainer().style.cursor = '';
+                map.getContainer().removeEventListener('mousedown', _onBrushStart);
+                document.removeEventListener('mouseup', _onBrushEnd);
+                _moduleBrushActive = false; _moduleBrushDirty = false;
             }
             // Redessiner toutes les zones pour activer/désactiver l'interactivité
             zones.forEach(z => dessinerModulesDansZone(z, true));
+        }
+
+        /** Pinceau effaceur : début du geste (mousedown sur la carte) */
+        function _onBrushStart() {
+            _moduleBrushActive = true;
+        }
+
+        /** Pinceau effaceur : fin du geste (mouseup) — un seul redessinage */
+        function _onBrushEnd() {
+            if (!_moduleBrushActive) return;
+            _moduleBrushActive = false;
+            if (_moduleBrushDirty) {
+                _moduleBrushDirty = false;
+                zones.forEach(z => {
+                    if (z._brushDirty) {
+                        z._brushDirty = false;
+                        updateManualModuleCount(z);
+                        dessinerModulesDansZone(z);
+                    }
+                });
+            }
         }
 
         /**
@@ -5915,10 +5944,19 @@
                         dessinerModulesDansZone(_zi);
                     });
                     modulePolygon.on('mouseover', function() {
-                        this.setStyle({ fillColor: '#ff4444', fillOpacity: 0.8 });
+                        if (_moduleBrushActive) {
+                            // Pinceau : effacer immédiatement, redessinage groupé au mouseup
+                            this.setStyle({ fillOpacity: 0, opacity: 0 });
+                            _zi._deletedModuleIndices.add(_mi);
+                            _zi._brushDirty = true;
+                            _moduleBrushDirty = true;
+                        } else {
+                            this.setStyle({ fillColor: '#ff4444', fillOpacity: 0.8 });
+                        }
                     });
                     modulePolygon.on('mouseout', function() {
-                        this.setStyle({ fillColor: '#4d94ff', fillOpacity: 0.6 });
+                        if (!_moduleBrushActive)
+                            this.setStyle({ fillColor: '#4d94ff', fillOpacity: 0.6 });
                     });
                 }
                 moduleGroup.addLayer(modulePolygon);
@@ -5942,8 +5980,20 @@
                         updateManualModuleCount(_zi);
                         dessinerModulesDansZone(_zi);
                     });
-                    mp.on('mouseover', function() { this.setStyle({ fillColor: '#ff4444', fillOpacity: 0.8, color: '#aa0000' }); });
-                    mp.on('mouseout',  function() { this.setStyle({ fillColor: '#4ade80', fillOpacity: 0.75, color: '#166534' }); });
+                    mp.on('mouseover', function() {
+                        if (_moduleBrushActive) {
+                            this.setStyle({ fillOpacity: 0, opacity: 0 });
+                            _zi._manualAdditions.splice(_ai, 1);
+                            _zi._brushDirty = true;
+                            _moduleBrushDirty = true;
+                        } else {
+                            this.setStyle({ fillColor: '#ff4444', fillOpacity: 0.8, color: '#aa0000' });
+                        }
+                    });
+                    mp.on('mouseout', function() {
+                        if (!_moduleBrushActive)
+                            this.setStyle({ fillColor: '#4ade80', fillOpacity: 0.75, color: '#166534' });
+                    });
                 }
                 moduleGroup.addLayer(mp);
             });
