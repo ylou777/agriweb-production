@@ -1490,8 +1490,9 @@ class PlanMasseGenerator:
         if tile_url_template is None:
             tile_url_template = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
         
-        # Zoom 18 pour bon compromis résolution/couverture
-        zoom = 18
+        # Zoom 19 : meilleure résolution (~0.21 m/px) → erreur de crop sub-pixel < 0.21m
+        # vs zoom 18 (~0.42 m/px, erreur jusqu'à 0.42m = 1mm à 1:200 sur 50m)
+        zoom = 19
         
         # Convertir lat/lon en coordonnées de tuile
         n = 2 ** zoom
@@ -1543,34 +1544,67 @@ class PlanMasseGenerator:
             return None
         
         # ════════════════════════════════════════════════════════════════════
-        # RECADRAGE PRÉCIS : centrer sur la position GPS exacte (x_center/y_center)
-        # et NON sur le milieu entier du composite.
-        # x_center/y_center sont des coordonnées de tuile FRACTIONNAIRES → position
-        # sub-pixel exacte du point (lat, lon) dans le composite.
-        # Erreur de l'ancienne méthode (cx = composite.width//2) : jusqu'à ±128px
-        # = ±76m à zoom 18 → 15cm sur le PDF à l'échelle 1/500 !
+        # RECADRAGE PRÉCIS : centrer sur la position GPS exacte (x_center/y_center).
+        # ⚠️ CORRECTION ALIGNEMENT : utiliser round() et non int() pour éviter
+        #    un décalage systématique de 0–1 px (= 0–0.42m à zoom 18) entre
+        #    le centre GPS et le centre de l'image.
+        #    Sur un plan 1:200 (50m), 1px source → ~1mm sur le PDF = 50cm réels.
         # ════════════════════════════════════════════════════════════════════
-        px_center = (x_center - x_start) * tile_size   # position exacte en pixels
+        px_center = (x_center - x_start) * tile_size   # position exacte en pixels (float)
         py_center = (y_center - y_start) * tile_size
-        
-        crop_w = int(width_meters / meters_per_pixel)
+
+        # ← round() au lieu de int() pour centrage symétrique ─────────────
+        cx_i = round(px_center)
+        cy_i = round(py_center)
+
+        crop_w = int(width_meters  / meters_per_pixel)
         crop_h = int(height_meters / meters_per_pixel)
-        
-        left   = max(0, int(px_center) - crop_w // 2)
-        top    = max(0, int(py_center) - crop_h // 2)
-        right  = min(composite.width,  int(px_center) + crop_w // 2)
-        bottom = min(composite.height, int(py_center) + crop_h // 2)
-        
-        print(f"[PLAN] 🎯 Recadrage précis: centre pixel ({px_center:.1f}, {py_center:.1f})"
+
+        left   = max(0, cx_i - crop_w // 2)
+        top    = max(0, cy_i - crop_h // 2)
+        right  = min(composite.width,  cx_i + crop_w // 2)
+        bottom = min(composite.height, cy_i + crop_h // 2)
+
+        print(f"[PLAN] 🎯 Recadrage précis: centre pixel ({px_center:.2f}→{cx_i}, {py_center:.2f}→{cy_i})"
               f" → crop ({left},{top},{right},{bottom}) sur composite {composite.width}×{composite.height}")
-        
+
+        # ── Mettre à jour gps_bounds avec les VRAIS bords GPS de l'image ────────
+        # Après la découpe en pixels, les bords réels ≠ gps_bounds théorique (1–2 px
+        # d'écart dû à la troncature entière). En recalculant depuis les coordonnées
+        # de tuile exactes, les modules GPS sont projetés sur le contenu exact de l'image.
+        try:
+            actual_tile_left   = x_start + left   / tile_size   # en unités-tuile (float)
+            actual_tile_right  = x_start + right  / tile_size
+            actual_tile_top    = y_start + top    / tile_size
+            actual_tile_bottom = y_start + bottom / tile_size
+            # Longitude : linéaire en Mercator
+            actual_west_lon = actual_tile_left  / n * 360.0 - 180.0
+            actual_east_lon = actual_tile_right / n * 360.0 - 180.0
+            # Latitude : fonction inverse de Mercator
+            def _tile_y_to_lat(ty):
+                gy = ty / n
+                return math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * gy))))
+            actual_north_lat = _tile_y_to_lat(actual_tile_top)
+            actual_south_lat = _tile_y_to_lat(actual_tile_bottom)
+            self.gps_bounds = {
+                'min_lat': actual_south_lat,
+                'max_lat': actual_north_lat,
+                'min_lon': actual_west_lon,
+                'max_lon': actual_east_lon,
+            }
+            print(f"[PLAN] 📌 gps_bounds recalibré depuis crop réel: "
+                  f"lat[{actual_south_lat:.6f},{actual_north_lat:.6f}] "
+                  f"lon[{actual_west_lon:.6f},{actual_east_lon:.6f}]")
+        except Exception as _e_gb:
+            print(f"[PLAN] ⚠️ Impossible de recalibrer gps_bounds depuis tuiles: {_e_gb}")
+
         cropped = composite.crop((left, top, right, bottom))
         cropped = cropped.resize((img_width, img_height), Image.LANCZOS)
-        
+
         buf = io.BytesIO()
         cropped.save(buf, format='PNG')
         buf.seek(0)
-        
+
         print(f"[PLAN] ✅ Image satellite assemblée depuis {tile_count} tuiles ({img_width}x{img_height}px)")
         return buf
     
