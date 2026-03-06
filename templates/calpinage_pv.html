@@ -5943,7 +5943,8 @@
             // ── Init suivi édition manuelle ──────────────────────────────────────────
             if (!zone._deletedModuleIndices) zone._deletedModuleIndices = new Set();
             if (!zone._manualAdditions)      zone._manualAdditions      = [];
-            zone._baseNbModules = nbCols * nbRows; // total grille avant filtres
+            zone._baseNbModules    = nbCols * nbRows; // total grille avant filtres
+            zone._irrExcludedIndices = new Set();     // indices filtrés par seuil irradiation (reset à chaque redessinage)
 
             let _nbExcluded = 0;
             let _nbDrawn    = 0;
@@ -5978,7 +5979,7 @@
                         const irrPixel = _colorToIrr(px[0], px[1], px[2]);
                         if (irrPixel < _irrMin || irrPixel > _irrMax) { _excluded = true; break; }
                     }
-                    if (_excluded) { _nbExcluded++; return; }
+                    if (_excluded) { zone._irrExcludedIndices.add(_moduleIdx); _nbExcluded++; return; }
                 }
                 _nbDrawn++;
                 const corners = cornersMeters.map(pt => metersToLatLng(pt, true));
@@ -6925,7 +6926,12 @@
                             realHeightMeters: parseFloat(realHeightMeters.toFixed(6))
                         },
                         // 🔥 AJOUT CRITIQUE: Positions GPS de chaque module individuel
-                        modulesPositions: z.modulesPositions || []
+                        modulesPositions: z.modulesPositions || [],
+                        // Indices exclus (suppression manuelle + filtre irradiation) → persistance entre sessions
+                        deletedModuleIndices: Array.from(new Set([
+                            ...(z._deletedModuleIndices || []),
+                            ...(z._irrExcludedIndices   || [])
+                        ]))
                     };
                 }),
                 module: (function() {
@@ -11074,7 +11080,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     moduleOrientation: savedZone.moduleOrientation || 'paysage',
                     largeurMetres: savedZone.largeurMetres || map.distance(bounds.getSouthWest(), [bounds.getSouthWest().lat, bounds.getNorthEast().lng]),
                     longueurMetres: savedZone.longueurMetres || map.distance(bounds.getSouthWest(), [bounds.getNorthEast().lat, bounds.getSouthWest().lng]),
-                    rotationAngle: savedZone.rotationAngle || (180 - (savedZone.orientation || 180))
+                    rotationAngle: savedZone.rotationAngle || (180 - (savedZone.orientation || 180)),
+                    // Restaure les modules supprimés (manuels + filtre irradiation sauvegardé)
+                    _deletedModuleIndices: new Set(savedZone.deletedModuleIndices || []),
+                    _manualAdditions: []
                 };
                 
                 zones.push(zone);
