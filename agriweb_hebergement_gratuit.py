@@ -2732,15 +2732,27 @@ def api_solar_flux_heatmap():
         # Seed de préférence = centroïde du polygone building_coords (OSM/3D) envoyé
         # par le frontend — c'est le centre réel du bâtiment sélectionné sur la carte,
         # indépendamment du point de requête Google Solar (lat/lon) qui peut être décalé.
+        #
+        # Ordre de priorité du seed :
+        #   1. Centroïde des building_coords polygone (zones dessinées / polygone OSM)
+        #   2. Center renvoyé par buildingInsights:findClosest (bâtiment le plus proche)
+        #   3. lat/lon brut de la requête (géocodage adresse → souvent sur la route)
         if mask_arr is not None and bld_mask.any():
             try:
-                # Calculer le seed : centroïde building_coords ou fallback lat/lon
+                # ── Seed candidat 1 : centroïde building_coords (polygone bâtiment) ──
                 if bcoords and len(bcoords) >= 3:
                     _seed_lat = sum(float(p[1]) for p in bcoords) / len(bcoords)
                     _seed_lon = sum(float(p[0]) for p in bcoords) / len(bcoords)
                     print(f'  [flux-heatmap] seed = centroïde building_coords ({_seed_lat:.6f},{_seed_lon:.6f})')
+                elif building_insights and building_insights.get('center'):
+                    # ── Seed candidat 2 : center buildingInsights (centroïde Google Solar) ──
+                    _bi_center = building_insights['center']
+                    _seed_lat = float(_bi_center.get('latitude',  lat))
+                    _seed_lon = float(_bi_center.get('longitude', lon))
+                    print(f'  [flux-heatmap] seed = buildingInsights.center ({_seed_lat:.6f},{_seed_lon:.6f})')
                 else:
                     _seed_lat, _seed_lon = lat, lon
+                    print(f'  [flux-heatmap] seed = lat/lon requête ({_seed_lat:.6f},{_seed_lon:.6f}) ← peut être sur la route')
                 ctr_row = int(np.clip((bbox_north - _seed_lat) / (bbox_north - bbox_south) * H, 0, H - 1))
                 ctr_col = int(np.clip((_seed_lon  - bbox_west) / (bbox_east  - bbox_west)  * W, 0, W - 1))
                 seed_r, seed_c = ctr_row, ctr_col
