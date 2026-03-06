@@ -1481,14 +1481,17 @@ class PlanMasseGenerator:
         
         Args:
             tile_url_template: URL template avec {z}/{x}/{y} ou {z}/{y}/{x}.
-                Par défaut: Google Satellite (même fond que la carte → alignement parfait).
+                Par défaut: Esri World Imagery (même fond que la carte Leaflet → alignement parfait).
         """
         import math
         from PIL import Image
         
-        # Google Satellite par défaut — même source que le fond Leaflet → alignement carte garantit
+        # Esri World Imagery par défaut — MÊME source que le fond Leaflet (tileLayerSatellite)
+        # ⚠️ Google Satellite ≠ Esri : décalage de plusieurs mètres selon les régions.
+        #    L'utilisateur dessine ses modules sur Esri → plan de masse doit utiliser Esri.
+        #    Convention Esri : {z}/{y}/{x}  (y et x inversés vs Google)
         if tile_url_template is None:
-            tile_url_template = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+            tile_url_template = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         
         # Zoom 19 : meilleure résolution (~0.21 m/px) → erreur de crop sub-pixel < 0.21m
         # vs zoom 18 (~0.42 m/px, erreur jusqu'à 0.42m = 1mm à 1:200 sur 50m)
