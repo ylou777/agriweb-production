@@ -220,6 +220,24 @@
         }
         .zone-card { cursor: pointer; }
         .zone-card:hover { border-color: var(--c-accent); opacity: 0.95; }
+        .zone-card.locked {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 2px rgba(245,158,11,0.35);
+            background: rgba(245,158,11,0.06);
+        }
+        .zone-lock-btn {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 5px;
+            padding: 2px 5px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.4);
+            line-height: 1;
+            transition: all 0.15s;
+        }
+        .zone-lock-btn:hover { border-color: #f59e0b; color: #f59e0b; }
+        .zone-lock-btn.active { background: rgba(245,158,11,0.18); border-color: #f59e0b; color: #f59e0b; }
         .zone-header {
             display: flex;
             justify-content: space-between;
@@ -1946,6 +1964,7 @@
         let _moduleEditMode = false; // Mode édition manuelle des modules (suppr/ajout)
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
         let zoneResizeHandles = {}; // Poignées de coin pour redimensionner les zones PV
+        let _lockedZoneId = null; // Zone "saisie" (calque actif) — seule zone éditable
         let lidarDetecting = false; // Mode auto-détection toiture LiDAR
         let lidarClickHandler = null; // Handler click map pour détection
         let auto3DInclinaisonEnabled = true; // Auto-ajustement inclinaison depuis analyse toiture (peut être désactivé)
@@ -3728,34 +3747,56 @@
                 if (activeDrawHandler) activeDrawHandler.disable();
                 if (editHandler) { editHandler.disable(); editHandler = null; }
 
-                // Créer les poignées de coin et activer le déplacement pour chaque zone
+                // Créer les poignées de coin et activer le déplacement :
+                // — si une zone est saisie (locked), UNIQUEMENT cette zone
+                // — sinon, toutes les zones
                 drawnItems.eachLayer(function(layer) {
                     if (!(layer instanceof L.Rectangle)) return;
                     const zone = zones.find(function(z) { return z.id === layer._leaflet_id; });
                     if (!zone) return;
 
-                    // Style visible pour l'édition
-                    layer.setStyle({
-                        opacity: 0.7,
-                        fillOpacity: 0.12,
-                        color: '#0d6efd',
-                        fillColor: '#0d6efd',
-                        weight: 2.5,
-                        dashArray: '6, 4'
-                    });
+                    const isActive = (_lockedZoneId === null || zone.id === _lockedZoneId);
 
-                    // Poignées de coin + drag de la zone entière
-                    const handles = _createZoneResizeHandles(zone, layer);
-                    _enableZoneDragging(zone, layer, handles);
+                    if (isActive) {
+                        // Style visible pour l'édition
+                        layer.setStyle({
+                            opacity: 0.7,
+                            fillOpacity: 0.12,
+                            color: '#0d6efd',
+                            fillColor: '#0d6efd',
+                            weight: 2.5,
+                            dashArray: '6, 4'
+                        });
+                        // Poignées de coin + drag de la zone entière
+                        const handles = _createZoneResizeHandles(zone, layer);
+                        _enableZoneDragging(zone, layer, handles);
+                    } else {
+                        // Zones non-saisies : visuellement atténuées, non éditables
+                        layer.setStyle({
+                            opacity: 0.25,
+                            fillOpacity: 0.04,
+                            color: '#6b7280',
+                            fillColor: '#6b7280',
+                            weight: 1.5,
+                            dashArray: '4, 6'
+                        });
+                    }
                 });
 
-                // Afficher les poignées de rotation
+                // Poignées de rotation : seulement sur la zone saisie (ou toutes si pas de lock)
                 toggleRotationHandles(true);
                 Object.entries(rotationHandles).forEach(function(entry) {
+                    const rZoneId = parseInt(entry[0]);
                     const iconEl = entry[1].getElement();
-                    if (iconEl) {
-                        iconEl.style.cursor = 'grab';
-                        iconEl.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                    if (!iconEl) return;
+                    const isActive = (_lockedZoneId === null || rZoneId === _lockedZoneId);
+                    if (isActive) {
+                        iconEl.style.display  = 'block';
+                        iconEl.style.cursor   = 'grab';
+                        iconEl.style.filter   = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                        iconEl.style.opacity  = '1';
+                    } else {
+                        iconEl.style.display  = 'none';
                     }
                 });
             });
@@ -5125,6 +5166,7 @@
                     </span>
                     <div style="display:flex;align-items:center;gap:3px;">
                         <small class="text-primary" id="puissance-mini-${zone.id}" style="font-size:0.72rem;"></small>
+                        <button class="zone-lock-btn" id="lock-btn-${zone.id}" onclick="lockZone(${zone.id})" title="Saisir cette zone (calque actif)">🎯</button>
                         <button class="btn btn-sm btn-outline-primary me-1" onclick="dupliquerZone(${zone.id})" title="Dupliquer ce champ">
                             <small>📋</small>
                         </button>
@@ -5199,6 +5241,13 @@
             
             zonesListDiv.appendChild(zoneCard);
             document.getElementById('zonesCount').textContent = zones.length;
+
+            // Restaurer l'état verrouillé si cette zone est la zone saisie
+            if (_lockedZoneId === zone.id) {
+                zoneCard.classList.add('locked');
+                const lb = document.getElementById(`lock-btn-${zone.id}`);
+                if (lb) { lb.classList.add('active'); lb.title = 'Zone saisie — cliquer pour désaisir'; }
+            }
             
             // Calculer le productible initial
             calculerProductibleZone(zone.id);
@@ -5285,6 +5334,33 @@
 
         // ── Sélection d'une zone : met en surbrillance sur la carte ────────────
         let _selectedZoneId = null;
+
+        /** Saisie (verrouillage) d'une zone comme calque actif */
+        function lockZone(zoneId) {
+            const prev = _lockedZoneId;
+            // Déverrouiller l'ancienne
+            if (prev !== null) {
+                const prevCard = document.getElementById(`zone-${prev}`);
+                if (prevCard) prevCard.classList.remove('locked');
+                const prevBtn = document.getElementById(`lock-btn-${prev}`);
+                if (prevBtn) { prevBtn.classList.remove('active'); prevBtn.title = 'Saisir cette zone (calque actif)'; }
+                // Si on reclique la même zone → déverrouillage
+                if (prev === zoneId) {
+                    _lockedZoneId = null;
+                    // Quitter le mode édition si actif et re-apply pour toutes
+                    if (currentTool === 'edit') setActiveTool('edit');
+                    return;
+                }
+            }
+            _lockedZoneId = zoneId;
+            const card = document.getElementById(`zone-${zoneId}`);
+            if (card) card.classList.add('locked');
+            const btn = document.getElementById(`lock-btn-${zoneId}`);
+            if (btn) { btn.classList.add('active'); btn.title = 'Zone saisie — cliquer pour désaisir'; }
+            // Si on est déjà en mode édition, re-appliquer pour ne modifier que cette zone
+            if (currentTool === 'edit') setActiveTool('edit');
+        }
+
         function selectZoneOnMap(zoneId) {
             // Restaurer l'ancienne zone sélectionnée
             if (_selectedZoneId !== null) {
@@ -5317,6 +5393,7 @@
         function supprimerZoneById(id) {
             saveUndoState();
             if (_selectedZoneId === id) _selectedZoneId = null;
+            if (_lockedZoneId === id) _lockedZoneId = null;
             const zone = zones.find(z => z.id === id);
             if (zone && zone.layer) {
                 drawnItems.removeLayer(zone.layer);
@@ -6425,6 +6502,7 @@
         // Effacer toutes les zones
         document.getElementById('clearAllZones').addEventListener('click', function() {
             if (confirm('Effacer toutes les zones ?')) {
+                _lockedZoneId = null;
                 // Supprimer tous les groupes de modules avant de vider drawnItems
                 zones.forEach(zone => {
                     if (zone.moduleGroup) {
