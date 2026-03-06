@@ -2630,7 +2630,12 @@
                     largeurMetres: zone.largeurMetres,
                     longueurMetres: zone.longueurMetres,
                     rotationAngle: zone.rotationAngle || 0,
-                    typeInstallation: zone.typeInstallation
+                    typeInstallation: zone.typeInstallation,
+                    // Édition manuelle des modules
+                    deletedModuleIndices: Array.from(zone._deletedModuleIndices || []),
+                    manualAdditions: (zone._manualAdditions || []).map(function(corners) {
+                        return { corners: corners.map(function(c) { return {x:c.x, y:c.y}; }), cx: corners._cx, cy: corners._cy };
+                    })
                 };
             });
         }
@@ -2653,6 +2658,9 @@
 
         /** Restaure les zones depuis un état sérialisé. */
         function _restoreState(state) {
+            // Les IDs Leaflet vont changer — réinitialiser les références périmées
+            _lockedZoneId   = null;
+            _selectedZoneId = null;
             _clearAllZonesForRestore();
             state.forEach(function(savedZone) {
                 var bounds = L.latLngBounds(
@@ -2680,7 +2688,14 @@
                     largeurMetres: savedZone.largeurMetres,
                     longueurMetres: savedZone.longueurMetres,
                     rotationAngle: savedZone.rotationAngle || 0,
-                    typeInstallation: savedZone.typeInstallation
+                    typeInstallation: savedZone.typeInstallation,
+                    // Restaurer l'édition manuelle des modules
+                    _deletedModuleIndices: new Set(savedZone.deletedModuleIndices || []),
+                    _manualAdditions: (savedZone.manualAdditions || []).map(function(entry) {
+                        var arr = entry.corners.map(function(c) { return {x:c.x, y:c.y}; });
+                        arr._cx = entry.cx; arr._cy = entry.cy;
+                        return arr;
+                    })
                 };
                 zones.push(zone);
                 dessinerModulesDansZone(zone);
@@ -3597,6 +3612,7 @@
 
         /** Pinceau effaceur : début du geste — déclenché depuis un module polygon */
         function _onBrushStart() {
+            saveUndoState(); // une seule capture avant tout le geste de pinceau
             _moduleBrushActive = true;
             document.addEventListener('mouseup', _onBrushEnd, { once: true });
         }
@@ -5938,6 +5954,7 @@
                     modulePolygon.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
                         e.originalEvent && e.originalEvent.stopPropagation();
+                        saveUndoState();
                         _zi._skipNextZoneClick = true;  // empêche le handler zone de re-ajouter
                         _zi._deletedModuleIndices.add(_mi);
                         updateManualModuleCount(_zi);
@@ -5979,6 +5996,7 @@
                     mp.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
                         e.originalEvent && e.originalEvent.stopPropagation();
+                        saveUndoState();
                         _zi._skipNextZoneClick = true;  // empêche le handler zone de ré-ajouter
                         _zi._manualAdditions.splice(_ai, 1);
                         updateManualModuleCount(_zi);
@@ -6015,6 +6033,7 @@
                 zone._addModuleHandler = function(e) {
                     // Bug fix 1 : si un module manuel vient d'être supprimé, on ignore ce clic
                     if (zone._skipNextZoneClick) { zone._skipNextZoneClick = false; return; }
+                    saveUndoState();
 
                     const rxRaw = (e.latlng.lng - center.lng) / metersPerDegreeLng;
                     const ryRaw = (e.latlng.lat - center.lat) / metersPerDegreeLat;
