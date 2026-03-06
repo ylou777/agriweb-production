@@ -1379,35 +1379,36 @@ class PlanMasseGenerator:
             print(f"[PLAN] 📌 GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
             # ========================================
-            # MÉTHODE 1: Tuiles Google Satellite (même source que fond de carte Leaflet)
-            # → parfait alignement avec les polygones dessinés sur fond Google
+            # MÉTHODE 1: Esri World Imagery (même source que fond de carte Leaflet par défaut)
+            # ⚠️ CRITIQUE: calpinage_pv.html utilise tileLayerSatellite = Esri par défaut.
+            #    Modules dessinés sur Esri → image plan doit être Esri → alignement parfait.
             # ========================================
             try:
-                print(f"[PLAN] 🗺️ Tentative assemblage tuiles Google Satellite (alignement carte)...")
-                tile_img = self._fetch_satellite_from_tiles(
-                    lat, lon, width_meters, height_meters, width, height,
-                    tile_url_template="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-                )
-                if tile_img:
-                    print(f"[PLAN] ✅ Image Google Satellite assemblée — alignement carte OK")
-                    return tile_img
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Tuiles Google échoué: {e}")
-
-            # ========================================
-            # MÉTHODE 2: ArcGIS World Imagery (fallback tuiles)
-            # ========================================
-            try:
-                print(f"[PLAN] 🌍 Tentative assemblage tuiles ArcGIS...")
+                print(f"[PLAN] 🗺️ Tentative assemblage tuiles Esri (même fond que Leaflet)...")
                 tile_img = self._fetch_satellite_from_tiles(
                     lat, lon, width_meters, height_meters, width, height,
                     tile_url_template="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                 )
                 if tile_img:
-                    print(f"[PLAN] ✅ Image ArcGIS assemblée")
+                    print(f"[PLAN] ✅ Image Esri assemblée — alignement carte OK")
                     return tile_img
             except Exception as e:
-                print(f"[PLAN] ⚠️ Tuiles ArcGIS échoué: {e}")
+                print(f"[PLAN] ⚠️ Tuiles Esri échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 2: Google Satellite (fallback tuiles)
+            # ========================================
+            try:
+                print(f"[PLAN] 🌍 Tentative assemblage tuiles Google Satellite (fallback)...")
+                tile_img = self._fetch_satellite_from_tiles(
+                    lat, lon, width_meters, height_meters, width, height,
+                    tile_url_template="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                )
+                if tile_img:
+                    print(f"[PLAN] ✅ Image Google Satellite assemblée")
+                    return tile_img
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Tuiles Google échoué: {e}")
 
             # ========================================
             # MÉTHODE 3: ArcGIS WMS Export (fallback WMS)
