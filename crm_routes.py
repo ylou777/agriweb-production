@@ -3302,7 +3302,42 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
-    
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/irradiation-cache', methods=['POST'])
+    def save_irradiation_cache(prospect_id):
+        """Sauvegarder uniquement le cache irradiation Google Solar dans data_json.calpinage.
+        N'écrase pas les zones ni les autres données calpinage existantes."""
+        try:
+            payload = request.json or {}
+            irr_data = payload.get('irradiation_cache')
+            if irr_data is None:
+                return jsonify({'error': 'irradiation_cache manquant'}), 400
+
+            row = execute_query(
+                "SELECT data_json FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True
+            )
+            if not row:
+                return jsonify({'error': 'Prospect non trouvé'}), 404
+
+            try:
+                current_data = json.loads(row['data_json']) if row['data_json'] else {}
+            except Exception:
+                current_data = {}
+
+            current_data.setdefault('calpinage', {})['irradiation_cache'] = irr_data
+
+            execute_query(
+                "UPDATE agriweb_prospects SET data_json = %s, date_modification = CURRENT_TIMESTAMP WHERE id = %s",
+                (json.dumps(current_data), prospect_id)
+            )
+            print(f"[IRRADIATION CACHE] ✅ Prospect {prospect_id} — cache sauvegardé")
+            return jsonify({'success': True})
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/crm/prospects/<int:prospect_id>/etude-productible')
     def generer_etude_productible(prospect_id):
         """Générer un PDF d'étude de productible avec graphique"""
