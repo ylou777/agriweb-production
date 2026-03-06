@@ -3594,8 +3594,8 @@
                         + 'pointer-events:none;';
                     document.body.appendChild(banner);
                 }
-                banner.innerHTML = '🖱️ Mode édition modules — <span style="color:#cc0000">● clic = supprimer</span>'
-                    + ' &nbsp;|&nbsp; <span style="color:#f97316">● maintenir + glisser = pinceau effaceur</span>'
+                banner.innerHTML = '🖱️ Mode édition modules — <span style="color:#cc0000">● clic gauche = supprimer</span>'
+                    + ' &nbsp;|&nbsp; <span style="color:#f97316">● clic droit maintenu + glisser = pinceau effaceur</span>'
                     + ' &nbsp;|&nbsp; <span style="color:#166534">● clic zone vide = ajouter</span>';
                 banner.style.display = 'block';
                 document.getElementById('map')?.classList.add('module-edit-active');
@@ -3610,11 +3610,13 @@
             zones.forEach(z => dessinerModulesDansZone(z, true));
         }
 
-        /** Pinceau effaceur : début du geste — déclenché depuis un module polygon */
+        /** Pinceau effaceur : début du geste — déclenché depuis un module polygon (clic droit maintenu) */
         function _onBrushStart() {
             saveUndoState(); // une seule capture avant tout le geste de pinceau
             _moduleBrushActive = true;
             document.addEventListener('mouseup', _onBrushEnd, { once: true });
+            // Empêche le menu contextuel du navigateur après le clic droit
+            document.addEventListener('contextmenu', function(e){ e.preventDefault(); }, { once: true });
         }
 
         /** Pinceau effaceur : fin du geste (mouseup) — un seul redessinage */
@@ -5948,7 +5950,9 @@
                 if (_moduleEditMode) {
                     const _zi = zone, _mi = _moduleIdx;
                     modulePolygon.on('mousedown', function(e) {
-                        L.DomEvent.stopPropagation(e); // empêche Leaflet de déplacer la carte
+                        if (e.originalEvent.button !== 2) return; // pinceau : clic droit uniquement
+                        L.DomEvent.stopPropagation(e);
+                        e.originalEvent.preventDefault();
                         if (!_moduleBrushActive) _onBrushStart();
                     });
                     modulePolygon.on('click', function(e) {
@@ -5990,7 +5994,9 @@
                 if (_moduleEditMode) {
                     const _zi = zone, _ai = addIdx;
                     mp.on('mousedown', function(e) {
-                        L.DomEvent.stopPropagation(e); // empêche Leaflet de déplacer la carte
+                        if (e.originalEvent.button !== 2) return; // pinceau : clic droit uniquement
+                        L.DomEvent.stopPropagation(e);
+                        e.originalEvent.preventDefault();
                         if (!_moduleBrushActive) _onBrushStart();
                     });
                     mp.on('click', function(e) {
