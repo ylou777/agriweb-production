@@ -3585,24 +3585,20 @@
                 banner.style.display = 'block';
                 document.getElementById('map')?.classList.add('module-edit-active');
                 if (typeof map !== 'undefined') map.getContainer().style.cursor = 'crosshair';
-                // Écouter mousedown/mouseup sur le conteneur carte pour le pinceau effaceur
-                map.getContainer().addEventListener('mousedown', _onBrushStart);
-                document.addEventListener('mouseup', _onBrushEnd);
             } else {
                 if (banner) banner.style.display = 'none';
                 document.getElementById('map')?.classList.remove('module-edit-active');
                 if (typeof map !== 'undefined') map.getContainer().style.cursor = '';
-                map.getContainer().removeEventListener('mousedown', _onBrushStart);
-                document.removeEventListener('mouseup', _onBrushEnd);
                 _moduleBrushActive = false; _moduleBrushDirty = false;
             }
             // Redessiner toutes les zones pour activer/désactiver l'interactivité
             zones.forEach(z => dessinerModulesDansZone(z, true));
         }
 
-        /** Pinceau effaceur : début du geste (mousedown sur la carte) */
+        /** Pinceau effaceur : début du geste — déclenché depuis un module polygon */
         function _onBrushStart() {
             _moduleBrushActive = true;
+            document.addEventListener('mouseup', _onBrushEnd, { once: true });
         }
 
         /** Pinceau effaceur : fin du geste (mouseup) — un seul redessinage */
@@ -5935,6 +5931,10 @@
                 });
                 if (_moduleEditMode) {
                     const _zi = zone, _mi = _moduleIdx;
+                    modulePolygon.on('mousedown', function(e) {
+                        L.DomEvent.stopPropagation(e); // empêche Leaflet de déplacer la carte
+                        if (!_moduleBrushActive) _onBrushStart();
+                    });
                     modulePolygon.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
                         e.originalEvent && e.originalEvent.stopPropagation();
@@ -5972,6 +5972,10 @@
                 });
                 if (_moduleEditMode) {
                     const _zi = zone, _ai = addIdx;
+                    mp.on('mousedown', function(e) {
+                        L.DomEvent.stopPropagation(e); // empêche Leaflet de déplacer la carte
+                        if (!_moduleBrushActive) _onBrushStart();
+                    });
                     mp.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
                         e.originalEvent && e.originalEvent.stopPropagation();
