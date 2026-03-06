@@ -8266,7 +8266,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _prevMapView     = null;  // zoom/centre avant activation heatmap
 
         // ── Pipette irradiation ─────────────────────────────────────────────────
-        let _fluxCanvas     = null;  // canvas caché avec l'image heatmap dessinée
+        let _fluxCanvas     = null;  // canvas caché (possiblement masqué selon la plage)
+        let _fluxOrigCanvas = null;  // canvas original non masqué (référence brute)
         let _fluxBbox       = null;  // {north,south,east,west} bbox de l'image croppée
         let _fluxColorMin   = 0;     // seuil bas de la colormap (kWh/m²/an)
         let _fluxColorMax   = 1500;  // seuil haut de la colormap (kWh/m²/an)
@@ -8414,6 +8415,46 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }
         }
 
+        /** RAF-gate : une seule mise à jour du masque par frame d'animation */
+        let _fluxMaskRafId = null;
+        function _scheduleFluxRangeMask() {
+            if (_fluxMaskRafId) return;
+            _fluxMaskRafId = requestAnimationFrame(() => {
+                _fluxMaskRafId = null;
+                _applyFluxRangeMask();
+            });
+        }
+
+        /**
+         * Masque les pixels de l'overlay heatmap dont l'irradiance est hors de la plage
+         * sélectionnée par le double-curseur (_fluxDrag.vMin / vMax).
+         * Met à jour _fluxCanvas pour que la pipette reste cohérente.
+         */
+        function _applyFluxRangeMask() {
+            if (!_fluxOrigCanvas) return;
+            const {vMin, vMax, rMin, rMax} = _fluxDrag;
+            const src = _fluxOrigCanvas;
+            const W = src.width, H = src.height;
+            const masked = document.createElement('canvas');
+            masked.width = W; masked.height = H;
+            const ctx = masked.getContext('2d');
+            ctx.drawImage(src, 0, 0);
+            if (vMin > rMin || vMax < rMax) {
+                const imgData = ctx.getImageData(0, 0, W, H);
+                const d = imgData.data;
+                for (let i = 0; i < d.length; i += 4) {
+                    if (d[i+3] < 10) continue; // pixel hors toiture → déjà transparent
+                    const irr = _colorToIrr(d[i], d[i+1], d[i+2]);
+                    if (irr < vMin || irr > vMax) d[i+3] = 0;
+                }
+                ctx.putImageData(imgData, 0, 0);
+            }
+            _fluxCanvas = masked;
+            if (_flux2DOverlay && typeof map !== 'undefined' && map && map.hasLayer(_flux2DOverlay)) {
+                _flux2DOverlay.setUrl(masked.toDataURL('image/png'));
+            }
+        }
+
         /**
          * Prélève un pixel RGBA depuis un canvas calé sur une bbox géographique.
          * Retourne Uint8ClampedArray [r,g,b,a] ou null si hors frame.
@@ -8546,6 +8587,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (_fluxDrag.isMin) _fluxDrag.vMin = Math.max(rMin, Math.min(v, _fluxDrag.vMax - 10));
             else                 _fluxDrag.vMax = Math.min(rMax, Math.max(v, _fluxDrag.vMin + 10));
             if (_fluxRenderFn) _fluxRenderFn();
+            _scheduleFluxRangeMask();
         });
         document.addEventListener('touchmove', function _fluxTouchMoveL(e) {
             if (!_fluxDrag.active) return;
@@ -8557,6 +8599,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (_fluxDrag.isMin) _fluxDrag.vMin = Math.max(rMin, Math.min(v, _fluxDrag.vMax - 10));
             else                 _fluxDrag.vMax = Math.min(rMax, Math.max(v, _fluxDrag.vMin + 10));
             if (_fluxRenderFn) _fluxRenderFn();
+            _scheduleFluxRangeMask();
             if (e.cancelable) e.preventDefault();
         }, {passive:false});
         document.addEventListener('mouseup',   function _fluxUpL()     { _fluxDragCommit(); });
@@ -8573,6 +8616,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (inMin) inMin.value = vMin > rMin ? vMin : 0;
             if (inMax) inMax.value = vMax < rMax ? vMax : '';
             if (typeof updateAllZones === 'function' && !(viewer3D?.isActive)) updateAllZones();
+            _applyFluxRangeMask();
         }
 
         function _initFluxRangeSlider(rMin, rMax) {
@@ -8701,7 +8745,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
                 }
                 // ── Pipette : nettoyer canvas + listeners ─────────────────────────────────
-                _fluxCanvas = null; _fluxBbox = null;
+                _fluxCanvas = null; _fluxOrigCanvas = null; _fluxBbox = null;
+                if (_fluxMaskRafId) { cancelAnimationFrame(_fluxMaskRafId); _fluxMaskRafId = null; }
                 if (typeof map !== 'undefined' && map) {
                     map.off('mousemove', _fluxPipetteMove);
                     map.off('mouseout',  _fluxPipetteHide);
@@ -9026,6 +9071,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         cv.width = _ci.naturalWidth; cv.height = _ci.naturalHeight;
                         cv.getContext('2d').drawImage(_ci, 0, 0);
                         _fluxCanvas = cv;
+                        _fluxOrigCanvas = cv;  // référence brute pour le masquage dynamique
                         console.log(`🔍 Heatmap canvas ready (always): ${cv.width}×${cv.height}px`);
                         // Redessiner uniquement en mode 2D — en 3D, les zones 2D ne sont pas affichées
                         if (!(viewer3D?.isActive)) updateAllZones();
