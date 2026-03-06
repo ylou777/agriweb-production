@@ -1880,6 +1880,12 @@
         let lidarDetecting = false; // Mode auto-détection toiture LiDAR
         let lidarClickHandler = null; // Handler click map pour détection
         let auto3DInclinaisonEnabled = true; // Auto-ajustement inclinaison depuis analyse toiture (peut être désactivé)
+
+        // Undo / Redo
+        let undoStack = [];
+        let redoStack = [];
+        const MAX_UNDO_HISTORY = 30;
+        let _undoSliderActive = false;
         
         // Obstacles toiture (cheminées, acrotères, trappes...)
         let obstacles = [];
@@ -2372,6 +2378,7 @@
                 let dInfo = null;
 
                 m.on('dragstart', function() {
+                    saveUndoState();
                     map.dragging.disable();
                     dInfo = _getZoneInfo(zone);
                 });
@@ -2447,6 +2454,7 @@
 
             layer._zoneDragDown = function(e) {
                 if (e.originalEvent.button !== 0) return;
+                saveUndoState();
                 dragging = true;
                 dragStart = e.latlng;
                 const ob = layer.getBounds();
@@ -2506,6 +2514,130 @@
 
         // ── Fin poignées de coin ───────────────────────────────────────────────────
 
+        // ═══════════════════════════════════════════════════════
+        // UNDO / REDO (Ctrl+Z / Ctrl+Y)
+        // ═══════════════════════════════════════════════════════
+
+        /** Sérialise l'état courant (zones) en données pures, sans références Leaflet. */
+        function _serializeState() {
+            return zones.map(function(zone) {
+                var b = zone.layer.getBounds();
+                return {
+                    bounds: {
+                        sw: { lat: b.getSouthWest().lat, lng: b.getSouthWest().lng },
+                        ne: { lat: b.getNorthEast().lat, lng: b.getNorthEast().lng }
+                    },
+                    numero: zone.numero,
+                    surfaceM2: zone.surfaceM2,
+                    nbModules: zone.nbModules,
+                    nbCols: zone.nbCols,
+                    nbRows: zone.nbRows,
+                    puissanceKw: zone.puissanceKw,
+                    orientation: zone.orientation,
+                    inclinaison: zone.inclinaison,
+                    productible: zone.productible || 0,
+                    moduleOrientation: zone.moduleOrientation,
+                    largeurMetres: zone.largeurMetres,
+                    longueurMetres: zone.longueurMetres,
+                    rotationAngle: zone.rotationAngle || 0,
+                    typeInstallation: zone.typeInstallation
+                };
+            });
+        }
+
+        /** Supprime toutes les zones (couches + UI) sans toucher à undoStack/redoStack. */
+        function _clearAllZonesForRestore() {
+            zones.forEach(function(z) {
+                if (z.moduleGroup) map.removeLayer(z.moduleGroup);
+                if (z.layer) { try { drawnItems.removeLayer(z.layer); } catch(e) {} }
+                if (rotationHandles[z.id]) {
+                    map.removeLayer(rotationHandles[z.id]);
+                    delete rotationHandles[z.id];
+                }
+            });
+            _removeAllZoneResizeHandles();
+            zones = [];
+            document.getElementById('zonesList').innerHTML = '<p class="text-muted text-center">Aucune zone définie</p>';
+            document.getElementById('zonesCount').textContent = '0';
+        }
+
+        /** Restaure les zones depuis un état sérialisé. */
+        function _restoreState(state) {
+            _clearAllZonesForRestore();
+            state.forEach(function(savedZone) {
+                var bounds = L.latLngBounds(
+                    [savedZone.bounds.sw.lat, savedZone.bounds.sw.lng],
+                    [savedZone.bounds.ne.lat, savedZone.bounds.ne.lng]
+                );
+                var rectangle = L.rectangle(bounds, {
+                    color: '#0d6efd', fillColor: '#0d6efd',
+                    fillOpacity: 0, weight: 2, opacity: 0
+                });
+                drawnItems.addLayer(rectangle);
+                var zone = {
+                    id: rectangle._leaflet_id,
+                    numero: savedZone.numero,
+                    layer: rectangle,
+                    surfaceM2: savedZone.surfaceM2,
+                    nbModules: savedZone.nbModules,
+                    nbCols: savedZone.nbCols,
+                    nbRows: savedZone.nbRows,
+                    puissanceKw: savedZone.puissanceKw,
+                    orientation: savedZone.orientation,
+                    inclinaison: savedZone.inclinaison,
+                    productible: savedZone.productible || 0,
+                    moduleOrientation: savedZone.moduleOrientation,
+                    largeurMetres: savedZone.largeurMetres,
+                    longueurMetres: savedZone.longueurMetres,
+                    rotationAngle: savedZone.rotationAngle || 0,
+                    typeInstallation: savedZone.typeInstallation
+                };
+                zones.push(zone);
+                dessinerModulesDansZone(zone);
+                ajouterPoigneeRotation(rectangle);
+                if (zone.rotationAngle) {
+                    appliquerRotationZone(zone, zone.rotationAngle);
+                    if (rotationHandles[zone.id]) updateHandlePosition(zone, rotationHandles[zone.id]);
+                }
+                afficherZone(zone);
+            });
+            if (zones.length === 0) {
+                document.getElementById('zonesList').innerHTML = '<p class="text-muted text-center">Aucune zone définie</p>';
+            }
+            calculerTotaux();
+        }
+
+        /** Sauvegarde l'état courant avant une mutation. Efface la pile redo. */
+        function saveUndoState() {
+            undoStack.push(_serializeState());
+            if (undoStack.length > MAX_UNDO_HISTORY) undoStack.shift();
+            redoStack = [];
+        }
+
+        /** Pour les sliders : ne sauvegarde qu'une fois par geste de glissement. */
+        function _startSliderUndo() {
+            if (!_undoSliderActive) {
+                saveUndoState();
+                _undoSliderActive = true;
+            }
+        }
+
+        function performUndo() {
+            if (undoStack.length === 0) return;
+            redoStack.push(_serializeState());
+            _restoreState(undoStack.pop());
+        }
+
+        function performRedo() {
+            if (redoStack.length === 0) return;
+            undoStack.push(_serializeState());
+            _restoreState(redoStack.pop());
+        }
+
+        // Réinitialiser le flag slider sur relâchement
+        document.addEventListener('mouseup',  function() { _undoSliderActive = false; });
+        document.addEventListener('touchend', function() { _undoSliderActive = false; });
+
         // Fonction globale pour ajouter une poignée de rotation à une zone
         function ajouterPoigneeRotation(layer) {
             const zoneId = layer._leaflet_id;
@@ -2554,6 +2686,7 @@
             let startAngle = 0;
             
             rotationHandle.on('dragstart', function(e) {
+                saveUndoState();
                 isDragging = true;
                 const center = layer.getBounds().getCenter();
                 rotationHandle._rotationCenter = center;
@@ -2873,6 +3006,7 @@
                         layer._path.style.opacity = 0;
                         layer._path.style.fillOpacity = 0;
                     }
+                    saveUndoState();
                     ajouterZone(layer);
                     ajouterPoigneeRotation(layer);
                 } else if ((layerType === 'rectangle' || layerType === 'polygon') && currentTool === 'obstacle') {
@@ -3067,6 +3201,7 @@
 
             // Événement de suppression
             map.on(L.Draw.Event.DELETED, function(event) {
+                saveUndoState();
                 event.layers.eachLayer(function(layer) {
                     supprimerZone(layer._leaflet_id);
                 });
@@ -3567,6 +3702,7 @@
                     if (!clicked) return;
                     var zLayer = clicked.layer;
                     var zId = clicked.id;
+                    saveUndoState();
                     drawnItems.removeLayer(zLayer);
                     supprimerZone(zId);
                     if (zones.length === 0) setActiveTool('rectangle');
@@ -3647,6 +3783,19 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && isFullscreen) {
                 toggleFullscreen();
+            }
+            // Ctrl+Z : annuler
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+                // Ne pas interférer si le focus est dans un champ texte
+                if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+                e.preventDefault();
+                performUndo();
+            }
+            // Ctrl+Y ou Ctrl+Shift+Z : rétablir
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+                if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+                e.preventDefault();
+                performRedo();
             }
         });
         
@@ -5071,6 +5220,7 @@
         }
 
         function supprimerZoneById(id) {
+            saveUndoState();
             if (_selectedZoneId === id) _selectedZoneId = null;
             const zone = zones.find(z => z.id === id);
             if (zone && zone.layer) {
@@ -5083,6 +5233,7 @@
         function dupliquerZone(zoneId) {
             const zoneSource = zones.find(z => z.id === zoneId);
             if (!zoneSource) return;
+            saveUndoState();
             
             // Récupérer les bounds de la zone source
             const bounds = zoneSource.layer.getBounds();
@@ -5164,6 +5315,7 @@
 
         // Mettre à jour orientation avec slider
         function updateZoneOrientationSlider(zoneId, orientation) {
+            _startSliderUndo();
             const zone = zones.find(z => z.id === zoneId);
             if (zone) {
                 zone.orientation = parseFloat(orientation);
@@ -5214,6 +5366,7 @@
 
         // Mettre à jour inclinaison avec slider
         function updateZoneInclinaisonSlider(zoneId, inclinaison) {
+            _startSliderUndo();
             const zone = zones.find(z => z.id === zoneId);
             if (zone) {
                 zone.inclinaison = parseFloat(inclinaison);
@@ -5233,6 +5386,7 @@
         function updateZoneModuleOrientation(zoneId, orientation) {
             const zone = zones.find(z => z.id === zoneId);
             if (zone) {
+                saveUndoState();
                 console.log(`Changement orientation zone ${zoneId}: ${zone.moduleOrientation} -> ${orientation}`);
                 zone.moduleOrientation = orientation;
                 recalculerZone(zone);
