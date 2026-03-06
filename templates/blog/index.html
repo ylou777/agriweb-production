@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog Technique HeliaPV – APIs solaires, IGN, Enedis, PVGIS</title>
+<meta name="description" content="Tutoriels techniques approfondis sur les APIs IGN LiDAR HD, GPU/PLU, Enedis Data Connect et PVGIS pour les bureaux d'études photovoltaïques.">
+<meta property="og:title" content="Blog Technique HeliaPV – APIs APIs Solaires">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body class="blog-body">
+
+<!-- Topbar -->
+<nav class="blog-topbar">
+  <div class="blog-topbar-inner">
+    <a href="/app" class="blog-logo">☀️ <span>Helia<span class="logo-accent">PV</span></span></a>
+    <div class="blog-topbar-nav">
+      <a href="/blog">Blog</a>
+      <a href="/bureaux-etudes">Bureaux d'études</a>
+      <a href="/app">Plateforme</a>
+      <a href="/auth/register" class="btn-cta-nav">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="blog-index-hero">
+  <div style="position:relative">
+    <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);border-radius:20px;padding:6px 16px;font-size:.8rem;font-weight:600;color:#00d4ff;text-transform:uppercase;letter-spacing:.07em;margin-bottom:20px">
+      📚 Ressources techniques
+    </div>
+    <h1>Blog Technique <span>HeliaPV</span></h1>
+    <p>Tutoriels approfondis sur les APIs solaires françaises : IGN LiDAR HD, GPU/PLU, Enedis Data Connect, PVGIS. Pour les bureaux d'études et développeurs PV.</p>
+    <a href="/bureaux-etudes" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#00d4ff,#00ff88);color:#0d1117;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none">
+      Découvrir HeliaPV pour les bureaux d'études →
+    </a>
+  </div>
+</section>
+
+<!-- Stats strip -->
+<div class="stats-strip">
+  <div class="stat-item">
+    <div class="stat-value">14</div>
+    <div class="stat-label">APIs intégrées nativement</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">8 760</div>
+    <div class="stat-label">Points horaires PVGIS simulés</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">LiDAR HD</div>
+    <div class="stat-label">Nuages de points IGN 10 pts/m²</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">GPU/PLU</div>
+    <div class="stat-label">Zonage urbanisme temps réel</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value">OAuth2</div>
+    <div class="stat-label">Enedis Data Connect Linky</div>
+  </div>
+</div>
+
+<!-- Articles grid -->
+<div class="blog-grid">
+  {% for a in articles %}
+  <a href="/blog/{{ a.slug }}" class="article-card">
+    <span class="card-emoji">{{ a.image_emoji }}</span>
+    <div class="card-category">{{ a.categorie }}</div>
+    <h2>{{ a.titre }}</h2>
+    <p>{{ a.description }}</p>
+    <div class="card-meta">
+      <span>{{ a.date }} · {{ a.lecture }}</span>
+      <span class="card-read-more">Lire l'article →</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- CTA bottom -->
+<section style="padding:64px 24px;text-align:center;border-top:1px solid #30363d">
+  <h2 style="font-size:1.9rem;font-weight:800;margin-bottom:14px">Aller plus loin&nbsp;?</h2>
+  <p style="color:#8b949e;font-size:1.1rem;margin-bottom:28px;max-width:520px;margin-left:auto;margin-right:auto">
+    HeliaPV intègre toutes ces APIs nativement. Accédez à la puissance des données publiques françaises sans écrire une seule ligne de code d'intégration.
+  </p>
+  <a href="/auth/register" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#00d4ff,#00ff88);color:#0d1117;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none">
+    Créer mon compte gratuit
+  </a>
+</section>
+
+<footer class="blog-footer">
+  <p>© {{ annee }} HeliaPV · <a href="/app">Plateforme</a> · <a href="/blog">Blog</a> · <a href="/bureaux-etudes">Bureaux d'études</a></p>
+</footer>
+
+</body>
+</html>

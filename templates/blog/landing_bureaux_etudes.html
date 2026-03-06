@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HeliaPV – Logiciel études photovoltaïques pour bureaux d'études | HeliaPV</title>
+<meta name="description" content="HeliaPV intègre 14 APIs (IGN, GPU, Enedis, PVGIS, Cadastre...) dans une plateforme dédiée aux bureaux d'études PV. Cartographie, LiDAR, simulation 8760h, CERFA DP automatique.">
+<meta name="keywords" content="logiciel bureau d'études photovoltaïque, outil étude PV, simulation solaire, CERFA DP automatique, IGN LiDAR, GPU PLU, Enedis Data Connect, PVGIS">
+<link rel="canonical" href="https://app.heliapv.fr/bureaux-etudes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body class="blog-body">
+
+<nav class="blog-topbar">
+  <div class="blog-topbar-inner">
+    <a href="/app" class="blog-logo">☀️ <span>Helia<span class="logo-accent">PV</span></span></a>
+    <div class="blog-topbar-nav">
+      <a href="/blog">Blog technique</a>
+      <a href="/app">Application</a>
+      <a href="/auth/register" class="btn-cta-nav">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="lp-hero">
+  <div class="lp-hero-inner">
+    <div class="lp-hero-text">
+      <div class="category-tag" style="display:inline-block;margin-bottom:20px">🏗️ Bureaux d'études photovoltaïques</div>
+      <h1>De l'adresse à l'étude complète<br>en <em>moins de 3 minutes</em></h1>
+      <p class="lead">
+        HeliaPV connecte 14 APIs publiques (IGN LiDAR HD, GPU/PLU, Enedis Data Connect, PVGIS…)
+        dans une interface unique pour les bureaux d'études techniques PV.
+        Fini les copier-coller entre 8 outils différents.
+      </p>
+      <div class="lp-hero-actions">
+        <a href="/auth/register" class="btn-primary btn-large">Essai gratuit – 50 projets offerts</a>
+        <a href="#fonctionnalites" class="btn-ghost">Voir les fonctionnalités ↓</a>
+      </div>
+      <div class="lp-hero-trust">
+        <span>✓ Sans carte bancaire</span>
+        <span>✓ Données hébergées en France</span>
+        <span>✓ Export PDF/CERFA</span>
+      </div>
+    </div>
+    <div class="lp-hero-code">
+      <div class="code-block" style="margin:0">
+        <div class="code-block-header">
+          <span class="lang-label">HeliaPV API</span>
+          <span class="file-label">Exemple de traitement</span>
+        </div>
+        <pre><code><span class="cmt"># 1. Données cadastrales + PLU</span>
+site = heliapv.<span class="fn">analyser</span>(adresse=<span class="str">"12 rue du Moulin, 31800"</span>)
+
+<span class="cmt"># 2. LiDAR HD → plans de toit (RANSAC)</span>
+toits = site.<span class="fn">detecter_toits_lidar</span>()
+<span class="cmt"># → 3 plans • S:42m² α:28° Az:-5°</span>
+
+<span class="cmt"># 3. Simulation PVGIS 8760h automatique</span>
+prod = site.<span class="fn">simuler_pvgis</span>(kwc=<span class="num">18</span>)
+<span class="cmt"># → 19 847 kWh/an • P90: 18 563 kWh</span>
+
+<span class="cmt"># 4. Autoconsommation avec données Linky</span>
+bilan = site.<span class="fn">calculer_autoconsommation</span>(pdl=<span class="str">"15xxx"</span>)
+<span class="cmt"># → Autoconso 74% • économies 3 210 €/an</span>
+
+<span class="cmt"># 5. Génération CERFA DP + proposition PDF</span>
+site.<span class="fn">generer_documents</span>()
+<span class="cmt"># → DP_12rue_Moulin.pdf  Proposition.pdf</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS STRIP -->
+<div class="stats-strip">
+  <div class="stat-item"><span class="stat-num">14</span><span class="stat-label">APIs intégrées</span></div>
+  <div class="stat-item"><span class="stat-num">8 760</span><span class="stat-label">heures simulées PVGIS</span></div>
+  <div class="stat-item"><span class="stat-num">LiDAR HD</span><span class="stat-label">IGN – détection auto toits</span></div>
+  <div class="stat-item"><span class="stat-num">&lt; 3 min</span><span class="stat-label">de l'adresse à l'étude</span></div>
+  <div class="stat-item"><span class="stat-num">P50/P90</span><span class="stat-label">incertitude bankable</span></div>
+</div>
+
+<!-- PAIN POINTS -->
+<section class="pain-section">
+  <div class="section-inner">
+    <h2>Ce que vos études coûtent aujourd'hui</h2>
+    <p class="section-lead">Sans outil intégré, chaque étude de faisabilité passe par 8 à 12 sources différentes.</p>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="pain-icon">🗺️</div>
+        <h3>Cartographie manuelle</h3>
+        <p>Géoportail + Cadastre + QGIS + captures d'écran = <strong>45 min</strong> pour mesurer une toiture.</p>
+        <div class="pain-cta">HeliaPV : mesure automatique en <strong>20 secondes</strong></div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📋</div>
+        <h3>Vérification PLU</h3>
+        <p>Télécharger le règlement PLU de la commune, identifier la zone, vérifier les hauteurs maximales.</p>
+        <div class="pain-cta">HeliaPV : résultat GPU/PLU instantané</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">☀️</div>
+        <h3>Simulation PVGIS</h3>
+        <p>Interface web PVGIS, saisie manuelle lat/lon, copier les résultats dans Excel, calculer P90.</p>
+        <div class="pain-cta">HeliaPV : 8760h en 1 clic, P50/P90 calculés</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📄</div>
+        <h3>Rédaction CERFA DP</h3>
+        <p>CERFA 13703, 13406, plan de masse, plan en coupe, notice descriptive — 2 à 4 heures par dossier.</p>
+        <div class="pain-cta">HeliaPV : CERFA et plans auto-générés</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES GRID -->
+<section class="features-section" id="fonctionnalites">
+  <div class="section-inner">
+    <h2>Un environnement complet pour les BET PV</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🛰️</div>
+        <h3>LiDAR HD IGN</h3>
+        <p>Détection automatique des plans de toiture par analyse RANSAC du nuage de points LiDAR HD IGN.
+           Surface, inclinaison et orientation calculées sans intervention manuelle.</p>
+        <a href="/blog/api-ign-lidar-hd-solaire" class="feature-link">Documentation technique →</a>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗺️</div>
+        <h3>Cartographie multi-couches</h3>
+        <p>Cadastre (parcelles, bâtiments 3D), GPU/PLU (zones, servitudes), CORINE Land Cover,
+           Zones ENEDIS HTA/HTB — tout sur une seule carte interactive.</p>
+        <a href="/blog/api-gpu-plu-zonage-pv" class="feature-link">Documentation technique →</a>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Enedis Data Connect</h3>
+        <p>Import des courbes de charge Linky (30 min) pour calculer le vrai taux d'autoconsommation —
+           pas un profil type, les données réelles du client.</p>
+        <a href="/blog/enedis-data-connect-courbes-charge" class="feature-link">Documentation technique →</a>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">☀️</div>
+        <h3>PVGIS 8760h + P50/P90</h3>
+        <p>Simulation horaire PVGIS SARAH-3, calcul automatique P50/P90 selon convention bancaire,
+           courbes mensuelles, sensibilité aux pertes.</p>
+        <a href="/blog/pvgis-api-simulation-8760h" class="feature-link">Documentation technique →</a>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <h3>Documents auto-générés</h3>
+        <p>CERFA 13703 (DP), plan de masse SVG, plan en coupe, notice descriptive NF C 15-712,
+           schéma unifilaire, proposition commerciale PDF — générés depuis les données du projet.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>IA Helia — Assistant PV</h3>
+        <p>Assistant IA entraîné sur la réglementation PV FR (URE, S24-520, C 15-712-1, décrets S21).
+           Réponses argumentées pour vos notes de calcul et vos COTECH.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON TABLE -->
+<section class="comparison-section" id="comparaison">
+  <div class="section-inner">
+    <h2>Comparaison : HeliaPV vs alternatives</h2>
+    <div class="table-wrap">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Fonctionnalité</th>
+            <th>☀️ HeliaPV</th>
+            <th>PVsyst 7</th>
+            <th>Archelios PRO</th>
+            <th>Solteo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cartographie SIG intégrée</td>
+            <td class="check-yes">✓ Natif</td>
+            <td class="check-no">✗</td>
+            <td class="check-partial">~ Partiel</td>
+            <td class="check-partial">~ Limité</td>
+          </tr>
+          <tr>
+            <td>LiDAR HD IGN automatique</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+          </tr>
+          <tr>
+            <td>PVGIS 8760h integré</td>
+            <td class="check-yes">✓ Auto</td>
+            <td class="check-yes">✓ Manuel</td>
+            <td class="check-yes">✓</td>
+            <td class="check-partial">~ Limité</td>
+          </tr>
+          <tr>
+            <td>Enedis Data Connect</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+          </tr>
+          <tr>
+            <td>CERFA DP automatique</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+            <td class="check-partial">~ Partiel</td>
+            <td class="check-no">✗</td>
+          </tr>
+          <tr>
+            <td>NF C 15-712-1 (note de calcul)</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+          </tr>
+          <tr>
+            <td>AO CRE / AO Sol Agri</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+          </tr>
+          <tr>
+            <td>CRM prospection intégré</td>
+            <td class="check-yes">✓</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+            <td class="check-partial">~ Basique</td>
+          </tr>
+          <tr>
+            <td>Assistant IA</td>
+            <td class="check-yes">✓ Helia IA</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+            <td class="check-no">✗</td>
+          </tr>
+          <tr>
+            <td>Prix indicatif / an</td>
+            <td class="check-yes">À partir de 0 €</td>
+            <td class="check-partial">~2 800 €</td>
+            <td class="check-partial">990–1 990 €</td>
+            <td class="check-partial">Sur devis</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials-section">
+  <div class="section-inner">
+    <h2>Ce qu'en disent les bureaux d'études</h2>
+    <div class="testimonials-grid">
+      <div class="testimonial-card">
+        <p>"HeliaPV a divisé par 4 le temps de qualification de site en phase avant-projet.
+            La détection LiDAR + PLU automatique est bluffante."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">TM</div>
+          <div>
+            <strong>Thomas M.</strong>
+            <span>Ingénieur études, BET solaire — Grand-Est</span>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <p>"Les données Enedis intégrées changent complètement la qualité des études
+            d'autoconsommation collective. On ne travaille plus avec des profils types."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">SL</div>
+          <div>
+            <strong>Sophie L.</strong>
+            <span>Chargée d'affaires PV, Normandie</span>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <p>"La génération automatique des CERFA DP + plans de masse représente 3 heures
+            économisées par dossier. Sur 80 dossiers/an, c'est très significatif."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">RD</div>
+          <div>
+            <strong>Rémi D.</strong>
+            <span>Responsable technique, installateur 2 MWc/an</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-section" id="tarifs">
+  <div class="section-inner">
+    <h2>Tarifs transparents, sans surprise</h2>
+    <p class="section-lead">Démarrez gratuitement. Passez au Plan Pro quand vous avez besoin de plus.</p>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="pricing-name">Découverte</div>
+        <div class="pricing-price">0 €<span>/mois</span></div>
+        <div class="pricing-desc">Pour tester la plateforme</div>
+        <ul class="pricing-features">
+          <li>✓ 10 projets / mois</li>
+          <li>✓ Cartographie SIG</li>
+          <li>✓ PVGIS automatique</li>
+          <li>✗ LiDAR HD avancé</li>
+          <li>✗ Enedis Data Connect</li>
+          <li>✗ Export CERFA / PDF</li>
+        </ul>
+        <a href="/auth/register" class="btn-ghost" style="display:block;text-align:center">Commencer →</a>
+      </div>
+      <div class="pricing-card pricing-card-featured">
+        <div class="pricing-badge">Le plus choisi</div>
+        <div class="pricing-name">Standard</div>
+        <div class="pricing-price">149 €<span>/mois</span></div>
+        <div class="pricing-desc">Pour les bureaux d'études actifs</div>
+        <ul class="pricing-features">
+          <li>✓ Projets illimités</li>
+          <li>✓ LiDAR HD IGN</li>
+          <li>✓ PVGIS 8760h + P50/P90</li>
+          <li>✓ Enedis Data Connect</li>
+          <li>✓ CERFA DP + plans PDF</li>
+          <li>✓ IA Helia</li>
+        </ul>
+        <a href="/auth/register" class="btn-primary" style="display:block;text-align:center">Essai 14 jours →</a>
+      </div>
+      <div class="pricing-card">
+        <div class="pricing-name">Pro / Entreprise</div>
+        <div class="pricing-price">Sur devis</div>
+        <div class="pricing-desc">Pour les structures avec volume</div>
+        <ul class="pricing-features">
+          <li>✓ Tout Standard inclus</li>
+          <li>✓ API HeliaPV (accès programmatique)</li>
+          <li>✓ Déploiement on-premise possible</li>
+          <li>✓ SSO / LDAP</li>
+          <li>✓ SLA garanti 99,5%</li>
+          <li>✓ Formation équipe incluse</li>
+        </ul>
+        <a href="mailto:contact@heliapv.fr" class="btn-ghost" style="display:block;text-align:center">Nous contacter →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="lp-final-cta">
+  <div class="section-inner" style="text-align:center;max-width:700px">
+    <h2>Prêt à accélérer vos études ?</h2>
+    <p>
+      Créez votre compte en 30 secondes. Aucune carte bancaire requise pour l'essai.
+      Les 50 premiers projets sont offerts.
+    </p>
+    <a href="/auth/register" class="btn-primary btn-large">Créer mon compte gratuitement</a>
+    <p style="margin-top:16px;font-size:.85rem;color:#8b949e">
+      Ou découvrez nos <a href="/blog" style="color:#00d4ff">articles techniques</a>
+      sur l'intégration des APIs IGN, GPU, Enedis et PVGIS
+    </p>
+  </div>
+</section>
+
+<footer class="blog-footer">
+  <div style="max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:32px;padding-bottom:32px;border-bottom:1px solid #21262d">
+    <div>
+      <div class="blog-logo" style="font-size:1.2rem;margin-bottom:12px">☀️ Helia<span class="logo-accent">PV</span></div>
+      <p style="color:#8b949e;font-size:.85rem;line-height:1.6">Logiciel d'études photovoltaïques pour les bureaux d'études et installateurs professionnels.</p>
+    </div>
+    <div>
+      <h4 style="color:#e6edf3;font-size:.9rem;margin-bottom:12px">Ressources techniques</h4>
+      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+        <li><a href="/blog/api-ign-lidar-hd-solaire" style="color:#8b949e;font-size:.85rem;text-decoration:none">API IGN LiDAR HD →</a></li>
+        <li><a href="/blog/api-gpu-plu-zonage-pv" style="color:#8b949e;font-size:.85rem;text-decoration:none">API GPU / PLU →</a></li>
+        <li><a href="/blog/enedis-data-connect-courbes-charge" style="color:#8b949e;font-size:.85rem;text-decoration:none">Enedis Data Connect →</a></li>
+        <li><a href="/blog/pvgis-api-simulation-8760h" style="color:#8b949e;font-size:.85rem;text-decoration:none">PVGIS 8760h →</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="color:#e6edf3;font-size:.9rem;margin-bottom:12px">Produit</h4>
+      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+        <li><a href="/auth/register" style="color:#8b949e;font-size:.85rem;text-decoration:none">Essai gratuit →</a></li>
+        <li><a href="#tarifs" style="color:#8b949e;font-size:.85rem;text-decoration:none">Tarifs →</a></li>
+        <li><a href="#comparaison" style="color:#8b949e;font-size:.85rem;text-decoration:none">Comparaison →</a></li>
+      </ul>
+    </div>
+  </div>
+  <p style="text-align:center;margin-top:24px">© {{ annee }} HeliaPV · <a href="/blog">Blog technique</a> · Données hébergées en France</p>
+</footer>
+</body>
+</html>

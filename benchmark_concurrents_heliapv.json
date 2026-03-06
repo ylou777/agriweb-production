@@ -1,0 +1,2092 @@
+{
+  "date_analyse": "06 March 2026",
+  "heliapv": {
+    "nom": "HeliaPV / AgriWeb",
+    "version": "3.2",
+    "date_analyse": "Mars 2026",
+    "type": "SaaS Python/Flask – déployé Railway",
+    "marche_cible": "Développeurs de projets PV France (IPD, EPC, bureaux d'études)",
+    "url": "https://app.heliapv.fr",
+    "tarification": "Freemium + abonnements Stripe (trial 50 recherches, standard, pro, enterprise)",
+    "criteres": [
+      {
+        "id": "C01",
+        "groupe": "Cartographie",
+        "libelle": "Cartographie interactive multi-couches",
+        "heliapv": 5,
+        "details": "RPG, PLU/PLUi, parkings, friches, toitures, BT/HTA, OSM – GeoServer WMS/WFS"
+      },
+      {
+        "id": "C02",
+        "groupe": "Cartographie",
+        "libelle": "Recherche adresse & commune autocomplete",
+        "heliapv": 5,
+        "details": "API IGN BAN + Nominatim, SSE temps réel, filtres avancés"
+      },
+      {
+        "id": "C03",
+        "groupe": "Cartographie",
+        "libelle": "Données foncières & cadastre",
+        "heliapv": 5,
+        "details": "IGN cadastre, numéros de parcelles, lookup propriétaires"
+      },
+      {
+        "id": "C04",
+        "groupe": "Cartographie",
+        "libelle": "Données réseau électrique BT/HTA",
+        "heliapv": 5,
+        "details": "Distance postes BT/HTA, capacités réseau, diagnostic HTA"
+      },
+      {
+        "id": "C05",
+        "groupe": "Analyse Solaire",
+        "libelle": "Simulation de production PVGIS 8760h",
+        "heliapv": 5,
+        "details": "PVGIS EU Science Hub, 8760 points horaires, pertes configurables"
+      },
+      {
+        "id": "C06",
+        "groupe": "Analyse Solaire",
+        "libelle": "Analyse LiDAR HD & nuages de points 3D",
+        "heliapv": 5,
+        "details": "IGN COPC LiDAR HD, streaming HTTP Range, analyse plans de toit 3D"
+      },
+      {
+        "id": "C07",
+        "groupe": "Analyse Solaire",
+        "libelle": "Analyse Google Solar API",
+        "heliapv": 4,
+        "details": "Building Insights, Flux Heatmap, DSM – nécessite clé API Google"
+      },
+      {
+        "id": "C08",
+        "groupe": "Conception PV",
+        "libelle": "Calpinage/calepinage panneaux PV",
+        "heliapv": 4,
+        "details": "Multi-zones, orientation/inclinaison, base modules + onduleurs"
+      },
+      {
+        "id": "C09",
+        "groupe": "Conception PV",
+        "libelle": "Schéma unifilaire NF C 15-712",
+        "heliapv": 5,
+        "details": "Génération PDF conforme NF C 15-712-1, symboles normalisés"
+      },
+      {
+        "id": "C10",
+        "groupe": "Conception PV",
+        "libelle": "Calcul autoconsommation & tarifs",
+        "heliapv": 5,
+        "details": "BASE, HPHC, HPHC+midi, TEMPO, EJP, C4 – TRI/VAN/ROI"
+      },
+      {
+        "id": "C11",
+        "groupe": "Réglementaire",
+        "libelle": "Génération Déclaration Préalable (DP)",
+        "heliapv": 5,
+        "details": "CERFA 13703*09 + plans DP1→DP8, photo-montages satellite"
+      },
+      {
+        "id": "C12",
+        "groupe": "Réglementaire",
+        "libelle": "CERFA raccordement Enedis 16702",
+        "heliapv": 5,
+        "details": "Formulaire pré-rempli avec données prospect/calpinage"
+      },
+      {
+        "id": "C13",
+        "groupe": "Réglementaire",
+        "libelle": "AO CRE PPE2 bâtiment (>500 kWc)",
+        "heliapv": 5,
+        "details": "Wizard notes NP/NC/NFC, bilan carbone 14 pays, export PDF + Excel"
+      },
+      {
+        "id": "C14",
+        "groupe": "Réglementaire",
+        "libelle": "Risques GeoRisques (sismique, CATNAT…)",
+        "heliapv": 5,
+        "details": "API GeoRisques v1: sismique, CATNAT, cavités, radon, argiles"
+      },
+      {
+        "id": "C15",
+        "groupe": "CRM",
+        "libelle": "CRM prospection intégré natif",
+        "heliapv": 5,
+        "details": "Pipeline, hiérarchie Admin/DC/Commercial, interactions, calendar"
+      },
+      {
+        "id": "C16",
+        "groupe": "CRM",
+        "libelle": "Proposition commerciale auto-générée",
+        "heliapv": 5,
+        "details": "PDF complet : couverture, technique, financier, devis, CGV"
+      },
+      {
+        "id": "C17",
+        "groupe": "Chantier",
+        "libelle": "Suivi de chantier IEC 62446",
+        "heliapv": 5,
+        "details": "7 phases, checklist PPSPS, traçabilité modules, NCF, DOE"
+      },
+      {
+        "id": "C18",
+        "groupe": "IA",
+        "libelle": "Assistant IA solaire (function calling)",
+        "heliapv": 4,
+        "details": "Helia – Groq llama-3.1, 2 modes (assisté/manuel), 8 fonctions"
+      },
+      {
+        "id": "C19",
+        "groupe": "Données",
+        "libelle": "Intégration Enedis Linky (consommation)",
+        "heliapv": 4,
+        "details": "Data Connect OAuth2, import courbes de charge"
+      },
+      {
+        "id": "C20",
+        "groupe": "Données",
+        "libelle": "Annuaire SIRENE INSEE (prospects B2B)",
+        "heliapv": 5,
+        "details": "Recherche par rayon GPS, filtrage NAF, enrichissement prospects"
+      },
+      {
+        "id": "C21",
+        "groupe": "Plateforme",
+        "libelle": "SaaS multi-utilisateurs avec quotas",
+        "heliapv": 5,
+        "details": "Stripe, rôles, quotas, trial, Railway scalable"
+      }
+    ],
+    "score_global": 96.2
+  },
+  "concurrents": [
+    {
+      "nom": "PVsyst",
+      "editeur": "PVsyst SA (Suisse)",
+      "categorie": "Simulation & Conception PV",
+      "url": "https://www.pvsyst.com",
+      "pays_origine": "Suisse",
+      "disponible_france": true,
+      "annee_creation": 1994,
+      "type_licence": "Logiciel desktop annuel",
+      "prix_indicatif": "~800–1200 €/an/utilisateur",
+      "modele_eco": "Licence annuelle perpétuelle",
+      "cible": "Bureaux d'études, ingénieurs PV, développeurs",
+      "description": "Standard de l'industrie mondiale pour la simulation photovoltaïque. Logiciel desktop Windows avec base de données météo mondiale (Meteonorm), calcul de shading 3D, simulation P50/P90, conformité IEC 61724. Aucune fonctionnalité SaaS, pas de CRM, pas de cartographie intégrée.",
+      "points_forts": [
+        "Référence mondiale – accépté par tous les banquiers/assureurs",
+        "Simulation P50/P90 très précise",
+        "Bibliothèque modules/onduleurs exhaustive (60 000+ entrées)",
+        "Masques 3D horizon/ombrages",
+        "Export rapports bankable",
+        "Certifié IEC 61724-1"
+      ],
+      "points_faibles": [
+        "Desktop uniquement – pas de SaaS ni cloud",
+        "Pas de cartographie ou SIG intégré",
+        "Pas de CRM / gestion commerciale",
+        "Pas de génération documents administratifs (DP, CERFA)",
+        "Interface vieillissante, prise en main complexe",
+        "Pas d'IA ni d'assistant conversationnel",
+        "Pas d'intégration Enedis/cadastre"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 5,
+        "C06": 1,
+        "C07": 0,
+        "C08": 4,
+        "C09": 3,
+        "C10": 4,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 0,
+        "C16": 0,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 1
+      },
+      "score_global": 17.1,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 40.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 73.3,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Archelios Pro / MC",
+      "editeur": "Trace Software International (France)",
+      "categorie": "Simulation & Conception PV",
+      "url": "https://www.trace-software.com/archelios",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 2005,
+      "type_licence": "SaaS web (app.archelios.com)",
+      "prix_indicatif": "Gratuit (≤9 kWc) / 990 €/an (Silver ≤100 kWc) / 1 490 €/an (Gold ≤1 MWc) / 1 990 €/an (Platinum illimité)",
+      "modele_eco": "Abonnement SaaS annuel – 4 niveaux (Free/Silver/Gold/Platinum)",
+      "cible": "Installateurs, bureaux d'études, PME PV – petits à grands projets",
+      "description": "Suite logicielle française de référence pour la conception PV. Archelios PRO (application web) couvre : localisation + modélisation 3D, calepinage + câblage automatique, prédimensionnement P50/P90, étude détaillée, autoconsommation (courbes de charge), analyse technico-économique (VAN/LCOE/TRI), schéma unifilaire + plans d'exécution. Archelios CALC pour le dimensionnement électrique. Intégration SketchUp. 100+ catalogues fabricants. Reconnu INES/OPQIBI/FORMAPELEC. Pas de cartographie foncière avancée ni de CRM.",
+      "points_forts": [
+        "Application web SaaS – accessible depuis n'importe quel navigateur",
+        "Modélisation 3D + calepinage automatique + câblage strings",
+        "Calcul P50/P90 avec données météo PVGIS intégrées",
+        "Schéma unifilaire et plans d'exécution (NF C 15-712)",
+        "Analyse autoconsommation avec courbes de charge",
+        "Analyse économique complète (VAN / LCOE / TRI / retour)",
+        "Intégration SketchUp pour modélisation 3D avancée",
+        "100+ catalogues fabricants (modules, onduleurs, câbles)",
+        "Version Free disponible (≤9 kWc) – sans engagement",
+        "Éditeur français – support FR – conforme normes françaises",
+        "Reconnu INES / OPQIBI / FORMAPELEC (formation certifiante)"
+      ],
+      "points_faibles": [
+        "Pas de cartographie SIG / prospection foncière (pas de RPG, PLU, cadastre)",
+        "Pas de CRM natif de prospection commerciale",
+        "Pas d'intégration données foncières cadastre / IGN",
+        "Pas de génération DP (CERFA 13703) automatique",
+        "Pas d'IA intégrée (pas de Copilot / assistant conversationnel)",
+        "Pas d'intégration réseau électrique BT/HTA Enedis",
+        "Pas d'AO CRE PPE2 bâtiment (appel d'offres CRE)",
+        "Pas d'intégration SIRENE / annuaire prospects B2B"
+      ],
+      "scores": {
+        "C01": 1,
+        "C02": 1,
+        "C03": 0,
+        "C04": 1,
+        "C05": 4,
+        "C06": 0,
+        "C07": 0,
+        "C08": 4,
+        "C09": 5,
+        "C10": 3,
+        "C11": 0,
+        "C12": 1,
+        "C13": 0,
+        "C14": 0,
+        "C15": 1,
+        "C16": 1,
+        "C17": 0,
+        "C18": 0,
+        "C19": 1,
+        "C20": 0,
+        "C21": 3
+      },
+      "score_global": 24.8,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 15.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 26.7,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 80.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 10.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Helioscope",
+      "editeur": "Folsom Labs (USA) – racheté par Aurora Solar",
+      "categorie": "Simulation & Conception PV",
+      "url": "https://helioscope.com",
+      "pays_origine": "USA",
+      "disponible_france": true,
+      "annee_creation": 2012,
+      "type_licence": "SaaS cloud",
+      "prix_indicatif": "~200–500 $/mois",
+      "modele_eco": "Abonnement mensuel/annuel SaaS",
+      "cible": "Installateurs résidentiels et C&I monde",
+      "description": "Plateforme SaaS américaine de conception PV avec calepinage satellite, simulation de production et rapport bankable. Fort sur le résidentiel US. Peu adapté au marché français (pas d'intégration IGN/GPU/Enedis, interface EN uniquement pour la plupart des modules avancés).",
+      "points_forts": [
+        "Interface intuitive, moderne",
+        "Calepinage rapide sur fond satellite",
+        "Rapport client professionnel",
+        "Intégré dans Aurora Solar (enrichissement IA)",
+        "Accessible partout (SaaS)"
+      ],
+      "points_faibles": [
+        "Interface principalement en anglais",
+        "Pas d'intégration données FR (IGN, cadastre, GPU, RPG)",
+        "Pas de CRM natif",
+        "Tarification élevée en USD",
+        "Pas de génération documents FR (DP, CERFA Enedis)",
+        "Pas d'intégration réseau Enedis/BT/HTA FR",
+        "Pas d'assistant IA dédié marché FR"
+      ],
+      "scores": {
+        "C01": 1,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 4,
+        "C06": 2,
+        "C07": 2,
+        "C08": 4,
+        "C09": 1,
+        "C10": 2,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 1,
+        "C16": 1,
+        "C17": 0,
+        "C18": 2,
+        "C19": 0,
+        "C20": 0,
+        "C21": 4
+      },
+      "score_global": 23.8,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 53.3,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 46.7,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 40.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 80.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Aurora Solar",
+      "editeur": "Aurora Solar Inc. (USA)",
+      "categorie": "Simulation & Conception PV",
+      "url": "https://www.aurorasolar.com",
+      "pays_origine": "USA",
+      "disponible_france": false,
+      "annee_creation": 2013,
+      "type_licence": "SaaS cloud",
+      "prix_indicatif": "~300–600 $/mois",
+      "modele_eco": "Abonnement SaaS + modules additionnels",
+      "cible": "Installateurs résidentiels USA essentiellement",
+      "description": "Leader mondial SaaS PV résidentiel aux USA. Intègre IA pour détection automatique de toit, simulation shading 3D, CRM basique et génération de propositions. Très peu présent en France – interface EN, données US uniquement.",
+      "points_forts": [
+        "IA de détection automatique toit (satellite ML)",
+        "Interface très moderne et intuitive",
+        "CRM commercial intégré",
+        "Proposition client automatique",
+        "Leader du marché US résidentiel"
+      ],
+      "points_faibles": [
+        "Quasi absent du marché français",
+        "Pas de données IGN/cadastre/GPU/RPG FR",
+        "Interface anglaise uniquement",
+        "Prix en USD, tarifs élevés",
+        "Pas de conformité normes FR (NF C 15-712)",
+        "Pas de génération CERFA / DP française",
+        "Pas d'intégration Enedis Data Connect"
+      ],
+      "scores": {
+        "C01": 1,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 3,
+        "C06": 3,
+        "C07": 3,
+        "C08": 5,
+        "C09": 0,
+        "C10": 2,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 3,
+        "C16": 3,
+        "C17": 0,
+        "C18": 4,
+        "C19": 0,
+        "C20": 0,
+        "C21": 4
+      },
+      "score_global": 30.5,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 60.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 46.7,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 80.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 80.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Solarius PV",
+      "editeur": "ACCA Software (Italie)",
+      "categorie": "Simulation & Conception PV",
+      "url": "https://www.acca.it/logiciel-photovoltaique",
+      "pays_origine": "Italie",
+      "disponible_france": true,
+      "annee_creation": 2010,
+      "type_licence": "Desktop + SaaS",
+      "prix_indicatif": "~400–800 €/an",
+      "modele_eco": "Licence annuelle",
+      "cible": "Installateurs, bureaux d'études petits projets",
+      "description": "Logiciel de conception PV italien disponible en français. Permet le dimensionnement, calepinage, simulation et génération de rapports. Faible intégration avec l'écosystème de données français.",
+      "points_forts": [
+        "Interface en français",
+        "Prix accessible",
+        "Génération de rapports PDF",
+        "Simulation ombrage 3D"
+      ],
+      "points_faibles": [
+        "Pas de cartographie SIG avancée FR",
+        "Pas d'intégration IGN/cadastre/GPU/RPG",
+        "Pas de CRM",
+        "Pas de gestion documents administratifs FR",
+        "Faible présence sur grandes installations (>100 kWc)"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 3,
+        "C06": 0,
+        "C07": 0,
+        "C08": 3,
+        "C09": 2,
+        "C10": 2,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 0,
+        "C16": 1,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 2
+      },
+      "score_global": 12.4,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 20.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 46.7,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Solargis Prospect",
+      "editeur": "Solargis s.r.o. (Slovaquie)",
+      "categorie": "Prospection & Données Solaires",
+      "url": "https://solargis.com/prospect",
+      "pays_origine": "Slovaquie",
+      "disponible_france": true,
+      "annee_creation": 2010,
+      "type_licence": "SaaS – API + portail web",
+      "prix_indicatif": "Sur devis (plusieurs k€/an)",
+      "modele_eco": "Abonnement entreprise + crédits API",
+      "cible": "Développeurs projets solaires, utilities, fonds d'investissement",
+      "description": "Référence mondiale pour les données d'irradiation solaire et la micro-siting. Fournit des données GHI/DNI/DHI avec incertitude statistique, TNsim, P50/P90/P99. Pas d'outil de prospection foncière française ni de CRM.",
+      "points_forts": [
+        "Données solaires les plus précises au monde (30+ ans)",
+        "Incertitude statistique rigoureuse (bankable)",
+        "API REST bien documentée",
+        "Couverture mondiale",
+        "Rapports P50/P90 acceptés par les banques"
+      ],
+      "points_faibles": [
+        "Pas de cartographie foncière française",
+        "Pas de données RPG/PLU/cadastre",
+        "Pas de CRM ni prospection commerciale",
+        "Tarification très élevée (hors portée PME)",
+        "Pas de génération documents FR",
+        "Pas d'assistant IA interactif"
+      ],
+      "scores": {
+        "C01": 1,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 5,
+        "C06": 1,
+        "C07": 0,
+        "C08": 1,
+        "C09": 0,
+        "C10": 1,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 0,
+        "C16": 0,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 2
+      },
+      "score_global": 10.5,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 40.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 13.3,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "EnergyMap / Sunroof (Google)",
+      "editeur": "Google",
+      "categorie": "Prospection & Données Solaires",
+      "url": "https://sunroof.withgoogle.com",
+      "pays_origine": "USA",
+      "disponible_france": false,
+      "annee_creation": 2015,
+      "type_licence": "Gratuit (grand public)",
+      "prix_indicatif": "Gratuit",
+      "modele_eco": "Publicité / données internes Google",
+      "cible": "Grand public",
+      "description": "Outil grand public de Google pour estimer le potentiel solaire d'une toiture. Basé sur Google Maps + LiDAR. Non disponible commercialement en France pour intégration professionnelle (API Google Solar limitée).",
+      "points_forts": [
+        "Interface très simple",
+        "Données LiDAR via Google Solar API",
+        "Gratuit pour le grand public"
+      ],
+      "points_faibles": [
+        "Non disponible en France (Sunroof)",
+        "Google Solar API coûteuse et limitée pour usage professionnel",
+        "Pas de CRM",
+        "Pas d'intégration données françaises",
+        "Usage grand public uniquement"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 2,
+        "C06": 2,
+        "C07": 5,
+        "C08": 1,
+        "C09": 0,
+        "C10": 0,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 0,
+        "C16": 0,
+        "C17": 0,
+        "C18": 1,
+        "C19": 0,
+        "C20": 0,
+        "C21": 0
+      },
+      "score_global": 11.4,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 60.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 6.7,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 20.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Tecsol / Logiciels CRE",
+      "editeur": "Tecsol (France)",
+      "categorie": "Conseil & Outils CRE",
+      "url": "https://www.tecsol.fr",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 1993,
+      "type_licence": "Service de conseil + outils propriétaires",
+      "prix_indicatif": "Sur devis",
+      "modele_eco": "Conseil + projets",
+      "cible": "Développeurs projets solaires France",
+      "description": "Bureau d'études et laboratoire solaire français. Propose des services de conseil, de mesure d'irradiation et de suivi de production. Développe des outils internes pour le marché français mais pas de SaaS grand public avec prospection + CRM.",
+      "points_forts": [
+        "Expertise française reconnue",
+        "Connaissance approfondie du marché et réglementation FR",
+        "Mesures et validation terrain"
+      ],
+      "points_faibles": [
+        "Pas de SaaS accessible",
+        "Pas de cartographie interactive",
+        "Pas de CRM",
+        "Business model service, non scalable"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 4,
+        "C06": 0,
+        "C07": 0,
+        "C08": 1,
+        "C09": 0,
+        "C10": 2,
+        "C11": 0,
+        "C12": 0,
+        "C13": 1,
+        "C14": 0,
+        "C15": 0,
+        "C16": 0,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 0
+      },
+      "score_global": 7.6,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 26.7,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 20.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Gis&Sol / Urbasolar Prospection",
+      "editeur": "Solutions SIG spécialisées énergie",
+      "categorie": "Cartographie & SIG Énergie",
+      "url": "https://www.gissol.fr",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 2015,
+      "type_licence": "SaaS / Service",
+      "prix_indicatif": "Sur devis",
+      "modele_eco": "Abonnement + prestation",
+      "cible": "Développeurs projets ENR France",
+      "description": "Plateformes SIG spécialisées ENR proposant la superposition de couches cadastrales, PLU, RPG, contraintes pour la prospection foncière. Généralement sans CRM natif ni génération automatique de documents.",
+      "points_forts": [
+        "Données foncières françaises intégrées",
+        "Interface SIG connue des développeurs ENR",
+        "Couches contraintes (Natura2000, zone inondable…)"
+      ],
+      "points_faibles": [
+        "Pas de simulation de production",
+        "Pas de CRM commercial",
+        "Pas de génération documents administratifs",
+        "Pas d'IA",
+        "Tarification souvent élevée"
+      ],
+      "scores": {
+        "C01": 4,
+        "C02": 3,
+        "C03": 4,
+        "C04": 2,
+        "C05": 0,
+        "C06": 0,
+        "C07": 0,
+        "C08": 0,
+        "C09": 0,
+        "C10": 0,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 2,
+        "C15": 1,
+        "C16": 0,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 2,
+        "C21": 2
+      },
+      "score_global": 19.0,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 65.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 20.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Géoplateforme IGN (libre)",
+      "editeur": "IGN – Institut national de l'information géographique",
+      "categorie": "Cartographie & SIG Énergie",
+      "url": "https://geoplateforme.ign.fr",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 2023,
+      "type_licence": "Open source / API gratuite",
+      "prix_indicatif": "Gratuit (APIs)",
+      "modele_eco": "Service public gratuit",
+      "cible": "Développeurs, collectivités, entreprises",
+      "description": "Géoplateforme IGN est la nouvelle infrastructure nationale fournissant cadastre, BD TOPO, LiDAR HD, orthophotographies, GPU, etc. C'est la source des données qu'HeliaPV intègre – pas une plateforme PV en soi.",
+      "points_forts": [
+        "Source officielle des données géographiques françaises",
+        "LiDAR HD gratuit",
+        "Cadastre temps réel",
+        "GPU (zones PLU/PLUi)",
+        "API bien documentée"
+      ],
+      "points_faibles": [
+        "Outil de données brutes, pas de SaaS PV",
+        "Pas de simulation, CRM, ni outil commercial",
+        "Requiert des développements importants",
+        "Pas d'IA intégrée"
+      ],
+      "scores": {
+        "C01": 3,
+        "C02": 4,
+        "C03": 5,
+        "C04": 1,
+        "C05": 0,
+        "C06": 5,
+        "C07": 0,
+        "C08": 0,
+        "C09": 0,
+        "C10": 0,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 2,
+        "C15": 0,
+        "C16": 0,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 0
+      },
+      "score_global": 19.0,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 65.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 33.3,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "EnR Prospection / Windfall",
+      "editeur": "Windfall Data (UK/FR)",
+      "categorie": "Cartographie & SIG Énergie",
+      "url": "https://windfall.ai",
+      "pays_origine": "UK",
+      "disponible_france": true,
+      "annee_creation": 2016,
+      "type_licence": "SaaS",
+      "prix_indicatif": "Sur devis",
+      "modele_eco": "Abonnement SaaS",
+      "cible": "Développeurs projets ENR (éolien + solaire)",
+      "description": "Plateforme de prospection ENR basée sur data intelligence et cartographie avancée. Couvre éolien et solaire. Moins spécialisée sur le photovoltaïque bâtiment/agricole que HeliaPV.",
+      "points_forts": [
+        "Multi-technologie (éolien + solaire)",
+        "Données contraintes environnementales",
+        "Interface moderne"
+      ],
+      "points_faibles": [
+        "Pas de simulation de production PV précise",
+        "Pas de CRM commercial intégré",
+        "Pas de génération documents FR",
+        "Tarification élevée"
+      ],
+      "scores": {
+        "C01": 3,
+        "C02": 2,
+        "C03": 2,
+        "C04": 1,
+        "C05": 1,
+        "C06": 0,
+        "C07": 0,
+        "C08": 0,
+        "C09": 0,
+        "C10": 0,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 2,
+        "C15": 1,
+        "C16": 0,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 2
+      },
+      "score_global": 13.3,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 6.7,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Salesforce Energy & Utilities",
+      "editeur": "Salesforce (USA)",
+      "categorie": "CRM Énergie",
+      "url": "https://www.salesforce.com/fr/industries/energy/",
+      "pays_origine": "USA",
+      "disponible_france": true,
+      "annee_creation": 1999,
+      "type_licence": "SaaS CRM",
+      "prix_indicatif": "75–300 €/utilisateur/mois",
+      "modele_eco": "Abonnement SaaS par siège",
+      "cible": "Grandes entreprises énergie",
+      "description": "CRM leader mondial avec module énergie. Très puissant pour la gestion commerciale mais zéro intégration avec les données techniques PV, la cartographie foncière française ou la génération de documents réglementaires PV.",
+      "points_forts": [
+        "CRM très complet et configurable",
+        "Intégrations natives nombreuses",
+        "Reporting avancé",
+        "Mobile first",
+        "Support mondial"
+      ],
+      "points_faibles": [
+        "Aucune fonctionnalité PV technique",
+        "Pas de cartographie",
+        "Pas de simulation de production",
+        "Coût très élevé",
+        "Complexe à configurer pour le PV",
+        "Pas adapté aux PME solaires"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 0,
+        "C06": 0,
+        "C07": 0,
+        "C08": 0,
+        "C09": 0,
+        "C10": 0,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 5,
+        "C16": 2,
+        "C17": 1,
+        "C18": 3,
+        "C19": 0,
+        "C20": 3,
+        "C21": 5
+      },
+      "score_global": 18.1,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 70.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 60.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 30.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 100.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Pegase (Logiciel ERP Energie)",
+      "editeur": "Editeurs ERP français spécialisés ENR",
+      "categorie": "CRM Énergie",
+      "url": "https://www.pegase-energie.fr",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 2010,
+      "type_licence": "ERP SaaS",
+      "prix_indicatif": "500–2000 €/mois",
+      "modele_eco": "Abonnement ERP",
+      "cible": "Installateurs et développeurs PV France",
+      "description": "ERP métier pour installateurs photovoltaïques incluant devis, facturation, suivi chantier, SAV. Peu de fonctionnalités cartographiques ou d'analyse technique poussée.",
+      "points_forts": [
+        "Adapté aux installateurs FR",
+        "Devis + facturation intégrés",
+        "Suivi SAV et maintenance",
+        "Gestion stocks matériaux"
+      ],
+      "points_faibles": [
+        "Pas de cartographie",
+        "Pas de simulation de production",
+        "Pas d'intégration IGN/GPU/Enedis",
+        "Axé gestion administrative, pas prospection",
+        "Pas d'IA"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 0,
+        "C06": 0,
+        "C07": 0,
+        "C08": 1,
+        "C09": 1,
+        "C10": 1,
+        "C11": 0,
+        "C12": 1,
+        "C13": 0,
+        "C14": 0,
+        "C15": 4,
+        "C16": 3,
+        "C17": 3,
+        "C18": 0,
+        "C19": 0,
+        "C20": 1,
+        "C21": 4
+      },
+      "score_global": 18.1,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 0.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 20.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 70.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 10.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 80.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "SolarEdge Monitoring / mySolarEdge",
+      "editeur": "SolarEdge Technologies (Israël/USA)",
+      "categorie": "Monitoring & CRM Monitoring",
+      "url": "https://monitoring.solaredge.com",
+      "pays_origine": "Israël",
+      "disponible_france": true,
+      "annee_creation": 2006,
+      "type_licence": "Gratuit (lié matériel SolarEdge)",
+      "prix_indicatif": "Gratuit avec matériel",
+      "modele_eco": "Ecosystem fermé SolarEdge",
+      "cible": "Installateurs SolarEdge",
+      "description": "Plateforme de monitoring liée à l'écosystème SolarEdge. Surveille la production en temps réel, alerte sur pannes. Pas un outil de prospection ou de conception.",
+      "points_forts": [
+        "Monitoring temps réel très précis (MPP par module)",
+        "Alertes automatiques",
+        "Application mobile",
+        "Gratuit"
+      ],
+      "points_faibles": [
+        "Uniquement monitoring post-installation",
+        "Vendor lock-in SolarEdge",
+        "Pas de prospection, ni conception, ni CRM",
+        "Pas d'intégration données foncières FR"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 0,
+        "C03": 0,
+        "C04": 0,
+        "C05": 1,
+        "C06": 0,
+        "C07": 0,
+        "C08": 0,
+        "C09": 0,
+        "C10": 1,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 2,
+        "C16": 0,
+        "C17": 2,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 3
+      },
+      "score_global": 8.6,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 6.7,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 6.7,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Nearmap Solar (Verisk)",
+      "editeur": "Nearmap / Verisk (Australie/USA)",
+      "categorie": "Données Aériennes & IA",
+      "url": "https://www.nearmap.com/solar",
+      "pays_origine": "Australie",
+      "disponible_france": false,
+      "annee_creation": 2007,
+      "type_licence": "SaaS – API + portail",
+      "prix_indicatif": "Sur devis (k€/an)",
+      "modele_eco": "Abonnement données aériennes",
+      "cible": "Installateurs solaires USA/AUS/UK",
+      "description": "Fournisseur de données aériennes HD avec IA de détection automatique des caractéristiques de toiture (pentes, orientations, obstacles). Très fort sur l'analyse automatisée de toitures mais quasi absent en France.",
+      "points_forts": [
+        "IA détection automatique toitures très précise",
+        "Mises à jour orthophoto fréquentes",
+        "API bien intégrée"
+      ],
+      "points_faibles": [
+        "Pas de couverture France (ou très partielle)",
+        "Pas de données foncières FR",
+        "Pas de CRM",
+        "Très onéreux"
+      ],
+      "scores": {
+        "C01": 1,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 1,
+        "C06": 3,
+        "C07": 4,
+        "C08": 2,
+        "C09": 0,
+        "C10": 0,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 0,
+        "C16": 0,
+        "C17": 0,
+        "C18": 3,
+        "C19": 0,
+        "C20": 0,
+        "C21": 2
+      },
+      "score_global": 16.2,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 53.3,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 13.3,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 60.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Paladin Energy (ex-SolarNinjas)",
+      "editeur": "Paladin Energy (UK)",
+      "categorie": "Données Aériennes & IA",
+      "url": "https://paladinenergy.co.uk",
+      "pays_origine": "UK",
+      "disponible_france": false,
+      "annee_creation": 2019,
+      "type_licence": "SaaS",
+      "prix_indicatif": "Sur devis",
+      "modele_eco": "SaaS prospection ENR",
+      "cible": "Développeurs projets solaires UK",
+      "description": "Plateforme SaaS de prospection et développement de projets solaires UK. Partage certaines similarités avec HeliaPV (cartographie + CRM + données foncières) mais adapté au marché britannique, pas français.",
+      "points_forts": [
+        "Approche intégrée proche de HeliaPV",
+        "Données foncières UK intégrées",
+        "CRM basique intégré"
+      ],
+      "points_faibles": [
+        "Absent du marché français",
+        "Pas de données IGN / GPU / Enedis",
+        "Interface anglaise",
+        "Pas de génération documents FR"
+      ],
+      "scores": {
+        "C01": 3,
+        "C02": 2,
+        "C03": 2,
+        "C04": 1,
+        "C05": 2,
+        "C06": 1,
+        "C07": 1,
+        "C08": 2,
+        "C09": 0,
+        "C10": 1,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 1,
+        "C15": 3,
+        "C16": 1,
+        "C17": 0,
+        "C18": 1,
+        "C19": 0,
+        "C20": 1,
+        "C21": 2
+      },
+      "score_global": 22.9,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 26.7,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 20.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 20.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 10.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Solteo",
+      "editeur": "Solteo SAS (France)",
+      "categorie": "Logiciel SaaS Installateurs PV",
+      "url": "https://www.solteo.fr",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 2020,
+      "type_licence": "SaaS B2B",
+      "prix_indicatif": "Sur démo (non public)",
+      "modele_eco": "Abonnement SaaS mensuel/annuel",
+      "cible": "Installateurs PV PME France – résidentiel & petit tertiaire",
+      "description": "Solteo se positionne comme la 'plateforme n°1 des installateurs PV' en France. SaaS B2B axé sur la productivité des équipes : étude solaire complète en 10 minutes, propositions commerciales professionnelles, application mobile pour visites techniques terrain, coordination commerciaux/techniciens/ADV, déclarations préalables semi-automatisées, et dossiers Enedis/Consuel automatisés. 8 000+ projets réalisés avec la plateforme. Fort sur le workflow installateur mais sans cartographie/SIG, sans simulation PVGIS précise, sans CRM prospection, sans AO CRE et sans IA générative.",
+      "points_forts": [
+        "Étude solaire complète en 10 minutes",
+        "Application mobile dédiée visites terrain",
+        "Génération automatique dossiers Enedis et Consuel",
+        "DP mairie semi-automatisée",
+        "Coordination équipes (commerce/technique/ADV)",
+        "Forte adoption France – 8 000+ projets",
+        "Interface intuitive orientée PME installateurs",
+        "Calendrier projets et suivi avancement"
+      ],
+      "points_faibles": [
+        "Pas de cartographie SIG / prospection foncière",
+        "Pas d'intégration IGN LiDAR HD, RPG, cadastre, GPU PLU",
+        "Pas de simulation PVGIS 8760h précise",
+        "Pas de CRM prospection (recherche partenaires/prospects)",
+        "Pas d'AO CRE PPE2 bâtiment > 500 kWc",
+        "Pas d'IA conversationnelle intégrée",
+        "Pas de données réseau BT/HTA Enedis",
+        "Pas d'annuaire SIRENE / prospection B2B",
+        "Orienté résidentiel/petit tertiaire uniquement"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 2,
+        "C06": 0,
+        "C07": 0,
+        "C08": 3,
+        "C09": 1,
+        "C10": 2,
+        "C11": 3,
+        "C12": 4,
+        "C13": 0,
+        "C14": 0,
+        "C15": 2,
+        "C16": 3,
+        "C17": 2,
+        "C18": 0,
+        "C19": 1,
+        "C20": 0,
+        "C21": 3
+      },
+      "score_global": 25.7,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 13.3,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 40.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 35.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 50.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 10.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Reonic",
+      "editeur": "Reonic GmbH (Allemagne)",
+      "categorie": "Logiciel SaaS Installateurs PV",
+      "url": "https://www.reonic.com",
+      "pays_origine": "Allemagne",
+      "disponible_france": true,
+      "annee_creation": 2020,
+      "type_licence": "SaaS B2B",
+      "prix_indicatif": "Sur devis (levée Série A 13 M€ sept. 2024)",
+      "modele_eco": "Abonnement SaaS + white-label",
+      "cible": "Installateurs PV + stockage + IRVE + PAC – Europe (fort DACH, présent FR)",
+      "description": "SaaS allemand multi-technologie (PV + stockage + wallbox + pompes à chaleur) pour installateurs. Levée de fonds Série A de 13 M€ en septembre 2024. 2 000+ clients installateurs en Europe. Interface disponible en français. Fonctionnalités clés : planification toiture (couverture automatique), configuration strings, sélection onduleurs, calcul économique, CRM Kanban, signature numérique, base de composants 150 000+ entrées (2 000+ fabricants), app mobile iOS/Android, option white-label. Très fort en DACH, montée en puissance sur le marché français. Manque les spécificités réglementaires FR (données IGN/cadastre/GPU/RPG, CERFA DP 13703, NF C 15-712, AO CRE PPE2, Enedis Data Connect).",
+      "points_forts": [
+        "Multi-technologie : PV + stockage + IRVE + PAC",
+        "Base composants 150 000+ entrées (2 000+ fabricants)",
+        "CRM Kanban intégré avec signature numérique",
+        "Application mobile iOS/Android complète",
+        "Option white-label pour les réseaux d'installateurs",
+        "Interface disponible en français",
+        "Forte traction Europe – 2 000+ clients",
+        "Levée 13 M€ – croissance rapide",
+        "Calcul économique multi-scénarios (autoconsommation, surplus, batterie)"
+      ],
+      "points_faibles": [
+        "Pas de données foncières françaises (IGN, RPG, cadastre, GPU PLU)",
+        "Pas d'intégration LiDAR HD IGN",
+        "Pas de données réseau électrique Enedis BT/HTA",
+        "Pas d'AO CRE PPE2 bâtiment > 500 kWc",
+        "Pas de génération CERFA DP 13703 / Enedis 16702",
+        "Pas de schéma unifilaire NF C 15-712 conforme",
+        "Pas d'IA solaire conversationnelle",
+        "Pas d'intégration Enedis Data Connect (courbes de charge)",
+        "Pas d'annuaire SIRENE / prospection B2B terrain"
+      ],
+      "scores": {
+        "C01": 1,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 3,
+        "C06": 0,
+        "C07": 0,
+        "C08": 4,
+        "C09": 1,
+        "C10": 3,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 0,
+        "C15": 3,
+        "C16": 3,
+        "C17": 1,
+        "C18": 1,
+        "C19": 0,
+        "C20": 0,
+        "C21": 4
+      },
+      "score_global": 23.8,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 20.0,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 53.3,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 20.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 80.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "ProjetSolaire",
+      "editeur": "ProjetSolaire SAS (France)",
+      "categorie": "Marketplace PV Résidentiel",
+      "url": "https://www.projetsolaire.com",
+      "pays_origine": "France",
+      "disponible_france": true,
+      "annee_creation": 2018,
+      "type_licence": "Plateforme gratuite (propriétaires) + commission installateurs",
+      "prix_indicatif": "Gratuit pour les propriétaires, commission sur projets",
+      "modele_eco": "Marketplace / commissions + outils installateurs sur devis",
+      "cible": "Propriétaires résidentiels (B2C) + installateurs RGE",
+      "description": "ProjetSolaire est une marketplace française mettant en relation des propriétaires souhaitant installer des panneaux solaires avec des installateurs certifiés RGE. Fonctionne sur un système d'enchères inversées : les propriétaires déposent leur projet (gratuit), les installateurs font des offres compétitives. 3 000+ projets réalisés, 100+ installateurs partenaires. Réduit le coût des projets de ~40% via la mise en concurrence. Propose aussi une place de marché matériaux et un suivi administratif. N'est PAS un logiciel de prospection ou de développement de projets PV : pas de cartographie SIG, pas de simulation PVGIS précise, pas de données foncières ou réseau électrique, pas d'AO CRE. Cible essentiellement le résidentiel grand public.",
+      "points_forts": [
+        "Forte notoriété B2C en France",
+        "Réseau 100+ installateurs RGE certifiés",
+        "Réduction tarifaire ~40% via enchères",
+        "Suivi administratif inclus pour les propriétaires",
+        "Place de marché matériaux PV",
+        "Outils de dimensionnement simplifié pour installateurs"
+      ],
+      "points_faibles": [
+        "Modèle B2C : pas adapté aux développeurs industriels/agricoles",
+        "Pas de cartographie SIG / prospection foncière multi-parcelles",
+        "Pas de simulation PVGIS 8760h précise",
+        "Pas de données IGN/cadastre/GPU/RPG",
+        "Pas d'AO CRE PPE2 bâtiment",
+        "Pas de schéma unifilaire NF C 15-712",
+        "Pas d'IA intégrée",
+        "Pas de CRM développeur de projets",
+        "Pas d'intégration données réseau Enedis BT/HTA"
+      ],
+      "scores": {
+        "C01": 0,
+        "C02": 1,
+        "C03": 0,
+        "C04": 0,
+        "C05": 1,
+        "C06": 0,
+        "C07": 0,
+        "C08": 2,
+        "C09": 0,
+        "C10": 1,
+        "C11": 1,
+        "C12": 1,
+        "C13": 0,
+        "C14": 0,
+        "C15": 2,
+        "C16": 2,
+        "C17": 1,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 2
+      },
+      "score_global": 13.3,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 5.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 6.7,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 20.0,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 20.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        }
+      }
+    },
+    {
+      "nom": "Glint Solar",
+      "editeur": "Glint Solar AS (Norvège)",
+      "categorie": "Prospection Grands Projets Utility-Scale",
+      "url": "https://www.glintsolar.com",
+      "pays_origine": "Norvège",
+      "disponible_france": true,
+      "annee_creation": 2019,
+      "type_licence": "SaaS B2B",
+      "prix_indicatif": "Sur devis (pricing enterprise)",
+      "modele_eco": "Abonnement SaaS – tarification sur devis",
+      "cible": "Développeurs de projets solaires utility-scale + BESS (>1 MWc)",
+      "description": "Glint Solar est une plateforme SaaS norvégienne spécialisée dans le développement de projets solaires de grande échelle (utility-scale) et de stockage BESS. Fonctionnalités phares : prospection de sites via SIG centralisé, filtrage des terres qualifiées selon contraintes, conception préliminaire avec visualisation 3D et profil d'élévation, analyse de rendement préliminaire, feasibility BESS, collaboration d'équipes (BD/SIG/Ingénierie), gestion de pipeline de projets, export de visuels pour permitting et négociation foncière. Clients notables incluant TotalEnergies, Photosol (France), Statkraft, Recurrent Energy, Alight. Interface uniquement en anglais. Pas de données françaises spécifiques (IGN/cadastre/GPU/RPG/Enedis), pas de CRM commercial, pas de génération de documents réglementaires français.",
+      "points_forts": [
+        "Spécialisé utility-scale : outil de référence pour les grands développeurs",
+        "SIG centralisé avec filtrage avancé des contraintes foncières",
+        "Visualisation 3D avec profil d'élévation (DEM)",
+        "Analyse BESS (Battery Energy Storage System) intégrée",
+        "Collaboration multi-équipes (BD/SIG/Ingénierie)",
+        "Gestion pipeline projets (like CRM BD)",
+        "Clients top-tier : TotalEnergies, Photosol, Statkraft",
+        "Export visuels permitting et présentation propriétaires",
+        "+80 MW de pipeline généré en 1 mois (témoignage Alight)"
+      ],
+      "points_faibles": [
+        "Interface anglaise uniquement – pas de localisation française",
+        "Pas de données françaises spécifiques (IGN, RPG, cadastre, GPU PLU)",
+        "Pas d'intégration LiDAR HD IGN COPC",
+        "Pas de données réseau Enedis BT/HTA FR",
+        "Pas de génération documents réglementaires FR (CERFA, DP, NF C 15-712)",
+        "Pas d'AO CRE PPE2 bâtiment",
+        "Pas de CRM commercial (prospection client)",
+        "Pas d'IA conversationnelle",
+        "Pas d'intégration Enedis Data Connect",
+        "Focalisé utility-scale : pas adapté résidentiel/agricole/bâtiment <500 kWc"
+      ],
+      "scores": {
+        "C01": 3,
+        "C02": 2,
+        "C03": 2,
+        "C04": 1,
+        "C05": 3,
+        "C06": 2,
+        "C07": 0,
+        "C08": 3,
+        "C09": 0,
+        "C10": 1,
+        "C11": 0,
+        "C12": 0,
+        "C13": 0,
+        "C14": 2,
+        "C15": 2,
+        "C16": 1,
+        "C17": 0,
+        "C18": 0,
+        "C19": 0,
+        "C20": 0,
+        "C21": 3
+      },
+      "score_global": 23.8,
+      "scores_par_groupe": {
+        "Cartographie": {
+          "concurrent": 40.0,
+          "heliapv": 100.0
+        },
+        "Analyse Solaire": {
+          "concurrent": 33.3,
+          "heliapv": 93.3
+        },
+        "Conception PV": {
+          "concurrent": 26.7,
+          "heliapv": 93.3
+        },
+        "Réglementaire": {
+          "concurrent": 10.0,
+          "heliapv": 100.0
+        },
+        "CRM": {
+          "concurrent": 30.0,
+          "heliapv": 100.0
+        },
+        "Chantier": {
+          "concurrent": 0.0,
+          "heliapv": 100.0
+        },
+        "IA": {
+          "concurrent": 0.0,
+          "heliapv": 80.0
+        },
+        "Données": {
+          "concurrent": 0.0,
+          "heliapv": 90.0
+        },
+        "Plateforme": {
+          "concurrent": 60.0,
+          "heliapv": 100.0
+        }
+      }
+    }
+  ],
+  "classement": [
+    {
+      "nom": "Aurora Solar",
+      "score": 30.5,
+      "categorie": "Simulation & Conception PV"
+    },
+    {
+      "nom": "Solteo",
+      "score": 25.7,
+      "categorie": "Logiciel SaaS Installateurs PV"
+    },
+    {
+      "nom": "Archelios Pro / MC",
+      "score": 24.8,
+      "categorie": "Simulation & Conception PV"
+    },
+    {
+      "nom": "Helioscope",
+      "score": 23.8,
+      "categorie": "Simulation & Conception PV"
+    },
+    {
+      "nom": "Reonic",
+      "score": 23.8,
+      "categorie": "Logiciel SaaS Installateurs PV"
+    },
+    {
+      "nom": "Glint Solar",
+      "score": 23.8,
+      "categorie": "Prospection Grands Projets Utility-Scale"
+    },
+    {
+      "nom": "Paladin Energy (ex-SolarNinjas)",
+      "score": 22.9,
+      "categorie": "Données Aériennes & IA"
+    },
+    {
+      "nom": "Gis&Sol / Urbasolar Prospection",
+      "score": 19.0,
+      "categorie": "Cartographie & SIG Énergie"
+    },
+    {
+      "nom": "Géoplateforme IGN (libre)",
+      "score": 19.0,
+      "categorie": "Cartographie & SIG Énergie"
+    },
+    {
+      "nom": "Salesforce Energy & Utilities",
+      "score": 18.1,
+      "categorie": "CRM Énergie"
+    },
+    {
+      "nom": "Pegase (Logiciel ERP Energie)",
+      "score": 18.1,
+      "categorie": "CRM Énergie"
+    },
+    {
+      "nom": "PVsyst",
+      "score": 17.1,
+      "categorie": "Simulation & Conception PV"
+    },
+    {
+      "nom": "Nearmap Solar (Verisk)",
+      "score": 16.2,
+      "categorie": "Données Aériennes & IA"
+    },
+    {
+      "nom": "EnR Prospection / Windfall",
+      "score": 13.3,
+      "categorie": "Cartographie & SIG Énergie"
+    },
+    {
+      "nom": "ProjetSolaire",
+      "score": 13.3,
+      "categorie": "Marketplace PV Résidentiel"
+    },
+    {
+      "nom": "Solarius PV",
+      "score": 12.4,
+      "categorie": "Simulation & Conception PV"
+    },
+    {
+      "nom": "EnergyMap / Sunroof (Google)",
+      "score": 11.4,
+      "categorie": "Prospection & Données Solaires"
+    },
+    {
+      "nom": "Solargis Prospect",
+      "score": 10.5,
+      "categorie": "Prospection & Données Solaires"
+    },
+    {
+      "nom": "SolarEdge Monitoring / mySolarEdge",
+      "score": 8.6,
+      "categorie": "Monitoring & CRM Monitoring"
+    },
+    {
+      "nom": "Tecsol / Logiciels CRE",
+      "score": 7.6,
+      "categorie": "Conseil & Outils CRE"
+    }
+  ]
+}

@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benchmark Concurrentiel HeliaPV – 06 March 2026</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --card: #111827;
+    --border: #1f2937;
+    --accent: #f59e0b;
+    --accent2: #6366f1;
+    --green: #10b981;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding: 2rem; }
+  h1 { font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; }
+  h2 { font-size: 1.4rem; color: var(--accent2); margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; color: var(--accent); margin: 1rem 0 0.5rem; }
+  .subtitle { color: var(--muted); margin-bottom: 2rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin: 0.2rem; }
+  .badge-a { background: #065f46; color: #6ee7b7; }
+  .badge-b { background: #1e3a5f; color: #93c5fd; }
+  .badge-c { background: #4c1d95; color: #c4b5fd; }
+  .badge-d { background: #7c2d12; color: #fdba74; }
+  .badge-e { background: #374151; color: #e5e7eb; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { background: #1f2937; color: var(--accent); padding: 0.6rem 0.8rem; text-align: left; position: sticky; top: 0; }
+  td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: #1f2937; }
+  .score-bar { display: flex; align-items: center; gap: 0.5rem; }
+  .bar { height: 8px; border-radius: 4px; background: var(--accent); }
+  .bar-heliapv { background: var(--green); }
+  .bar-low { background: var(--red); }
+  .score-num { font-weight: 700; min-width: 35px; }
+  .score-high { color: var(--green); }
+  .score-med { color: var(--accent); }
+  .score-low { color: var(--red); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  ul { list-style: none; padding: 0; }
+  ul li::before { content: "▸ "; color: var(--accent); }
+  ul li { padding: 0.2rem 0; font-size: 0.9rem; color: var(--muted); }
+  .pros li::before { color: var(--green); content: "✓ "; }
+  .cons li::before { color: var(--red); content: "✗ "; }
+  .pros li, .cons li { color: var(--text); }
+  .highlight { color: var(--accent); font-weight: 600; }
+  .section-heliapv { border-left: 3px solid var(--green); padding-left: 1rem; }
+  .tag { display: inline-block; background: #1f2937; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin: 0.15rem; color: var(--muted); }
+  .overflow-x { overflow-x: auto; }
+  .toc a { color: var(--accent2); text-decoration: none; display: block; padding: 0.3rem 0; }
+  .toc a:hover { color: var(--accent); }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.8rem; text-align: center; border-top: 1px solid var(--border); padding-top: 1rem; }
+  @media print { body { background: white; color: black; } .card { border: 1px solid #ccc; } }
+</style>
+</head>
+<body>
+
+<h1>🔆 Benchmark Concurrentiel HeliaPV</h1>
+<p class="subtitle">Analyse exhaustive du marché français des logiciels PV solaires — 06 March 2026</p>
+
+<!-- TABLE DES MATIÈRES -->
+<div class="card toc">
+  <h2 style="margin-top:0">📋 Table des matières</h2>
+  <div class="grid2">
+    <div>
+      <a href="#resume">1. Résumé Exécutif</a>
+      <a href="#heliapv">2. Profil HeliaPV</a>
+      <a href="#criteres">3. Les 21 Critères d'Évaluation</a>
+      <a href="#tableau">4. Tableau Comparatif Global</a>
+    </div>
+    <div>
+      <a href="#fiches">5. Fiches Détaillées Concurrents</a>
+      <a href="#positionnement">6. Positionnement & Prix</a>
+      <a href="#opportunites">7. Opportunités Différenciantes</a>
+      <a href="#conclusion">8. Conclusion Stratégique</a>
+    </div>
+  </div>
+</div>
+
+<!-- RÉSUMÉ EXÉCUTIF -->
+<div class="card" id="resume">
+  <h2 style="margin-top:0">📊 1. Résumé Exécutif</h2>
+  
+<div class="grid3">
+  <div>
+    <div class="highlight" style="font-size:2rem;">96.2%</div>
+    <div>Score global HeliaPV</div>
+    <div style="color:var(--muted);font-size:0.85rem;">sur 21 critères fonctionnels</div>
+  </div>
+  <div>
+    <div class="highlight" style="font-size:2rem;">20</div>
+    <div>Concurrents analysés</div>
+    <div style="color:var(--muted);font-size:0.85rem;">en 10 catégories</div>
+  </div>
+  <div>
+    <div class="highlight" style="font-size:2rem;">🥇 FR</div>
+    <div>Seul acteur FR intégré</div>
+    <div style="color:var(--muted);font-size:0.85rem;">prospection + CRM + docs + IA</div>
+  </div>
+</div>
+<br>
+<p><strong>Conclusion principale :</strong> Aucun concurrent identifié ne couvre simultanément les 5 piliers
+d'HeliaPV : <span class="highlight">Cartographie foncière FR + Simulation PV + CRM + Documents réglementaires FR + IA Solaire</span>.
+Les concurrents sont soit très techniques (PVsyst, Archelios) sans CRM/SIG,
+soit cartographiques sans simulation, soit CRM génériques sans outil PV.</p>
+<br>
+<p><strong>Top 3 concurrents par score :</strong></p>
+<ol>
+<li style="padding:0.3rem 0">Aurora Solar – <span class="highlight">30.5%</span> (Simulation & Conception PV)</li><li style="padding:0.3rem 0">Solteo – <span class="highlight">25.7%</span> (Logiciel SaaS Installateurs PV)</li><li style="padding:0.3rem 0">Archelios Pro / MC – <span class="highlight">24.8%</span> (Simulation & Conception PV)</li>
+</ol>
+
+</div>
+
+<!-- PROFIL HELIAPV -->
+<div class="card section-heliapv" id="heliapv">
+  <h2 style="margin-top:0; color: var(--green)">✅ 2. Profil HeliaPV / AgriWeb</h2>
+  
+<div class="grid2">
+  <div>
+    <p><strong>Type :</strong> SaaS Python/Flask – déployé Railway</p>
+    <p><strong>Marché cible :</strong> Développeurs de projets PV France (IPD, EPC, bureaux d'études)</p>
+    <p><strong>Tarification :</strong> Freemium + abonnements Stripe (trial 50 recherches, standard, pro, enterprise)</p>
+    <p><strong>Score global :</strong> <span class="highlight">96.2%</span></p>
+    <br>
+    <p><strong>APIs intégrées :</strong></p>
+    <p>
+      <span class="tag">IGN BAN</span><span class="tag">IGN Cadastre</span><span class="tag">IGN LiDAR HD COPC</span><span class="tag">BD TOPO</span><span class="tag">GPU PLU</span><span class="tag">GeoRisques v1</span><span class="tag">PVGIS EU</span><span class="tag">Google Solar API</span><span class="tag">SIRENE INSEE</span><span class="tag">Enedis Data Connect</span><span class="tag">OpenStreetMap</span><span class="tag">GeoServer WMS/WFS</span><span class="tag">Stripe</span><span class="tag">Groq AI</span>
+    </p>
+  </div>
+  <div>
+    <h3>Scores par domaine fonctionnel</h3>
+    <div><strong>Cartographie</strong> <div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>Analyse Solaire</strong> <div class="score-bar"><span class="score-num score-high">93</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:93%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>Conception PV</strong> <div class="score-bar"><span class="score-num score-high">93</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:93%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>Réglementaire</strong> <div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>CRM</strong> <div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>Chantier</strong> <div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>IA</strong> <div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>Données</strong> <div class="score-bar"><span class="score-num score-high">90</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:90%;height:8px;border-radius:4px;"></div></div></div></div><div><strong>Plateforme</strong> <div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></div>
+  </div>
+</div>
+
+</div>
+
+<!-- CRITÈRES -->
+<div class="card" id="criteres">
+  <h2 style="margin-top:0">📐 3. Les 21 Critères d'Évaluation</h2>
+  <div class="overflow-x"><table>
+<thead><tr><th>Domaine</th><th>Critère</th><th>Score HeliaPV (/5)</th><th>Détails</th></tr></thead>
+<tbody><tr>
+          <td><span class="badge badge-b">Cartographie</span></td>
+          <td><strong>C01</strong> – Cartographie interactive multi-couches</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">RPG, PLU/PLUi, parkings, friches, toitures, BT/HTA, OSM – GeoServer WMS/WFS</td>
+        </tr><tr>
+          <td><span class="badge badge-b">Cartographie</span></td>
+          <td><strong>C02</strong> – Recherche adresse & commune autocomplete</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">API IGN BAN + Nominatim, SSE temps réel, filtres avancés</td>
+        </tr><tr>
+          <td><span class="badge badge-b">Cartographie</span></td>
+          <td><strong>C03</strong> – Données foncières & cadastre</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">IGN cadastre, numéros de parcelles, lookup propriétaires</td>
+        </tr><tr>
+          <td><span class="badge badge-b">Cartographie</span></td>
+          <td><strong>C04</strong> – Données réseau électrique BT/HTA</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Distance postes BT/HTA, capacités réseau, diagnostic HTA</td>
+        </tr><tr>
+          <td><span class="badge badge-a">Analyse Solaire</span></td>
+          <td><strong>C05</strong> – Simulation de production PVGIS 8760h</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">PVGIS EU Science Hub, 8760 points horaires, pertes configurables</td>
+        </tr><tr>
+          <td><span class="badge badge-a">Analyse Solaire</span></td>
+          <td><strong>C06</strong> – Analyse LiDAR HD & nuages de points 3D</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">IGN COPC LiDAR HD, streaming HTTP Range, analyse plans de toit 3D</td>
+        </tr><tr>
+          <td><span class="badge badge-a">Analyse Solaire</span></td>
+          <td><strong>C07</strong> – Analyse Google Solar API</td>
+          <td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Building Insights, Flux Heatmap, DSM – nécessite clé API Google</td>
+        </tr><tr>
+          <td><span class="badge badge-a">Conception PV</span></td>
+          <td><strong>C08</strong> – Calpinage/calepinage panneaux PV</td>
+          <td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Multi-zones, orientation/inclinaison, base modules + onduleurs</td>
+        </tr><tr>
+          <td><span class="badge badge-a">Conception PV</span></td>
+          <td><strong>C09</strong> – Schéma unifilaire NF C 15-712</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Génération PDF conforme NF C 15-712-1, symboles normalisés</td>
+        </tr><tr>
+          <td><span class="badge badge-a">Conception PV</span></td>
+          <td><strong>C10</strong> – Calcul autoconsommation & tarifs</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">BASE, HPHC, HPHC+midi, TEMPO, EJP, C4 – TRI/VAN/ROI</td>
+        </tr><tr>
+          <td><span class="badge badge-d">Réglementaire</span></td>
+          <td><strong>C11</strong> – Génération Déclaration Préalable (DP)</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">CERFA 13703*09 + plans DP1→DP8, photo-montages satellite</td>
+        </tr><tr>
+          <td><span class="badge badge-d">Réglementaire</span></td>
+          <td><strong>C12</strong> – CERFA raccordement Enedis 16702</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Formulaire pré-rempli avec données prospect/calpinage</td>
+        </tr><tr>
+          <td><span class="badge badge-d">Réglementaire</span></td>
+          <td><strong>C13</strong> – AO CRE PPE2 bâtiment (>500 kWc)</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Wizard notes NP/NC/NFC, bilan carbone 14 pays, export PDF + Excel</td>
+        </tr><tr>
+          <td><span class="badge badge-d">Réglementaire</span></td>
+          <td><strong>C14</strong> – Risques GeoRisques (sismique, CATNAT…)</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">API GeoRisques v1: sismique, CATNAT, cavités, radon, argiles</td>
+        </tr><tr>
+          <td><span class="badge badge-c">CRM</span></td>
+          <td><strong>C15</strong> – CRM prospection intégré natif</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Pipeline, hiérarchie Admin/DC/Commercial, interactions, calendar</td>
+        </tr><tr>
+          <td><span class="badge badge-c">CRM</span></td>
+          <td><strong>C16</strong> – Proposition commerciale auto-générée</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">PDF complet : couverture, technique, financier, devis, CGV</td>
+        </tr><tr>
+          <td><span class="badge badge-e">Chantier</span></td>
+          <td><strong>C17</strong> – Suivi de chantier IEC 62446</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">7 phases, checklist PPSPS, traçabilité modules, NCF, DOE</td>
+        </tr><tr>
+          <td><span class="badge badge-c">IA</span></td>
+          <td><strong>C18</strong> – Assistant IA solaire (function calling)</td>
+          <td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Helia – Groq llama-3.1, 2 modes (assisté/manuel), 8 fonctions</td>
+        </tr><tr>
+          <td><span class="badge badge-b">Données</span></td>
+          <td><strong>C19</strong> – Intégration Enedis Linky (consommation)</td>
+          <td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Data Connect OAuth2, import courbes de charge</td>
+        </tr><tr>
+          <td><span class="badge badge-b">Données</span></td>
+          <td><strong>C20</strong> – Annuaire SIRENE INSEE (prospects B2B)</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Recherche par rayon GPS, filtrage NAF, enrichissement prospects</td>
+        </tr><tr>
+          <td><span class="badge badge-e">Plateforme</span></td>
+          <td><strong>C21</strong> – SaaS multi-utilisateurs avec quotas</td>
+          <td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="color:var(--muted);font-size:0.8rem;">Stripe, rôles, quotas, trial, Railway scalable</td>
+        </tr></tbody>
+</table></div>
+</div>
+
+<!-- TABLEAU COMPARATIF -->
+<div class="card" id="tableau">
+  <h2 style="margin-top:0">📊 4. Tableau Comparatif Global</h2>
+  <div class="overflow-x">
+  <table>
+<thead><tr><th>Logiciel</th><th>Catégorie</th><th>Score /100</th><th>Cartographie</th><th>Analyse Solaire</th><th>Conception PV</th><th>Réglementaire</th><th>CRM</th><th>Chantier</th><th>IA</th><th>Données</th><th>Plateforme</th><th>Prix</th><th>FR natif</th></tr></thead>
+<tbody><tr style="background:#0d2b1a;border-left:3px solid var(--green)"><td><strong style="color:var(--green)">★ HeliaPV</strong></td><td><span class="badge badge-a">Solution complète</span></td><td><div class="score-bar"><span class="score-num score-high">96</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:96.2%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">93</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:93%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">93</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:93%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">90</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:90%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td><td style="color:var(--green)">Freemium</td><td style="color:var(--green)">✅</td></tr><tr>
+          <td><strong>Aurora Solar</strong><br><small style="color:var(--muted)">Aurora Solar Inc. (USA)</small></td>
+          <td><small>Simulation & Conception PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">30</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:30.5%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">47</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:47%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">~300–600 $/mois</td>
+          <td style="text-align:center">❌</td>
+        </tr><tr>
+          <td><strong>Solteo</strong><br><small style="color:var(--muted)">Solteo SAS (France)</small></td>
+          <td><small>Logiciel SaaS Installateurs PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">26</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:25.7%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">35</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:35%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">50</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:50%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur démo (non public)</td>
+          <td style="text-align:center">✅</td>
+        </tr><tr>
+          <td><strong>Archelios Pro / MC</strong><br><small style="color:var(--muted)">Trace Software International (</small></td>
+          <td><small>Simulation & Conception PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">25</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:24.8%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">15</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:15%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">27</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:27%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Gratuit (≤9 kWc) / 990 €/</td>
+          <td style="text-align:center">✅</td>
+        </tr><tr>
+          <td><strong>Helioscope</strong><br><small style="color:var(--muted)">Folsom Labs (USA) – racheté pa</small></td>
+          <td><small>Simulation & Conception PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">53</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:53%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">47</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:47%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">~200–500 $/mois</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>Reonic</strong><br><small style="color:var(--muted)">Reonic GmbH (Allemagne)</small></td>
+          <td><small>Logiciel SaaS Installateurs PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">53</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:53%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis (levée Série A </td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>Glint Solar</strong><br><small style="color:var(--muted)">Glint Solar AS (Norvège)</small></td>
+          <td><small>Prospection Grands Projets Utility-Scale</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">33</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:33%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">27</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:27%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">30</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:30%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis (pricing enterp</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>Paladin Energy (ex-SolarNinjas)</strong><br><small style="color:var(--muted)">Paladin Energy (UK)</small></td>
+          <td><small>Données Aériennes & IA</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">23</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:22.9%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">27</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:27%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis</td>
+          <td style="text-align:center">❌</td>
+        </tr><tr>
+          <td><strong>Gis&Sol / Urbasolar Prospection</strong><br><small style="color:var(--muted)">Solutions SIG spécialisées éne</small></td>
+          <td><small>Cartographie & SIG Énergie</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">19</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:19.0%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-med">65</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:65%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis</td>
+          <td style="text-align:center">✅</td>
+        </tr><tr>
+          <td><strong>Géoplateforme IGN (libre)</strong><br><small style="color:var(--muted)">IGN – Institut national de l'i</small></td>
+          <td><small>Cartographie & SIG Énergie</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">19</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:19.0%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-med">65</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:65%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">33</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:33%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Gratuit (APIs)</td>
+          <td style="text-align:center">✅</td>
+        </tr><tr>
+          <td><strong>Salesforce Energy & Utilities</strong><br><small style="color:var(--muted)">Salesforce (USA)</small></td>
+          <td><small>CRM Énergie</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">18</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:18.1%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">70</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:70%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">30</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:30%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">100</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:100%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">75–300 €/utilisateur/mois</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>Pegase (Logiciel ERP Energie)</strong><br><small style="color:var(--muted)">Editeurs ERP français spéciali</small></td>
+          <td><small>CRM Énergie</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">18</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:18.1%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">70</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:70%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">80</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:80%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">500–2000 €/mois</td>
+          <td style="text-align:center">✅</td>
+        </tr><tr>
+          <td><strong>PVsyst</strong><br><small style="color:var(--muted)">PVsyst SA (Suisse)</small></td>
+          <td><small>Simulation & Conception PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">17</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:17.1%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-high">73</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:73%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">~800–1200 €/an/utilisateu</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>Nearmap Solar (Verisk)</strong><br><small style="color:var(--muted)">Nearmap / Verisk (Australie/US</small></td>
+          <td><small>Données Aériennes & IA</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">16</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:16.2%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">53</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:53%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis (k€/an)</td>
+          <td style="text-align:center">❌</td>
+        </tr><tr>
+          <td><strong>EnR Prospection / Windfall</strong><br><small style="color:var(--muted)">Windfall Data (UK/FR)</small></td>
+          <td><small>Cartographie & SIG Énergie</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13.3%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">7</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>ProjetSolaire</strong><br><small style="color:var(--muted)">ProjetSolaire SAS (France)</small></td>
+          <td><small>Marketplace PV Résidentiel</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13.3%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">7</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Gratuit pour les propriét</td>
+          <td style="text-align:center">✅</td>
+        </tr><tr>
+          <td><strong>Solarius PV</strong><br><small style="color:var(--muted)">ACCA Software (Italie)</small></td>
+          <td><small>Simulation & Conception PV</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">12</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:12.4%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">47</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:47%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">~400–800 €/an</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>EnergyMap / Sunroof (Google)</strong><br><small style="color:var(--muted)">Google</small></td>
+          <td><small>Prospection & Données Solaires</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">11</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:11.4%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">7</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Gratuit</td>
+          <td style="text-align:center">❌</td>
+        </tr><tr>
+          <td><strong>Solargis Prospect</strong><br><small style="color:var(--muted)">Solargis s.r.o. (Slovaquie)</small></td>
+          <td><small>Prospection & Données Solaires</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10.5%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis (plusieurs k€/a</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>SolarEdge Monitoring / mySolarEdge</strong><br><small style="color:var(--muted)">SolarEdge Technologies (Israël</small></td>
+          <td><small>Monitoring & CRM Monitoring</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">9</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:8.6%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">7</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">7</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">40</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:40%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-med">60</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar" style="width:60%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Gratuit avec matériel</td>
+          <td style="text-align:center">⚠️</td>
+        </tr><tr>
+          <td><strong>Tecsol / Logiciels CRE</strong><br><small style="color:var(--muted)">Tecsol (France)</small></td>
+          <td><small>Conseil & Outils CRE</small></td>
+          <td><div class="score-bar"><span class="score-num score-low">8</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7.6%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">27</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:27%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">20</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:20%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">5</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:5%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td><td><div class="score-bar"><span class="score-num score-low">0</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:0%;height:8px;border-radius:4px;"></div></div></div></td>
+          <td style="font-size:0.8rem">Sur devis</td>
+          <td style="text-align:center">✅</td>
+        </tr></tbody>
+</table>
+  </div>
+</div>
+
+<!-- FICHES DÉTAILLÉES -->
+<div id="fiches">
+  <h2>📋 5. Fiches Détaillées des Concurrents</h2>
+  <h3><span class="badge badge-a">Simulation & Conception PV</span></h3>
+<div class="card" id="PVsyst">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">PVsyst</h3>
+      <p style="color:var(--muted);font-size:0.9rem">PVsyst SA (Suisse) &nbsp;|&nbsp;
+         Fondé : 1994 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">17</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:17.1%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Logiciel desktop annuel</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Standard de l'industrie mondiale pour la simulation photovoltaïque. Logiciel desktop Windows avec base de données météo mondiale (Meteonorm), calcul de shading 3D, simulation P50/P90, conformité IEC 61724. Aucune fonctionnalité SaaS, pas de CRM, pas de cartographie intégrée.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Référence mondiale – accépté par tous les banquiers/assureurs</li><li>Simulation P50/P90 très précise</li><li>Bibliothèque modules/onduleurs exhaustive (60 000+ entrées)</li><li>Masques 3D horizon/ombrages</li><li>Export rapports bankable</li><li>Certifié IEC 61724-1</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Desktop uniquement – pas de SaaS ni cloud</li><li>Pas de cartographie ou SIG intégré</li><li>Pas de CRM / gestion commerciale</li><li>Pas de génération documents administratifs (DP, CERFA)</li><li>Interface vieillissante, prise en main complexe</li><li>Pas d'IA ni d'assistant conversationnel</li><li>Pas d'intégration Enedis/cadastre</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> ~800–1200 €/an/utilisateur &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Licence annuelle perpétuelle &nbsp;|&nbsp;
+     <strong>Cible :</strong> Bureaux d'études, ingénieurs PV, développeurs</p>
+  
+</div>
+<div class="card" id="Archelios_Pro___MC">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Archelios Pro / MC</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Trace Software International (France) &nbsp;|&nbsp;
+         Fondé : 2005 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">25</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:24.8%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS web (app.archelios.com)</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Suite logicielle française de référence pour la conception PV. Archelios PRO (application web) couvre : localisation + modélisation 3D, calepinage + câblage automatique, prédimensionnement P50/P90, étude détaillée, autoconsommation (courbes de charge), analyse technico-économique (VAN/LCOE/TRI), schéma unifilaire + plans d'exécution. Archelios CALC pour le dimensionnement électrique. Intégration SketchUp. 100+ catalogues fabricants. Reconnu INES/OPQIBI/FORMAPELEC. Pas de cartographie foncière avancée ni de CRM.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Application web SaaS – accessible depuis n'importe quel navigateur</li><li>Modélisation 3D + calepinage automatique + câblage strings</li><li>Calcul P50/P90 avec données météo PVGIS intégrées</li><li>Schéma unifilaire et plans d'exécution (NF C 15-712)</li><li>Analyse autoconsommation avec courbes de charge</li><li>Analyse économique complète (VAN / LCOE / TRI / retour)</li><li>Intégration SketchUp pour modélisation 3D avancée</li><li>100+ catalogues fabricants (modules, onduleurs, câbles)</li><li>Version Free disponible (≤9 kWc) – sans engagement</li><li>Éditeur français – support FR – conforme normes françaises</li><li>Reconnu INES / OPQIBI / FORMAPELEC (formation certifiante)</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de cartographie SIG / prospection foncière (pas de RPG, PLU, cadastre)</li><li>Pas de CRM natif de prospection commerciale</li><li>Pas d'intégration données foncières cadastre / IGN</li><li>Pas de génération DP (CERFA 13703) automatique</li><li>Pas d'IA intégrée (pas de Copilot / assistant conversationnel)</li><li>Pas d'intégration réseau électrique BT/HTA Enedis</li><li>Pas d'AO CRE PPE2 bâtiment (appel d'offres CRE)</li><li>Pas d'intégration SIRENE / annuaire prospects B2B</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Gratuit (≤9 kWc) / 990 €/an (Silver ≤100 kWc) / 1 490 €/an (Gold ≤1 MWc) / 1 990 €/an (Platinum illimité) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS annuel – 4 niveaux (Free/Silver/Gold/Platinum) &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs, bureaux d'études, PME PV – petits à grands projets</p>
+  
+</div>
+<div class="card" id="Helioscope">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Helioscope</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Folsom Labs (USA) – racheté par Aurora Solar &nbsp;|&nbsp;
+         Fondé : 2012 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS cloud</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Plateforme SaaS américaine de conception PV avec calepinage satellite, simulation de production et rapport bankable. Fort sur le résidentiel US. Peu adapté au marché français (pas d'intégration IGN/GPU/Enedis, interface EN uniquement pour la plupart des modules avancés).</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Interface intuitive, moderne</li><li>Calepinage rapide sur fond satellite</li><li>Rapport client professionnel</li><li>Intégré dans Aurora Solar (enrichissement IA)</li><li>Accessible partout (SaaS)</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Interface principalement en anglais</li><li>Pas d'intégration données FR (IGN, cadastre, GPU, RPG)</li><li>Pas de CRM natif</li><li>Tarification élevée en USD</li><li>Pas de génération documents FR (DP, CERFA Enedis)</li><li>Pas d'intégration réseau Enedis/BT/HTA FR</li><li>Pas d'assistant IA dédié marché FR</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> ~200–500 $/mois &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement mensuel/annuel SaaS &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs résidentiels et C&I monde</p>
+  
+</div>
+<div class="card" id="Aurora_Solar">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Aurora Solar</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Aurora Solar Inc. (USA) &nbsp;|&nbsp;
+         Fondé : 2013 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🚫 Non disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">30</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:30.5%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS cloud</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Leader mondial SaaS PV résidentiel aux USA. Intègre IA pour détection automatique de toit, simulation shading 3D, CRM basique et génération de propositions. Très peu présent en France – interface EN, données US uniquement.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>IA de détection automatique toit (satellite ML)</li><li>Interface très moderne et intuitive</li><li>CRM commercial intégré</li><li>Proposition client automatique</li><li>Leader du marché US résidentiel</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Quasi absent du marché français</li><li>Pas de données IGN/cadastre/GPU/RPG FR</li><li>Interface anglaise uniquement</li><li>Prix en USD, tarifs élevés</li><li>Pas de conformité normes FR (NF C 15-712)</li><li>Pas de génération CERFA / DP française</li><li>Pas d'intégration Enedis Data Connect</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> ~300–600 $/mois &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS + modules additionnels &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs résidentiels USA essentiellement</p>
+  
+</div>
+<div class="card" id="Solarius_PV">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Solarius PV</h3>
+      <p style="color:var(--muted);font-size:0.9rem">ACCA Software (Italie) &nbsp;|&nbsp;
+         Fondé : 2010 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">12</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:12.4%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Desktop + SaaS</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Logiciel de conception PV italien disponible en français. Permet le dimensionnement, calepinage, simulation et génération de rapports. Faible intégration avec l'écosystème de données français.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Interface en français</li><li>Prix accessible</li><li>Génération de rapports PDF</li><li>Simulation ombrage 3D</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de cartographie SIG avancée FR</li><li>Pas d'intégration IGN/cadastre/GPU/RPG</li><li>Pas de CRM</li><li>Pas de gestion documents administratifs FR</li><li>Faible présence sur grandes installations (>100 kWc)</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> ~400–800 €/an &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Licence annuelle &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs, bureaux d'études petits projets</p>
+  
+</div><h3><span class="badge badge-b">Prospection & Données Solaires</span></h3>
+<div class="card" id="Solargis_Prospect">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Solargis Prospect</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Solargis s.r.o. (Slovaquie) &nbsp;|&nbsp;
+         Fondé : 2010 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10.5%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS – API + portail web</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Référence mondiale pour les données d'irradiation solaire et la micro-siting. Fournit des données GHI/DNI/DHI avec incertitude statistique, TNsim, P50/P90/P99. Pas d'outil de prospection foncière française ni de CRM.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Données solaires les plus précises au monde (30+ ans)</li><li>Incertitude statistique rigoureuse (bankable)</li><li>API REST bien documentée</li><li>Couverture mondiale</li><li>Rapports P50/P90 acceptés par les banques</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de cartographie foncière française</li><li>Pas de données RPG/PLU/cadastre</li><li>Pas de CRM ni prospection commerciale</li><li>Tarification très élevée (hors portée PME)</li><li>Pas de génération documents FR</li><li>Pas d'assistant IA interactif</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis (plusieurs k€/an) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement entreprise + crédits API &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs projets solaires, utilities, fonds d'investissement</p>
+  
+</div>
+<div class="card" id="EnergyMap___Sunroof_(Google)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">EnergyMap / Sunroof (Google)</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Google &nbsp;|&nbsp;
+         Fondé : 2015 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🚫 Non disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">11</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:11.4%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Gratuit (grand public)</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Outil grand public de Google pour estimer le potentiel solaire d'une toiture. Basé sur Google Maps + LiDAR. Non disponible commercialement en France pour intégration professionnelle (API Google Solar limitée).</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Interface très simple</li><li>Données LiDAR via Google Solar API</li><li>Gratuit pour le grand public</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Non disponible en France (Sunroof)</li><li>Google Solar API coûteuse et limitée pour usage professionnel</li><li>Pas de CRM</li><li>Pas d'intégration données françaises</li><li>Usage grand public uniquement</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Gratuit &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Publicité / données internes Google &nbsp;|&nbsp;
+     <strong>Cible :</strong> Grand public</p>
+  
+</div><h3><span class="badge badge-d">Conseil & Outils CRE</span></h3>
+<div class="card" id="Tecsol___Logiciels_CRE">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Tecsol / Logiciels CRE</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Tecsol (France) &nbsp;|&nbsp;
+         Fondé : 1993 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">8</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7.6%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Service de conseil + outils propriétaires</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Bureau d'études et laboratoire solaire français. Propose des services de conseil, de mesure d'irradiation et de suivi de production. Développe des outils internes pour le marché français mais pas de SaaS grand public avec prospection + CRM.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Expertise française reconnue</li><li>Connaissance approfondie du marché et réglementation FR</li><li>Mesures et validation terrain</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de SaaS accessible</li><li>Pas de cartographie interactive</li><li>Pas de CRM</li><li>Business model service, non scalable</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Conseil + projets &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs projets solaires France</p>
+  
+</div><h3><span class="badge badge-b">Cartographie & SIG Énergie</span></h3>
+<div class="card" id="Gis&Sol___Urbasolar_Prospection">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Gis&Sol / Urbasolar Prospection</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Solutions SIG spécialisées énergie &nbsp;|&nbsp;
+         Fondé : 2015 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">19</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:19.0%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS / Service</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Plateformes SIG spécialisées ENR proposant la superposition de couches cadastrales, PLU, RPG, contraintes pour la prospection foncière. Généralement sans CRM natif ni génération automatique de documents.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Données foncières françaises intégrées</li><li>Interface SIG connue des développeurs ENR</li><li>Couches contraintes (Natura2000, zone inondable…)</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de simulation de production</li><li>Pas de CRM commercial</li><li>Pas de génération documents administratifs</li><li>Pas d'IA</li><li>Tarification souvent élevée</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement + prestation &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs projets ENR France</p>
+  
+</div>
+<div class="card" id="Géoplateforme_IGN_(libre)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Géoplateforme IGN (libre)</h3>
+      <p style="color:var(--muted);font-size:0.9rem">IGN – Institut national de l'information géographique &nbsp;|&nbsp;
+         Fondé : 2023 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">19</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:19.0%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Open source / API gratuite</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Géoplateforme IGN est la nouvelle infrastructure nationale fournissant cadastre, BD TOPO, LiDAR HD, orthophotographies, GPU, etc. C'est la source des données qu'HeliaPV intègre – pas une plateforme PV en soi.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Source officielle des données géographiques françaises</li><li>LiDAR HD gratuit</li><li>Cadastre temps réel</li><li>GPU (zones PLU/PLUi)</li><li>API bien documentée</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Outil de données brutes, pas de SaaS PV</li><li>Pas de simulation, CRM, ni outil commercial</li><li>Requiert des développements importants</li><li>Pas d'IA intégrée</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Gratuit (APIs) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Service public gratuit &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs, collectivités, entreprises</p>
+  
+</div>
+<div class="card" id="EnR_Prospection___Windfall">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">EnR Prospection / Windfall</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Windfall Data (UK/FR) &nbsp;|&nbsp;
+         Fondé : 2016 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13.3%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Plateforme de prospection ENR basée sur data intelligence et cartographie avancée. Couvre éolien et solaire. Moins spécialisée sur le photovoltaïque bâtiment/agricole que HeliaPV.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Multi-technologie (éolien + solaire)</li><li>Données contraintes environnementales</li><li>Interface moderne</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de simulation de production PV précise</li><li>Pas de CRM commercial intégré</li><li>Pas de génération documents FR</li><li>Tarification élevée</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs projets ENR (éolien + solaire)</p>
+  
+</div><h3><span class="badge badge-c">CRM Énergie</span></h3>
+<div class="card" id="Salesforce_Energy_&_Utilities">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Salesforce Energy & Utilities</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Salesforce (USA) &nbsp;|&nbsp;
+         Fondé : 1999 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">18</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:18.1%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS CRM</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">CRM leader mondial avec module énergie. Très puissant pour la gestion commerciale mais zéro intégration avec les données techniques PV, la cartographie foncière française ou la génération de documents réglementaires PV.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>CRM très complet et configurable</li><li>Intégrations natives nombreuses</li><li>Reporting avancé</li><li>Mobile first</li><li>Support mondial</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Aucune fonctionnalité PV technique</li><li>Pas de cartographie</li><li>Pas de simulation de production</li><li>Coût très élevé</li><li>Complexe à configurer pour le PV</li><li>Pas adapté aux PME solaires</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> 75–300 €/utilisateur/mois &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS par siège &nbsp;|&nbsp;
+     <strong>Cible :</strong> Grandes entreprises énergie</p>
+  
+</div>
+<div class="card" id="Pegase_(Logiciel_ERP_Energie)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Pegase (Logiciel ERP Energie)</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Editeurs ERP français spécialisés ENR &nbsp;|&nbsp;
+         Fondé : 2010 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">18</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:18.1%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">ERP SaaS</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">ERP métier pour installateurs photovoltaïques incluant devis, facturation, suivi chantier, SAV. Peu de fonctionnalités cartographiques ou d'analyse technique poussée.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Adapté aux installateurs FR</li><li>Devis + facturation intégrés</li><li>Suivi SAV et maintenance</li><li>Gestion stocks matériaux</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de cartographie</li><li>Pas de simulation de production</li><li>Pas d'intégration IGN/GPU/Enedis</li><li>Axé gestion administrative, pas prospection</li><li>Pas d'IA</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> 500–2000 €/mois &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement ERP &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs et développeurs PV France</p>
+  
+</div><h3><span class="badge badge-e">Monitoring & CRM Monitoring</span></h3>
+<div class="card" id="SolarEdge_Monitoring___mySolarEdge">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">SolarEdge Monitoring / mySolarEdge</h3>
+      <p style="color:var(--muted);font-size:0.9rem">SolarEdge Technologies (Israël/USA) &nbsp;|&nbsp;
+         Fondé : 2006 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">9</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:8.6%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Gratuit (lié matériel SolarEdge)</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Plateforme de monitoring liée à l'écosystème SolarEdge. Surveille la production en temps réel, alerte sur pannes. Pas un outil de prospection ou de conception.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Monitoring temps réel très précis (MPP par module)</li><li>Alertes automatiques</li><li>Application mobile</li><li>Gratuit</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Uniquement monitoring post-installation</li><li>Vendor lock-in SolarEdge</li><li>Pas de prospection, ni conception, ni CRM</li><li>Pas d'intégration données foncières FR</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Gratuit avec matériel &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Ecosystem fermé SolarEdge &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs SolarEdge</p>
+  
+</div><h3><span class="badge badge-c">Données Aériennes & IA</span></h3>
+<div class="card" id="Nearmap_Solar_(Verisk)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Nearmap Solar (Verisk)</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Nearmap / Verisk (Australie/USA) &nbsp;|&nbsp;
+         Fondé : 2007 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🚫 Non disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">16</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:16.2%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS – API + portail</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Fournisseur de données aériennes HD avec IA de détection automatique des caractéristiques de toiture (pentes, orientations, obstacles). Très fort sur l'analyse automatisée de toitures mais quasi absent en France.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>IA détection automatique toitures très précise</li><li>Mises à jour orthophoto fréquentes</li><li>API bien intégrée</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de couverture France (ou très partielle)</li><li>Pas de données foncières FR</li><li>Pas de CRM</li><li>Très onéreux</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis (k€/an) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement données aériennes &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs solaires USA/AUS/UK</p>
+  
+</div>
+<div class="card" id="Paladin_Energy_(ex-SolarNinjas)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Paladin Energy (ex-SolarNinjas)</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Paladin Energy (UK) &nbsp;|&nbsp;
+         Fondé : 2019 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🚫 Non disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">23</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:22.9%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Plateforme SaaS de prospection et développement de projets solaires UK. Partage certaines similarités avec HeliaPV (cartographie + CRM + données foncières) mais adapté au marché britannique, pas français.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Approche intégrée proche de HeliaPV</li><li>Données foncières UK intégrées</li><li>CRM basique intégré</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Absent du marché français</li><li>Pas de données IGN / GPU / Enedis</li><li>Interface anglaise</li><li>Pas de génération documents FR</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis &nbsp;|&nbsp;
+     <strong>Modèle :</strong> SaaS prospection ENR &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs projets solaires UK</p>
+  
+</div><h3><span class="badge badge-e">Logiciel SaaS Installateurs PV</span></h3>
+<div class="card" id="Solteo">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Solteo</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Solteo SAS (France) &nbsp;|&nbsp;
+         Fondé : 2020 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">26</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:25.7%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS B2B</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Solteo se positionne comme la 'plateforme n°1 des installateurs PV' en France. SaaS B2B axé sur la productivité des équipes : étude solaire complète en 10 minutes, propositions commerciales professionnelles, application mobile pour visites techniques terrain, coordination commerciaux/techniciens/ADV, déclarations préalables semi-automatisées, et dossiers Enedis/Consuel automatisés. 8 000+ projets réalisés avec la plateforme. Fort sur le workflow installateur mais sans cartographie/SIG, sans simulation PVGIS précise, sans CRM prospection, sans AO CRE et sans IA générative.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Étude solaire complète en 10 minutes</li><li>Application mobile dédiée visites terrain</li><li>Génération automatique dossiers Enedis et Consuel</li><li>DP mairie semi-automatisée</li><li>Coordination équipes (commerce/technique/ADV)</li><li>Forte adoption France – 8 000+ projets</li><li>Interface intuitive orientée PME installateurs</li><li>Calendrier projets et suivi avancement</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de cartographie SIG / prospection foncière</li><li>Pas d'intégration IGN LiDAR HD, RPG, cadastre, GPU PLU</li><li>Pas de simulation PVGIS 8760h précise</li><li>Pas de CRM prospection (recherche partenaires/prospects)</li><li>Pas d'AO CRE PPE2 bâtiment > 500 kWc</li><li>Pas d'IA conversationnelle intégrée</li><li>Pas de données réseau BT/HTA Enedis</li><li>Pas d'annuaire SIRENE / prospection B2B</li><li>Orienté résidentiel/petit tertiaire uniquement</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur démo (non public) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS mensuel/annuel &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs PV PME France – résidentiel & petit tertiaire</p>
+  
+</div>
+<div class="card" id="Reonic">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Reonic</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Reonic GmbH (Allemagne) &nbsp;|&nbsp;
+         Fondé : 2020 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS B2B</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">SaaS allemand multi-technologie (PV + stockage + wallbox + pompes à chaleur) pour installateurs. Levée de fonds Série A de 13 M€ en septembre 2024. 2 000+ clients installateurs en Europe. Interface disponible en français. Fonctionnalités clés : planification toiture (couverture automatique), configuration strings, sélection onduleurs, calcul économique, CRM Kanban, signature numérique, base de composants 150 000+ entrées (2 000+ fabricants), app mobile iOS/Android, option white-label. Très fort en DACH, montée en puissance sur le marché français. Manque les spécificités réglementaires FR (données IGN/cadastre/GPU/RPG, CERFA DP 13703, NF C 15-712, AO CRE PPE2, Enedis Data Connect).</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Multi-technologie : PV + stockage + IRVE + PAC</li><li>Base composants 150 000+ entrées (2 000+ fabricants)</li><li>CRM Kanban intégré avec signature numérique</li><li>Application mobile iOS/Android complète</li><li>Option white-label pour les réseaux d'installateurs</li><li>Interface disponible en français</li><li>Forte traction Europe – 2 000+ clients</li><li>Levée 13 M€ – croissance rapide</li><li>Calcul économique multi-scénarios (autoconsommation, surplus, batterie)</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Pas de données foncières françaises (IGN, RPG, cadastre, GPU PLU)</li><li>Pas d'intégration LiDAR HD IGN</li><li>Pas de données réseau électrique Enedis BT/HTA</li><li>Pas d'AO CRE PPE2 bâtiment > 500 kWc</li><li>Pas de génération CERFA DP 13703 / Enedis 16702</li><li>Pas de schéma unifilaire NF C 15-712 conforme</li><li>Pas d'IA solaire conversationnelle</li><li>Pas d'intégration Enedis Data Connect (courbes de charge)</li><li>Pas d'annuaire SIRENE / prospection B2B terrain</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis (levée Série A 13 M€ sept. 2024) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS + white-label &nbsp;|&nbsp;
+     <strong>Cible :</strong> Installateurs PV + stockage + IRVE + PAC – Europe (fort DACH, présent FR)</p>
+  
+</div><h3><span class="badge badge-e">Marketplace PV Résidentiel</span></h3>
+<div class="card" id="ProjetSolaire">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">ProjetSolaire</h3>
+      <p style="color:var(--muted);font-size:0.9rem">ProjetSolaire SAS (France) &nbsp;|&nbsp;
+         Fondé : 2018 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🇫🇷 Éditeur français</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13.3%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">Plateforme gratuite (propriétaires) + commission installateurs</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">ProjetSolaire est une marketplace française mettant en relation des propriétaires souhaitant installer des panneaux solaires avec des installateurs certifiés RGE. Fonctionne sur un système d'enchères inversées : les propriétaires déposent leur projet (gratuit), les installateurs font des offres compétitives. 3 000+ projets réalisés, 100+ installateurs partenaires. Réduit le coût des projets de ~40% via la mise en concurrence. Propose aussi une place de marché matériaux et un suivi administratif. N'est PAS un logiciel de prospection ou de développement de projets PV : pas de cartographie SIG, pas de simulation PVGIS précise, pas de données foncières ou réseau électrique, pas d'AO CRE. Cible essentiellement le résidentiel grand public.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Forte notoriété B2C en France</li><li>Réseau 100+ installateurs RGE certifiés</li><li>Réduction tarifaire ~40% via enchères</li><li>Suivi administratif inclus pour les propriétaires</li><li>Place de marché matériaux PV</li><li>Outils de dimensionnement simplifié pour installateurs</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Modèle B2C : pas adapté aux développeurs industriels/agricoles</li><li>Pas de cartographie SIG / prospection foncière multi-parcelles</li><li>Pas de simulation PVGIS 8760h précise</li><li>Pas de données IGN/cadastre/GPU/RPG</li><li>Pas d'AO CRE PPE2 bâtiment</li><li>Pas de schéma unifilaire NF C 15-712</li><li>Pas d'IA intégrée</li><li>Pas de CRM développeur de projets</li><li>Pas d'intégration données réseau Enedis BT/HTA</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Gratuit pour les propriétaires, commission sur projets &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Marketplace / commissions + outils installateurs sur devis &nbsp;|&nbsp;
+     <strong>Cible :</strong> Propriétaires résidentiels (B2C) + installateurs RGE</p>
+  
+</div><h3><span class="badge badge-e">Prospection Grands Projets Utility-Scale</span></h3>
+<div class="card" id="Glint_Solar">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="color:var(--text)">Glint Solar</h3>
+      <p style="color:var(--muted);font-size:0.9rem">Glint Solar AS (Norvège) &nbsp;|&nbsp;
+         Fondé : 2019 &nbsp;|&nbsp;
+         <span style="color:var(--accent)">🌐 Disponible FR</span></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div>
+      <div style="font-size:0.8rem;color:var(--muted)">SaaS B2B</div>
+    </div>
+  </div>
+  <p style="margin:0.8rem 0;font-size:0.9rem;line-height:1.6">Glint Solar est une plateforme SaaS norvégienne spécialisée dans le développement de projets solaires de grande échelle (utility-scale) et de stockage BESS. Fonctionnalités phares : prospection de sites via SIG centralisé, filtrage des terres qualifiées selon contraintes, conception préliminaire avec visualisation 3D et profil d'élévation, analyse de rendement préliminaire, feasibility BESS, collaboration d'équipes (BD/SIG/Ingénierie), gestion de pipeline de projets, export de visuels pour permitting et négociation foncière. Clients notables incluant TotalEnergies, Photosol (France), Statkraft, Recurrent Energy, Alight. Interface uniquement en anglais. Pas de données françaises spécifiques (IGN/cadastre/GPU/RPG/Enedis), pas de CRM commercial, pas de génération de documents réglementaires français.</p>
+  <div class="grid2">
+    <div>
+      <p><strong style="color:var(--green)">✅ Points forts</strong></p>
+      <ul class="pros"><li>Spécialisé utility-scale : outil de référence pour les grands développeurs</li><li>SIG centralisé avec filtrage avancé des contraintes foncières</li><li>Visualisation 3D avec profil d'élévation (DEM)</li><li>Analyse BESS (Battery Energy Storage System) intégrée</li><li>Collaboration multi-équipes (BD/SIG/Ingénierie)</li><li>Gestion pipeline projets (like CRM BD)</li><li>Clients top-tier : TotalEnergies, Photosol, Statkraft</li><li>Export visuels permitting et présentation propriétaires</li><li>+80 MW de pipeline généré en 1 mois (témoignage Alight)</li></ul>
+    </div>
+    <div>
+      <p><strong style="color:var(--red)">❌ Points faibles vs HeliaPV</strong></p>
+      <ul class="cons"><li>Interface anglaise uniquement – pas de localisation française</li><li>Pas de données françaises spécifiques (IGN, RPG, cadastre, GPU PLU)</li><li>Pas d'intégration LiDAR HD IGN COPC</li><li>Pas de données réseau Enedis BT/HTA FR</li><li>Pas de génération documents réglementaires FR (CERFA, DP, NF C 15-712)</li><li>Pas d'AO CRE PPE2 bâtiment</li><li>Pas de CRM commercial (prospection client)</li><li>Pas d'IA conversationnelle</li><li>Pas d'intégration Enedis Data Connect</li><li>Focalisé utility-scale : pas adapté résidentiel/agricole/bâtiment <500 kWc</li></ul>
+    </div>
+  </div>
+  <p style="margin-top:0.8rem"><strong>Tarification :</strong> Sur devis (pricing enterprise) &nbsp;|&nbsp;
+     <strong>Modèle :</strong> Abonnement SaaS – tarification sur devis &nbsp;|&nbsp;
+     <strong>Cible :</strong> Développeurs de projets solaires utility-scale + BESS (>1 MWc)</p>
+  
+</div>
+</div>
+
+<!-- POSITIONNEMENT -->
+<div class="card" id="positionnement">
+  <h2 style="margin-top:0">💶 6. Comparatif Positionnement & Prix</h2>
+  
+<table>
+<thead>
+  <tr><th>Logiciel</th><th>Catégorie</th><th>Prix indicatif</th><th>Modèle économique</th><th>FR</th><th>Score</th></tr>
+</thead>
+<tbody>
+  <tr style="background:#0d2b1a">
+    <td><strong style="color:var(--green)">★ HeliaPV</strong></td>
+    <td>Solution complète SaaS PV</td>
+    <td style="color:var(--green)">Freemium (50 rech. trial) + abonnements</td>
+    <td>SaaS Stripe multi-niveaux</td>
+    <td>🇫🇷</td>
+    <td><div class="score-bar"><span class="score-num score-high">96</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-heliapv" style="width:96.2%;height:8px;border-radius:4px;"></div></div></div></td>
+  </tr>
+  <tr>
+          <td><strong>PVsyst</strong></td>
+          <td>Simulation & Conception PV</td>
+          <td>~800–1200 €/an/utilisateur</td>
+          <td>Licence annuelle perpétuelle</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">17</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:17.1%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Archelios Pro / MC</strong></td>
+          <td>Simulation & Conception PV</td>
+          <td>Gratuit (≤9 kWc) / 990 €/an (Silver ≤100 kWc) / 1 490 €/an (Gold ≤1 MWc) / 1 990 €/an (Platinum illimité)</td>
+          <td>Abonnement SaaS annuel – 4 niveaux (Free/Silver/Gold/Platinum)</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">25</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:24.8%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Helioscope</strong></td>
+          <td>Simulation & Conception PV</td>
+          <td>~200–500 $/mois</td>
+          <td>Abonnement mensuel/annuel SaaS</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Aurora Solar</strong></td>
+          <td>Simulation & Conception PV</td>
+          <td>~300–600 $/mois</td>
+          <td>Abonnement SaaS + modules additionnels</td>
+          <td>❌</td>
+          <td><div class="score-bar"><span class="score-num score-low">30</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:30.5%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Solarius PV</strong></td>
+          <td>Simulation & Conception PV</td>
+          <td>~400–800 €/an</td>
+          <td>Licence annuelle</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">12</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:12.4%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Solargis Prospect</strong></td>
+          <td>Prospection & Données Solaires</td>
+          <td>Sur devis (plusieurs k€/an)</td>
+          <td>Abonnement entreprise + crédits API</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">10</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:10.5%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>EnergyMap / Sunroof (Google)</strong></td>
+          <td>Prospection & Données Solaires</td>
+          <td>Gratuit</td>
+          <td>Publicité / données internes Google</td>
+          <td>❌</td>
+          <td><div class="score-bar"><span class="score-num score-low">11</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:11.4%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Tecsol / Logiciels CRE</strong></td>
+          <td>Conseil & Outils CRE</td>
+          <td>Sur devis</td>
+          <td>Conseil + projets</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">8</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:7.6%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Gis&Sol / Urbasolar Prospection</strong></td>
+          <td>Cartographie & SIG Énergie</td>
+          <td>Sur devis</td>
+          <td>Abonnement + prestation</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">19</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:19.0%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Géoplateforme IGN (libre)</strong></td>
+          <td>Cartographie & SIG Énergie</td>
+          <td>Gratuit (APIs)</td>
+          <td>Service public gratuit</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">19</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:19.0%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>EnR Prospection / Windfall</strong></td>
+          <td>Cartographie & SIG Énergie</td>
+          <td>Sur devis</td>
+          <td>Abonnement SaaS</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13.3%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Salesforce Energy & Utilities</strong></td>
+          <td>CRM Énergie</td>
+          <td>75–300 €/utilisateur/mois</td>
+          <td>Abonnement SaaS par siège</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">18</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:18.1%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Pegase (Logiciel ERP Energie)</strong></td>
+          <td>CRM Énergie</td>
+          <td>500–2000 €/mois</td>
+          <td>Abonnement ERP</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">18</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:18.1%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>SolarEdge Monitoring / mySolarEdge</strong></td>
+          <td>Monitoring & CRM Monitoring</td>
+          <td>Gratuit avec matériel</td>
+          <td>Ecosystem fermé SolarEdge</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">9</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:8.6%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Nearmap Solar (Verisk)</strong></td>
+          <td>Données Aériennes & IA</td>
+          <td>Sur devis (k€/an)</td>
+          <td>Abonnement données aériennes</td>
+          <td>❌</td>
+          <td><div class="score-bar"><span class="score-num score-low">16</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:16.2%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Paladin Energy (ex-SolarNinjas)</strong></td>
+          <td>Données Aériennes & IA</td>
+          <td>Sur devis</td>
+          <td>SaaS prospection ENR</td>
+          <td>❌</td>
+          <td><div class="score-bar"><span class="score-num score-low">23</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:22.9%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Solteo</strong></td>
+          <td>Logiciel SaaS Installateurs PV</td>
+          <td>Sur démo (non public)</td>
+          <td>Abonnement SaaS mensuel/annuel</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">26</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:25.7%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Reonic</strong></td>
+          <td>Logiciel SaaS Installateurs PV</td>
+          <td>Sur devis (levée Série A 13 M€ sept. 2024)</td>
+          <td>Abonnement SaaS + white-label</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>ProjetSolaire</strong></td>
+          <td>Marketplace PV Résidentiel</td>
+          <td>Gratuit pour les propriétaires, commission sur projets</td>
+          <td>Marketplace / commissions + outils installateurs sur devis</td>
+          <td>🇫🇷</td>
+          <td><div class="score-bar"><span class="score-num score-low">13</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:13.3%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr><tr>
+          <td><strong>Glint Solar</strong></td>
+          <td>Prospection Grands Projets Utility-Scale</td>
+          <td>Sur devis (pricing enterprise)</td>
+          <td>Abonnement SaaS – tarification sur devis</td>
+          <td>✅</td>
+          <td><div class="score-bar"><span class="score-num score-low">24</span><div style="flex:1;background:#1f2937;border-radius:4px;height:8px;"><div class="bar bar-low" style="width:23.8%;height:8px;border-radius:4px;"></div></div></div></td>
+        </tr>
+</tbody>
+</table>
+<br>
+<p style="color:var(--muted);font-size:0.9rem">
+  <strong>Constat :</strong> HeliaPV est le <strong>seul acteur français</strong> à proposer
+  une solution freemium accessible aux PME couvrant prospection, simulation, CRM et
+  génération documentaire réglementaire française dans un seul outil.
+</p>
+
+</div>
+
+<!-- OPPORTUNITÉS -->
+<div class="card" id="opportunites">
+  <h2 style="margin-top:0">🚀 7. Opportunités Différenciantes pour HeliaPV</h2>
+  
+<div class="grid2">
+  <div>
+    <h3>🏆 Avantages compétitifs HeliaPV</h3>
+    <ul>
+      <li><strong>Intégration unique données françaises :</strong> Seule solution combinant IGN (BAN, cadastre, LiDAR HD), GPU (PLU/PLUi), GeoRisques, RPG, SIRENE, Enedis dans un seul outil</li>
+      <li><strong>Génération documents réglementaires FR :</strong> CERFA DP, CERFA Enedis 16702, schéma unifilaire NF C 15-712 – aucun concurrent ne le propose nativement</li>
+      <li><strong>AO CRE PPE2 :</strong> Wizard unique sur le marché pour répondre aux appels d'offres bâtiment >500 kWc avec bilan carbone par pays</li>
+      <li><strong>CRM + Technique = One-stop-shop :</strong> Pas besoin d'alterner 3-4 outils (SIG + simulation + CRM + documents)</li>
+      <li><strong>Modèle freemium accessible :</strong> Seul concurrent à offrir un essai gratuit significatif vs licences annuelles €€€</li>
+      <li><strong>Helia IA française :</strong> Assistant IA dédié au marché PV français avec function calling réel sur la plateforme</li>
+    </ul>
+  </div>
+  <div>
+    <h3>⚡ Axes de différenciation à renforcer</h3>
+    <ul>
+      <li><strong>Simulation P50/P90 bankable :</strong> PVsyst reste le standard bancaire – une certification ou import PVsyst serait un avantage majeur</li>
+      <li><strong>Base modules certifiés Certisolis :</strong> Déjà intégrée, à valoriser dans la communication</li>
+      <li><strong>Intégration BIM/IFC :</strong> Tendance montante pour les grands projets (>1 MWc)</li>
+      <li><strong>API ouverte :</strong> Exposer certaines fonctionnalités en API pour les intégrateurs</li>
+      <li><strong>Mobile natif :</strong> Application mobile pour la visite technique terrain</li>
+      <li><strong>Export PVsyst :</strong> Export au format PVsyst pour validation bancaire</li>
+      <li><strong>Connecteurs ERP :</strong> Intégration Sage, Cegid, SAP pour les grands comptes</li>
+    </ul>
+  </div>
+</div>
+<br>
+<h3>🎯 Segments à cibler en priorité</h3>
+<div class="grid3">
+  <div class="card" style="background:#0d1f12">
+    <strong style="color:var(--green)">1. Développeurs PV médians</strong><br>
+    <small>Projets 100 kWc – 10 MWc, équipes 5-50 personnes, aujourd'hui sur PVsyst + Excel + GIS séparés</small>
+  </div>
+  <div class="card" style="background:#0d1a2b">
+    <strong style="color:var(--accent2)">2. Installateurs C&I</strong><br>
+    <small>Toitures industrie/tertiaire, cherchent tout-en-un : prospection + calpinage + devis + dossier admin</small>
+  </div>
+  <div class="card" style="background:#1a0d2b">
+    <strong style="color:var(--accent)">3. Bureaux d'études ENR</strong><br>
+    <small>Besoin de rapports bankables, suivi chantier IEC 62446, AO CRE PPE2 – segment premium</small>
+  </div>
+</div>
+
+</div>
+
+<!-- CONCLUSION -->
+<div class="card" id="conclusion">
+  <h2 style="margin-top:0">🎯 8. Conclusion Stratégique</h2>
+  
+<p>Suite à l'analyse de <strong>20 logiciels concurrents</strong> répartis en
+10 catégories, <strong>HeliaPV obtient un score de 96%</strong>
+contre <strong>30%</strong> pour le meilleur concurrent direct
+(Aurora Solar).</p>
+
+<br>
+
+<h3>🔑 Points clés</h3>
+<ul>
+  <li><strong>Aucun concurrent direct identifié sur le territoire français</strong> couvrant l'ensemble de la chaîne de valeur PV : prospection géographique → simulation → CRM → documents réglementaires → suivi chantier</li>
+  <li>Les concurrents sont fragmentés : PVsyst (simulation), Archelios (conception), GIS&Sol (cartographie), Pegase (ERP), Salesforce (CRM) – HeliaPV remplace 3 à 5 outils</li>
+  <li>Le marché US/UK est couvert par Aurora Solar et Helioscope mais <strong>sans adaptation au droit français</strong> (GPU, cadastre, normes NF, CERFA, Enedis)</li>
+  <li>L'intégration du <strong>LiDAR HD gratuit IGN</strong> est un avantage compétitif rare – seul HeliaPV l'exploite nativement pour l'analyse de toitures commerciales</li>
+  <li>Le module <strong>AO CRE PPE2</strong> est unique sur le marché français</li>
+</ul>
+
+<br>
+
+<h3>📈 Recommandations stratégiques</h3>
+<ul>
+  <li>Positionner HeliaPV comme la <strong>"suite complète pour développeurs PV français"</strong> face à la fragmentation des outils existants</li>
+  <li>Communiquer sur la <strong>conformité réglementaire française</strong> (CERFA, NF C 15-712, AO CRE PPE2) comme différenciateur clé</li>
+  <li>Développer un <strong>partenariat ou import/export PVsyst</strong> pour lever le frein bancaire</li>
+  <li>Cibler en priorité les équipes de développeurs PV qui utilisent aujourd'hui 3+ outils séparés</li>
+  <li>Lancer une stratégie de <strong>content marketing technique</strong> autour des APIs IGN, GPU, Enedis pour attirer les bureaux d'études</li>
+</ul>
+
+</div>
+
+<footer>
+  Rapport généré automatiquement par benchmark_concurrents_agent.py — HeliaPV / AgriWeb — 06 March 2026
+</footer>
+</body>
+</html>

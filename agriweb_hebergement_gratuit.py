@@ -669,6 +669,14 @@ try:
 except Exception as e:
     print(f"⚠️ [CHANTIER] Impossible d'enregistrer le blueprint chantier: {e}")
 
+# Blog / Content Marketing – APIs IGN, GPU, Enedis, PVGIS
+try:
+    from blog_routes import blog_bp
+    app.register_blueprint(blog_bp)
+    print("📝 [BLOG] Blueprint content marketing enregistré (/blog, /bureaux-etudes)")
+except Exception as e:
+    print(f"⚠️ [BLOG] Impossible d'enregistrer le blueprint blog: {e}")
+
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
 def redirect_register():

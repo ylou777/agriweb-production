@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.titre }} | Blog HeliaPV</title>
+<meta name="description" content="{{ meta.description }}">
+<meta name="keywords" content="GPU, Géoportail de l'Urbanisme, PLU, PLUi, WFS, photovoltaïque, zonage, faisabilité réglementaire, API urbanisme France">
+<link rel="canonical" href="https://app.heliapv.fr/blog/api-gpu-plu-zonage-pv">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body class="blog-body">
+
+<nav class="blog-topbar">
+  <div class="blog-topbar-inner">
+    <a href="/app" class="blog-logo">☀️ <span>Helia<span class="logo-accent">PV</span></span></a>
+    <div class="blog-topbar-nav">
+      <a href="/blog">← Blog</a>
+      <a href="/bureaux-etudes">Bureaux d'études</a>
+      <a href="/auth/register" class="btn-cta-nav">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="blog-hero">
+  <div class="blog-hero-inner">
+    <div class="category-tag">🗺️ {{ meta.categorie }}</div>
+    <h1>API GPU Géoportail de l'Urbanisme :<br><em>qualifier la faisabilité PLU</em> de vos projets PV en Python</h1>
+    <p class="lead">
+      Avant toute étude de faisabilité PV, il faut vérifier que la zone est constructible.
+      Le Géoportail de l'Urbanisme (GPU) expose tous les PLU et PLUi de France via une API WFS gratuite.
+      Ce tutoriel montre comment l'interroger en Python pour qualifier une parcelle en 5 secondes.
+    </p>
+    <div class="blog-hero-meta">
+      <span>📅 {{ meta.date }}</span>
+      <span>⏱ {{ meta.lecture }} de lecture</span>
+      {% for tag in meta.tags %}<span class="tag-pill">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+</header>
+
+<div class="blog-layout">
+  <main class="article-content">
+
+    <h2 id="intro">Le Géoportail de l'Urbanisme : une mine pour les développeurs PV</h2>
+    <p>
+      En France, toute installation photovoltaïque au sol ou en toiture dépassant une certaine puissance
+      est soumise à la réglementation d'urbanisme locale — <strong>Plan Local d'Urbanisme (PLU)</strong>,
+      <strong>PLUi</strong> (intercommunal) ou carte communale. Une erreur de zone au stade de la prospection
+      peut invalider des semaines de travail.
+    </p>
+    <p>
+      Le <a href="https://www.geoportail-urbanisme.gouv.fr" target="_blank">GPU</a>, géré par le Ministère chargé
+      de l'Urbanisme, centralise les documents d'urbanisme de 35 000+ communes françaises et les expose
+      via des services WFS standards. Les données sont disponibles sans authentification ni quota.
+    </p>
+
+    <div class="callout callout-info">
+      <div class="callout-title">ℹ️ WFS vs WMS</div>
+      <p>
+        Le GPU expose deux types de services : <strong>WMS</strong> (images raster pour l'affichage cartographique)
+        et <strong>WFS</strong> (données vecteur pour les requêtes attributaires). Pour l'analyse programmatique
+        (identifier la zone d'une parcelle), on utilise exclusivement le WFS.
+      </p>
+    </div>
+
+    <h2 id="zones-plu">Comprendre les zones PLU pour le photovoltaïque</h2>
+    <p>Les systèmes PV sont généralement autorisés en zones :</p>
+    <ul>
+      <li><strong>U (Urbaine)</strong> : Constructible, PV bâtiment autorisé, centrales au sol souvent interdites</li>
+      <li><strong>AU (À Urbaniser)</strong> : Constructible sous conditions – à vérifier dans le règlement</li>
+      <li><strong>A (Agricole)</strong> : Centrale agrivoltaïque possible, autres PV soumis à conditions strictes</li>
+      <li><strong>N (Naturelle)</strong> : Généralement interdit sauf exceptions PV au sol sous dérogation préfectorale</li>
+    </ul>
+    <p>
+      Le règlement graphique et le règlement écrit du PLU précisent les conditions exactes.
+      L'API GPU vous donne la zone — votre équipe juridique vérifie les prescriptions textuelles.
+    </p>
+
+    <h2 id="endpoint">Endpoint WFS GPU et paramètres clés</h2>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">gpu_client.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> requests
+<span class="kw">import</span> json
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="cmt"># ── Endpoint principal du GPU ─────────────────────────────────────────────────</span>
+GPU_WFS_URL = <span class="str">"https://www.geoportail-urbanisme.gouv.fr/api/wfs/metadata"</span>
+GPU_WFS_DATA = <span class="str">"https://www.geoportail-urbanisme.gouv.fr/api/wfs"</span>
+
+<span class="cmt"># Couches disponibles (type names WFS)</span>
+COUCHES = {
+    <span class="str">"zones_urba"</span>:       <span class="str">"GPU:zone_urba"</span>,         <span class="cmt"># Zones d'urbanisme PLU/PLUi</span>
+    <span class="str">"prescriptions"</span>:   <span class="str">"GPU:prescription_surf"</span>,  <span class="cmt"># Prescriptions surfaciques</span>
+    <span class="str">"info_surf"</span>:       <span class="str">"GPU:info_surf"</span>,          <span class="cmt"># Informations surfaciques</span>
+    <span class="str">"communes"</span>:        <span class="str">"GPU:commune"</span>,            <span class="cmt"># Communes avec doc d'urbanisme</span>
+}
+
+
+<span class="kw">def</span> <span class="fn">recuperer_zone_plu</span>(lat: <span class="cls">float</span>, lon: <span class="cls">float</span>) -> <span class="cls">Optional</span>[<span class="cls">dict</span>]:
+    <span class="str">"""
+    Interroge le PLU/PLUi d'un point GPS et retourne la zone d'urbanisme.
+    
+    Returns:
+        dict avec clés : zone_type (str), libelle (str), commune (str), 
+                         doc_id (str), constructible (bool, heuristique)
+    """</span>
+    params = {
+        <span class="str">"SERVICE"</span>:    <span class="str">"WFS"</span>,
+        <span class="str">"VERSION"</span>:    <span class="str">"2.0.0"</span>,
+        <span class="str">"REQUEST"</span>:    <span class="str">"GetFeature"</span>,
+        <span class="str">"TYPENAMES"</span>:  <span class="str">"GPU:zone_urba"</span>,
+        <span class="str">"CRS"</span>:        <span class="str">"EPSG:4326"</span>,
+        <span class="str">"count"</span>:      <span class="num">5</span>,
+        <span class="str">"OUTPUTFORMAT"</span>: <span class="str">"application/json"</span>,
+        <span class="cmt"># Filtre CQL : intersection avec le point GPS</span>
+        <span class="str">"CQL_FILTER"</span>: <span class="str">f"INTERSECTS(geom,POINT(<span class="var">{lon}</span> <span class="var">{lat}</span>))"</span>,
+    }
+
+    <span class="kw">try</span>:
+        resp = requests.<span class="fn">get</span>(GPU_WFS_DATA, params=params, timeout=<span class="num">15</span>)
+        resp.<span class="fn">raise_for_status</span>()
+        data = resp.<span class="fn">json</span>()
+    <span class="kw">except</span> <span class="cls">requests.RequestException</span> <span class="kw">as</span> e:
+        <span class="kw">return</span> {<span class="str">"erreur"</span>: <span class="str">f"Requête GPU échouée: <span class="var">{e}</span>"</span>}
+
+    features = data.get(<span class="str">"features"</span>, [])
+    <span class="kw">if</span> <span class="kw">not</span> features:
+        <span class="kw">return</span> {<span class="str">"zone_type"</span>: <span class="str">"INCONNU"</span>, <span class="str">"message"</span>: <span class="str">"Commune sans GPU numérique"</span>}
+
+    <span class="cmt"># Prendre le premier résultat (zone la plus précise)</span>
+    feat = features[<span class="num">0</span>]
+    props = feat.get(<span class="str">"properties"</span>, {})
+
+    libelle  = props.get(<span class="str">"libelle"</span>, <span class="str">""</span>)     <span class="cmt"># ex: "UA", "Ub", "AU"</span>
+    typezone = props.get(<span class="str">"typezone"</span>, <span class="str">""</span>)   <span class="cmt"># ex: "U", "AU", "A", "N"</span>
+    liblong  = props.get(<span class="str">"libellelong"</span>, <span class="str">""</span>) <span class="cmt"># ex: "Zone urbaine générale"</span>
+    doc_id   = props.get(<span class="str">"partition"</span>, <span class="str">""</span>)    <span class="cmt"># identifiant du document</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"zone_type"</span>:    typezone,
+        <span class="str">"libelle"</span>:      libelle,
+        <span class="str">"libelle_long"</span>: liblong,
+        <span class="str">"doc_id"</span>:       doc_id,
+        <span class="str">"constructible"</span>: typezone <span class="kw">in</span> (<span class="str">"U"</span>, <span class="str">"AU"</span>),   <span class="cmt"># heuristique simplifiée</span>
+        <span class="str">"favorable_pv_sol"</span>: typezone == <span class="str">"A"</span>,         <span class="cmt"># heuristique agrivoltaïque</span>
+    }
+</code></pre>
+    </div>
+
+    <h2 id="commune">Vérifier si une commune a un document GPU numérique</h2>
+    <p>
+      Toutes les communes ne sont pas encore numérisées dans GPU. Avant d'interroger les zones,
+      vérifiez qu'un document d'urbanisme est disponible pour le code INSEE concerné.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">gpu_commune_check.py</span>
+      </div>
+      <pre><code><span class="kw">def</span> <span class="fn">commune_a_gpu</span>(code_insee: <span class="cls">str</span>) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    Vérifie si une commune a un document d'urbanisme dans GPU et retourne
+    l'identifiant du document actif (PLU, PLUi, carte communale, RNU).
+    """</span>
+    params = {
+        <span class="str">"SERVICE"</span>:    <span class="str">"WFS"</span>,
+        <span class="str">"VERSION"</span>:    <span class="str">"2.0.0"</span>,
+        <span class="str">"REQUEST"</span>:    <span class="str">"GetFeature"</span>,
+        <span class="str">"TYPENAMES"</span>:  <span class="str">"GPU:commune"</span>,
+        <span class="str">"CQL_FILTER"</span>: <span class="str">f"codeinsee='{code_insee}'"</span>,
+        <span class="str">"OUTPUTFORMAT"</span>: <span class="str">"application/json"</span>,
+    }
+
+    resp = requests.<span class="fn">get</span>(GPU_WFS_DATA, params=params, timeout=<span class="num">15</span>)
+    features = resp.<span class="fn">json</span>().get(<span class="str">"features"</span>, [])
+
+    <span class="kw">if</span> <span class="kw">not</span> features:
+        <span class="kw">return</span> {<span class="str">"gpu_disponible"</span>: <span class="cls">False</span>, <span class="str">"type_doc"</span>: <span class="str">"RNU"</span>}
+
+    props = features[<span class="num">0</span>][<span class="str">"properties"</span>]
+    <span class="kw">return</span> {
+        <span class="str">"gpu_disponible"</span>: <span class="cls">True</span>,
+        <span class="str">"type_doc"</span>:       props.get(<span class="str">"libelle"</span>, <span class="str">""</span>),   <span class="cmt"># "PLU", "PLUi", "CC"…</span>
+        <span class="str">"date_approb"</span>:    props.get(<span class="str">"datapprobation"</span>, <span class="str">""</span>),
+        <span class="str">"partition"</span>:      props.get(<span class="str">"partition"</span>, <span class="str">""</span>),
+    }
+
+
+<span class="cmt"># Exemple : Lyon 7ème (INSEE 69387)</span>
+info = <span class="fn">commune_a_gpu</span>(<span class="str">"69387"</span>)
+<span class="fn">print</span>(info)
+<span class="cmt"># → {'gpu_disponible': True, 'type_doc': 'PLU', 'date_approb': '2022-06-27', ...}</span>
+</code></pre>
+    </div>
+
+    <h2 id="qualification">Pipeline de qualification automatique d'un portefeuille de sites</h2>
+    <p>
+      En prospection intensive, un bureau d'études peut avoir plusieurs centaines de sites à qualifier chaque semaine.
+      Voici un pipeline asynchrone pour qualifier un CSV d'adresses en quelques minutes.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">batch_qualification.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> aiohttp
+<span class="kw">import</span> csv
+
+<span class="kw">async def</span> <span class="fn">qualifier_site_async</span>(session, lat, lon, nom_site):
+    <span class="str">"""Version asynchrone de la qualification GPU."""</span>
+    url = <span class="str">"https://www.geoportail-urbanisme.gouv.fr/api/wfs"</span>
+    params = {
+        <span class="str">"SERVICE"</span>: <span class="str">"WFS"</span>, <span class="str">"VERSION"</span>: <span class="str">"2.0.0"</span>,
+        <span class="str">"REQUEST"</span>: <span class="str">"GetFeature"</span>, <span class="str">"TYPENAMES"</span>: <span class="str">"GPU:zone_urba"</span>,
+        <span class="str">"CQL_FILTER"</span>: <span class="str">f"INTERSECTS(geom,POINT(<span class="var">{lon}</span> <span class="var">{lat}</span>))"</span>,
+        <span class="str">"OUTPUTFORMAT"</span>: <span class="str">"application/json"</span>, <span class="str">"count"</span>: <span class="num">1</span>,
+    }
+    <span class="kw">async with</span> session.<span class="fn">get</span>(url, params=params, timeout=<span class="fn">aiohttp.ClientTimeout</span>(total=<span class="num">12</span>)) <span class="kw">as</span> resp:
+        data = <span class="kw">await</span> resp.<span class="fn">json</span>(content_type=<span class="cls">None</span>)
+        features = data.get(<span class="str">"features"</span>, [])
+        zone = features[<span class="num">0</span>][<span class="str">"properties"</span>][<span class="str">"typezone"</span>] <span class="kw">if</span> features <span class="kw">else</span> <span class="str">"?"</span>
+        <span class="kw">return</span> {<span class="str">"site"</span>: nom_site, <span class="str">"lat"</span>: lat, <span class="str">"lon"</span>: lon, <span class="str">"zone_plu"</span>: zone}
+
+
+<span class="kw">async def</span> <span class="fn">qualifier_portefeuille</span>(sites: <span class="cls">list</span>) -> <span class="cls">list</span>:
+    <span class="str">"""
+    Qualifie tous les sites en parallèle (max 10 requêtes simultanées).
+    sites = [{'nom': ..., 'lat': ..., 'lon': ...}, ...]
+    """</span>
+    semaphore = asyncio.<span class="fn">Semaphore</span>(<span class="num">10</span>)
+
+    <span class="kw">async def</span> <span class="fn">_avec_sem</span>(session, site):
+        <span class="kw">async with</span> semaphore:
+            <span class="kw">return</span> <span class="kw">await</span> <span class="fn">qualifier_site_async</span>(session, site[<span class="str">"lat"</span>], site[<span class="str">"lon"</span>], site[<span class="str">"nom"</span>])
+
+    <span class="kw">async with</span> aiohttp.<span class="fn">ClientSession</span>() <span class="kw">as</span> session:
+        tasks = [<span class="fn">_avec_sem</span>(session, s) <span class="kw">for</span> s <span class="kw">in</span> sites]
+        <span class="kw">return</span> <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*tasks, return_exceptions=<span class="cls">True</span>)
+</code></pre>
+    </div>
+
+    <h2 id="limites">Limites de l'API GPU et alternatives</h2>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">⚠️ Points d'attention</div>
+      <ul>
+        <li><strong>Taux de couverture national</strong> : ~80% des communes fin 2025. Les communes rurales sous Règlement National d'Urbanisme (RNU) n'ont pas de données GPU.</li>
+        <li><strong>Délai de mise à jour</strong> : Les documents GPU peuvent avoir 6 à 18 mois de décalage avec les délibérations municipales.</li>
+        <li><strong>Interprétation</strong> : L'API donne la zone, pas le règlement écrit. Une zone « AU » peut être inconstructible en l'état (AU fermée).</li>
+      </ul>
+    </div>
+
+    <p>
+      En cas de commune sans GPU, les alternatives sont :
+    </p>
+    <ul>
+      <li>Contacter directement la mairie (DDT/DAACL)</li>
+      <li>Consulter Géoportail IGN (fond de carte PLU rasterisé)</li>
+      <li>Portail <code>api.gouv.fr</code> pour l'urbanisme (expérimental)</li>
+    </ul>
+
+    <div class="article-cta">
+      <h3>HeliaPV croise GPU, RPG et cadastre simultanément</h3>
+      <p>
+        Sur chaque site analysé, HeliaPV affiche automatiquement la zone PLU, la parcelle cadastrale,
+        le classement RPG et les contraintes GeoRisques — zéro requête API à coder.
+      </p>
+      <a href="/auth/register" class="btn-primary">Essai gratuit – 50 analyses offertes</a>
+      <a href="/bureaux-etudes" class="btn-secondary">Voir les fonctionnalités BET</a>
+    </div>
+
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:48px;padding-top:24px;border-top:1px solid #30363d">
+      <a href="/blog/api-ign-lidar-hd-solaire" style="color:#8b949e;text-decoration:none;font-size:.9rem">← Article précédent : IGN LiDAR HD</a>
+      <a href="/blog/enedis-data-connect-courbes-charge" style="color:#00d4ff;text-decoration:none;font-size:.9rem;margin-left:auto">Prochain : Enedis Data Connect →</a>
+    </div>
+  </main>
+
+  <aside class="blog-sidebar">
+    <div class="sidebar-card">
+      <h4>Table des matières</h4>
+      <ul class="toc-list">
+        <li><a href="#intro">Le GPU pour les développeurs PV</a></li>
+        <li><a href="#zones-plu">Zones PLU et photovoltaïque</a></li>
+        <li><a href="#endpoint">Endpoint WFS GPU</a></li>
+        <li><a href="#commune">Vérifier la couverture commune</a></li>
+        <li><a href="#qualification">Pipeline batch asynchrone</a></li>
+        <li><a href="#limites">Limites et alternatives</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-card" style="text-align:center">
+      <p style="color:#8b949e;font-size:.88rem;margin-bottom:16px">
+        Accédez au GPU et 13 autres APIs via HeliaPV. Essai gratuit immédiat.
+      </p>
+      <a href="/auth/register" class="btn-primary" style="font-size:.9rem;padding:10px 20px">Essai gratuit →</a>
+    </div>
+  </aside>
+</div>
+
+<footer class="blog-footer">
+  <p>© {{ annee }} HeliaPV · <a href="/blog">Blog technique</a> · <a href="/bureaux-etudes">Bureaux d'études</a></p>
+</footer>
+</body>
+</html>

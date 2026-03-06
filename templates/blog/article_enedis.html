@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.titre }} | Blog HeliaPV</title>
+<meta name="description" content="{{ meta.description }}">
+<meta name="keywords" content="Enedis Data Connect, OAuth2, Linky, courbes de charge, autoconsommation PV, API Enedis, consommation électrique">
+<link rel="canonical" href="https://app.heliapv.fr/blog/enedis-data-connect-courbes-charge">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body class="blog-body">
+
+<nav class="blog-topbar">
+  <div class="blog-topbar-inner">
+    <a href="/app" class="blog-logo">☀️ <span>Helia<span class="logo-accent">PV</span></span></a>
+    <div class="blog-topbar-nav">
+      <a href="/blog">← Blog</a>
+      <a href="/bureaux-etudes">Bureaux d'études</a>
+      <a href="/auth/register" class="btn-cta-nav">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="blog-hero">
+  <div class="blog-hero-inner">
+    <div class="category-tag">⚡ {{ meta.categorie }}</div>
+    <h1>Enedis Data Connect :<br>intégrer les <em>courbes de charge Linky</em><br>dans vos études PV</h1>
+    <p class="lead">
+      Le taux d'autoconsommation exact d'une installation PV dépend du profil de consommation réel du client.
+      L'API Enedis Data Connect donne accès aux données Linky heure par heure via OAuth2.
+      Ce tutoriel couvre tout le flux — de l'inscription à l'analyse des courbes.
+    </p>
+    <div class="blog-hero-meta">
+      <span>📅 {{ meta.date }}</span>
+      <span>⏱ {{ meta.lecture }} de lecture</span>
+      {% for tag in meta.tags %}<span class="tag-pill">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+</header>
+
+<div class="blog-layout">
+  <main class="article-content">
+
+    <h2 id="pourquoi">Pourquoi les courbes de charge Linky transforment vos études</h2>
+    <p>
+      Sans données de consommation réelles, les bureaux d'études utilisent des profils types 
+      (profil résidentiel H00, profil C5 tertiaire…) publiés par RTE.
+      Ces profils sont des moyennes nationales qui peuvent s'écarter de <strong>20% à 40%</strong>
+      de la consommation réelle d'un site industriel ou agricole.
+    </p>
+    <p>
+      Avec les données Linky, vous obtenez jusqu'à <strong>35 000 points de mesure</strong> par client
+      (mesures pas-d'heure sur 4 ans), ce qui permet de calculer :
+    </p>
+    <ul>
+      <li>Le taux d'autoconsommation <em>réel</em> (vs. estimé avec profil type)</li>
+      <li>Les pics de consommation et leur concordance avec la production PV</li>
+      <li>Le gain d'une batterie de stockage (courbe résiduelle après autoconsommation)</li>
+      <li>L'impact des tarifs TEMPO/EJP sur la rentabilité</li>
+    </ul>
+
+    <div class="callout callout-info">
+      <div class="callout-title">ℹ️ Consentement RGPD obligatoire</div>
+      <p>
+        Les données Linky sont des données personnelles. L'API Data Connect impose que le titulaire
+        du compteur donne son consentement explicite via le portail Enedis avant tout accès.
+        Ce consentement est valable 3 ans et peut être révoqué à tout moment.
+      </p>
+    </div>
+
+    <h2 id="inscription">Inscription à Enedis Data Connect (Portail Développeurs)</h2>
+    <p>
+      La plateforme est accessible sur <a href="https://datahub-enedis.fr" target="_blank">datahub-enedis.fr</a>.
+      Le processus d'inscription pour une entreprise prend généralement 5 à 10 jours ouvrables.
+    </p>
+    <ol>
+      <li>Créer un compte sur <code>datahub-enedis.fr</code></li>
+      <li>Choisir le périmètre : <em>Données de mesure</em> (courbes de charge) + <em>Données contractuelles</em> (puissance souscrite)</li>
+      <li>Déclarer votre URL de callback OAuth2</li>
+      <li>Obtenir votre <code>client_id</code> et <code>client_secret</code></li>
+      <li>Tester sur le sandbox avant la mise en production</li>
+    </ol>
+
+    <h2 id="oauth2">Flux OAuth2 complet</h2>
+    <p>
+      Data Connect utilise OAuth2 Authorization Code Flow. Le client (titulaire du compteur)
+      doit approuver la demande d'accès sur le portail Enedis.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">enedis_oauth.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> requests
+<span class="kw">import</span> urllib.parse
+<span class="kw">import</span> secrets
+<span class="kw">import</span> base64
+
+<span class="cmt"># ── Configuration ─────────────────────────────────────────────────────────────</span>
+ENEDIS_AUTH_URL   = <span class="str">"https://mon-compte-particulier.enedis.fr/dataconnect/v1/oauth2/authorize"</span>
+ENEDIS_TOKEN_URL  = <span class="str">"https://mon-compte-particulier.enedis.fr/dataconnect/v1/oauth2/token"</span>
+ENEDIS_API_BASE   = <span class="str">"https://ext.api.lincsesdc.cdc.enedis.fr/sg"</span>
+
+CLIENT_ID     = <span class="str">"votre_client_id"</span>      <span class="cmt"># À remplacer par votre identifiant</span>
+CLIENT_SECRET = <span class="str">"votre_client_secret"</span>  <span class="cmt"># À stocker en variable d'environnement !</span>
+REDIRECT_URI  = <span class="str">"https://votre-app.fr/callback"</span>
+
+
+<span class="kw">def</span> <span class="fn">construire_url_autorisation</span>(usage_point_id: <span class="cls">str</span> = <span class="cls">None</span>) -> <span class="cls">tuple</span>[<span class="cls">str</span>, <span class="cls">str</span>]:
+    <span class="str">"""
+    Génère l'URL de redirection vers Enedis pour le consentement.
+    Retourne (url, state) – conserver le state pour validation CSRF.
+    """</span>
+    state = secrets.<span class="fn">token_urlsafe</span>(<span class="num">32</span>)
+
+    params = {
+        <span class="str">"client_id"</span>:     CLIENT_ID,
+        <span class="str">"response_type"</span>: <span class="str">"code"</span>,
+        <span class="str">"redirect_uri"</span>:  REDIRECT_URI,
+        <span class="str">"state"</span>:         state,
+        <span class="str">"duration"</span>:      <span class="str">"P3Y"</span>,  <span class="cmt"># Durée du consentement : 3 ans (ISO 8601)</span>
+    }
+    <span class="kw">if</span> usage_point_id:
+        <span class="cmt"># Pré-remplir le numéro de compteur si connu</span>
+        params[<span class="str">"usage_point_id"</span>] = usage_point_id
+
+    url = ENEDIS_AUTH_URL + <span class="str">"?"</span> + urllib.parse.<span class="fn">urlencode</span>(params)
+    <span class="kw">return</span> url, state
+
+
+<span class="kw">def</span> <span class="fn">echanger_code_contre_token</span>(code: <span class="cls">str</span>) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    Échange le code d'autorisation (callback) contre un access_token.
+    Utilise l'authentification Basic (client_id:client_secret en Base64).
+    """</span>
+    credentials = <span class="str">f"<span class="var">{CLIENT_ID}</span>:<span class="var">{CLIENT_SECRET}</span>"</span>
+    b64 = base64.<span class="fn">b64encode</span>(credentials.<span class="fn">encode</span>()).<span class="fn">decode</span>()
+
+    headers = {
+        <span class="str">"Authorization"</span>: <span class="str">f"Basic <span class="var">{b64}</span>"</span>,
+        <span class="str">"Content-Type"</span>:  <span class="str">"application/x-www-form-urlencoded"</span>,
+    }
+    body = {
+        <span class="str">"grant_type"</span>:   <span class="str">"authorization_code"</span>,
+        <span class="str">"code"</span>:         code,
+        <span class="str">"redirect_uri"</span>: REDIRECT_URI,
+    }
+
+    resp = requests.<span class="fn">post</span>(ENEDIS_TOKEN_URL, headers=headers, data=body, timeout=<span class="num">15</span>)
+    resp.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> resp.<span class="fn">json</span>()
+    <span class="cmt"># Retourne : {'access_token': ..., 'refresh_token': ..., 'expires_in': 3600, ...}</span>
+</code></pre>
+    </div>
+
+    <h2 id="courbes">Récupération des courbes de charge (pas 30 min)</h2>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">enedis_consumption.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> datetime <span class="kw">import</span> date, timedelta
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+<span class="kw">def</span> <span class="fn">recuperer_courbe_charge</span>(
+    access_token: <span class="cls">str</span>,
+    usage_point_id: <span class="cls">str</span>,
+    date_debut: <span class="cls">date</span>,
+    date_fin: <span class="cls">date</span>,
+) -> pd.DataFrame:
+    <span class="str">"""
+    Récupère la courbe de charge de consommation (intervalles 30 min).
+    
+    Returns:
+        DataFrame avec colonnes : timestamp (UTC), wh (énergie Wh par pas),
+                                  w_moyen (puissance moyenne W par pas)
+    """</span>
+    url = <span class="str">f"<span class="var">{ENEDIS_API_BASE}</span>/metering_data/consumption_load_curve/v5"</span>
+    params = {
+        <span class="str">"usage_point_id"</span>: usage_point_id,
+        <span class="str">"start"</span>: date_debut.<span class="fn">isoformat</span>(),
+        <span class="str">"end"</span>:   date_fin.<span class="fn">isoformat</span>(),
+    }
+    headers = {
+        <span class="str">"Authorization"</span>: <span class="str">f"Bearer <span class="var">{access_token}</span>"</span>,
+        <span class="str">"Accept"</span>: <span class="str">"application/json"</span>,
+    }
+
+    resp = requests.<span class="fn">get</span>(url, params=params, headers=headers, timeout=<span class="num">30</span>)
+    resp.<span class="fn">raise_for_status</span>()
+    data = resp.<span class="fn">json</span>()
+
+    <span class="cmt"># Parsing de la réponse Enedis</span>
+    intervals = (data
+        .get(<span class="str">"meter_reading"</span>, {})
+        .get(<span class="str">"interval_reading"span>, [])
+    )
+
+    rows = []
+    <span class="kw">for</span> iv <span class="kw">in</span> intervals:
+        rows.<span class="fn">append</span>({
+            <span class="str">"timestamp"</span>: pd.<span class="fn">to_datetime</span>(iv[<span class="str">"date"</span>], utc=<span class="cls">True</span>),
+            <span class="str">"wh"</span>:        <span class="cls">float</span>(iv[<span class="str">"value"</span>]),
+        })
+
+    df = pd.<span class="fn">DataFrame</span>(rows).<span class="fn">set_index</span>(<span class="str">"timestamp"</span>).<span class="fn">sort_index</span>()
+    df[<span class="str">"w_moyen"</span>] = df[<span class="str">"wh"</span>] * <span class="num">2</span>     <span class="cmt"># Wh/30min → W moyen (×2 car ½ heure)</span>
+    <span class="kw">return</span> df
+</code></pre>
+    </div>
+
+    <h2 id="autoconsommation">Calculer le taux d'autoconsommation avec la courbe réelle</h2>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">calcul_autoconsommation.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+
+<span class="kw">def</span> <span class="fn">calculer_autoconsommation</span>(
+    df_consommation: pd.DataFrame,  <span class="cmt"># courbe Enedis (colonne 'wh', index UTC 30 min)</span>
+    df_production: pd.DataFrame,    <span class="cmt"># production PVGIS ou simulée (colonne 'wh', index UTC 30 min)</span>
+) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    Croise production PV et consommation réelle pour calculer :
+    - Taux d'autoconsommation (% production autoconsommée)
+    - Taux d'autosuffisance (% consommation couverte par PV)
+    - Surplus injecté (kWh/an)
+    - Économies annuelles estimées (€)
+    """</span>
+    <span class="cmt"># Aligner les deux séries sur le même index temporel</span>
+    df = pd.<span class="fn">DataFrame</span>({
+        <span class="str">"conso_wh"</span>: df_consommation[<span class="str">"wh"</span>],
+        <span class="str">"prod_wh"</span>:  df_production[<span class="str">"wh"</span>],
+    }).<span class="fn">dropna</span>()
+
+    <span class="cmt"># Pour chaque pas de temps, autoconsommé = min(prod, conso)</span>
+    df[<span class="str">"autoconso_wh"</span>] = np.<span class="fn">minimum</span>(df[<span class="str">"prod_wh"</span>], df[<span class="str">"conso_wh"</span>])
+    df[<span class="str">"surplus_wh"</span>]   = (df[<span class="str">"prod_wh"</span>] - df[<span class="str">"conso_wh"</span>]).<span class="fn">clip</span>(lower=<span class="num">0</span>)
+
+    total_prod   = df[<span class="str">"prod_wh"</span>].<span class="fn">sum</span>()      <span class="cmt"># Wh</span>
+    total_conso  = df[<span class="str">"conso_wh"</span>].<span class="fn">sum</span>()
+    total_auto   = df[<span class="str">"autoconso_wh"</span>].<span class="fn">sum</span>()
+    total_surplus = df[<span class="str">"surplus_wh"</span>].<span class="fn">sum</span>()
+
+    taux_autoconsommation = (total_auto / total_prod * <span class="num">100</span>) <span class="kw">if</span> total_prod > <span class="num">0</span> <span class="kw">else</span> <span class="num">0</span>
+    taux_autosuffisance   = (total_auto / total_conso * <span class="num">100</span>) <span class="kw">if</span> total_conso > <span class="num">0</span> <span class="kw">else</span> <span class="num">0</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"production_kwh_an"</span>:          <span class="cls">round</span>(total_prod / <span class="num">1000</span>, <span class="num">0</span>),
+        <span class="str">"consommation_kwh_an"</span>:        <span class="cls">round</span>(total_conso / <span class="num">1000</span>, <span class="num">0</span>),
+        <span class="str">"autoconsommation_kwh_an"</span>:    <span class="cls">round</span>(total_auto / <span class="num">1000</span>, <span class="num">0</span>),
+        <span class="str">"surplus_injecte_kwh_an"</span>:     <span class="cls">round</span>(total_surplus / <span class="num">1000</span>, <span class="num">0</span>),
+        <span class="str">"taux_autoconsommation_pct"</span>:  <span class="cls">round</span>(taux_autoconsommation, <span class="num">1</span>),
+        <span class="str">"taux_autosuffisance_pct"</span>:    <span class="cls">round</span>(taux_autosuffisance, <span class="num">1</span>),
+    }
+</code></pre>
+    </div>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 Bonne pratique : ré-échantillonnage sur 1h</div>
+      <p>
+        Les données Linky sont au pas 30 min, mais PVGIS fournit des données horaires (pas 1h).
+        Avant de croiser les deux, ré-échantillonnez les données Linky à 1h avec
+        <code>df.resample('1H').sum()</code> pour garantir la cohérence des calculs.
+      </p>
+    </div>
+
+    <h2 id="securite">Sécurité : ne jamais exposer vos tokens</h2>
+    <div class="callout callout-warn">
+      <div class="callout-title">🔒 Sécurité OAuth2</div>
+      <ul>
+        <li>Stockez <code>client_secret</code> et <code>refresh_token</code> uniquement côté serveur (variable d'environnement ou coffre-fort secrets)</li>
+        <li>N'exposez jamais l'<code>access_token</code> en JavaScript front-end (XSS)</li>
+        <li>Validez toujours le paramètre <code>state</code> au retour du callback pour prévenir les attaques CSRF</li>
+        <li>Les tokens expirent en 3 600 s — implémentez un mécanisme de refresh automatique</li>
+      </ul>
+    </div>
+
+    <div class="article-cta">
+      <h3>HeliaPV intègre Enedis Data Connect nativement</h3>
+      <p>
+        Importez les courbes de charge de vos clients directement dans l'interface. 
+        HeliaPV calcule automatiquement le taux d'autoconsommation sur 6 tarifications différentes 
+        (BASE, HPHC, TEMPO, EJP, C4…) et les intègre dans la proposition PDF.
+      </p>
+      <a href="/auth/register" class="btn-primary">Essai gratuit – 50 analyses offertes</a>
+      <a href="/bureaux-etudes" class="btn-secondary">Voir les fonctionnalités BET</a>
+    </div>
+
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:48px;padding-top:24px;border-top:1px solid #30363d">
+      <a href="/blog/api-gpu-plu-zonage-pv" style="color:#8b949e;text-decoration:none;font-size:.9rem">← Article précédent : GPU / PLU</a>
+      <a href="/blog/pvgis-api-simulation-8760h" style="color:#00d4ff;text-decoration:none;font-size:.9rem;margin-left:auto">Prochain : PVGIS 8760h →</a>
+    </div>
+  </main>
+
+  <aside class="blog-sidebar">
+    <div class="sidebar-card">
+      <h4>Table des matières</h4>
+      <ul class="toc-list">
+        <li><a href="#pourquoi">Pourquoi les données Linky ?</a></li>
+        <li><a href="#inscription">Inscription Data Connect</a></li>
+        <li><a href="#oauth2">Flux OAuth2 complet</a></li>
+        <li><a href="#courbes">Récupération courbes de charge</a></li>
+        <li><a href="#autoconsommation">Calcul autoconsommation</a></li>
+        <li><a href="#securite">Sécurité OAuth2</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-card" style="text-align:center">
+      <p style="color:#8b949e;font-size:.88rem;margin-bottom:16px">
+        Intégration Enedis incluse dans HeliaPV. Essai gratuit.
+      </p>
+      <a href="/auth/register" class="btn-primary" style="font-size:.9rem;padding:10px 20px">Essai gratuit →</a>
+    </div>
+  </aside>
+</div>
+
+<footer class="blog-footer">
+  <p>© {{ annee }} HeliaPV · <a href="/blog">Blog technique</a> · <a href="/bureaux-etudes">Bureaux d'études</a></p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,377 @@
+{
+  "generated_at": "06/03/2026 à 13:40",
+  "base_url": "https://app.heliapv.fr",
+  "prospect_id": 652,
+  "stats": {
+    "total": 26,
+    "ok": 25,
+    "errors": 1,
+    "skipped": 0
+  },
+  "results": [
+    {
+      "route": "/",
+      "label": "Page d_accueil",
+      "desc": "Landing page HeliaPV / AgriWeb",
+      "category": "Général",
+      "auth": false,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "HeliaPV - Solution Intelligente pour Développeurs Photovoltaïques",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/auth/login",
+      "label": "Formulaire connexion",
+      "desc": "Interface d'authentification sécurisée",
+      "category": "Général",
+      "auth": false,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Connexion - HeliaPV",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/app",
+      "label": "Carte principale",
+      "desc": "Application cartographique interactive avec données solaires",
+      "category": "Application",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "HeliaPV",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/app#recherche-adresse",
+      "label": "Recherche par adresse",
+      "desc": "Saisie d'une adresse dans le panneau latéral → géolocalisation et analyse solaire de la parcelle",
+      "category": "Recherche",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Saisie adresse",
+          "filename": "recherche_adresse_saisie.png"
+        }
+      ],
+      "page_title": "Recherche par adresse",
+      "error": null
+    },
+    {
+      "route": "/search_by_commune?commune=Verfeil",
+      "label": "Recherche par commune",
+      "desc": "Analyse complète de la commune de Verfeil : parcelles RPG, postes électriques, données solaires, éleveurs",
+      "category": "Recherche",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Lancement analyse",
+          "filename": "commune_Verfeil_debut.png"
+        }
+      ],
+      "page_title": "",
+      "error": null
+    },
+    {
+      "route": "/crm",
+      "label": "CRM Tableau de bord",
+      "desc": "Gestion des prospects et pipeline commercial",
+      "category": "CRM",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "CRM HeliaPV - Gestion Projets",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/crm/stats",
+      "label": "CRM Statistiques",
+      "desc": "Indicateurs et graphiques de performance",
+      "category": "CRM",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Dashboard CRM - Statistiques & KPI",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/crm/calendrier",
+      "label": "CRM Calendrier",
+      "desc": "Planification rendez-vous et suivi tâches",
+      "category": "CRM",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Calendrier - HeliaPV CRM",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/crm/prospect/652/calpinage",
+      "label": "Calpinage Photovoltaïque",
+      "desc": "Outil de calpinage 3D des panneaux solaires sur toiture avec simulation PVGIS et autoconsommation",
+      "category": "CRM – Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Panneau Autoconsommation",
+          "filename": "calpinage_652_autoconso.png"
+        }
+      ],
+      "page_title": "Calpinage Photovoltaïque - None",
+      "error": null
+    },
+    {
+      "route": "/crm/prospect/652/visite-technique",
+      "label": "Visite Technique",
+      "desc": "Formulaire de visite technique : toiture, install. électrique, relevés terrain",
+      "category": "CRM – Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "",
+      "error": null,
+      "http_status": 500
+    },
+    {
+      "route": "/crm/prospect/652/proposition",
+      "label": "Pre-etude Proposition",
+      "desc": "Génération de la proposition commerciale et pré-étude technique",
+      "category": "CRM – Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "404 Not Found",
+      "error": null,
+      "http_status": 404
+    },
+    {
+      "route": "/crm/autoconso-collective/652",
+      "label": "Autoconsommation Collective",
+      "desc": "Configuration et simulation d'une opération d'autoconsommation collective",
+      "category": "CRM – Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Autoconsommation Collective - Champniers",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/chantier/652",
+      "label": "Suivi de Chantier",
+      "desc": "Module de suivi chantier PV : planning, tâches, jalons, DOE, NCF, rapport IEC",
+      "category": "CRM – Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Chantier PV –",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/api/crm/prospects/652/generate-cerfa",
+      "label": "Generation CERFA",
+      "desc": "Génération automatique du CERFA de déclaration préalable pour raccordement PV",
+      "category": "CRM – Documents",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "CERFA raccordement",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/rapport_commune?commune=Verfeil",
+      "label": "Rapport Commune",
+      "desc": "Rapport complet commune de Verfeil : carte, parcelles RPG, postes, PLU, données solaires",
+      "category": "Rapports",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Début génération",
+          "filename": "rapport_commune_Verfeil_debut.png"
+        },
+        {
+          "label": "Progression 60s",
+          "filename": "rapport_commune_Verfeil_60s.png"
+        },
+        {
+          "label": "Progression 120s",
+          "filename": "rapport_commune_Verfeil_120s.png"
+        },
+        {
+          "label": "Progression 180s",
+          "filename": "rapport_commune_Verfeil_180s.png"
+        },
+        {
+          "label": "Progression 240s",
+          "filename": "rapport_commune_Verfeil_240s.png"
+        },
+        {
+          "label": "Progression 300s",
+          "filename": "rapport_commune_Verfeil_300s.png"
+        }
+      ],
+      "page_title": "",
+      "error": null
+    },
+    {
+      "route": "/rapport_map?lat=43.6047&lon=1.4442",
+      "label": "Rapport Point GPS",
+      "desc": "Rapport détaillé pour coordonnées GPS : cadastre, RPG, PLU, ZAER, potentiel solaire, GeoRisques",
+      "category": "Rapports",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Début rapport point",
+          "filename": "rapport_point_debut.png"
+        }
+      ],
+      "page_title": "Rapport Géospatial - HeliaPV",
+      "error": null
+    },
+    {
+      "route": "/rapport_commune_complet?commune=Verfeil",
+      "label": "Rapport Commune Complet",
+      "desc": "Version enrichie du rapport commune avec données supplémentaires et analyses approfondies",
+      "category": "Rapports",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Début rapport complet",
+          "filename": "rapport_complet_Verfeil_debut.png"
+        },
+        {
+          "label": "Progression 60s",
+          "filename": "rapport_complet_Verfeil_60s.png"
+        }
+      ],
+      "page_title": "Rapport Complet - Verfeil",
+      "error": null
+    },
+    {
+      "route": "/ao-pv-batiment",
+      "label": "AO PV Batiment",
+      "desc": "Appels d'offres PV pour bâtiments tertiaires",
+      "category": "Outils",
+      "auth": true,
+      "status": "error",
+      "extra_screenshots": [],
+      "page_title": "",
+      "error": "Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"https://app.heliapv.fr/ao-pv-batiment\", waiting until \"domcontentloaded\"\n"
+    },
+    {
+      "route": "/lidar/plan",
+      "label": "Plan LiDAR HD",
+      "desc": "Analyse LiDAR haute définition des toitures",
+      "category": "Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Plan LiDAR 100m × 100m – HeliaPV",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/saved_maps",
+      "label": "Cartes sauvegardees",
+      "desc": "Bibliothèque des cartes et analyses sauvegardées",
+      "category": "Outils",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Cartes Sauvegardées - HeliaPV",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/admin",
+      "label": "Administration",
+      "desc": "Panneau d'administration (utilisateurs, licences)",
+      "category": "Administration",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Administration - HeliaPV",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/api/crm/parametrage",
+      "label": "Parametrages CRM",
+      "desc": "Configuration et paramètres du système CRM",
+      "category": "Administration",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Paramétrage - HeliaPV CRM",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/api/helia/status",
+      "label": "Helia IA Assistant Solaire",
+      "desc": "Assistant IA intégré spécialisé énergie solaire : analyse projets, recommandations, Q&A",
+      "category": "Intelligence Artificielle",
+      "auth": true,
+      "status": "ok",
+      "extra_screenshots": [
+        {
+          "label": "Interface Helia IA",
+          "filename": "helia_interface.png"
+        }
+      ],
+      "page_title": "Helia IA",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/health",
+      "label": "Statut Systeme",
+      "desc": "État de santé des services et de l'API",
+      "category": "Pages publiques",
+      "auth": false,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/subscription",
+      "label": "Abonnements",
+      "desc": "Offres et tarifs d'abonnement",
+      "category": "Pages publiques",
+      "auth": false,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "Plans d'abonnement - HeliaPV",
+      "error": null,
+      "http_status": 200
+    },
+    {
+      "route": "/demo",
+      "label": "Demo Accueil",
+      "desc": "Page de démonstration de la plateforme",
+      "category": "Pages publiques",
+      "auth": false,
+      "status": "ok",
+      "extra_screenshots": [],
+      "page_title": "",
+      "error": null,
+      "http_status": 200
+    }
+  ]
+}

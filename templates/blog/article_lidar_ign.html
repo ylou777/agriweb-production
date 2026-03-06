@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.titre }} | Blog HeliaPV</title>
+<meta name="description" content="{{ meta.description }}">
+<meta property="og:title" content="{{ meta.titre }}">
+<meta property="og:description" content="{{ meta.description }}">
+<meta property="og:type" content="article">
+<meta name="keywords" content="IGN, LiDAR HD, COPC, Python, photovoltaïque, potentiel solaire, nuage de points, bathymétrie, API IGN">
+<link rel="canonical" href="https://app.heliapv.fr/blog/api-ign-lidar-hd-solaire">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body class="blog-body">
+
+<nav class="blog-topbar">
+  <div class="blog-topbar-inner">
+    <a href="/app" class="blog-logo">☀️ <span>Helia<span class="logo-accent">PV</span></span></a>
+    <div class="blog-topbar-nav">
+      <a href="/blog">← Blog</a>
+      <a href="/bureaux-etudes">Bureaux d'études</a>
+      <a href="/auth/register" class="btn-cta-nav">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="blog-hero">
+  <div class="blog-hero-inner">
+    <div class="category-tag">🛰️ {{ meta.categorie }}</div>
+    <h1>API IGN LiDAR HD COPC :<br><em>analyser le potentiel solaire</em> d'un bâtiment en Python</h1>
+    <p class="lead">
+      L'IGN met à disposition gratuitement les données LiDAR HD de la France entière avec une densité de 10 points/m².
+      Ce tutoriel vous montre comment les exploiter en Python pour extraire les plans de toit, calculer l'inclinaison, l'orientation
+      et estimer le potentiel solaire — sans lidar physique.
+    </p>
+    <div class="blog-hero-meta">
+      <span>📅 {{ meta.date }}</span>
+      <span>⏱ {{ meta.lecture }} de lecture</span>
+      {% for tag in meta.tags %}<span class="tag-pill">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+</header>
+
+<div class="blog-layout">
+  <main class="article-content">
+
+    <h2 id="intro">Pourquoi le LiDAR HD est un game-changer pour vos études PV</h2>
+    <p>
+      Jusqu'à récemment, analyser la géométrie d'un toit pour une étude photovoltaïque nécessitait soit une visite terrain,
+      soit l'achat de données LiDAR commerciales (Pictometry, Nearmap…). Depuis 2021, l'IGN réalise un relevé LiDAR HD couvrant
+      l'intégralité du territoire français métropolitain avec une densité de <strong>10 points/m²</strong> — gratuit, ouvert,
+      sous licence ODbL.
+    </p>
+    <p>
+      Ces données permettent, pour n'importe quelle adresse en France :
+    </p>
+    <ul>
+      <li>Extraire les plans de toit avec leur inclinaison et orientation au degré près</li>
+      <li>Calculer les surfaces disponibles pour l'installation PV</li>
+      <li>Modéliser les ombrages portés (cheminées, lucarnes, bâtiments voisins)</li>
+      <li>Estimer la production solaire en combinant avec PVGIS</li>
+    </ul>
+
+    <div class="callout callout-info">
+      <div class="callout-title">ℹ️ Format COPC</div>
+      Le LiDAR HD IGN est distribué au format <strong>Cloud Optimized Point Cloud (COPC)</strong>, une variante de LAZ
+      qui permet le streaming HTTP Range — vous ne téléchargez que la portion du nuage qui vous intéresse,
+      sans rapatrier des fichiers de plusieurs gigaoctets.
+    </div>
+
+    <h2 id="acces">Accéder aux données LiDAR HD de l'IGN</h2>
+    <p>
+      Les dalles LiDAR HD sont accessibles via le service de téléchargement de la Géoplateforme IGN.
+      Chaque dalle couvre 1 km² et pèse entre 50 et 500 Mo selon la densité de végétation.
+      L'API téléchargement permet de découvrir les dalles couvrant une emprise géographique donnée.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">ign_lidar_discovery.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> requests
+
+<span class="cmt"># Endpoint de recherche de dalles LiDAR HD IGN (Géoplateforme)</span>
+LIDAR_SEARCH_URL = <span class="str">"https://data.geopf.fr/wfs/ows"</span>
+
+<span class="kw">def</span> <span class="fn">trouver_dalles_lidar</span>(lat: <span class="cls">float</span>, lon: <span class="cls">float</span>, buffer_m: <span class="num">int</span> = <span class="num">100</span>) -> <span class="cls">list</span>:
+    <span class="str">"""
+    Trouve les dalles LiDAR HD couvrant un point GPS avec un buffer en mètres.
+    Retourne la liste des URLs de téléchargement COPC.
+    """</span>
+    <span class="cmt"># Convertir en rectangle bbox (approx. 1 degré ≈ 111 km)</span>
+    delta = buffer_m / <span class="num">111000</span>
+    bbox = <span class="str">f"<span class="var">{lon - delta}</span>,<span class="var">{lat - delta}</span>,<span class="var">{lon + delta}</span>,<span class="var">{lat + delta}</span>"</span>
+
+    params = {
+        <span class="str">"SERVICE"</span>: <span class="str">"WFS"</span>,
+        <span class="str">"VERSION"</span>: <span class="str">"2.0.0"</span>,
+        <span class="str">"REQUEST"</span>: <span class="str">"GetFeature"</span>,
+        <span class="str">"TYPENAMES"</span>: <span class="str">"LIDAR-HD:nuages-de-points"</span>,
+        <span class="str">"BBOX"</span>: bbox,
+        <span class="str">"SRSNAME"</span>: <span class="str">"EPSG:4326"</span>,
+        <span class="str">"OUTPUTFORMAT"</span>: <span class="str">"application/json"</span>,
+    }
+
+    resp = requests.<span class="fn">get</span>(LIDAR_SEARCH_URL, params=params, timeout=<span class="num">30</span>)
+    resp.<span class="fn">raise_for_status</span>()
+    features = resp.<span class="fn">json</span>().get(<span class="str">"features"</span>, [])
+
+    urls = []
+    <span class="kw">for</span> feat <span class="kw">in</span> features:
+        props = feat.get(<span class="str">"properties"</span>, {})
+        dl_url = props.get(<span class="str">"download_link_copc"</span>) <span class="kw">or</span> props.get(<span class="str">"url_telechargement"</span>)
+        <span class="kw">if</span> dl_url:
+            urls.<span class="fn">append</span>(dl_url)
+
+    <span class="kw">return</span> urls
+
+
+<span class="cmt"># Exemple : toiture d'un entrepôt à Lyon</span>
+dalle_urls = <span class="fn">trouver_dalles_lidar</span>(lat=<span class="num">45.7484</span>, lon=<span class="num">4.8467</span>)
+<span class="fn">print</span>(<span class="str">f"<span class="var">{len(dalle_urls)}</span> dalle(s) LiDAR HD trouvée(s)"</span>)
+</code></pre>
+    </div>
+
+    <h2 id="streaming">Streaming COPC avec HTTP Range requests</h2>
+    <p>
+      L'avantage majeur du format COPC est sa structure arborescente (octree) compatible avec le streaming HTTP Range.
+      Au lieu de télécharger toute une dalle de 200 Mo, on récupère uniquement les chunks correspondant
+      à l'emprise d'un bâtiment — quelques centaines de Ko en pratique.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">copc_stream.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> requests
+<span class="kw">import</span> struct
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+
+<span class="cmt"># ────── Lecture de l'en-tête COPC (premiers 375 octets) ─────────────────────</span>
+
+<span class="kw">def</span> <span class="fn">lire_header_copc</span>(url: <span class="cls">str</span>) -> <span class="cls">dict</span>:
+    <span class="str">"""Lit uniquement l'en-tête LAS/COPC via HTTP Range (evite dl complet)."""</span>
+    headers = {<span class="str">"Range"</span>: <span class="str">"bytes=0-374"</span>}
+    resp = requests.<span class="fn">get</span>(url, headers=headers, timeout=<span class="num">15</span>)
+
+    data = resp.content
+    <span class="cmt"># Signature LAS : "LASF" en ASCII</span>
+    <span class="kw">if</span> data[:<span class="num">4</span>] != <span class="str">b"LASF"</span>:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">"Fichier non-LAS – URL incorrecte ?"</span>)
+
+    <span class="cmt"># Quelques champs utiles de l'en-tête LAS 1.4</span>
+    point_format  = data[<span class="num">104</span>]
+    point_count   = struct.<span class="fn">unpack_from</span>(<span class="str">"<Q"</span>, data, <span class="num">247</span>)[<span class="num">0</span>]
+    scale_x, scale_y, scale_z = struct.<span class="fn">unpack_from</span>(<span class="str">"<ddd"</span>, data, <span class="num">131</span>)
+    off_x, off_y, off_z       = struct.<span class="fn">unpack_from</span>(<span class="str">"<ddd"</span>, data, <span class="num">155</span>)
+    min_x, max_x = struct.<span class="fn">unpack_from</span>(<span class="str">"<dd"</span>, data, <span class="num">179</span>)
+    min_y, max_y = struct.<span class="fn">unpack_from</span>(<span class="str">"<dd"</span>, data, <span class="num">195</span>)
+    min_z, max_z = struct.<span class="fn">unpack_from</span>(<span class="str">"<dd"</span>, data, <span class="num">211</span>)
+
+    <span class="kw">return</span> {
+        <span class="str">"point_format"</span>: point_format,
+        <span class="str">"point_count"</span>: point_count,
+        <span class="str">"scale"</span>: (scale_x, scale_y, scale_z),
+        <span class="str">"offset"</span>: (off_x, off_y, off_z),
+        <span class="str">"bbox"</span>: {
+            <span class="str">"x"</span>: (min_x, max_x), <span class="str">"y"</span>: (min_y, max_y), <span class="str">"z"</span>: (min_z, max_z)
+        },
+    }
+</code></pre>
+    </div>
+
+    <h2 id="plans-toit">Extraction des plans de toit par segmentation</h2>
+    <p>
+      Une fois les points du bâtiment récupérés (classification LAS = 6 « building »),
+      on applique un algorithme RANSAC pour détecter les plans dominants dans le nuage de points.
+      Chaque plan correspond à un pan de toit avec une inclinaison (<em>tilt</em>) et une orientation (<em>azimuth</em>).
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">roof_segmentation.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> sklearn.linear_model <span class="kw">import</span> RANSACRegressor
+<span class="kw">from</span> typing <span class="kw">import</span> List, Tuple
+
+
+<span class="kw">def</span> <span class="fn">detecter_plans_toit</span>(
+    points: np.ndarray,             <span class="cmt"># shape (N, 3) – X, Y, Z en Lambert-93</span>
+    min_inliners: <span class="cls">int</span> = <span class="num">50</span>,         <span class="cmt"># points minimum par plan</span>
+    residual_threshold: <span class="cls">float</span> = <span class="num">0.1</span> <span class="cmt"># tolérance RANSAC en mètres</span>
+) -> <span class="cls">List</span>[<span class="cls">dict</span>]:
+    <span class="str">"""
+    Détecte itérativement les plans de toit par RANSAC.
+    Retourne pour chaque pan : inclinaison (°), azimut (°), surface (m²).
+    """</span>
+    remaining = points.copy()
+    plans = []
+
+    <span class="kw">while</span> <span class="cls">len</span>(remaining) >= min_inliners:
+        <span class="cmt"># Ajustement plan z = ax + by + c (toit non vertical)</span>
+        X_feat = remaining[:, :<span class="num">2</span>]   <span class="cmt"># X, Y</span>
+        y_feat = remaining[:, <span class="num">2</span>]    <span class="cmt"># Z</span>
+
+        ransac = <span class="cls">RANSACRegressor</span>(
+            residual_threshold=residual_threshold,
+            min_samples=<span class="num">3</span>,
+            max_trials=<span class="num">200</span>
+        )
+        <span class="kw">try</span>:
+            ransac.<span class="fn">fit</span>(X_feat, y_feat)
+        <span class="kw">except</span> <span class="cls">Exception</span>:
+            <span class="kw">break</span>
+
+        mask_inliers = ransac.inlier_mask_
+        <span class="kw">if</span> np.<span class="fn">sum</span>(mask_inliers) < min_inliners:
+            <span class="kw">break</span>
+
+        <span class="cmt"># Normale au plan : n = [-a, -b, 1] normalisé</span>
+        a, b = ransac.estimator_.coef_
+        normale = np.<span class="fn">array</span>([-a, -b, <span class="num">1.0</span>])
+        normale /= np.<span class="fn">linalg</span>.<span class="fn">norm</span>(normale)
+
+        <span class="cmt"># Inclinaison = angle avec la verticale</span>
+        inclinaison_deg = np.<span class="fn">degrees</span>(np.<span class="fn">arccos</span>(<span class="cls">abs</span>(normale[<span class="num">2</span>])))
+
+        <span class="cmt"># Azimut = orientation du pan vers le bas de pente (0° = N, 90° = E, 180° = S, 270° = O)</span>
+        azimut_deg = (np.<span class="fn">degrees</span>(np.<span class="fn">arctan2</span>(a, b)) + <span class="num">360</span>) % <span class="num">360</span>
+
+        <span class="cmt"># Surface projetée du pan (m²)</span>
+        inlier_pts = remaining[mask_inliers]
+        hull_2d_area = <span class="fn">_convex_hull_area</span>(inlier_pts[:, :<span class="num">2</span>])
+        surface_reelle = hull_2d_area / np.<span class="fn">cos</span>(np.<span class="fn">radians</span>(inclinaison_deg))
+
+        plans.<span class="fn">append</span>({
+            <span class="str">"inclinaison"</span>: <span class="cls">round</span>(inclinaison_deg, <span class="num">1</span>),
+            <span class="str">"azimut"</span>: <span class="cls">round</span>(azimut_deg, <span class="num">1</span>),
+            <span class="str">"surface_m2"</span>: <span class="cls">round</span>(surface_reelle, <span class="num">1</span>),
+            <span class="str">"nb_points"</span>: <span class="cls">int</span>(np.<span class="fn">sum</span>(mask_inliers)),
+            <span class="str">"orientation_label"</span>: <span class="fn">_azimut_vers_label</span>(azimut_deg),
+        })
+
+        remaining = remaining[~mask_inliers]
+
+    <span class="kw">return</span> plans
+
+
+<span class="kw">def</span> <span class="fn">_azimut_vers_label</span>(az: <span class="cls">float</span>) -> <span class="cls">str</span>:
+    <span class="str">"""Convertit un azimut en label cardinal (Sud, Sud-Ouest…)"""</span>
+    labels = [<span class="str">"N"</span>, <span class="str">"NE"</span>, <span class="str">"E"</span>, <span class="str">"SE"</span>, <span class="str">"S"</span>, <span class="str">"SO"</span>, <span class="str">"O"</span>, <span class="str">"NO"</span>]
+    idx = <span class="cls">int</span>((az + <span class="num">22.5</span>) / <span class="num">45</span>) % <span class="num">8</span>
+    <span class="kw">return</span> labels[idx]
+
+
+<span class="kw">def</span> <span class="fn">_convex_hull_area</span>(pts: np.ndarray) -> <span class="cls">float</span>:
+    <span class="str">"""Superficie de l'enveloppe convexe 2D (formule de Shoelace)."""</span>
+    <span class="kw">from</span> scipy.spatial <span class="kw">import</span> ConvexHull
+    <span class="kw">try</span>:
+        hull = <span class="cls">ConvexHull</span>(pts)
+        <span class="kw">return</span> hull.volume   <span class="cmt"># en 2D, .volume = aire</span>
+    <span class="kw">except</span>:
+        <span class="kw">return</span> <span class="num">0.0</span>
+</code></pre>
+    </div>
+
+    <h2 id="potentiel-pv">Calcul du potentiel PV par pan</h2>
+    <p>
+      Avec l'inclinaison et l'azimut de chaque pan de toit, on dispose des deux paramètres clés 
+      pour ensuite interroger l'API PVGIS et obtenir la production annuelle estimée.
+      On combine les surfaces avec un taux d'occupation standard de 0,85 pour tenir compte des 
+      inter-ranges et des marges périphériques.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">potentiel_pv.py</span>
+      </div>
+      <pre><code><span class="kw">def</span> <span class="fn">calculer_puissance_max</span>(
+    plans: <span class="cls">list</span>,
+    puissance_wc_par_m2: <span class="cls">float</span> = <span class="num">200.0</span>,  <span class="cmt"># Wc/m² (ex. panneaux 400 Wc en 2 m²)</span>
+    taux_occupation: <span class="cls">float</span> = <span class="num">0.85</span>,
+    inclinaison_min: <span class="cls">float</span> = <span class="num">10.0</span>,       <span class="cmt"># exclure les toits quasi-plats</span>
+    azimut_tolere: <span class="cls">tuple</span> = (<span class="num">90</span>, <span class="num">270</span>)      <span class="cmt"># exclure les pans plein nord</span>
+) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    Calcule la puissance PV installable par pan de toit.
+    Exclut les pans défavorables (nord pur, trop plat).
+    """</span>
+    resultats = []
+    total_kwc = <span class="num">0.0</span>
+
+    <span class="kw">for</span> plan <span class="kw">in</span> plans:
+        az = plan[<span class="str">"azimut"</span>]
+        incl = plan[<span class="str">"inclinaison"</span>]
+
+        <span class="cmt"># Filtrer les azimuts nord (270° à 90° en passant par 0°)</span>
+        nord = az > <span class="num">270</span> <span class="kw">or</span> az < <span class="num">90</span>
+
+        <span class="kw">if</span> nord <span class="kw">or</span> incl < inclinaison_min:
+            plan[<span class="str">"kwc_installable"</span>] = <span class="num">0.0</span>
+            plan[<span class="str">"eligible_pv"</span>] = <span class="cls">False</span>
+            <span class="kw">continue</span>
+
+        surface_utile = plan[<span class="str">"surface_m2"</span>] * taux_occupation
+        kwc = (surface_utile * puissance_wc_par_m2) / <span class="num">1000</span>
+        plan[<span class="str">"kwc_installable"</span>] = <span class="cls">round</span>(kwc, <span class="num">2</span>)
+        plan[<span class="str">"eligible_pv"</span>] = <span class="cls">True</span>
+        total_kwc += kwc
+        resultats.<span class="fn">append</span>(plan)
+
+    <span class="kw">return</span> {
+        <span class="str">"plans_eligibles"</span>: resultats,
+        <span class="str">"total_kwc"</span>: <span class="cls">round</span>(total_kwc, <span class="num">2</span>),
+        <span class="str">"nb_plans"</span>: <span class="cls">len</span>(resultats)
+    }
+</code></pre>
+    </div>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 Conseil pratique</div>
+      <p>
+        Pour des projets en toitures terrasses (inclinaison 0°–5°), utilisez l'argument <code>inclinaison_min=0</code>
+        et calculez manuellement le gain de production avec une inclinaison de rehausseur à 10°–15° Sud.
+        HeliaPV propose ce calcul automatiquement dans son module de calpinage.
+      </p>
+    </div>
+
+    <h2 id="integration">Intégration complète : LiDAR → PVGIS → rapport</h2>
+    <p>
+      Le flux complet d'un bureau d'études peut être automatisé en chaîne :
+    </p>
+    <ol>
+      <li>Adresse → coordonnées GPS via <strong>API IGN BAN</strong></li>
+      <li>Coordonnées → dalle COPC via <strong>API Géoplateforme LiDAR HD</strong></li>
+      <li>Nuage de points → plans de toit (RANSAC) → inclinaison + azimut</li>
+      <li>Paramètres toit → <strong>API PVGIS</strong> → 8 760 données horaires de production</li>
+      <li>Production horaire + courbe de charge client → taux d'autoconsommation + TRI</li>
+    </ol>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">⚠️ Couverture LiDAR HD IGN</div>
+      <p>
+        La couverture nationale est en cours et devrait être complète fin 2026. Vérifiez la disponibilité de votre zone 
+        sur <a href="https://geoplateforme.ign.fr" target="_blank">geoplateforme.ign.fr</a> avant de baser une étude 
+        sur ces données. En cas de dalle manquante, HeliaPV bascule automatiquement sur Google Solar API.
+      </p>
+    </div>
+
+    <h2 id="libs">Librairies Python recommandées</h2>
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Bash</span>
+        <span class="file-label">requirements.txt</span>
+      </div>
+      <pre><code><span class="cmt"># Lecture et traitement nuages de points</span>
+laspy[lazrs,copc]>=2.5
+pyproj>=3.6         <span class="cmt"># conversions entre systèmes de coordonnées</span>
+numpy>=1.26
+scipy>=1.12         <span class="cmt"># ConvexHull, spatial</span>
+scikit-learn>=1.4   <span class="cmt"># RANSACRegressor</span>
+
+<span class="cmt"># Optionnel : visualisation</span>
+open3d>=0.18        <span class="cmt"># visualisation 3D nuages de points</span>
+matplotlib>=3.8
+</code></pre>
+    </div>
+
+    <!-- CTA -->
+    <div class="article-cta">
+      <h3>HeliaPV fait tout ça automatiquement</h3>
+      <p>
+        Saisissez une adresse, HeliaPV charge le LiDAR HD IGN, segmente les toits, 
+        calcule la production PVGIS et génère votre rapport en moins de 30 secondes.
+        Aucune ligne de code requise pour vos études courantes.
+      </p>
+      <a href="/auth/register" class="btn-primary">Essai gratuit – 50 analyses offertes</a>
+      <a href="/bureaux-etudes" class="btn-secondary">En savoir plus pour les BET</a>
+    </div>
+
+    <!-- Navigation articles -->
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:48px;padding-top:24px;border-top:1px solid #30363d">
+      <a href="/blog" style="color:#8b949e;text-decoration:none;font-size:.9rem">← Tous les articles</a>
+      <a href="/blog/api-gpu-plu-zonage-pv" style="color:#00d4ff;text-decoration:none;font-size:.9rem;margin-left:auto">Prochain : API GPU / PLU →</a>
+    </div>
+
+  </main>
+
+  <!-- Sidebar -->
+  <aside class="blog-sidebar">
+    <div class="sidebar-card">
+      <h4>Table des matières</h4>
+      <ul class="toc-list">
+        <li><a href="#intro">Pourquoi LiDAR HD ?</a></li>
+        <li><a href="#acces">Accéder aux données IGN</a></li>
+        <li><a href="#streaming">Streaming COPC</a></li>
+        <li><a href="#plans-toit">Extraction plans de toit</a></li>
+        <li><a href="#potentiel-pv">Calcul potentiel PV</a></li>
+        <li><a href="#integration">Flux intégration complet</a></li>
+        <li><a href="#libs">Librairies Python</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-card">
+      <h4>APIs couvertes</h4>
+      <div class="api-bar-row">
+        <div class="api-bar-label"><strong>IGN LiDAR HD</strong><span>Nuages de points</span></div>
+        <div class="api-bar-track"><div class="api-bar-fill" style="width:95%"></div></div>
+      </div>
+      <div class="api-bar-row">
+        <div class="api-bar-label"><strong>IGN BAN</strong><span>Géocodage adresses</span></div>
+        <div class="api-bar-track"><div class="api-bar-fill" style="width:80%"></div></div>
+      </div>
+      <div class="api-bar-row">
+        <div class="api-bar-label"><strong>PVGIS EU</strong><span>Production solaire</span></div>
+        <div class="api-bar-track"><div class="api-bar-fill" style="width:70%"></div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-card" style="text-align:center">
+      <p style="color:#8b949e;font-size:.88rem;margin-bottom:16px">
+        HeliaPV intègre le LiDAR HD IGN et 13 autres APIs. Essayez gratuitement.
+      </p>
+      <a href="/auth/register" class="btn-primary" style="font-size:.9rem;padding:10px 20px">Essai gratuit →</a>
+    </div>
+  </aside>
+</div>
+
+<footer class="blog-footer">
+  <p>© {{ annee }} HeliaPV · <a href="/blog">Blog technique</a> · <a href="/bureaux-etudes">Bureaux d'études</a> · <a href="/app">Plateforme</a></p>
+</footer>
+
+</body>
+</html>

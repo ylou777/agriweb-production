@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.titre }} | Blog HeliaPV</title>
+<meta name="description" content="{{ meta.description }}">
+<meta name="keywords" content="PVGIS API, simulation solaire 8760h, production PV, JRC European Commission, irradiation SARAH-3, Python, calcul photovoltaïque">
+<link rel="canonical" href="https://app.heliapv.fr/blog/pvgis-api-simulation-8760h">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body class="blog-body">
+
+<nav class="blog-topbar">
+  <div class="blog-topbar-inner">
+    <a href="/app" class="blog-logo">☀️ <span>Helia<span class="logo-accent">PV</span></span></a>
+    <div class="blog-topbar-nav">
+      <a href="/blog">← Blog</a>
+      <a href="/bureaux-etudes">Bureaux d'études</a>
+      <a href="/auth/register" class="btn-cta-nav">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="blog-hero">
+  <div class="blog-hero-inner">
+    <div class="category-tag">☀️ {{ meta.categorie }}</div>
+    <h1>PVGIS EU Science Hub :<br>simuler <em>8 760 heures</em> de production<br>solaire via API REST</h1>
+    <p class="lead">
+      PVGIS est la référence européenne pour la simulation solaire : base de données d'irradiation
+      SARAH-3 du JRC (Commission Européenne), historique depuis 2005, résolution 3 km.
+      Ce guide couvre le flux complet Python pour obtenir les 8 760 points horaires annuels
+      et les intégrer dans vos études de rentabilité.
+    </p>
+    <div class="blog-hero-meta">
+      <span>📅 {{ meta.date }}</span>
+      <span>⏱ {{ meta.lecture }} de lecture</span>
+      {% for tag in meta.tags %}<span class="tag-pill">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+</header>
+
+<div class="blog-layout">
+  <main class="article-content">
+
+    <h2 id="pvgis-presentation">PVGIS : la référence gratuite du JRC</h2>
+    <p>
+      <strong>Photovoltaic Geographical Information System</strong> (PVGIS) est un outil open-access
+      maintenu par le <em>Joint Research Centre</em> de la Commission Européenne. Il est utilisé comme
+      référence dans les appels d'offres CRE depuis 2018 et accepté par la majorité des organismes
+      de financement bancaire en France.
+    </p>
+    <p>
+      L'API REST v5.2 publiée en 2022 expose plusieurs endpoints :
+    </p>
+    <ul>
+      <li><code>/PVcalc</code> — Calcul annuel résumé (plus rapide, sans 8760h)</li>
+      <li><strong><code>/seriescalc</code></strong> — Données horaires complètes sur 1 an (<em>c'est celui-ci qui nous intéresse</em>)</li>
+      <li><code>/MRcalc</code> — Données mensuelles moyennées</li>
+      <li><code>/SHScalc</code> — Systèmes autonomes avec batterie</li>
+    </ul>
+
+    <div class="callout callout-info">
+      <div class="callout-title">ℹ️ SARAH-3 vs ERA5</div>
+      <p>
+        PVGIS utilise deux bases : <strong>SARAH-3</strong> (satellite CM SAF, Europe et Afrique — plus
+        précis pour la France) et <strong>ERA5</strong> (réanalyse ECMWF — couvre le monde entier).
+        Pour les études en métropole, forcez toujours <code>raddatabase=PVGIS-SARAH3</code>.
+        La version SARAH-3 sera bientôt la valeur par défaut.
+      </p>
+    </div>
+
+    <h2 id="endpoint">L'endpoint <code>/seriescalc</code> en détail</h2>
+    <p>
+      URL de base : <code>https://re.jrc.ec.europa.eu/api/v5_2/seriescalc</code>
+    </p>
+    <p>Paramètres essentiels :</p>
+    <ul>
+      <li><code>lat</code>, <code>lon</code> — Coordonnées WGS84 (décimales)</li>
+      <li><code>peakpower</code> — Puissance crête en kWc (ex : <code>100</code> pour 100 kWc)</li>
+      <li><code>loss</code> — Pertes système en % (câblage + onduleur + salissures — typiquement <code>14</code>)</li>
+      <li><code>angle</code> — Inclinaison des panneaux en degrés (0 = horizontal)</li>
+      <li><code>aspect</code> — Orientation : 0 = Sud, -90 = Est, 90 = Ouest, 180 = Nord</li>
+      <li><code>mountingplace</code> — <code>free</code> (sur structure) ou <code>building</code> (intégré bâti, +3°C)</li>
+      <li><code>pvtechchoice</code> — <code>crystSi</code>, <code>CIS</code>, <code>CdTe</code> ou <code>Unknown</code></li>
+      <li><code>outputformat</code> — <code>json</code> (ou <code>csv</code>, <code>basic</code>)</li>
+      <li><code>raddatabase</code> — <code>PVGIS-SARAH3</code> (Europe) ou <code>PVGIS-ERA5</code></li>
+    </ul>
+
+    <h2 id="code-python">Appel Python avec parsing DataFrame</h2>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">pvgis_api.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> requests
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> io <span class="kw">import</span> StringIO
+
+PVGIS_BASE = <span class="str">"https://re.jrc.ec.europa.eu/api/v5_2"</span>
+
+
+<span class="kw">def</span> <span class="fn">appeler_pvgis_8760h</span>(
+    lat: <span class="cls">float</span>,
+    lon: <span class="cls">float</span>,
+    kwc: <span class="cls">float</span>,
+    angle: <span class="cls">float</span>,
+    azimut: <span class="cls">float</span>,         <span class="cmt"># 0=Sud, -90=Est, 90=Ouest</span>
+    pertes: <span class="cls">float</span> = <span class="num">14.0</span>,
+    montage: <span class="cls">str</span> = <span class="str">"building"</span>,
+) -> pd.DataFrame:
+    <span class="str">"""
+    Appelle PVGIS seriescalc (v5.2) et retourne un DataFrame de 8 760 lignes.
+    
+    Colonnes retournées :
+        datetime  — Index (UTC, résolution 1h, année de référence 2022)
+        P         — Puissance instantanée (W)
+        Gb        — Irradiance faisceau plan incliné (W/m²)
+        Gd        — Irradiance diffuse plan incliné (W/m²)
+        Gr        — Irradiance réfléchie sol (W/m²)
+        T2m       — Température ambiante 2m (°C)
+    """</span>
+    params = {
+        <span class="str">"lat"</span>:           lat,
+        <span class="str">"lon"</span>:           lon,
+        <span class="str">"peakpower"</span>:     kwc,
+        <span class="str">"loss"</span>:          pertes,
+        <span class="str">"angle"</span>:         angle,
+        <span class="str">"aspect"</span>:        azimut,
+        <span class="str">"mountingplace"</span>: montage,
+        <span class="str">"pvtechchoice"</span>:  <span class="str">"crystSi"</span>,
+        <span class="str">"raddatabase"</span>:   <span class="str">"PVGIS-SARAH3"</span>,
+        <span class="str">"outputformat"</span>:  <span class="str">"json"</span>,
+        <span class="str">"browser"</span>:       <span class="num">0</span>,
+    }
+
+    resp = requests.<span class="fn">get</span>(
+        PVGIS_BASE + <span class="str">"/seriescalc"</span>,
+        params=params,
+        timeout=<span class="num">60</span>,
+    )
+    resp.<span class="fn">raise_for_status</span>()
+    data = resp.<span class="fn">json</span>()
+
+    <span class="cmt"># Les données horaires sont dans data['outputs']['hourly']</span>
+    hourly = data[<span class="str">"outputs"</span>][<span class="str">"hourly"</span>]
+    df = pd.<span class="fn">DataFrame</span>(hourly)
+
+    <span class="cmt"># Convertir la colonne 'time' (format "YYYYDDHHMM") en DatetimeIndex UTC</span>
+    df[<span class="str">"datetime"</span>] = pd.<span class="fn">to_datetime</span>(df[<span class="str">"time"</span>], <span class="fn">format</span>=<span class="str">"%Y%d%m:%H%M"</span>, utc=<span class="cls">True</span>)
+    df = df.<span class="fn">set_index</span>(<span class="str">"datetime"</span>).<span class="fn">drop</span>(columns=[<span class="str">"time"</span>])
+    df.index.<span class="fn">name</span> = <span class="str">"datetime"</span>
+
+    <span class="kw">return</span> df   <span class="cmt"># 8 760 lignes × 6 colonnes</span>
+</code></pre>
+    </div>
+
+    <h2 id="production-annuelle">Calcul de la production annuelle et agrégation mensuelle</h2>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">pvgis_analyse.py</span>
+      </div>
+      <pre><code><span class="kw">def</span> <span class="fn">calculer_production_annuelle</span>(df: pd.DataFrame) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    À partir du DataFrame 8760h retourné par appeler_pvgis_8760h :
+    - Calcule la production totale annuelle (kWh)
+    - Agrège par mois (kWh/mois)
+    - Identifie les mois de pointe et de creux
+    """</span>
+    <span class="cmt"># P est en W → énergie par heure = P * 1h / 1000 = kWh</span>
+    df[<span class="str">"kwh"</span>] = df[<span class="str">"P"</span>] / <span class="num">1000</span>
+
+    production_annuelle = <span class="cls">round</span>(df[<span class="str">"kwh"</span>].<span class="fn">sum</span>(), <span class="num">0</span>)
+
+    <span class="cmt"># Agrégation mensuelle</span>
+    mensuel = (
+        df[<span class="str">"kwh"</span>]
+        .<span class="fn">resample</span>(<span class="str">"MS"</span>)   <span class="cmt"># MS = Month Start (début de mois)</span>
+        .<span class="fn">sum</span>()
+        .<span class="fn">round</span>(<span class="num">1</span>)
+    )
+
+    MOIS_FR = [<span class="str">"Jan"</span>,<span class="str">"Fév"</span>,<span class="str">"Mar"</span>,<span class="str">"Avr"</span>,<span class="str">"Mai"</span>,<span class="str">"Jun"</span>,
+               <span class="str">"Jul"</span>,<span class="str">"Aoû"</span>,<span class="str">"Sep"</span>,<span class="str">"Oct"</span>,<span class="str">"Nov"</span>,<span class="str">"Déc"</span>]
+
+    <span class="kw">return</span> {
+        <span class="str">"production_kwh_an"</span>:   production_annuelle,
+        <span class="str">"production_par_mois"</span>: <span class="cls">dict</span>(<span class="cls">zip</span>(MOIS_FR, mensuel.<span class="fn">values</span>)),
+        <span class="str">"mois_pointe"</span>:        mensuel.<span class="fn">idxmax</span>().<span class="fn">strftime</span>(<span class="str">"%B"</span>),
+        <span class="str">"mois_creux"</span>:         mensuel.<span class="fn">idxmin</span>().<span class="fn">strftime</span>(<span class="str">"%B"</span>),
+        <span class="str">"ratio_hiver_ete"</span>:    <span class="cls">round</span>(mensuel.<span class="fn">iloc</span>[:<span class="num">3</span>].<span class="fn">mean</span>() / mensuel.<span class="fn">iloc</span>[<span class="num">6</span>:<span class="num">9</span>].<span class="fn">mean</span>(), <span class="num">2</span>),
+    }
+
+
+<span class="kw">def</span> <span class="fn">p50_p90</span>(production_kwh_an: <span class="cls">float</span>, incertitude_pct: <span class="cls">float</span> = <span class="num">6.0</span>) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    Calcule P50 et P90 à partir de la production annuelle PVGIS.
+    
+    Convention bancaire : P90 = P50 × (1 - 1.28 × sigma)
+    Incertitude par défaut : ±6% (recommandation ACEA/Société Générale CIB)
+    """</span>
+    <span class="kw">import</span> math
+    sigma = incertitude_pct / <span class="num">100</span>
+    p50   = production_kwh_an
+    p90   = p50 * (<span class="num">1</span> - <span class="num">1.28</span> * sigma)  <span class="cmt"># Loi normale, 90e percentile</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"P50_kwh_an"</span>: <span class="cls">round</span>(p50, <span class="num">0</span>),
+        <span class="str">"P90_kwh_an"</span>: <span class="cls">round</span>(p90, <span class="num">0</span>),
+        <span class="str">"P90_P50_ratio_pct"</span>: <span class="cls">round</span>((p90 / p50 - <span class="num">1</span>) * <span class="num">100</span>, <span class="num">1</span>),
+        <span class="str">"incertitude_1sigma_pct"</span>: incertitude_pct,
+    }
+</code></pre>
+    </div>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 Formats PVGIS JSON vs CSV</div>
+      <p>
+        Utilisez <code>outputformat=json</code> pour le parsing programmatique.
+        Le format CSV PVGIS contient plusieurs lignes d'en-tête variables
+        qui rendent le parsing fragile.
+        Le format JSON est stable et documenté.
+      </p>
+    </div>
+
+    <h2 id="multi-inclinaison">Optimisation automatique de l'inclinaison</h2>
+    <p>
+      Pour un toiture en pente inconnue ou une installation au sol, il est possible d'interroger
+      PVGIS avec plusieurs couples <code>(angle, aspect)</code> et de retenir le maximum :
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">pvgis_optimisation.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> itertools <span class="kw">import</span> product
+<span class="kw">import</span> time
+
+
+<span class="kw">def</span> <span class="fn">optimiser_inclinaison</span>(
+    lat: <span class="cls">float</span>, lon: <span class="cls">float</span>, kwc: <span class="cls">float</span>,
+    angles: <span class="cls">list</span>[<span class="cls">int</span>] = [<span class="num">0</span>,<span class="num">10</span>,<span class="num">15</span>,<span class="num">20</span>,<span class="num">25</span>,<span class="num">30</span>,<span class="num">35</span>],
+    azimuts: <span class="cls">list</span>[<span class="cls">int</span>] = [-<span class="num">45</span>,<span class="num">0</span>,<span class="num">45</span>],
+) -> <span class="cls">dict</span>:
+    <span class="str">"""
+    Teste n angles × m azimuts et retourne la combinaison optimale.
+    
+    Nota : ~21 appels API (throttling 1 requête/s pour respecter les CGU PVGIS).
+    """</span>
+    resultats = []
+
+    <span class="kw">for</span> angle, azimut <span class="kw">in</span> product(angles, azimuts):
+        df = <span class="fn">appeler_pvgis_8760h</span>(lat, lon, kwc, angle, azimut)
+        prod = df[<span class="str">"kwh"</span>].<span class="fn">sum</span>() <span class="kw">if</span> <span class="str">"kwh"</span> <span class="kw">in</span> df. <span class="kw">else</span> df[<span class="str">"P"</span>].<span class="fn">sum</span>()/<span class="num">1000</span>
+        resultats.<span class="fn">append</span>({
+            <span class="str">"angle"</span>: angle, <span class="str">"azimut"</span>: azimut, <span class="str">"production_kwh_an"</span>: prod
+        })
+        time.<span class="fn">sleep</span>(<span class="num">1.1</span>)  <span class="cmt"># ← Respecter la limite PVGIS (1 req/s)</span>
+
+    <span class="kw">return</span> <span class="cls">max</span>(resultats, key=<span class="kw">lambda</span> x: x[<span class="str">"production_kwh_an"</span>])
+</code></pre>
+    </div>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">⚠️ Throttling PVGIS</div>
+      <p>
+        L'API PVGIS est gratuite mais limitée à <strong>1 requête par seconde</strong> et 
+        ~30 requêtes par minute. Au-delà, vous recevez un 429 Too Many Requests.
+        Pour les portefeuilles de plusieurs dizaines de sites, envisagez un cache local
+        avec <code>functools.lru_cache</code> ou Redis — les données ne changent pas
+        d'une demande à l'autre pour un même site.
+      </p>
+    </div>
+
+    <h2 id="integration-enedis">Combinaison PVGIS + Enedis pour l'autoconsommation</h2>
+    <p>
+      En combinant les 8 760 points PVGIS avec la courbe de charge Enedis (vue dans l'article précédent),
+      vous obtenez le taux d'autoconsommation horaire précis :
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="lang-label">Python</span>
+        <span class="file-label">bilan_complet.py</span>
+      </div>
+      <pre><code><span class="kw">def</span> <span class="fn">bilan_pv_complet</span>(
+    lat: <span class="cls">float</span>, lon: <span class="cls">float</span>, kwc: <span class="cls">float</span>,
+    angle: <span class="cls">float</span>, azimut: <span class="cls">float</span>,
+    access_token_enedis: <span class="cls">str</span>,
+    usage_point_id: <span class="cls">str</span>,
+    prix_kwh_achat: <span class="cls">float</span> = <span class="num">0.2516</span>,   <span class="cmt"># TRV HP 2024</span>
+    tarif_injection: <span class="cls">float</span> = <span class="num">0.1326</span>,   <span class="cmt"># OA CRE 2024 < 36 kWc</span>
+) -> <span class="cls">dict</span>:
+
+    <span class="cmt"># 1 – Production horaire PVGIS</span>
+    df_pvgis = <span class="fn">appeler_pvgis_8760h</span>(lat, lon, kwc, angle, azimut)
+    df_pvgis[<span class="str">"kwh"</span>] = df_pvgis[<span class="str">"P"</span>] / <span class="num">1000</span>
+
+    <span class="cmt"># 2 – Courbe de charge Enedis (rééchantillonnée à 1h)</span>
+    from datetime <span class="kw">import</span> date
+    df_enedis = <span class="fn">recuperer_courbe_charge</span>(
+        access_token_enedis, usage_point_id,
+        date_debut=date(<span class="num">2023</span>,<span class="num">1</span>,<span class="num">1</span>), date_fin=date(<span class="num">2023</span>,<span class="num">12</span>,<span class="num">31</span>)
+    )
+    df_enedis_1h = df_enedis[<span class="str">"wh"</span>].<span class="fn">resample</span>(<span class="str">"1H"</span>).<span class="fn">sum</span>() / <span class="num">1000</span>  <span class="cmt"># → kWh/h</span>
+    df_enedis_1h = df_enedis_1h.<span class="fn">rename</span>(<span class="str">"kwh_conso"</span>)
+
+    <span class="cmt"># 3 – Croisement</span>
+    bilan = pd.<span class="fn">DataFrame</span>({
+        <span class="str">"prod"</span>:  df_pvgis[<span class="str">"kwh"</span>],
+        <span class="str">"conso"</span>: df_enedis_1h,
+    }).<span class="fn">dropna</span>()
+
+    bilan[<span class="str">"auto"</span>]     = bilan[<span class="fn">["prod","conso"]</span>].<span class="fn">min</span>(axis=<span class="num">1</span>)
+    bilan[<span class="str">"surplus"</span>]  = (bilan[<span class="str">"prod"</span>] - bilan[<span class="str">"conso"</span>]).<span class="fn">clip</span>(<span class="num">0</span>)
+    bilan[<span class="str">"soutire"</span>]  = (bilan[<span class="str">"conso"</span>] - bilan[<span class="str">"prod"</span>]).<span class="fn">clip</span>(<span class="num">0</span>)
+
+    <span class="cmt"># 4 – Calcul financier</span>
+    eco_auto    = bilan[<span class="str">"auto"</span>].<span class="fn">sum</span>() * prix_kwh_achat
+    revenu_inj  = bilan[<span class="str">"surplus"</span>].<span class="fn">sum</span>() * tarif_injection
+    facture_abo = bilan[<span class="str">"soutire"</span>].<span class="fn">sum</span>() * prix_kwh_achat
+
+    <span class="kw">return</span> {
+        <span class="str">"production_kwh_an"</span>:          <span class="cls">round</span>(bilan[<span class="str">"prod"</span>].<span class="fn">sum</span>(),<span class="num">0</span>),
+        <span class="str">"consommation_kwh_an"</span>:        <span class="cls">round</span>(bilan[<span class="str">"conso"</span>].<span class="fn">sum</span>(),<span class="num">0</span>),
+        <span class="str">"taux_autoconsommation_pct"</span>:  <span class="cls">round</span>(bilan[<span class="str">"auto"</span>].<span class="fn">sum</span>()/bilan[<span class="str">"prod"</span>].<span class="fn">sum</span>()*<span class="num">100</span>,<span class="num">1</span>),
+        <span class="str">"taux_autosuffisance_pct"</span>:    <span class="cls">round</span>(bilan[<span class="str">"auto"</span>].<span class="fn">sum</span>()/bilan[<span class="str">"conso"</span>].<span class="fn">sum</span>()*<span class="num">100</span>,<span class="num">1</span>),
+        <span class="str">"economies_autoconso_eur_an"</span>: <span class="cls">round</span>(eco_auto,<span class="num">0</span>),
+        <span class="str">"revenus_injection_eur_an"</span>:   <span class="cls">round</span>(revenu_inj,<span class="num">0</span>),
+        <span class="str">"gain_total_eur_an"</span>:          <span class="cls">round</span>(eco_auto + revenu_inj,<span class="num">0</span>),
+    }
+</code></pre>
+    </div>
+
+    <div class="article-cta">
+      <h3>HeliaPV automatise tout ce pipeline</h3>
+      <p>
+        PVGIS + Enedis + CAF + CERFA DP + proposition PDF sont déjà intégrés dans HeliaPV.
+        Passer d'un adresse à une étude de rentabilité complète prend <strong>moins de 3 minutes</strong>.
+      </p>
+      <a href="/auth/register" class="btn-primary">Essai gratuit – 50 analyses offertes</a>
+      <a href="/bureaux-etudes" class="btn-secondary">Voir les fonctionnalités BET</a>
+    </div>
+
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:48px;padding-top:24px;border-top:1px solid #30363d">
+      <a href="/blog/enedis-data-connect-courbes-charge" style="color:#8b949e;text-decoration:none;font-size:.9rem">← Article précédent : Enedis Data Connect</a>
+      <a href="/blog" style="color:#00d4ff;text-decoration:none;font-size:.9rem;margin-left:auto">Voir tous les articles →</a>
+    </div>
+  </main>
+
+  <aside class="blog-sidebar">
+    <div class="sidebar-card">
+      <h4>Table des matières</h4>
+      <ul class="toc-list">
+        <li><a href="#pvgis-presentation">PVGIS – présentation</a></li>
+        <li><a href="#endpoint">Endpoint /seriescalc</a></li>
+        <li><a href="#code-python">Appel Python + DataFrame</a></li>
+        <li><a href="#production-annuelle">Production annuelle + P50/P90</a></li>
+        <li><a href="#multi-inclinaison">Optimisation inclinaison</a></li>
+        <li><a href="#integration-enedis">Bilan PVGIS + Enedis</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-card">
+      <h4>Paramètres clés</h4>
+      <ul class="api-params">
+        <li><span class="param-name">raddatabase</span><span class="param-val">PVGIS-SARAH3</span></li>
+        <li><span class="param-name">outputformat</span><span class="param-val">json</span></li>
+        <li><span class="param-name">mountingplace</span><span class="param-val">building</span></li>
+        <li><span class="param-name">pvtechchoice</span><span class="param-val">crystSi</span></li>
+        <li><span class="param-name">loss</span><span class="param-val">14 (défaut)</span></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<footer class="blog-footer">
+  <p>© {{ annee }} HeliaPV · <a href="/blog">Blog technique</a> · <a href="/bureaux-etudes">Bureaux d'études</a></p>
+</footer>
+</body>
+</html>
