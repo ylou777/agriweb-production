@@ -1257,7 +1257,9 @@ class PlanMasseGenerator:
         
         # Installation PV
         if self.calpinage and 'zones' in self.calpinage:
-            total_modules = sum(z.get('nbModules', 0) for z in self.calpinage['zones'])
+            # Utiliser modulesPositions (vrai count post-filtre irradiation + suppressions manuelles)
+            # nbModules peut contenir l'ancien count avant filtrage
+            total_modules = sum(len(z.get('modulesPositions', [])) or z.get('nbModules', 0) for z in self.calpinage['zones'])
             puissance_module = self.calpinage.get('module', {}).get('puissance', 560)
             puissance_totale = total_modules * float(puissance_module) / 1000  # kWc
             

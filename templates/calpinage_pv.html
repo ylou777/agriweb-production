@@ -6891,13 +6891,19 @@
                     const metersPerDegreeLng = widthDegrees / realWidthMeters;
                     const metersPerDegreeLat = heightDegrees / realHeightMeters;
                     
+                    // ✅ nbModules post-filtre : compter les polygones réellement dessinés
+                    // z.nbModules est calculé AVANT le filtre irradiation → trop élevé
+                    // z.modulesPositions est peuplé juste au-dessus depuis moduleGroup.eachLayer → exact
+                    const trueNbModules = (z.modulesPositions || []).length;
+                    const modulePuissanceSave = parseFloat(document.getElementById('modulePuissance').value) || 560;
+
                     return {
                         numero: z.numero,
                         surfaceM2: z.surfaceM2,
-                        nbModules: z.nbModules,
+                        nbModules: trueNbModules,
                         nbCols: z.nbCols,
                         nbRows: z.nbRows,
-                        puissanceKw: z.puissanceKw,
+                        puissanceKw: trueNbModules * modulePuissanceSave / 1000,
                         orientation: z.orientation,
                         inclinaison: z.inclinaison,
                         productible: z.productible,
