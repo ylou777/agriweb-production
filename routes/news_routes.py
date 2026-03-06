@@ -27,11 +27,13 @@ def actualites_solaires():
     lang     = request.args.get("lang", "all")  # filtre optionnel
 
     france = [a for a in articles if a.get("flag") == "fr"]
+    europe = [a for a in articles if a.get("flag") == "eu"]
     monde  = [a for a in articles if a.get("flag") == "en"]
 
     return render_template(
         "news/actualites_solaires.html",
         articles_france=france,
+        articles_eu=europe,
         articles_monde=monde,
         all_articles=articles,
         last_update=data.get("last_update"),

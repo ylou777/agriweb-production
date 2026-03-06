@@ -158,14 +158,15 @@
 
   /* ── Layout principal ── */
   .wire-layout {
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 32px 24px 80px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 32px;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 28px;
   }
-  @media (max-width: 900px) { .wire-layout { grid-template-columns: 1fr; } }
+  @media (max-width: 1100px) { .wire-layout { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 700px)  { .wire-layout { grid-template-columns: 1fr; } }
 
   /* ── Colonne ── */
   .wire-col-header {
@@ -309,7 +310,7 @@
     </p>
     <div class="wire-meta">
       <span class="badge live">{{ total }} dépêches</span>
-      <span class="badge">10 sources surveillées</span>
+      <span class="badge">22 sources surveillées</span>
       {% if last_update %}
       <span class="badge">MAJ : {{ last_update[:16]|replace('T',' ') }} UTC</span>
       {% endif %}
@@ -323,6 +324,7 @@
   <div class="filters-inner">
     <button class="filter-btn active" data-filter="all" onclick="filterNews(this,'all')">Toutes les dépêches</button>
     <button class="filter-btn" data-filter="fr" onclick="filterNews(this,'fr')">🇫🇷 France</button>
+    <button class="filter-btn" data-filter="eu" onclick="filterNews(this,'eu')">🇪🇺 Europe</button>
     <button class="filter-btn" data-filter="en" onclick="filterNews(this,'en')">🌍 International</button>
   </div>
 </div>
@@ -361,6 +363,38 @@
       <div class="no-news">
         <p>Chargement en cours…<br><small>Les dépêches apparaîtront après le premier scan des flux RSS (env. 30s).</small></p>
       </div>
+    {% endif %}
+  </div>
+
+  <!-- EUROPE & INSTITUTIONNEL -->
+  <div class="wire-column" id="col-eu">
+    <div class="wire-col-header">
+      <span class="wire-col-flag">🇪🇺</span>
+      <span class="wire-col-title">Europe &amp; Institutionnel</span>
+      <span class="wire-col-count">{{ articles_eu|length }} dépêches</span>
+    </div>
+
+    {% if articles_eu %}
+      {% for a in articles_eu %}
+      <article class="brief {% if loop.first %}featured{% endif %}" data-lang="eu">
+        <div class="brief-dateline">
+          <span class="source-name">{{ a.source|upper }}</span>
+          <span>—</span>
+          <span>{{ a.date_pub[:10] }}</span>
+          <span class="age-tag">{{ a.age }}</span>
+        </div>
+        <h2 class="brief-title"><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titre }}</a></h2>
+        {% if a.resume %}
+        <p class="brief-summary">{{ a.resume }}</p>
+        {% endif %}
+        <div class="brief-footer">
+          <span class="brief-category">{{ a.country }}</span>
+          <a href="{{ a.url }}" class="brief-read" target="_blank" rel="noopener">Lire l'article →</a>
+        </div>
+      </article>
+      {% endfor %}
+    {% else %}
+      <div class="no-news"><p>Chargement…</p></div>
     {% endif %}
   </div>
 
@@ -406,7 +440,12 @@
     &nbsp;|&nbsp; Sources : PV Magazine France/Intl, Enerzine, Actu-Environnement, PV Tech, CleanTechnica, Electrek, Solar Power Europe
   </p>
   <p style="margin-top:8px;font-size:.72rem;">
-    Mise à jour automatique toutes les 2h · <a href="/api/news/solaire">API JSON</a>
+    Mise à jour automatique toutes les 2h · <a href="/api/news/solaire">API JSON</a><br>
+    🇫🇷 PV Magazine FR · Enerzine · Actu-Environnement · Connaissance des Énergies · Info PV · Révolution Énergétique · ADEME · Min. Transition · CRE · RTE · SER · Enerplan
+    &nbsp;|&nbsp;
+    🇪🇺 SolarPower Europe · EASE
+    &nbsp;|&nbsp;
+    🌍 IRENA · IEA · PV Magazine Intl · PV Tech · Electrek · CleanTechnica · Solar Daily · Renew Economy · Energy Monitor · Carbon Brief
   </p>
 </footer>
 
@@ -417,18 +456,17 @@ function filterNews(btn, lang) {
   btn.classList.add('active');
 
   const fr = document.getElementById('col-fr');
+  const eu = document.getElementById('col-eu');
   const en = document.getElementById('col-en');
 
-  if (lang === 'all') {
-    fr.style.display = ''; en.style.display = '';
-    document.getElementById('wireLayout').style.gridTemplateColumns = '1fr 1fr';
-  } else if (lang === 'fr') {
-    fr.style.display = ''; en.style.display = 'none';
-    document.getElementById('wireLayout').style.gridTemplateColumns = '1fr';
-  } else {
-    fr.style.display = 'none'; en.style.display = '';
-    document.getElementById('wireLayout').style.gridTemplateColumns = '1fr';
-  }
+  fr.style.display = (lang === 'all' || lang === 'fr') ? '' : 'none';
+  eu.style.display = (lang === 'all' || lang === 'eu') ? '' : 'none';
+  en.style.display = (lang === 'all' || lang === 'en') ? '' : 'none';
+
+  const visibleCount = [fr, eu, en].filter(c => c.style.display !== 'none').length;
+  document.getElementById('wireLayout').style.gridTemplateColumns =
+    visibleCount === 3 ? '1fr 1fr 1fr' :
+    visibleCount === 2 ? '1fr 1fr' : '1fr';
 }
 
 // ── Force refresh via API ──────────────────────────────────────────────────────

@@ -27,20 +27,20 @@ from pathlib import Path
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 CACHE_FILE        = Path(__file__).parent / "data" / "solar_news_cache.json"
-MAX_ARTICLES      = 100          # articles conservés en cache
+MAX_ARTICLES      = 200          # articles conservés en cache
 MAX_PER_SOURCE    = 12           # articles max par source par cycle
 REFRESH_INTERVAL  = 7200        # secondes entre deux rafraîchissements (2h)
 
 # ── Sources RSS ────────────────────────────────────────────────────────────────
 SOURCES = [
-    # ── France ──
+    # ══ FRANCE – Presse spécialisée ══════════════════════════════════════════
     {
         "name":    "PV Magazine France",
         "url":     "https://www.pv-magazine.fr/feed/",
         "country": "🇫🇷 France",
         "flag":    "fr",
         "lang":    "fr",
-        "solar_only": True,    # source 100% solaire → pas de filtre keywords
+        "solar_only": True,
     },
     {
         "name":    "Enerzine",
@@ -67,14 +67,106 @@ SOURCES = [
         "solar_only": False,
     },
     {
-        "name":    "Tout Sur l'Énergie",
-        "url":     "https://www.toutsurlenvironnement.fr/feed",
+        "name":    "Info Photovoltaïque",
+        "url":     "https://www.info.photovoltaique.fr/feed/",
+        "country": "🇫🇷 France",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": True,
+    },
+    {
+        "name":    "Révolution Énergétique",
+        "url":     "https://www.revolution-energetique.com/feed/",
         "country": "🇫🇷 France",
         "flag":    "fr",
         "lang":    "fr",
         "solar_only": False,
     },
-    # ── International ──
+    # ══ FRANCE – Institutionnel & régulateur ═════════════════════════════════
+    {
+        "name":    "ADEME Presse",
+        "url":     "https://presse.ademe.fr/feed/",
+        "country": "🇫🇷 France / ADEME",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": False,
+    },
+    {
+        "name":    "Min. Transition Énergétique",
+        "url":     "https://www.ecologie.gouv.fr/actualites/rss.xml",
+        "country": "🇫🇷 France / Gouvernement",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": False,
+    },
+    {
+        "name":    "CRE",
+        "url":     "https://www.cre.fr/rss",
+        "country": "🇫🇷 France / CRE",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": False,
+    },
+    {
+        "name":    "RTE Actualités",
+        "url":     "https://www.rte-france.com/RSS/actualites.xml",
+        "country": "🇫🇷 France / RTE",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": False,
+    },
+    # ══ FRANCE – Syndicats & fédérations ═════════════════════════════════════
+    {
+        "name":    "SER – Syndicat ENR",
+        "url":     "https://www.enr.fr/rss",
+        "country": "🇫🇷 France / SER",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": False,
+    },
+    {
+        "name":    "Enerplan",
+        "url":     "https://www.enerplan.asso.fr/feed/",
+        "country": "🇫🇷 France / Enerplan",
+        "flag":    "fr",
+        "lang":    "fr",
+        "solar_only": True,
+    },
+    # ══ EUROPE ═══════════════════════════════════════════════════════════════
+    {
+        "name":    "Solar Power Europe",
+        "url":     "https://www.solarpowereurope.org/feed/",
+        "country": "🇪🇺 Europe",
+        "flag":    "eu",
+        "lang":    "en",
+        "solar_only": True,
+    },
+    {
+        "name":    "EASE – Energy Storage Europe",
+        "url":     "https://ease-storage.eu/feed/",
+        "country": "🇪🇺 Europe",
+        "flag":    "eu",
+        "lang":    "en",
+        "solar_only": False,
+    },
+    # ══ INTERNATIONAL – Organisations ════════════════════════════════════════
+    {
+        "name":    "IRENA",
+        "url":     "https://www.irena.org/rss.aspx",
+        "country": "🌍 IRENA",
+        "flag":    "en",
+        "lang":    "en",
+        "solar_only": False,
+    },
+    {
+        "name":    "IEA – Int. Energy Agency",
+        "url":     "https://www.iea.org/api/rss/en/news",
+        "country": "🌍 IEA",
+        "flag":    "en",
+        "lang":    "en",
+        "solar_only": False,
+    },
+    # ══ INTERNATIONAL – Presse spécialisée ═══════════════════════════════════
     {
         "name":    "PV Magazine International",
         "url":     "https://www.pv-magazine.com/feed/",
@@ -108,12 +200,36 @@ SOURCES = [
         "solar_only": True,
     },
     {
-        "name":    "Solar Power Europe",
-        "url":     "https://www.solarpowereurope.org/feed/",
+        "name":    "Solar Daily",
+        "url":     "https://www.solardaily.com/backend/rss2.0.xml",
         "country": "🌍 International",
         "flag":    "en",
         "lang":    "en",
         "solar_only": True,
+    },
+    {
+        "name":    "Renew Economy",
+        "url":     "https://reneweconomy.com.au/feed/",
+        "country": "🌍 International",
+        "flag":    "en",
+        "lang":    "en",
+        "solar_only": False,
+    },
+    {
+        "name":    "Energy Monitor",
+        "url":     "https://www.energymonitor.ai/feed/",
+        "country": "🌍 International",
+        "flag":    "en",
+        "lang":    "en",
+        "solar_only": False,
+    },
+    {
+        "name":    "Carbon Brief",
+        "url":     "https://www.carbonbrief.org/feed/",
+        "country": "🌍 International",
+        "flag":    "en",
+        "lang":    "en",
+        "solar_only": False,
     },
 ]
 
@@ -123,11 +239,15 @@ SOLAR_KW_FR = [
     "parc solaire", "centrale solaire", "autoconsommation", "ombrière",
     "agrivoltaïque", "agrivoltaique", "agri-pv", "bifacial", "kilowatt-crête",
     "megawatt", "gigawatt", "gw solaire", "capacité solaire", "enr", "renouvelable",
+    "transition énergétique", "transition energetique", "énergie renouvelable",
+    "appel d'offres", "ao cre", "tarif d'achat", "injection", "raccordement",
 ]
 SOLAR_KW_EN = [
     "solar", "photovoltaic", r"\bpv\b", "rooftop solar", "utility.scale",
     "agrivoltaic", "bifacial", "perovskite", "clean energy", "renewable",
     "gigawatt", "megawatt", "solar farm", "solar panel", "solar power",
+    "energy transition", "decarboni", "net zero", "capacity", "auction",
+    "feed.in tariff", "grid connection", "storage",
 ]
 
 _STRIP_HTML = re.compile(r"<[^>]+>")
