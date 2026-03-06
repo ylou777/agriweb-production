@@ -1213,12 +1213,15 @@
 
                             <!-- Heatmap opacity -->
                             <div class="mb-3">
-                                <div class="d-flex justify-content-between" style="color:rgba(255,255,255,0.75);">
-                                    <label style="margin:0;">🌡️ Heatmap irradiation</label>
-                                    <span id="lblHeatOpacity" style="color:rgba(255,255,255,0.5);">85%</span>
+                                <div class="d-flex justify-content-between align-items-center" style="color:rgba(255,255,255,0.75);">
+                                    <label class="d-flex align-items-center gap-1" style="cursor:pointer;margin:0;">
+                                        <input type="checkbox" id="chkHeatmapVisible" onchange="toggleHeatmapVisibility(this.checked)" disabled>
+                                        🌡️ Heatmap irradiation
+                                    </label>
+                                    <span id="lblHeatOpacity" style="color:rgba(255,255,255,0.35);">85%</span>
                                 </div>
                                 <input type="range" id="sliderHeatOpacity" class="form-range" min="0" max="100" value="85"
-                                       oninput="setHeatmapOpacity(this.value)">
+                                       oninput="setHeatmapOpacity(this.value)" disabled>
                             </div>
 
                             <hr style="border-color:rgba(255,255,255,0.15);margin:8px 0;">
@@ -8396,6 +8399,21 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (lbl) lbl.textContent = v + '%';
         }
 
+        /** Affiche/masque la heatmap irradiation depuis la checkbox du panneau calques */
+        function toggleHeatmapVisibility(checked) {
+            if (!_flux2DOverlay || typeof map === 'undefined' || !map) return;
+            if (checked) {
+                if (!map.hasLayer(_flux2DOverlay)) _flux2DOverlay.addTo(map);
+                map.on('mousemove', _fluxPipetteMove);
+                map.on('mouseout',  _fluxPipetteHide);
+            } else {
+                if (map.hasLayer(_flux2DOverlay)) map.removeLayer(_flux2DOverlay);
+                map.off('mousemove', _fluxPipetteMove);
+                map.off('mouseout',  _fluxPipetteHide);
+                _fluxPipetteHide();
+            }
+        }
+
         /**
          * Prélève un pixel RGBA depuis un canvas calé sur une bbox géographique.
          * Retourne Uint8ClampedArray [r,g,b,a] ou null si hors frame.
@@ -8707,6 +8725,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const _sldA = document.getElementById('sliderAerialOpacity');
                 if (_chkA) { _chkA.checked = false; _chkA.disabled = true; }
                 if (_sldA) { _sldA.disabled = true; }
+                // Heatmap irradiation : désactiver checkbox + slider dans les calques
+                const _chkH = document.getElementById('chkHeatmapVisible');
+                const _sldH = document.getElementById('sliderHeatOpacity');
+                if (_chkH) { _chkH.checked = false; _chkH.disabled = true; }
+                if (_sldH) _sldH.disabled = true;
                 // Restaurer le zoom/centre précédent
                 if (_prevMapView && typeof map !== 'undefined' && map) {
                     map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
@@ -8852,6 +8875,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const data = await resp.json();
                 _fluxActive = true;
                 _syncFluxBtns(true, false);
+                // Activer le calque irradiation dans le panneau des calques
+                const _chkHV = document.getElementById('chkHeatmapVisible');
+                const _sldHV = document.getElementById('sliderHeatOpacity');
+                if (_chkHV) { _chkHV.disabled = false; _chkHV.checked = true; }
+                if (_sldHV) _sldHV.disabled = false;
                 // Sauvegarder les données Solar pour le remplissage auto
                 window._fluxRoofSegments = data.roof_segments  || [];
                 window._fluxSolarPanels  = data.solar_panels   || [];
