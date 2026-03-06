@@ -109,7 +109,7 @@ class PlanMasseGenerator:
 
     def _compute_best_scale(self, plan_width_cm, plan_height_cm):
         """Calcule l'échelle optimale en fonction de l'étendue réelle des zones PV.
-        Choisit dans les échelles cadastrales standards: 1/200, 1/500, 1/1000, 1/2000, 1/5000.
+        Choisit dans les échelles cadastrales standards: 1/500, 1/1000, 1/2000, 1/5000.
         Ajoute une marge de 40% autour du bâtiment pour ne pas le tronquer.
         """
         all_lats, all_lons = [], []
@@ -152,8 +152,8 @@ class PlanMasseGenerator:
 
         print(f"[PLAN] 📐 Étendue bâtiment: {lon_extent_m:.1f}m × {lat_extent_m:.1f}m (avec marge 40%)")
 
-        # Échelles cadastrales standards (plus précis → moins précis)
-        standard_scales = [200, 500, 1000, 2000, 5000]
+        # Échelles cadastrales standards (plus précis → moins précis) — max 1/500
+        standard_scales = [500, 1000, 2000, 5000]
         for scale in standard_scales:
             mpc = scale / 100.0  # mètres par cm sur le plan
             req_w = lon_extent_m / mpc
