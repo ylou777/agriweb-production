@@ -5369,142 +5369,135 @@ class Calpinage3DViewer {
         }
         
         if (!zones) return;
-        
+
+        // Offset bâtiment → monde pour équation de plan RANSAC (partagé toutes zones)
+        const _bCGadd = this.roofPanelsInfo?.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
+        const _lmAdd  = this.LAT_TO_M * Math.cos(_bCGadd.lat * Math.PI / 180);
+        const _bOXadd = (_bCGadd.lng - this.centerLon) * _lmAdd;
+        const _bOZadd = -(_bCGadd.lat - this.centerLat) * this.LAT_TO_M;
+        const _bWHadd = this.roofPanelsInfo?.buildingWallH || 6;
+
         let totalModules = 0;
-        
+
         zones.forEach(zone => {
             if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
-            
-            // === ORIENTATION : celle définie en 2D par l'utilisateur ===
-            const azimutDeg = zone.orientation || zone.azimut || 180;
-            const azimut = azimutDeg * Math.PI / 180;
-            
-            // === PENTE : détection automatique depuis la toiture 3D ===
-            let penteDeg = 0;
-            let penteSource = 'flat';
-            let solarHeightM = null; // Hauteur du segment Solar (relatif au sol)
-            
+
+            // === PANEL MATCH : pente + azimut depuis le pan de toiture ===
+            let matchedPanel = null;
             if (this.roofPanelsInfo && this.roofPanelsInfo.panels) {
-                const matchResult = this._matchZoneToPanel(zone);
-                if (matchResult) {
-                    penteDeg = matchResult.pente_deg;
-                    penteSource = matchResult.name;
-                    if (matchResult._height_m != null) {
-                        solarHeightM = matchResult._height_m;
-                    }
-                    zone.inclinaison = penteDeg;
-                    zone._detectedPanel = matchResult;
-                    console.log(`🏠 Zone ${zone.numero} → ${matchResult.name} : pente ${penteDeg}° auto`);
+                matchedPanel = this._matchZoneToPanel(zone);
+                if (matchedPanel) {
+                    zone.inclinaison    = matchedPanel.pente_deg;
+                    zone._detectedPanel = matchedPanel;
+                    console.log(`🏠 Zone ${zone.numero} → ${matchedPanel.name} : pente ${matchedPanel.pente_deg}° auto`);
                 }
             }
-            
-            if (penteDeg === 0 && zone.inclinaison && zone.inclinaison > 0) {
-                penteDeg = zone.inclinaison;
-                penteSource = 'zone (fallback)';
-            }
-            
-            const pente = penteDeg * Math.PI / 180;
-            
-            // === CENTRE DE LA ZONE (moyenne des positions modules) ===
+
+            const penteDeg = (matchedPanel?.pente_deg) || (zone.inclinaison > 0 ? zone.inclinaison : 0);
+            const pente    = penteDeg * Math.PI / 180;
+
+            // Azimut : priorité au plan RANSAC (plus précis que la zone 2D dessinée)
+            const azimutDeg = matchedPanel?.orientation_deg || zone.orientation || zone.azimut || 180;
+            const azimut    = azimutDeg * Math.PI / 180;
+
+            // Le plan est RANSAC si mnh_a/b/c sont disponibles
+            const isRansac = matchedPanel?.mnh_a !== undefined && matchedPanel?.mnh_b !== undefined;
+
+            // === CENTRE DE LA ZONE ===
             let sumLat = 0, sumLng = 0;
             zone.modulesPositions.forEach(m => { sumLat += m.lat; sumLng += m.lng; });
-            const zoneCenterLat = sumLat / zone.modulesPositions.length;
-            const zoneCenterLng = sumLng / zone.modulesPositions.length;
+            const zoneCenterLat  = sumLat / zone.modulesPositions.length;
+            const zoneCenterLng  = sumLng / zone.modulesPositions.length;
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
-            
-            // === HAUTEUR : terrain + hauteur murs du bâtiment + 8cm au-dessus ===
-            // Si Solar disponible : utiliser height_m du segment (relatif au sol)
-            // Sinon : hauteur des MURS (égout) depuis BD TOPO
-            const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            let roofBaseY;
-            if (solarHeightM != null) {
-                // Solar height_m est la hauteur du plan de toit au-dessus du sol
-                roofBaseY = terrainH + solarHeightM + 0.10;
-            } else {
-                const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-                roofBaseY = terrainH + wallH + 0.08;
-            }
-            
-            // === GROUPE : positionné au centre, SANS rotation Y ===
-            // Les positions des modules (converties depuis lat/lng) encodent déjà
-            // l'orientation 2D. Pas besoin de dé-rotation complexe.
-            const panGroup = new THREE.Group();
-            panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
-            
-            // Matériau partagé pour tous les modules de la zone
+            const terrainH        = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+
+            // Matériau partagé
             const panelMat = new THREE.MeshPhongMaterial({
-                color: 0x1a237e,
-                specular: 0x4444ff,
-                shininess: 80,
-                transparent: true,
-                opacity: 0.92,
-                depthWrite: true,
-                polygonOffset: true,
-                polygonOffsetFactor: -4,
-                polygonOffsetUnits: -4,
+                color: 0x1a237e, specular: 0x4444ff, shininess: 80,
+                transparent: true, opacity: 0.92, depthWrite: true,
+                polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
             });
-            
-            zone.modulesPositions.forEach(modPos => {
-                if (!modPos.corners || modPos.corners.length < 4) return;
-                
-                const c = modPos.corners;
-                
-                // Coins en coordonnées 3D locales
-                const c0 = this._geoToLocal(c[0].lat, c[0].lng);
-                const c1 = this._geoToLocal(c[1].lat, c[1].lng);
-                const c3 = this._geoToLocal(c[3].lat, c[3].lng);
-                
-                // Dimensions du module depuis les coins réels
-                const w = Math.sqrt(Math.pow(c1.x - c0.x, 2) + Math.pow(c1.z - c0.z, 2));
-                const h = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
-                
-                if (w < 0.1 || h < 0.1) return;
-                
-                // Centre du module → offset par rapport au centre du groupe
-                const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
-                const dx = modLocal.x - zoneLocalCenter.x;
-                const dz = modLocal.z - zoneLocalCenter.z;
-                
-                // Angle de l'arête c[0]→c[1] pour aligner le BoxGeometry
-                const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
-                
-                const panel = new THREE.Mesh(
-                    new THREE.BoxGeometry(w, 0.04, h),
-                    panelMat
-                );
-                
-                // Position directe depuis lat/lng (encodent déjà la rotation 2D)
-                // Y = 0.20m au-dessus de la surface pour éviter z-fighting avec le toit
-                panel.position.set(dx, 0.20, dz);
-                
-                // Rotation individuelle pour aligner les bords du rectangle
-                // BoxGeometry a sa largeur le long de X ; on tourne pour matcher l'arête 2D
-                panel.rotation.y = -edgeAngle;
-                
-                panel.castShadow = true;
-                panel.receiveShadow = true;
-                panel.renderOrder = 10;
-                
-                panGroup.add(panel);
-                totalModules++;
-            });
-            
-            // === PENTE : appliquée comme rotation autour de l'axe perpendiculaire à l'azimut ===
-            // Direction azimut dans notre repère : (sin(az), 0, -cos(az))
-            //   - N(0°) → (0,0,-1), E(90°) → (1,0,0), S(180°) → (0,0,1), O(270°) → (-1,0,0)
-            // Axe de bascule = cross( up, direction_azimut ) = (-cos(az), 0, -sin(az))
-            // → fait descendre le bord côté azimut et monter le bord opposé ✓
-            if (pente > 0.001) {
-                const tiltAxis = new THREE.Vector3(
-                    -Math.cos(azimut), 0, -Math.sin(azimut)
-                ).normalize();
-                panGroup.rotateOnWorldAxis(tiltAxis, pente);
+
+            const panGroup = new THREE.Group();
+
+            if (isRansac) {
+                // ── CHEMIN RANSAC : chaque module à sa hauteur exacte via équation du plan ──
+                // Identique à autoFillRoofPanels branche RANSAC.
+                // Aucun tilt du groupe : la hauteur Y est calculée individuellement
+                // depuis mnh_a*sPx + mnh_b*sPy + mnh_c pour chaque position.
+                panGroup.position.set(0, 0, 0);
+
+                zone.modulesPositions.forEach(modPos => {
+                    if (!modPos.corners || modPos.corners.length < 4) return;
+                    const c  = modPos.corners;
+                    const c0 = this._geoToLocal(c[0].lat, c[0].lng);
+                    const c1 = this._geoToLocal(c[1].lat, c[1].lng);
+                    const c3 = this._geoToLocal(c[3].lat, c[3].lng);
+                    const w  = Math.sqrt(Math.pow(c1.x - c0.x, 2) + Math.pow(c1.z - c0.z, 2));
+                    const h  = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
+                    if (w < 0.1 || h < 0.1) return;
+
+                    const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+
+                    // Hauteur exacte via équation du plan RANSAC
+                    const sPx = modLocal.x - _bOXadd;
+                    const sPy = -(modLocal.z - _bOZadd);
+                    const mnh = matchedPanel.mnh_a * sPx + matchedPanel.mnh_b * sPy + matchedPanel.mnh_c;
+                    const modY = terrainH + Math.max(_bWHadd, mnh) + 0.08;
+
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
+                    // Position en world space (panGroup à l'origine)
+                    panel.position.set(modLocal.x, modY, modLocal.z);
+                    // Rotation identique à autoFillRoofPanels : YXZ, y=π-az, x=pente
+                    panel.rotation.order = 'YXZ';
+                    panel.rotation.y = Math.PI - azimut;
+                    panel.rotation.x = pente;
+                    panel.castShadow    = true;
+                    panel.receiveShadow = true;
+                    panel.renderOrder   = 10;
+                    panGroup.add(panel);
+                    totalModules++;
+                });
+
+            } else {
+                // ── CHEMIN OBB (fallback) : hauteur uniforme + tilt du groupe ──
+                const wallH    = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+                const roofBaseY = terrainH + wallH + 0.08;
+                panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
+
+                zone.modulesPositions.forEach(modPos => {
+                    if (!modPos.corners || modPos.corners.length < 4) return;
+                    const c  = modPos.corners;
+                    const c0 = this._geoToLocal(c[0].lat, c[0].lng);
+                    const c1 = this._geoToLocal(c[1].lat, c[1].lng);
+                    const c3 = this._geoToLocal(c[3].lat, c[3].lng);
+                    const w  = Math.sqrt(Math.pow(c1.x - c0.x, 2) + Math.pow(c1.z - c0.z, 2));
+                    const h  = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
+                    if (w < 0.1 || h < 0.1) return;
+                    const modLocal   = this._geoToLocal(modPos.lat, modPos.lng);
+                    const dx         = modLocal.x - zoneLocalCenter.x;
+                    const dz         = modLocal.z - zoneLocalCenter.z;
+                    const edgeAngle  = Math.atan2(c1.z - c0.z, c1.x - c0.x);
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
+                    panel.position.set(dx, 0.20, dz);
+                    panel.rotation.y    = -edgeAngle;
+                    panel.castShadow    = true;
+                    panel.receiveShadow = true;
+                    panel.renderOrder   = 10;
+                    panGroup.add(panel);
+                    totalModules++;
+                });
+
+                if (pente > 0.001) {
+                    const tiltAxis = new THREE.Vector3(-Math.cos(azimut), 0, -Math.sin(azimut)).normalize();
+                    panGroup.rotateOnWorldAxis(tiltAxis, pente);
+                }
             }
-            
+
             this.scene.add(panGroup);
             this.modules3D.push(panGroup);
         });
-        
+
         console.log(`✅ ${totalModules} modules PV 3D ajoutés en ${this.modules3D.length} pan(s) — pente auto-détectée`);
     }
     
@@ -5529,6 +5522,33 @@ class Calpinage3DViewer {
             zoneCenterLng = center.lng;
         } else {
             return null;
+        }
+
+        // ── TYPE RANSAC : containment dans polygon_2d du plan LiDAR ──
+        // Doit être testé avant OBB car les plans RANSAC ont des polygones précis.
+        if (panels.some(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)) {
+            const zoneLocal = this._geoToLocal(zoneCenterLat, zoneCenterLng);
+            const _bCG2 = this.roofPanelsInfo?.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
+            const _lm2  = this.LAT_TO_M * Math.cos(_bCG2.lat * Math.PI / 180);
+            const _bOX2 = (_bCG2.lng - this.centerLon) * _lm2;
+            const _bOZ2 = -(_bCG2.lat - this.centerLat) * this.LAT_TO_M;
+            const sPx2  = zoneLocal.x - _bOX2;
+            const sPy2  = -(zoneLocal.z - _bOZ2);
+            // Test PIP dans le polygon_2d de chaque plan RANSAC
+            for (const p of panels) {
+                if (!p.polygon_2d || p.polygon_2d.length < 3) continue;
+                if (this._pointInPolygon2D(sPx2, sPy2, p.polygon_2d.map(pt => ({x: pt[0], y: pt[1]})))) {
+                    return p;
+                }
+            }
+            // Fallback centroïde le plus proche
+            let bestRansac = panels[0], bestDist2 = Infinity;
+            for (const p of panels) {
+                if (!p.centroid) continue;
+                const d = Math.sqrt(Math.pow(sPx2 - p.centroid[0], 2) + Math.pow(sPy2 - p.centroid[1], 2));
+                if (d < bestDist2) { bestDist2 = d; bestRansac = p; }
+            }
+            return bestRansac;
         }
 
         // ── TYPE SOLAR_MULTI : matching GPS direct vers le segment Solar le plus proche ──
