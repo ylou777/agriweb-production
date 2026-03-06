@@ -6117,8 +6117,9 @@
                 zone.layer.on('click', zone._addModuleHandler);
             }
 
-            // Mettre à jour le comptage réel si le filtre irradiation est actif
-            if (_irrFilterOn && _nbDrawn !== zone.nbModules) {
+            // Mettre à jour le comptage réel après chaque dessin
+            // (filtre irradiation OU suppressions manuelles/rechargement depuis BDD)
+            if (_nbDrawn !== zone.nbModules) {
                 zone.nbModules  = _nbDrawn;
                 const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
                 zone.puissanceKw = (_nbDrawn * modulePuissance) / 1000;
