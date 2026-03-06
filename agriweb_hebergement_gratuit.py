@@ -677,6 +677,14 @@ try:
 except Exception as e:
     print(f"⚠️ [BLOG] Impossible d'enregistrer le blueprint blog: {e}")
 
+# Veille solaire – brèves AFP-style
+try:
+    from routes.news_routes import news_bp
+    app.register_blueprint(news_bp)
+    print("📰 [NEWS] Blueprint veille solaire enregistré (/actualites-solaires)")
+except Exception as e:
+    print(f"⚠️ [NEWS] Impossible d'enregistrer le blueprint news: {e}")
+
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
 def redirect_register():

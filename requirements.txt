@@ -45,3 +45,6 @@ laspy[lazrs]>=2.5.0
 # Utilities
 requests==2.31.0
 python-dotenv==1.0.0
+
+# Veille solaire – agrégateur RSS
+feedparser==6.0.11

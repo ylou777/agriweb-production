@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actualités Solaires – Brèves AFP | HeliaPV</title>
+<meta name="description" content="Fil d'actualités solaire France et monde : brèves AFP-style issues de PV Magazine, Enerzine, PV Tech, CleanTechnica… Mis à jour toutes les 2h.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0d1117;
+    --bg-card:  #161b22;
+    --bg-deep:  #010409;
+    --border:   #21262d;
+    --text:     #e6edf3;
+    --sub:      #8b949e;
+    --cyan:     #00d4ff;
+    --green:    #00ff88;
+    --gold:     #ffd700;
+    --red:      #ff4444;
+    --orange:   #f0883e;
+    --radius:   10px;
+    --mono:     'Fira Code', monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; min-height: 100vh; }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Topbar ── */
+  .topbar {
+    background: rgba(13,17,23,.95);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  .topbar-inner { max-width: 1400px; margin: 0 auto; width: 100%; display: flex; align-items: center; gap: 28px; }
+  .topbar-logo { font-weight: 800; font-size: 1rem; color: var(--text); }
+  .topbar-logo span { color: var(--cyan); }
+  .topbar-nav { display: flex; gap: 20px; margin-left: auto; align-items: center; }
+  .topbar-nav a { color: var(--sub); font-size: .85rem; }
+  .topbar-nav a:hover { color: var(--text); text-decoration: none; }
+  .topbar-cta {
+    background: var(--cyan);
+    color: #000 !important;
+    font-weight: 700;
+    font-size: .82rem;
+    padding: 6px 16px;
+    border-radius: 20px;
+  }
+
+  /* ── Header fil dépêches ── */
+  .wire-header {
+    background: linear-gradient(145deg, #0d1117, #0a1929);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 24px 40px;
+  }
+  .wire-header-inner { max-width: 1400px; margin: 0 auto; }
+  .wire-agency {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -.02em;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .wire-agency .ticker {
+    font-size: .7rem;
+    font-family: var(--mono);
+    font-weight: 400;
+    color: var(--green);
+    background: rgba(0,255,136,.08);
+    border: 1px solid rgba(0,255,136,.25);
+    border-radius: 4px;
+    padding: 3px 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    animation: blink 2s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .wire-subtitle { color: var(--sub); font-size: .95rem; margin-bottom: 20px; }
+  .wire-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: .82rem;
+    color: var(--sub);
+  }
+  .wire-meta .badge {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-family: var(--mono);
+    font-size: .78rem;
+  }
+  .wire-meta .badge.live {
+    border-color: rgba(0,255,136,.4);
+    color: var(--green);
+  }
+  .refresh-btn {
+    margin-left: auto;
+    background: rgba(0,212,255,.1);
+    border: 1px solid rgba(0,212,255,.3);
+    color: var(--cyan);
+    font-size: .82rem;
+    font-weight: 600;
+    padding: 6px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .refresh-btn:hover { background: rgba(0,212,255,.2); }
+  .refresh-btn:disabled { opacity: .5; cursor: wait; }
+
+  /* ── Filtres ── */
+  .filters-bar {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .filters-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 10px 0;
+    overflow-x: auto;
+  }
+  .filter-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--sub);
+    font-size: .82rem;
+    font-weight: 600;
+    padding: 6px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .18s;
+  }
+  .filter-btn:hover { border-color: var(--border); color: var(--text); }
+  .filter-btn.active {
+    background: rgba(0,212,255,.12);
+    border-color: rgba(0,212,255,.4);
+    color: var(--cyan);
+  }
+
+  /* ── Layout principal ── */
+  .wire-layout {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 900px) { .wire-layout { grid-template-columns: 1fr; } }
+
+  /* ── Colonne ── */
+  .wire-col-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--cyan);
+  }
+  .wire-col-flag { font-size: 1.6rem; }
+  .wire-col-title { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--cyan); }
+  .wire-col-count { margin-left: auto; font-size: .75rem; color: var(--sub); font-family: var(--mono); }
+
+  /* ── Brève AFP ── */
+  .brief {
+    border-left: 3px solid var(--border);
+    padding: 16px 0 16px 18px;
+    transition: border-color .18s;
+    position: relative;
+  }
+  .brief:hover { border-left-color: var(--cyan); }
+  .brief + .brief {
+    border-top: 1px solid var(--border);
+    padding-top: 18px;
+    margin-top: 0;
+  }
+  .brief-dateline {
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .brief-dateline .source-name {
+    font-weight: 600;
+    color: var(--orange);
+  }
+  .brief-dateline .age-tag {
+    color: var(--green);
+    font-size: .68rem;
+  }
+  .brief-title {
+    font-size: .97rem;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .brief-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .brief-title a:hover { color: var(--cyan); }
+  .brief-summary {
+    font-size: .85rem;
+    color: var(--sub);
+    line-height: 1.65;
+    margin-bottom: 10px;
+  }
+  .brief-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .78rem;
+  }
+  .brief-category {
+    color: var(--sub);
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+  .brief-read {
+    color: var(--cyan);
+    font-weight: 600;
+    font-size: .78rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .brief-read:hover { text-decoration: underline; }
+  /* Brève principale (1ere) */
+  .brief.featured {
+    border-left-width: 4px;
+    border-left-color: var(--cyan);
+    background: rgba(0,212,255,.03);
+    border-radius: 0 8px 8px 0;
+    padding: 20px 18px;
+  }
+  .brief.featured .brief-title { font-size: 1.1rem; }
+  .brief.featured .brief-summary { font-size: .9rem; color: var(--text); }
+
+  /* ── Aucun résultat ── */
+  .no-news {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--sub);
+    font-size: .9rem;
+  }
+
+  /* ── Footer ── */
+  .wire-footer {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    padding: 24px;
+    text-align: center;
+    font-size: .8rem;
+    color: var(--sub);
+  }
+  .wire-footer a { color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <a href="/app" class="topbar-logo">☀️ Helia<span>PV</span></a>
+    <div class="topbar-nav">
+      <a href="/blog">Blog technique</a>
+      <a href="/bureaux-etudes">Bureaux d'études</a>
+      <a href="/app">Application</a>
+      <a href="/auth/register" class="topbar-cta">Essai gratuit →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HEADER AFP -->
+<header class="wire-header">
+  <div class="wire-header-inner">
+    <div class="wire-agency">
+      📡 HeliaPV Dépêches Solaires
+      <span class="ticker">● LIVE</span>
+    </div>
+    <p class="wire-subtitle">
+      Fil d'actualités solaire France &amp; monde — agrégation RSS, brèves format dépêche
+    </p>
+    <div class="wire-meta">
+      <span class="badge live">{{ total }} dépêches</span>
+      <span class="badge">10 sources surveillées</span>
+      {% if last_update %}
+      <span class="badge">MAJ : {{ last_update[:16]|replace('T',' ') }} UTC</span>
+      {% endif %}
+      <button class="refresh-btn" id="refreshBtn" onclick="forceRefresh()">⟳ Actualiser</button>
+    </div>
+  </div>
+</header>
+
+<!-- FILTRES -->
+<div class="filters-bar">
+  <div class="filters-inner">
+    <button class="filter-btn active" data-filter="all" onclick="filterNews(this,'all')">Toutes les dépêches</button>
+    <button class="filter-btn" data-filter="fr" onclick="filterNews(this,'fr')">🇫🇷 France</button>
+    <button class="filter-btn" data-filter="en" onclick="filterNews(this,'en')">🌍 International</button>
+  </div>
+</div>
+
+<!-- COLONNES DÉPÊCHES -->
+<div class="wire-layout" id="wireLayout">
+
+  <!-- FRANCE -->
+  <div class="wire-column" id="col-fr">
+    <div class="wire-col-header">
+      <span class="wire-col-flag">🇫🇷</span>
+      <span class="wire-col-title">France</span>
+      <span class="wire-col-count">{{ articles_france|length }} dépêches</span>
+    </div>
+
+    {% if articles_france %}
+      {% for a in articles_france %}
+      <article class="brief {% if loop.first %}featured{% endif %}" data-lang="fr">
+        <div class="brief-dateline">
+          <span class="source-name">{{ a.source|upper }}</span>
+          <span>—</span>
+          <span>{{ a.date_pub[:10] }}</span>
+          <span class="age-tag">{{ a.age }}</span>
+        </div>
+        <h2 class="brief-title"><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titre }}</a></h2>
+        {% if a.resume %}
+        <p class="brief-summary">{{ a.resume }}</p>
+        {% endif %}
+        <div class="brief-footer">
+          <span class="brief-category">{{ a.country }}</span>
+          <a href="{{ a.url }}" class="brief-read" target="_blank" rel="noopener">Lire l'article →</a>
+        </div>
+      </article>
+      {% endfor %}
+    {% else %}
+      <div class="no-news">
+        <p>Chargement en cours…<br><small>Les dépêches apparaîtront après le premier scan des flux RSS (env. 30s).</small></p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- INTERNATIONAL -->
+  <div class="wire-column" id="col-en">
+    <div class="wire-col-header">
+      <span class="wire-col-flag">🌍</span>
+      <span class="wire-col-title">International</span>
+      <span class="wire-col-count">{{ articles_monde|length }} dépêches</span>
+    </div>
+
+    {% if articles_monde %}
+      {% for a in articles_monde %}
+      <article class="brief {% if loop.first %}featured{% endif %}" data-lang="en">
+        <div class="brief-dateline">
+          <span class="source-name">{{ a.source|upper }}</span>
+          <span>—</span>
+          <span>{{ a.date_pub[:10] }}</span>
+          <span class="age-tag">{{ a.age }}</span>
+        </div>
+        <h2 class="brief-title"><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titre }}</a></h2>
+        {% if a.resume %}
+        <p class="brief-summary">{{ a.resume }}</p>
+        {% endif %}
+        <div class="brief-footer">
+          <span class="brief-category">{{ a.country }}</span>
+          <a href="{{ a.url }}" class="brief-read" target="_blank" rel="noopener">Read full article →</a>
+        </div>
+      </article>
+      {% endfor %}
+    {% else %}
+      <div class="no-news">
+        <p>Loading…<br><small>Articles will appear after the first RSS scan.</small></p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<footer class="wire-footer">
+  <p>
+    © {{ annee }} HeliaPV · <a href="/blog">Blog technique</a> · <a href="/bureaux-etudes">Bureaux d'études</a>
+    &nbsp;|&nbsp; Sources : PV Magazine France/Intl, Enerzine, Actu-Environnement, PV Tech, CleanTechnica, Electrek, Solar Power Europe
+  </p>
+  <p style="margin-top:8px;font-size:.72rem;">
+    Mise à jour automatique toutes les 2h · <a href="/api/news/solaire">API JSON</a>
+  </p>
+</footer>
+
+<script>
+// ── Filtre colonnes ────────────────────────────────────────────────────────────
+function filterNews(btn, lang) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const fr = document.getElementById('col-fr');
+  const en = document.getElementById('col-en');
+
+  if (lang === 'all') {
+    fr.style.display = ''; en.style.display = '';
+    document.getElementById('wireLayout').style.gridTemplateColumns = '1fr 1fr';
+  } else if (lang === 'fr') {
+    fr.style.display = ''; en.style.display = 'none';
+    document.getElementById('wireLayout').style.gridTemplateColumns = '1fr';
+  } else {
+    fr.style.display = 'none'; en.style.display = '';
+    document.getElementById('wireLayout').style.gridTemplateColumns = '1fr';
+  }
+}
+
+// ── Force refresh via API ──────────────────────────────────────────────────────
+function forceRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Scan en cours…';
+  fetch('/api/news/solaire/refresh', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      btn.textContent = `✓ ${d.count} dépêches`;
+      setTimeout(() => location.reload(), 1200);
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = '⟳ Actualiser';
+    });
+}
+
+// ── Auto-refresh toutes les 30 min ─────────────────────────────────────────────
+setTimeout(() => location.reload(), 30 * 60 * 1000);
+</script>
+</body>
+</html>

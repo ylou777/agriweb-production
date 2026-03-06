@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  :root { --bg:#161b22; --border:#21262d; --text:#e6edf3; --sub:#8b949e; --cyan:#00d4ff; --green:#00ff88; --orange:#f0883e; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background: var(--bg); font-family: Inter, system-ui, sans-serif; padding: 12px; }
+  .widget-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:10px; border-bottom:1px solid var(--border); margin-bottom:12px; }
+  .widget-title { font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--cyan); }
+  .widget-all { font-size:.72rem; color:var(--sub); text-decoration:none; }
+  .widget-all:hover { color:var(--cyan); }
+  .brief { padding:10px 0; border-bottom:1px solid var(--border); }
+  .brief:last-child { border-bottom:none; }
+  .brief-meta { font-size:.68rem; color:var(--orange); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; display:flex; gap:8px; }
+  .brief-meta .age { color:var(--green); }
+  .brief-title { font-size:.84rem; font-weight:600; line-height:1.35; color:var(--text); }
+  .brief-title a { color:inherit; text-decoration:none; }
+  .brief-title a:hover { color:var(--cyan); }
+</style>
+</head>
+<body>
+<div class="widget-header">
+  <span class="widget-title">📡 Dépêches Solaires</span>
+  <a href="/actualites-solaires" class="widget-all">Tout voir →</a>
+</div>
+{% for a in articles %}
+<div class="brief">
+  <div class="brief-meta">
+    <span>{{ a.source }}</span>
+    <span>·</span>
+    <span class="age">{{ a.age }}</span>
+  </div>
+  <div class="brief-title"><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titre[:110] }}{% if a.titre|length > 110 %}…{% endif %}</a></div>
+</div>
+{% else %}
+<p style="color:var(--sub);font-size:.82rem;text-align:center;padding:20px">Chargement…</p>
+{% endfor %}
+</body>
+</html>
