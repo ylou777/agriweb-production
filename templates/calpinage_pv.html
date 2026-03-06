@@ -230,7 +230,66 @@
             font-weight: 600;
             color: var(--c-accent);
             font-size: 0.92rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            user-select: none;
         }
+        .zone-title:hover { opacity: 0.85; }
+        .zone-chevron {
+            font-size: 0.68rem;
+            color: rgba(255,255,255,0.4);
+            transition: transform 0.18s ease;
+            display: inline-block;
+            width: 10px;
+            text-align: center;
+        }
+        .zone-card-body { /* accordion body */ }
+
+        /* ── Panneau flottant Zones PV ── */
+        #zonesFloatPanel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 900;
+            width: 272px;
+            background: rgba(12, 14, 22, 0.93);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 13px;
+            box-shadow: 0 6px 28px rgba(0,0,0,0.55);
+            font-family: inherit;
+            font-size: 0.82rem;
+            color: #e2e8f0;
+            max-height: calc(100% - 20px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #zonesFloatHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 13px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+            user-select: none;
+            border-radius: 13px 13px 0 0;
+        }
+        #zonesFloatHeader:hover { background: rgba(255,255,255,0.05); }
+        #zonesFloatPanel.zfp-collapsed #zonesFloatHeader {
+            border-bottom: none;
+            border-radius: 13px;
+        }
+        #zonesFloatBody {
+            overflow-y: auto;
+            padding: 8px 8px 4px;
+            flex: 1;
+        }
+        #zonesFloatBody .zone-card { margin-bottom: 8px; }
 
         /* Stats card (sidebar) */
         .stats-card {
@@ -1078,6 +1137,26 @@
                             </div>
                         </div>
 
+                        <!-- ── Panneau flottant Zones PV (top-right de la carte) ── -->
+                        <div id="zonesFloatPanel">
+                            <div id="zonesFloatHeader" onclick="toggleZonesFloatPanel()">
+                                <span style="display:flex;align-items:center;gap:6px;">
+                                    <span style="font-size:0.88rem;">📋</span>
+                                    <strong style="color:#60a5fa;font-size:0.83rem;">Zones PV</strong>
+                                    <span style="background:rgba(96,165,250,0.18);color:#93c5fd;border-radius:9px;
+                                                 padding:1px 7px;font-size:0.72rem;font-weight:600;">
+                                        <span id="zonesCount">0</span>
+                                    </span>
+                                </span>
+                                <span id="zonesFloatToggleIcon" style="font-size:0.78rem;color:rgba(255,255,255,0.4);">▾</span>
+                            </div>
+                            <div id="zonesFloatBody">
+                                <div id="zonesList">
+                                    <p class="text-muted text-center" style="padding:8px 0;font-size:0.78rem;">Aucune zone définie</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="map"></div>
 
                         <!-- ── Panneau calques / exclusion couleur (position:fixed, ancré par JS) ── -->
@@ -1456,16 +1535,6 @@
                             <small class="text-muted">Ratio PVGIS (calculé)</small>
                             <div><strong id="ratioPvgis" class="text-success">-- kWh/kWc/an</strong></div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Liste des zones -->
-                <div class="card">
-                    <div class="card-header">
-                        <strong>📋 Zones PV (<span id="zonesCount">0</span>)</strong>
-                    </div>
-                    <div class="card-body" id="zonesList" style="max-height: 600px; overflow-y: auto;">
-                        <p class="text-muted text-center">Aucune zone définie</p>
                     </div>
                 </div>
 
@@ -3438,6 +3507,26 @@
         // MODE ÉDITION MANUELLE DES MODULES (supprimer / ajouter)
         // ─────────────────────────────────────────────────────────────
 
+        /** Collapse / expand le panneau flottant Zones PV */
+        function toggleZonesFloatPanel() {
+            const panel = document.getElementById('zonesFloatPanel');
+            const body  = document.getElementById('zonesFloatBody');
+            const icon  = document.getElementById('zonesFloatToggleIcon');
+            const collapsed = panel.classList.toggle('zfp-collapsed');
+            body.style.display = collapsed ? 'none' : '';
+            icon.textContent   = collapsed ? '▸' : '▾';
+        }
+
+        /** Collapse / expand une zone individuelle (accordéon) */
+        function toggleZoneCard(zoneId) {
+            const body    = document.getElementById(`zone-body-${zoneId}`);
+            const chevron = document.getElementById(`zone-chevron-${zoneId}`);
+            if (!body) return;
+            const hidden = body.style.display === 'none';
+            body.style.display    = hidden ? '' : 'none';
+            chevron.textContent   = hidden ? '▾' : '▸';
+        }
+
         /** Collapse / expand la sidebar verticale */
         function toggleVToolbar() {
             const tb = document.getElementById('vtoolbar');
@@ -5024,14 +5113,18 @@
             zoneCard.className = 'zone-card';
             zoneCard.id = `zone-${zone.id}`;
             zoneCard.addEventListener('click', function(e) {
-                // Ne pas déclencher si on clique sur un bouton/input/select
-                if (e.target.closest('button, input, select, label')) return;
+                // Ne pas déclencher si on clique sur un bouton/input/select/zone-title
+                if (e.target.closest('button, input, select, label, .zone-title')) return;
                 selectZoneOnMap(zone.id);
             });
             zoneCard.innerHTML = `
                 <div class="zone-header">
-                    <span class="zone-title">Zone ${zone.numero}</span>
-                    <div>
+                    <span class="zone-title" onclick="toggleZoneCard(${zone.id})">
+                        <span id="zone-chevron-${zone.id}" class="zone-chevron">▾</span>
+                        Zone ${zone.numero}
+                    </span>
+                    <div style="display:flex;align-items:center;gap:3px;">
+                        <small class="text-primary" id="puissance-mini-${zone.id}" style="font-size:0.72rem;"></small>
                         <button class="btn btn-sm btn-outline-primary me-1" onclick="dupliquerZone(${zone.id})" title="Dupliquer ce champ">
                             <small>📋</small>
                         </button>
@@ -5041,6 +5134,7 @@
                     </div>
                 </div>
                 
+                <div class="zone-card-body" id="zone-body-${zone.id}">
                 <div class="row g-2 mb-2">
                     <div class="col-6">
                         <small class="text-muted">Surface</small>
@@ -5100,6 +5194,7 @@
                         📊 Télécharger données 8760h
                     </button>
                 </div>
+                </div><!-- /zone-card-body -->
             `;
             
             zonesListDiv.appendChild(zoneCard);
@@ -5562,6 +5657,8 @@
             
             const puissanceEl = document.getElementById(`puissance-${zone.id}`);
             if (puissanceEl) puissanceEl.textContent = `${zone.puissanceKw.toFixed(2)} kWc`;
+            const puissanceMiniEl = document.getElementById(`puissance-mini-${zone.id}`);
+            if (puissanceMiniEl) puissanceMiniEl.textContent = `${zone.puissanceKw.toFixed(2)} kWc`;
         }
 
         // Dessiner les modules dans une zone (correction distorsion)
