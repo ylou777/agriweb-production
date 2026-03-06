@@ -507,57 +507,89 @@ class PlanMasseGenerator:
         c.drawCentredString(bar_x + bar_cm_pdf / 2, bar_y + bar_h + 0.15*cm, scale_str)
 
     def _draw_compass(self, c, plan_x, plan_y, plan_width, plan_height):
-        """Dessine la rose des vents (Nord/Sud/Est/Ouest) - OBLIGATOIRE"""
-        # Position : coin sup├®rieur gauche du plan
-        compass_x = plan_x + 1*cm
-        compass_y = plan_y + plan_height - 3*cm
-        compass_size = 2*cm
-        
-        # Fond blanc
+        """Rose des vents style technique cadastral — 8 branches, flèche Nord rouge."""
+        import math as _m
+
+        cx = plan_x + 1.5 * cm
+        cy = plan_y + plan_height - 2.2 * cm
+        R  = 0.9 * cm   # rayon du cercle extérieur
+        r  = 0.18 * cm  # rayon du petit cercle central
+
+        c.saveState()
+
+        # ── Fond blanc + cercle extérieur ──────────────────────────────────
         c.setFillColor(colors.white)
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(1.5)
-        c.circle(compass_x, compass_y, compass_size/2, fill=1, stroke=1)
-        
-        # Fl├¿che Nord (rouge)
-        c.setFillColor(colors.HexColor('#D32F2F'))
-        c.setStrokeColor(colors.HexColor('#D32F2F'))
-        c.setLineWidth(2)
-        
-        # Ligne Nord
-        north_y = compass_y + compass_size/2 - 0.2*cm
-        c.line(compass_x, compass_y, compass_x, north_y)
-        
-        # Triangle Nord
+        c.setStrokeColor(colors.HexColor('#222222'))
+        c.setLineWidth(1.0)
+        c.circle(cx, cy, R, fill=1, stroke=1)
+
+        # ── 8 petits tirets diagonaux (NE/SE/SO/NO) ───────────────────────
+        c.setStrokeColor(colors.HexColor('#888888'))
+        c.setLineWidth(0.5)
+        diag_inner = R * 0.25
+        diag_outer = R * 0.65
+        for angle_deg in [45, 135, 225, 315]:
+            ang = _m.radians(angle_deg)
+            x1 = cx + diag_inner * _m.cos(ang)
+            y1 = cy + diag_inner * _m.sin(ang)
+            x2 = cx + diag_outer * _m.cos(ang)
+            y2 = cy + diag_outer * _m.sin(ang)
+            c.line(x1, y1, x2, y2)
+
+        # ── Axe Est-Ouest (gris foncé) ─────────────────────────────────────
+        c.setStrokeColor(colors.HexColor('#555555'))
+        c.setLineWidth(1.0)
+        c.line(cx - R * 0.8, cy, cx + R * 0.8, cy)
+
+        # ── Flèche Sud (demi-flèche gris, pointe vers le bas) ─────────────
+        c.setFillColor(colors.HexColor('#555555'))
+        c.setStrokeColor(colors.HexColor('#555555'))
+        c.setLineWidth(1.0)
+        shaft_s = R * 0.75
+        tip_w   = R * 0.22
+        tip_h   = R * 0.38
+        c.line(cx, cy, cx, cy - shaft_s + tip_h)
         path = c.beginPath()
-        path.moveTo(compass_x, north_y)
-        path.lineTo(compass_x - 0.25*cm, north_y - 0.4*cm)
-        path.lineTo(compass_x + 0.25*cm, north_y - 0.4*cm)
+        path.moveTo(cx,           cy - shaft_s)
+        path.lineTo(cx - tip_w,   cy - shaft_s + tip_h)
+        path.lineTo(cx + tip_w,   cy - shaft_s + tip_h)
         path.close()
         c.drawPath(path, fill=1, stroke=0)
-        
-        # Texte Nord
-        c.setFont("Helvetica-Bold", 11)
-        c.drawCentredString(compass_x, north_y + 0.15*cm, "N")
-        
-        # Sud (gris)
-        c.setStrokeColor(colors.HexColor('#757575'))
-        c.setFillColor(colors.HexColor('#757575'))
+
+        # ── Flèche Nord (rouge vif, pointe vers le haut) ──────────────────
+        shaft_n = R * 0.75
+        tip_w_n = R * 0.26
+        tip_h_n = R * 0.42
+        c.setFillColor(colors.HexColor('#D32F2F'))
+        c.setStrokeColor(colors.HexColor('#D32F2F'))
         c.setLineWidth(1.5)
-        south_y = compass_y - compass_size/2 + 0.2*cm
-        c.line(compass_x, compass_y, compass_x, south_y)
-        c.setFont("Helvetica", 9)
-        c.drawCentredString(compass_x, south_y - 0.35*cm, "S")
-        
-        # Est
-        east_x = compass_x + compass_size/2 - 0.2*cm
-        c.line(compass_x, compass_y, east_x, compass_y)
-        c.drawCentredString(east_x + 0.3*cm, compass_y - 0.15*cm, "E")
-        
-        # Ouest
-        west_x = compass_x - compass_size/2 + 0.2*cm
-        c.line(compass_x, compass_y, west_x, compass_y)
-        c.drawCentredString(west_x - 0.3*cm, compass_y - 0.15*cm, "O")
+        c.line(cx, cy, cx, cy + shaft_n - tip_h_n)
+        path = c.beginPath()
+        path.moveTo(cx,            cy + shaft_n)
+        path.lineTo(cx - tip_w_n,  cy + shaft_n - tip_h_n)
+        path.lineTo(cx + tip_w_n,  cy + shaft_n - tip_h_n)
+        path.close()
+        c.drawPath(path, fill=1, stroke=0)
+
+        # ── Petit cercle central (blanc avec contour) ──────────────────────
+        c.setFillColor(colors.white)
+        c.setStrokeColor(colors.HexColor('#222222'))
+        c.setLineWidth(0.8)
+        c.circle(cx, cy, r, fill=1, stroke=1)
+
+        # ── Lettre N au-dessus ─────────────────────────────────────────────
+        c.setFillColor(colors.HexColor('#D32F2F'))
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(cx, cy + R + 0.08 * cm, "N")
+
+        # ── S / E / O à l'extérieur ────────────────────────────────────────
+        c.setFillColor(colors.HexColor('#333333'))
+        c.setFont("Helvetica-Bold", 7)
+        c.drawCentredString(cx,             cy - R - 0.22 * cm, "S")
+        c.drawCentredString(cx + R + 0.2 * cm, cy - 0.11 * cm, "E")
+        c.drawCentredString(cx - R - 0.2 * cm, cy - 0.11 * cm, "O")
+
+        c.restoreState()
         
     def _calculate_bbox_from_data(self):
         """Calcule la taille de la bbox en m├¿tres bas├®e sur les donn├®es"""
