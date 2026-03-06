@@ -8426,6 +8426,45 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (lbl) lbl.textContent = v + '%';
         }
 
+        /** Calque de surbrillance du pan de toiture sélectionné */
+        let _roofHighlightLayer = null;
+        let _roofHighlightTr    = null; // ligne tr actuelement sélectionnée
+
+        /**
+         * Encadre un pan de toiture sur la carte (rectangle SW/NE)
+         * et centre la vue dessus. Un deuxième clic désélectionne.
+         */
+        function _highlightRoofSegment(s, tr) {
+            if (!map || !s.seg_sw || !s.seg_ne) return;
+            const isSelected = _roofHighlightTr === tr;
+            // Nettoyer la sélection précédente
+            if (_roofHighlightLayer) { map.removeLayer(_roofHighlightLayer); _roofHighlightLayer = null; }
+            if (_roofHighlightTr) {
+                _roofHighlightTr.style.background = '';
+                _roofHighlightTr.style.outline = '';
+                _roofHighlightTr = null;
+            }
+            if (isSelected) return; // désélection au deuxième clic
+            // Dessiner le rectangle
+            const sw = [s.seg_sw.lat, s.seg_sw.lon];
+            const ne = [s.seg_ne.lat, s.seg_ne.lon];
+            _roofHighlightLayer = L.rectangle([sw, ne], {
+                color:       '#ffe600',
+                weight:      3,
+                opacity:     0.95,
+                fillColor:   '#ffe600',
+                fillOpacity: 0.12,
+                dashArray:   '6 4',
+                interactive: false
+            }).addTo(map);
+            // Centrer la carte sur le pan
+            map.fitBounds([sw, ne], { padding: [40, 40], animate: true, maxZoom: map.getZoom() });
+            // Surbrillance de la ligne
+            tr.style.background = 'rgba(255,230,0,0.12)';
+            tr.style.outline    = '1px solid rgba(255,230,0,0.35)';
+            _roofHighlightTr = tr;
+        }
+
         /** Opacité heatmap irradiation 2D */
         function setHeatmapOpacity(v) {
             if (_flux2DOverlay) _flux2DOverlay.setOpacity(v / 100);
@@ -9064,6 +9103,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         data.roof_segments.forEach(s => {
                             const tr = document.createElement('tr');
                             tr.style.borderBottom = '1px solid rgba(255,255,255,0.07)';
+                            tr.style.cursor = 'pointer';
+                            tr.title = 'Cliquer pour encadrer ce pan sur la carte';
+                            tr.addEventListener('click', () => _highlightRoofSegment(s, tr));
                             const orColor = _orColors[s.orientation] || '#fff';
                             // Dimension du pan (LxW si disponible)
                             const dimTxt = (s.seg_l_m != null && s.seg_w_m != null)
