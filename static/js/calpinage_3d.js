@@ -2234,10 +2234,15 @@ class Calpinage3DViewer {
         // Chemin 3 : toit plat (cap ExtrudeGeometry visible = toit plat avec matériau)
         const isPVBuilding = neighborIdx === null;
         const hdData = this.lidarData?.building_hd;
+        // Priorité : building_center retourné par le backend (origine exacte des polygon_2d RANSAC).
+        // Fallback : centroïde JS du polygone BD TOPO — peut différer de quelques décimètres.
+        const hdCenter = hdData?.building_center;
         const pvCtr = this.pvBuildingCoords
             ? this._polygonCenter(this.pvBuildingCoords)
             : { y: this.centerLat, x: this.centerLon };
-        const bldgCenter = { lat: pvCtr.y, lon: pvCtr.x };
+        const bldgCenter = hdCenter
+            ? { lat: hdCenter.lat, lon: hdCenter.lon }
+            : { lat: pvCtr.y, lon: pvCtr.x };
 
         let roofBuilt = false;
         let roofPanelsFrom = null;
@@ -2310,10 +2315,8 @@ class Calpinage3DViewer {
             this.roofPanelsInfo.buildingTerrainH    = terrainH;
             this.roofPanelsInfo.buildingWallH       = bh;
             this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({x: c.x, z: c.z}));
-            if (this.pvBuildingCoords) {
-                const bCtr = this._polygonCenter(this.pvBuildingCoords);
-                this.roofPanelsInfo.buildingCenterGeo = { lat: bCtr.y, lng: bCtr.x };
-            }
+            // Utiliser building_hd.building_center si disponible (origine exacte des polygon_2d RANSAC)
+            this.roofPanelsInfo.buildingCenterGeo = { lat: bldgCenter.lat, lng: bldgCenter.lon };
         }
     }
     
@@ -5371,11 +5374,16 @@ class Calpinage3DViewer {
         if (!zones) return;
 
         // Offset bâtiment → monde pour équation de plan RANSAC (partagé toutes zones)
-        const _bCGadd = this.roofPanelsInfo?.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
-        const _lmAdd  = this.LAT_TO_M * Math.cos(_bCGadd.lat * Math.PI / 180);
-        const _bOXadd = (_bCGadd.lng - this.centerLon) * _lmAdd;
-        const _bOZadd = -(_bCGadd.lat - this.centerLat) * this.LAT_TO_M;
-        const _bWHadd = this.roofPanelsInfo?.buildingWallH || 6;
+        // Priorité : building_hd.building_center (origine exacte des polygon_2d RANSAC)
+        // Fallback : buildingCenterGeo dans roofPanelsInfo
+        const _hdCenterAdd = this.lidarData?.building_hd?.building_center;
+        const _bCGadd  = _hdCenterAdd
+            ? { lat: _hdCenterAdd.lat, lng: _hdCenterAdd.lon }
+            : (this.roofPanelsInfo?.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon });
+        const _lmAdd   = this.LAT_TO_M * Math.cos(_bCGadd.lat * Math.PI / 180);
+        const _bOXadd  = (_bCGadd.lng - this.centerLon) * _lmAdd;
+        const _bOZadd  = -(_bCGadd.lat - this.centerLat) * this.LAT_TO_M;
+        const _bWHadd  = this.roofPanelsInfo?.buildingWallH || 6;
 
         let totalModules = 0;
 
@@ -5535,7 +5543,11 @@ class Calpinage3DViewer {
         // Doit être testé avant OBB car les plans RANSAC ont des polygones précis.
         if (panels.some(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)) {
             const zoneLocal = this._geoToLocal(zoneCenterLat, zoneCenterLng);
-            const _bCG2 = this.roofPanelsInfo?.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
+            // Même origine que _buildRoofFromPlanes : building_hd.building_center en priorité
+            const _hdCtr2 = this.lidarData?.building_hd?.building_center;
+            const _bCG2 = _hdCtr2
+                ? { lat: _hdCtr2.lat, lng: _hdCtr2.lon }
+                : (this.roofPanelsInfo?.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon });
             const _lm2  = this.LAT_TO_M * Math.cos(_bCG2.lat * Math.PI / 180);
             const _bOX2 = (_bCG2.lng - this.centerLon) * _lm2;
             const _bOZ2 = -(_bCG2.lat - this.centerLat) * this.LAT_TO_M;
