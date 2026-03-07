@@ -2253,6 +2253,23 @@ class Calpinage3DViewer {
                 hdData.roof_planes, bldgCenter, bh, terrainH, roofType
             );
             if (roofBuilt) {
+                // Si Google Solar détecte 4 pans (toit en croupe) mais le LiDAR RANSAC
+                // n'en a que 2 (les faces triangulaires d'about ont trop peu de points),
+                // ajouter les 2 faces triangulaires de croupe depuis l'OBB.
+                const _nRansacInc = hdData.roof_planes.filter(p => p.slope_deg >= 1.0).length;
+                if ((this._solarPanCount ?? 0) >= 4 && _nRansacInc < 4) {
+                    // Hauteur faîtage = hauteur LiDAR max sur tous les polygones RANSAC
+                    let _maxMnh = bh;
+                    for (const _p of hdData.roof_planes) {
+                        for (const [_px, _py] of _p.polygon_2d || []) {
+                            const _mnh = _p.mnh_a * _px + _p.mnh_b * _py + _p.mnh_c;
+                            if (_mnh > _maxMnh) _maxMnh = _mnh;
+                        }
+                    }
+                    const _ridgeExtra = Math.max(0.3, _maxMnh - bh);
+                    this._addHipCroupeEnds(obb, terrainH + bh, _ridgeExtra, roofType);
+                    console.log(`🏠 Croupe: 2 faces triangulaires ajoutées (ridgeExtra=${_ridgeExtra.toFixed(2)}m, Solar=${this._solarPanCount} pans, RANSAC=${_nRansacInc})`);
+                }
                 roofPanelsFrom = this._computeRoofPanelsInfoFromPlanes(
                     hdData.roof_planes, obb, terrainH, bh, bldgCenter, roofType
                 );
@@ -4441,10 +4458,12 @@ class Calpinage3DViewer {
 
         const nInc = inclined.length;
         // Si Google Solar a détecté plus de plans que le RANSAC (ex: 4 pans détectés par Solar
-        // quand LiDAR ne donne que 2), utiliser le type Solar pour le label d'information.
+        // quand LiDAR ne donne que 2), la géométrie est enrichie (_addHipCroupeEnds) → type = 'hip'.
         const _solarPanCount = this._solarPanCount ?? 0;
         const _effectiveInc  = (_solarPanCount > nInc) ? _solarPanCount : nInc;
-        const roofTypeName = nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat';
+        const roofTypeName = (_solarPanCount >= 4 && nInc < 4)
+            ? 'hip'  // type géométrique réel enrichi par Solar
+            : (nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat');
         const typeLabels = { 'gable': 'Bi-pan (2 versants)', 'hip': '4 pans (croupe)', 'shed': 'Mono-pente', 'flat': 'Toit plat' };
         // Label enrichi quand Solar détecte davantage de pans que le LiDAR RANSAC
         let typeLabel = typeLabels[roofTypeName] || 'Toiture RANSAC';
@@ -4603,6 +4622,26 @@ class Calpinage3DViewer {
         ];
         this._addTriMesh(new Float32Array(verts), roofType);
     }
+    /**
+     * Ajoute uniquement les 2 faces triangulaires de bout ("croupe") d'un toit 4 pans.
+     * Utilisé quand le RANSAC LiDAR n'a détecté que 2 plans (faces principales) mais que
+     * Google Solar confirme un toit à 4 pans.
+     */
+    _addHipCroupeEnds(obb, roofBaseY, ridgeExtra, roofType) {
+        const c   = this._obbCorners(obb);
+        const ry  = roofBaseY + ridgeExtra;
+        const rhl = obb.longDim * 0.45 / 2;
+        const r1x = obb.cx + c.cA * rhl, r1z = obb.cz + c.sA * rhl;
+        const r2x = obb.cx - c.cA * rhl, r2z = obb.cz - c.sA * rhl;
+        const verts = new Float32Array([
+            // Face triangulaire "along+" (pignon avant)
+            r1x, ry, r1z,  c.frx, roofBaseY, c.frz,  c.flx, roofBaseY, c.flz,
+            // Face triangulaire "along-" (pignon arrière)
+            r2x, ry, r2z,  c.blx, roofBaseY, c.blz,  c.brx, roofBaseY, c.brz,
+        ]);
+        this._addTriMesh(verts, roofType);
+    }
+
     _createOBBHipRoof(obb, roofBaseY, ridgeExtra, roofType) {
         const c = this._obbCorners(obb);
         const ry = roofBaseY + ridgeExtra;
