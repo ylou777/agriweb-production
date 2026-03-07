@@ -5409,7 +5409,14 @@ class Calpinage3DViewer {
             const zoneCenterLat  = sumLat / zone.modulesPositions.length;
             const zoneCenterLng  = sumLng / zone.modulesPositions.length;
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
-            const terrainH        = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+
+            // IMPORTANT : utiliser la même valeur de terrainH que autoFillRoofPanels
+            // (buildingTerrainH constant au centre du bâtiment).
+            // Utiliser _getTerrainHeight(zoneLocalCenter) causerait des décalages de
+            // jusqu'à 4.5m (exagération x1.8 × delta terrain 2.5m) entre zones,
+            // faisant apparaître certaines zones dans le bâtiment (invisibles).
+            const terrainH = this.roofPanelsInfo?.buildingTerrainH
+                          || this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
 
             // Matériau partagé
             const panelMat = new THREE.MeshPhongMaterial({
