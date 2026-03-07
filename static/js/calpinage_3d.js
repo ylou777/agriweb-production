@@ -4173,14 +4173,9 @@ class Calpinage3DViewer {
      * mais n'a plus d'effet — le toit est déjà construit par _createBuilding3D.
      */
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats, buildingDims) {
-        console.info('ℹ️ applySolarRoofFromInsights: ignoré — toit déjà construit depuis LiDAR/BD TOPO');
-    }
-
-    /**
-     * [DÉPRÉCIÉ] Conservé pour compatibilité — sans effet.
-     */
-    applyBuildingInsightsPanels3D(solarPanels, roofSegments, bldgCenter) {
-        console.info('ℹ️ applyBuildingInsightsPanels3D: ignoré — modules positionnés depuis LiDAR/BD TOPO uniquement');
+        // Stocker le nombre de pans Solar (utile pour enrichir le label RANSAC quand RANSAC < Solar)
+        this._solarPanCount = segments?.filter(s => (s.pitch_deg ?? 0) > 2).length ?? 0;
+        console.info(`ℹ️ applySolarRoofFromInsights: toit RANSAC conservé — ${this._solarPanCount} pans Solar mémorisés`);
     }
 
     /**
@@ -4276,6 +4271,12 @@ class Calpinage3DViewer {
      * @param {Object} bldgCenter    – {lat, lon} (this._solarBldgCenter si absent)
      */
     applyBuildingInsightsPanels3D(solarPanels, roofSegments, bldgCenter) {
+        // Quand LiDAR/RANSAC est disponible : les modules sont positionnés depuis les plans RANSAC
+        // → les panneaux Google Solar individuels seraient un doublon flottant (mauvaise altitude).
+        if (this.lidarData?.building_hd?.roof_planes?.length > 0) {
+            console.info('ℹ️ applyBuildingInsightsPanels3D: ignoré — données RANSAC disponibles (évite le masque Solar parasite)');
+            return;
+        }
         // Nettoyage
         if (this._solarPanelMeshes) {
             this._solarPanelMeshes.forEach(m => {
@@ -4439,12 +4440,23 @@ class Calpinage3DViewer {
         });
 
         const nInc = inclined.length;
+        // Si Google Solar a détecté plus de plans que le RANSAC (ex: 4 pans détectés par Solar
+        // quand LiDAR ne donne que 2), utiliser le type Solar pour le label d'information.
+        const _solarPanCount = this._solarPanCount ?? 0;
+        const _effectiveInc  = (_solarPanCount > nInc) ? _solarPanCount : nInc;
         const roofTypeName = nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat';
         const typeLabels = { 'gable': 'Bi-pan (2 versants)', 'hip': '4 pans (croupe)', 'shed': 'Mono-pente', 'flat': 'Toit plat' };
+        // Label enrichi quand Solar détecte davantage de pans que le LiDAR RANSAC
+        let typeLabel = typeLabels[roofTypeName] || 'Toiture RANSAC';
+        if (_solarPanCount >= 4 && nInc < 4) {
+            typeLabel = `4 pans (croupe) — ${nInc} pans LiDAR`;
+        } else if (_solarPanCount > nInc && nInc > 0) {
+            typeLabel = `${typeLabels[roofTypeName]} — ${_solarPanCount} pans Solar`;
+        }
 
         return {
             type:               roofTypeName,
-            typeLabel:          typeLabels[roofTypeName] || 'Toiture RANSAC',
+            typeLabel:          typeLabel,
             couverture:         roofType,
             surfaceTotale:      Math.round(panelList.reduce((s, p) => s + (p.surface || 0), 0) * 10) / 10,
             panels:             panelList,
