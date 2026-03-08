@@ -976,7 +976,8 @@ def _largest_connected_component_mask(xi, yi, grid_res=0.5):
         return np.zeros(0, dtype=bool)
 
     # Rasterisation sur grille légèrement dilatée pour combler les trous LiDAR
-    cell = max(grid_res * 1.6, 0.7)
+    # Minimum 0.3 m (pas 0.7) : des sheds de 0.5 m d'écart doivent rester disjoints
+    cell = max(grid_res * 1.6, 0.3)
     gx = np.round(xi / cell).astype(int);  gx -= gx.min()
     gy = np.round(yi / cell).astype(int);  gy -= gy.min()
     NX, NY = int(gx.max()) + 1, int(gy.max()) + 1
@@ -1136,7 +1137,7 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
         # Si les inliers appartiennent à plusieurs îlots disjoints (lucarnes,
         # décrochements, toitures à niveaux), on garde seulement le plus grand.
         # Cela évite qu'un plan unique «ponte» deux surfaces réelles via le gap.
-        cc_mask = _largest_connected_component_mask(xi_f, yi_f)
+        cc_mask = _largest_connected_component_mask(xi_f, yi_f, grid_res=grid_res)
         if int(np.sum(cc_mask)) < min_pts:
             # Composante insuffisante → traiter quand même avec tous les inliers
             pass
@@ -1757,7 +1758,8 @@ def api_lidar_copc_roof():
         # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
         roof_planes = _segment_roof_planes_ransac(
             rx_f.tolist(), ry_f.tolist(), z_mnh,
-            grid_res=0.25
+            grid_res=0.25,
+            max_planes=30,   # sheds successifs : jusqu'à ~15 sections × 2 faces
         )
         print(f"  ✅ COPC RANSAC: {len(roof_planes)} plan(s) détecté(s)")
 

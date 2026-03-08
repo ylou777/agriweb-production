@@ -4257,6 +4257,19 @@ class Calpinage3DViewer {
             return false;
         }
 
+        // Précomputer les bboxes des polygones de chaque plan (+ 0.5 m marge).
+        // Permet de N'évaluer chaque équation de plan QUE dans sa propre zone,
+        // ce qui est essentiel pour les toits en sheds où tous les pans ont la
+        // même inclinaison (extrapoler hors zone donnerait une surface unique).
+        const planeBboxes = validPlanes.map(p => {
+            const pxs = p.polygon_2d.map(pt => pt[0]);
+            const pys = p.polygon_2d.map(pt => pt[1]);
+            return {
+                xMin: Math.min(...pxs) - 0.5, xMax: Math.max(...pxs) + 0.5,
+                yMin: Math.min(...pys) - 0.5, yMax: Math.max(...pys) + 0.5,
+            };
+        });
+
         // ── 3. Grille adaptative sur la bbox du footprint ────────────────────
         // Résolution cible 0.5 m. Si la bbox est trop grande, on augmente le pas
         // par paliers de 0.25 m jusqu'à ce que nx×ny ≤ 12 000 (≈ 3 000 m²/0.25).
@@ -4289,9 +4302,14 @@ class Calpinage3DViewer {
                 const idx = iy * nx + ix;
                 if (!this._pointInPoly2D(gx, gy, fp)) continue;
                 insideArr[idx] = 1;
-                // Hauteur = max(corniche, max des plans RANSAC valides)
+                // Hauteur = max(corniche, max des plans RANSAC dans leur propre zone)
+                // On restreint chaque plan à sa bbox polygon_2d pour éviter que des
+                // plans parallèles (sheds) ne s'extrapolent sur tout le footprint.
                 let h = bh;
-                for (const p of validPlanes) {
+                for (let pi = 0; pi < validPlanes.length; pi++) {
+                    const pb = planeBboxes[pi];
+                    if (gx < pb.xMin || gx > pb.xMax || gy < pb.yMin || gy > pb.yMax) continue;
+                    const p = validPlanes[pi];
                     const mnh = p.mnh_a * gx + p.mnh_b * gy + p.mnh_c;
                     if (mnh > h) h = mnh;
                 }
@@ -4365,7 +4383,13 @@ class Calpinage3DViewer {
             // Hauteur au sommet du footprint : max(bh, max mnh)
             const getH = (x, y) => {
                 let h = bh;
-                for (const p of validPlanes) { const m = p.mnh_a * x + p.mnh_b * y + p.mnh_c; if (m > h) h = m; }
+                for (let pi = 0; pi < validPlanes.length; pi++) {
+                    const pb = planeBboxes[pi];
+                    if (x < pb.xMin || x > pb.xMax || y < pb.yMin || y > pb.yMax) continue;
+                    const p = validPlanes[pi];
+                    const m = p.mnh_a * x + p.mnh_b * y + p.mnh_c;
+                    if (m > h) h = m;
+                }
                 return Math.max(bh, h);
             };
             const h0 = getH(x0, y0), h1 = getH(x1, y1);
