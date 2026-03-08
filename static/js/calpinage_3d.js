@@ -218,12 +218,23 @@ class Calpinage3DViewer {
             // Construire les bâtiments
             await this._buildBuildings(this.lidarData);
 
-            // Amélioration asynchrone du toit avec le nuage de points LAZ brut
-            // (~15-35 s, ne bloque pas l'affichage).
+            // Toit PV : uniquement via COPC LAZ brut (~15-35s).
+            // Si COPC échoue, fallback sur les plans MNH stockés dans lidarData.
             if ((this.pvBuildingCoords?.length ?? 0) >= 3) {
-                this._fetchAndApplyCOPCRoof(lat, lon).catch(e =>
-                    console.warn('⚠️ COPC (non critique):', e.message)
-                );
+                this._fetchAndApplyCOPCRoof(lat, lon).catch(e => {
+                    console.warn('⚠️ COPC (non critique):', e.message);
+                    // Fallback MNH : construire le toit depuis les plans RANSAC initiaux
+                    const _fd = this.lidarData?.building_hd;
+                    if (_fd?.roof_planes?.length) {
+                        const _bc = _fd.building_center;
+                        const _bh = this._mainBldgBh      ?? 6;
+                        const _th = this._mainBldgTerrainH ?? 0;
+                        const _rt = this._mainBldgRoofType ?? 'default';
+                        if (!this._buildRoofHeightField(_fd.roof_planes, _bc, _bh, _th, this.pvBuildingCoords, _rt, true)) {
+                            this._buildRoofFromPlanes(_fd.roof_planes, _bc, _bh, _th, _rt, true);
+                        }
+                    }
+                });
             }
 
             // Construire les routes
@@ -2292,62 +2303,24 @@ class Calpinage3DViewer {
             this._pvBuildingBboxMetric = null;
         }
 
-        // ── Chemin 1 : plans RANSAC + Height Field sur empreinte BD TOPO ──────
-        // Chemin 1a : height field (footprint BD TOPO + équations de plan).
-        //   Aligne parfaitement murs et toit, gère les formes L/T/U/complexes.
-        //   Faîtage et croupe émergent naturellement de max(plans).
-        // Chemin 1b : fallback polygon_2d RANSAC (ancienne méthode si 1a échoue).
+        // ── Chemin 1 : bâtiment PV → attente COPC LAZ brut ─────────────────────
+        // La géométrie MNH raster (±50cm) n'est plus construite ici.
+        // COPC (~15-35s) la construira avec des données ±5-10cm.
+        // On calcule seulement roofPanelsFrom (pour les calculs de calpinage) et
+        // on cache le cap plat de l'ExtrudeGeometry des murs.
         if (isPVBuilding && hdData?.roof_planes?.length) {
-            roofBuilt = this._buildRoofHeightField(
-                hdData.roof_planes, bldgCenter, bh, terrainH, buildingData.coords, roofType, isPVBuilding
+            roofBuilt = true;  // empêche Chemin 2 (OBB MNS) de s'exécuter
+            roofPanelsFrom = this._computeRoofPanelsInfoFromPlanes(
+                hdData.roof_planes, obb, terrainH, bh, bldgCenter, roofType
             );
-            if (!roofBuilt) {
-                roofBuilt = this._buildRoofFromPlanes(
-                    hdData.roof_planes, bldgCenter, bh, terrainH, roofType, isPVBuilding
-                );
+            // Cacher le cap plat des murs (COPC construira le vrai toit)
+            if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
+                mesh.material[0].opacity = 0;
+                mesh.material[0].transparent = true;
+                mesh.material[0].depthWrite = false;
+                mesh.material[0].needsUpdate = true;
             }
-            if (roofBuilt) {
-                // Si Google Solar détecte 4 pans (toit en croupe) mais le LiDAR RANSAC
-                // n'en a que 2 (les faces triangulaires d'about ont trop peu de points),
-                // ajouter les 2 faces triangulaires de croupe depuis l'OBB.
-                const _nRansacInc = hdData.roof_planes.filter(p => p.slope_deg >= 1.0).length;
-                if ((this._solarPanCount ?? 0) >= 4 && _nRansacInc < 4) {
-                    // Priorité BD TOPO: alt_toit_max - alt_toit_min = hauteur exacte faîtage au-dessus corniche
-                    // Guard : fiable uniquement sur bâtiments simples (≤ 6 sommets uniques = ≤ 8 coords).
-                    // Sur un bâtiment en L/T/U, min/max sont sur des ailes différentes → valeur incorrecte.
-                    const _nVerts = (buildingData.coords || []).length;
-                    const _bdRidge = (_nVerts <= 8 && buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
-                        ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
-                    let _ridgeExtra;
-                    if (_bdRidge != null && _bdRidge > 0.1 && _bdRidge < 15) {
-                        _ridgeExtra = _bdRidge;
-                        console.log(`🏠 ridgeExtra BD TOPO: ${_ridgeExtra.toFixed(2)}m (alt_toit_max − alt_toit_min)`);
-                    } else {
-                        // Fallback RANSAC: max MNH sur tous les polygones
-                        let _maxMnh = bh;
-                        for (const _p of hdData.roof_planes) {
-                            for (const [_px, _py] of _p.polygon_2d || []) {
-                                const _mnh = _p.mnh_a * _px + _p.mnh_b * _py + _p.mnh_c;
-                                if (_mnh > _maxMnh) _maxMnh = _mnh;
-                            }
-                        }
-                        _ridgeExtra = Math.max(0.3, _maxMnh - bh);
-                    }
-                    this._addHipCroupeEnds(obb, terrainH + bh, _ridgeExtra, roofType, /* isPVBuilding */ true);
-                    console.log(`🏠 Croupe: 2 faces triangulaires ajoutées (ridgeExtra=${_ridgeExtra.toFixed(2)}m, Solar=${this._solarPanCount} pans, RANSAC=${_nRansacInc})`);
-                }
-                roofPanelsFrom = this._computeRoofPanelsInfoFromPlanes(
-                    hdData.roof_planes, obb, terrainH, bh, bldgCenter, roofType
-                );
-                // Cap devient invisible (le toit RANSAC couvre le sommet des murs)
-                if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
-                    mesh.material[0].opacity = 0;
-                    mesh.material[0].transparent = true;
-                    mesh.material[0].depthWrite = false;
-                    mesh.material[0].needsUpdate = true;
-                }
-                console.log(`✅ Toit LiDAR RANSAC (${hdData.roof_planes.length} plans) — bâtiment PV`);
-            }
+            console.log(`⏳ Toit PV: en attente COPC (${hdData.roof_planes.length} plans MNH en fallback)`);
         }
 
         // ── Chemin 2 : analyse MNS LiDAR → géométrie OBB ──
