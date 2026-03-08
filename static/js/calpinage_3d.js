@@ -4257,16 +4257,29 @@ class Calpinage3DViewer {
             return false;
         }
 
-        // Précomputer les bboxes des polygones de chaque plan (+ 0.5 m marge).
-        // Permet de N'évaluer chaque équation de plan QUE dans sa propre zone,
-        // ce qui est essentiel pour les toits en sheds où tous les pans ont la
-        // même inclinaison (extrapoler hors zone donnerait une surface unique).
+        // Précomputer les bboxes AABB (pré-filtre rapide) ET les polygones dilatés (+0.5 m).
+        // − L'AABB évite les itérations inutiles sur des plans éloignés
+        // − Le test polygone exact (avec dilatation 0.5 m côté centroïde) évite l'extrapolation
+        //   pour les bâtiments orientés en biais : un pan 10m×100m incliné à 45° a une AABB
+        //   ~78m×78m ; sans test polygone, les 30 AABB se chevauchent → max() sur tous les plans
+        //   → une seule grande surface inclinée au lieu de sheds indépendants.
+        const POLY_EXPAND = 0.5; // m — dilatation du polygone (bords RANSAC légèrement en retrait)
         const planeBboxes = validPlanes.map(p => {
             const pxs = p.polygon_2d.map(pt => pt[0]);
             const pys = p.polygon_2d.map(pt => pt[1]);
+            // Centroïde pour la dilatation
+            const cxP = pxs.reduce((a, b) => a + b, 0) / pxs.length;
+            const cyP = pys.reduce((a, b) => a + b, 0) / pys.length;
+            // Polygone dilaté depuis le centroïde (+POLY_EXPAND m)
+            const expandedPoly = p.polygon_2d.map(([px, py]) => {
+                const dx = px - cxP, dy = py - cyP;
+                const d = Math.sqrt(dx * dx + dy * dy) || 1;
+                return [px + dx / d * POLY_EXPAND, py + dy / d * POLY_EXPAND];
+            });
             return {
-                xMin: Math.min(...pxs) - 0.5, xMax: Math.max(...pxs) + 0.5,
-                yMin: Math.min(...pys) - 0.5, yMax: Math.max(...pys) + 0.5,
+                xMin: Math.min(...pxs) - POLY_EXPAND, xMax: Math.max(...pxs) + POLY_EXPAND,
+                yMin: Math.min(...pys) - POLY_EXPAND, yMax: Math.max(...pys) + POLY_EXPAND,
+                expandedPoly,
             };
         });
 
@@ -4308,7 +4321,10 @@ class Calpinage3DViewer {
                 let h = bh;
                 for (let pi = 0; pi < validPlanes.length; pi++) {
                     const pb = planeBboxes[pi];
+                    // Rejet rapide par AABB (pré-filtre) — essentiel pour les bâtiments en sheds
                     if (gx < pb.xMin || gx > pb.xMax || gy < pb.yMin || gy > pb.yMax) continue;
+                    // Test polygone dilaté (+0.5 m) : précision sans AABB-only ni bords trop serrés
+                    if (!this._pointInPoly2D(gx, gy, pb.expandedPoly)) continue;
                     const p = validPlanes[pi];
                     const mnh = p.mnh_a * gx + p.mnh_b * gy + p.mnh_c;
                     if (mnh > h) h = mnh;
@@ -4386,6 +4402,7 @@ class Calpinage3DViewer {
                 for (let pi = 0; pi < validPlanes.length; pi++) {
                     const pb = planeBboxes[pi];
                     if (x < pb.xMin || x > pb.xMax || y < pb.yMin || y > pb.yMax) continue;
+                    if (!this._pointInPoly2D(x, y, pb.expandedPoly)) continue;
                     const p = validPlanes[pi];
                     const m = p.mnh_a * x + p.mnh_b * y + p.mnh_c;
                     if (m > h) h = m;
