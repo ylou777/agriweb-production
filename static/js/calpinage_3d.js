@@ -4210,6 +4210,56 @@ class Calpinage3DViewer {
     }
 
     /**
+     * Dilate un polygone (concave ou convexe) par décalage perpendiculaire
+     * de chaque arête de `d` mètres vers l'extérieur.
+     * Fonctionne correctement sur les polygones en L, T, U, multi-sheds.
+     * @param {Array} poly  - [[x,y], ...] polygone (sens quelconque)
+     * @param {number} d    - distance de dilatation en mètres (>0 = dilation)
+     * @returns {Array}     - nouveau polygone dilaté
+     */
+    _expandPolygonEdges(poly, d) {
+        const n = poly.length;
+        if (n < 3) return poly;
+        // Calculer le sens (clockwise ou counter-clockwise) pour orienter les normales
+        let area = 0;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+            area += poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1];
+        }
+        const sign = area > 0 ? 1 : -1; // CCW → sign=1 → normal perpendiculaire vers ext
+
+        // Pour chaque arête, calculer la droite décalée de `d` vers l'extérieur
+        // puis intersecter les droites adjacentes pour obtenir les nouveaux sommets.
+        const offsetLines = [];
+        for (let i = 0; i < n; i++) {
+            const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % n];
+            const ex = x2 - x1, ey = y2 - y1;
+            const len = Math.sqrt(ex * ex + ey * ey) || 1;
+            // Normale perpendiculaire vers l'extérieur
+            const nx_ = -ey / len * sign * d;
+            const ny_ =  ex / len * sign * d;
+            offsetLines.push({ x1: x1 + nx_, y1: y1 + ny_, x2: x2 + nx_, y2: y2 + ny_ });
+        }
+
+        // Intersection de deux droites consécutives
+        const result = [];
+        for (let i = 0; i < n; i++) {
+            const a = offsetLines[(i + n - 1) % n];
+            const b = offsetLines[i];
+            const dx1 = a.x2 - a.x1, dy1 = a.y2 - a.y1;
+            const dx2 = b.x2 - b.x1, dy2 = b.y2 - b.y1;
+            const denom = dx1 * dy2 - dy1 * dx2;
+            if (Math.abs(denom) < 1e-10) {
+                // Arêtes parallèles → utiliser le point décalé directement
+                result.push([b.x1, b.y1]);
+            } else {
+                const t = ((b.x1 - a.x1) * dy2 - (b.y1 - a.y1) * dx2) / denom;
+                result.push([a.x1 + t * dx1, a.y1 + t * dy1]);
+            }
+        }
+        return result;
+    }
+
+    /**
      * Construit le mesh de toit en projetant une grille 50 cm sur l'empreinte
      * BD TOPO et en calculant la hauteur en chaque nœud depuis les équations
      * de plan RANSAC (mnh = a*x + b*y + c, coordonnées métriques polygon_2d).
@@ -4496,24 +4546,18 @@ class Calpinage3DViewer {
         }
 
         // ── 2. Buffers géométrie depuis la grille Z brute ────────────────────
-        // On filtre par footprint (+ marge step*0.6) pour éliminer les cellules
-        // hors-bâtiment qui créaient les "dents" en bordure de toiture.
         const positions = [], uvs = [];
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
 
-        // Footprint légèrement dilatée (+step*0.6) : évite de perdre les cellules
-        // exactement sur le bord du polygone (points LiDAR décalés ~±step/2).
-        const FP_MARGIN = step * 0.6;
-        const fpCx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
-        const fpCy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
-        const fpExpanded = fp.map(([px, py]) => {
-            const dx = px - fpCx, dy = py - fpCy;
-            const d  = Math.sqrt(dx * dx + dy * dy) || 1;
-            return [px + dx / d * FP_MARGIN, py + dy / d * FP_MARGIN];
-        });
+        // Footprint légèrement dilatée en absolu (+0.8m) pour ne pas perdre
+        // les cellules exactement sur le bord du polygone BD TOPO.
+        // IMPORTANT : ne pas utiliser d'expansion radiale depuis le centroïde :
+        // elle casse les polygones concaves (bâtiments en L, T, multi-sheds)
+        // et rejette ~50% des cellules valides → demi-toiture.
+        const FP_MARGIN = 0.8; // mètres fixes, indépendant du step
+        const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
-        // Échelle UV : 1 tuile = 8 m (moins de moiré qu'à 4 m sur surfaces lisses)
         const UV_SCALE = 8;
 
         for (let iy = 0; iy < ny; iy++) {
@@ -4522,9 +4566,7 @@ class Calpinage3DViewer {
                 if (z_rel === null) continue;
                 const gx  = x0 + ix * step;
                 const gy  = y0 + iy * step;
-                // Rejet des cellules hors empreinte bâtiment (source des "dents")
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
-                // mnh : z_baseline_rel → bh, points plus hauts → bh + (z_rel - baseline)
                 const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
