@@ -1748,74 +1748,13 @@ def api_lidar_copc_roof():
         poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
         poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
 
-        # ── 4a. Clip au polygone bâtiment (marge +1.5m) ─────────────────────
-        # Élimine les points COPC appartenant à des bâtiments voisins ou à la
-        # végétation adjacente avant le RANSAC. Sans ce clip, les plans RANSAC
-        # peuvent s'étendre bien au-delà de l'empreinte réelle du bâtiment.
-        def _pts_in_poly_np(xs, ys, px, py, margin=1.5):
-            """Numpy vectorized point-in-polygon (ray-casting) + distance margin."""
-            px_np = np.asarray(px, dtype=np.float64)
-            py_np = np.asarray(py, dtype=np.float64)
-            n_poly = len(px_np)
-            # ── bbox pre-filter ──────────────────────────────────────────────
-            xmin_p = px_np.min() - margin; xmax_p = px_np.max() + margin
-            ymin_p = py_np.min() - margin; ymax_p = py_np.max() + margin
-            in_bb = (xs >= xmin_p) & (xs <= xmax_p) & (ys >= ymin_p) & (ys <= ymax_p)
-            result = np.zeros(len(xs), dtype=bool)
-            xs_bb = xs[in_bb]; ys_bb = ys[in_bb]
-            if len(xs_bb) == 0:
-                return result
-            # ── vectorized ray-casting ───────────────────────────────────────
-            inside = np.zeros(len(xs_bb), dtype=bool)
-            j = n_poly - 1
-            for i in range(n_poly):
-                cond = (py_np[i] > ys_bb) != (py_np[j] > ys_bb)
-                denom_rc = py_np[j] - py_np[i]
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    x_int = (px_np[j] - px_np[i]) * (ys_bb - py_np[i]) / denom_rc + px_np[i]
-                inside ^= cond & (xs_bb < x_int)
-                j = i
-            result[in_bb] = inside
-            # ── points outside polygon but within margin ─────────────────────
-            outside = in_bb & ~result
-            if outside.any() and margin > 0:
-                xs_out = xs[outside]; ys_out = ys[outside]
-                min_d2 = np.full(len(xs_out), np.inf)
-                j = n_poly - 1
-                for i in range(n_poly):
-                    ex = px_np[i] - px_np[j]; ey = py_np[i] - py_np[j]
-                    ll2 = ex*ex + ey*ey
-                    if ll2 < 1e-12:
-                        d2 = (xs_out - px_np[j])**2 + (ys_out - py_np[j])**2
-                    else:
-                        t  = np.clip(((xs_out - px_np[j])*ex + (ys_out - py_np[j])*ey)/ll2, 0., 1.)
-                        d2 = (xs_out - px_np[j] - t*ex)**2 + (ys_out - py_np[j] - t*ey)**2
-                    min_d2 = np.minimum(min_d2, d2)
-                    j = i
-                result[outside] = min_d2 <= margin * margin
-            return result
-
-        try:
-            clip_mask = _pts_in_poly_np(rx_geo_np, ry_geo_np, poly_lx, poly_ly, margin=1.5)
-            n_clipped_out = int((~clip_mask).sum())
-            rx_geo_np = rx_geo_np[clip_mask]
-            ry_geo_np = ry_geo_np[clip_mask]
-            rz_np     = rz_np[clip_mask]
-            print(f"  ✂️ COPC clip polygone: {n_clipped_out}/{nb_raw} pts hors empreinte retirés → {int(clip_mask.sum())} restants")
-            if len(rx_geo_np) < 5:
-                raise ValueError(f"Clip polygone: trop peu de points ({len(rx_geo_np)}) dans l'empreinte bâtiment")
-        except ValueError:
-            raise
-        except Exception as e_clip:
-            app.logger.warning(f"COPC: clip polygone échoué ({e_clip}), on continue sans clip")
-
-        # ── 4b. Filtre acrotères ─────────────────────────────────────────────
+        # ── 4. Filtre acrotères ──────────────────────────────────────────────
         try:
             acr_mask = _filter_acroteres(rx_geo_np, ry_geo_np, rz_np, poly_lx, poly_ly)
             rx_f = rx_geo_np[acr_mask]
             ry_f = ry_geo_np[acr_mask]
             rz_f = rz_np[acr_mask]
-            print(f"  🏗️ COPC acrotère: {len(rx_geo_np)} → {int(acr_mask.sum())} pts conservés")
+            print(f"  🏗️ COPC acrotère: {nb_raw} → {int(acr_mask.sum())} pts conservés")
         except Exception as e_acr:
             app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
             rx_f, ry_f, rz_f = rx_geo_np, ry_geo_np, rz_np
@@ -1852,6 +1791,193 @@ def api_lidar_copc_roof():
         return jsonify({"error": str(e)}), 422
     except Exception as e:
         app.logger.error(f"COPC roof error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+# ──────────────────────────────────────────────────────────────
+# Route grille : relevé de points bruts sur grille 1pt/m²
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/lidar/copc-grid', methods=['POST'])
+def api_lidar_copc_grid():
+    """
+    Échantillonne le nuage de points COPC (classe 6) sur une grille régulière.
+    Peut aussi lancer le RANSAC sur les mêmes points (include_planes=true).
+
+    POST body (JSON):
+        lat              : float — latitude centre (WGS84)
+        lon              : float — longitude centre (WGS84)
+        building_coords  : [[lon, lat], ...] — polygone bâtiment
+        step             : float — résolution grille en mètres (défaut 0.5)
+        wall_h           : float — hauteur de mur en m (défaut 6.0, pour MNH)
+        include_planes   : bool  — lancer aussi le RANSAC (pour info PV)
+        include_raw_points: bool — inclure la liste des points bruts
+
+    Retourne:
+        grid            : tableau 2D [ny][nx], valeur z_rel (m) ou null
+        z_baseline_rel  : percentile 5 des z_rel (≈ niveau avant-toit → mnh=bh)
+        z_min_abs       : altitude NGF minimale
+        roof_planes     : (si include_planes) plans RANSAC pour info PV
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        lat   = float(body['lat'])
+        lon   = float(body['lon'])
+        building_coords  = body['building_coords']
+        step             = float(body.get('step', 0.5))
+        step             = max(0.25, min(step, 5.0))
+        wall_h           = float(body.get('wall_h', 6.0))
+        include_planes   = bool(body.get('include_planes', False))
+
+        if not building_coords or len(building_coords) < 3:
+            return jsonify({"error": "building_coords trop court (min 3 points)"}), 400
+
+        import numpy as np
+        from pyproj import Transformer as _Tr
+
+        # ── 1. Tuile COPC ────────────────────────────────────────────────────
+        copc_url = _find_lidar_hd_tile_url(lat, lon)
+
+        # ── 2. Extraction points bâtiment (Lambert93 local) ──────────────────
+        rx, ry, rz, cx_l93, cy_l93, cx_lon, cx_lat = \
+            _extract_copc_building_points(copc_url, building_coords)
+
+        if len(rx) < 5:
+            return jsonify({"error": f"Trop peu de points LiDAR classe 6: {len(rx)}"}), 422
+
+        # ── 3. Reprojection L93-absolu → WGS84-équirectangulaire local ─────
+        t_bck = _Tr.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
+        LAT_TO_M_C = 111320.0
+        LNG_TO_M_C = LAT_TO_M_C * math.cos(math.radians(cx_lat))
+
+        rx_np = np.array(rx, dtype=np.float64) + cx_l93
+        ry_np = np.array(ry, dtype=np.float64) + cy_l93
+        rz_np = np.array(rz, dtype=np.float64)
+
+        lons_pts, lats_pts = t_bck.transform(rx_np.tolist(), ry_np.tolist())
+        gx_np = np.array([(lo - cx_lon) * LNG_TO_M_C for lo in lons_pts])
+        gy_np = np.array([(la - cx_lat) * LAT_TO_M_C for la in lats_pts])
+
+        # ── 4. Grille régulière ──────────────────────────────────────────────
+        x0 = float(gx_np.min()); x1 = float(gx_np.max())
+        y0 = float(gy_np.min()); y1 = float(gy_np.max())
+        nx = int(math.ceil((x1 - x0) / step)) + 1
+        ny = int(math.ceil((y1 - y0) / step)) + 1
+
+        MAX_CELLS = 20_000
+        if nx * ny > MAX_CELLS:
+            step = math.ceil(math.sqrt((x1 - x0) * (y1 - y0) / MAX_CELLS) * 10) / 10
+            nx = int(math.ceil((x1 - x0) / step)) + 1
+            ny = int(math.ceil((y1 - y0) / step)) + 1
+            print(f"  ⚠️ Grille réduite: step={step:.1f}m → {nx}×{ny} cellules")
+
+        # Accumuler les Z par cellule → médiane (vectorisé numpy)
+        z_min_abs = float(np.min(rz_np))
+        z_rel_np  = rz_np - z_min_abs
+
+        ix_arr = np.clip(((gx_np - x0) / step).astype(int), 0, nx - 1)
+        iy_arr = np.clip(((gy_np - y0) / step).astype(int), 0, ny - 1)
+        idx_arr = iy_arr * nx + ix_arr
+
+        gz = np.full(ny * nx, np.nan, dtype=np.float32)
+        sort_order  = np.argsort(idx_arr)
+        sorted_idx  = idx_arr[sort_order]
+        sorted_z    = z_rel_np[sort_order]
+        unique_cells, start_pos = np.unique(sorted_idx, return_index=True)
+        end_pos = np.concatenate([start_pos[1:], [len(sorted_idx)]])
+        for c, s, e in zip(unique_cells.tolist(), start_pos.tolist(), end_pos.tolist()):
+            gz[c] = float(np.median(sorted_z[s:e]))
+        gz = gz.reshape(ny, nx)
+
+        # ── 5. Null-fill : 1 passe 3×3 (comble les trous de capteur ≤ 2 px) ──
+        # Exige ≥ 4 voisins non-nuls pour éviter d'interpoler les grandes ouvertures
+        # (lanterneaux, verrières) qui sont des vides intentionnels.
+        try:
+            from scipy.ndimage import generic_filter as _gf
+            def _fill_sparse(v):
+                v2 = v[~np.isnan(v)]
+                return float(np.median(v2)) if len(v2) >= 4 else np.nan
+            mask_nan = np.isnan(gz)
+            if mask_nan.any():
+                gz_filled = _gf(gz, _fill_sparse, size=3, mode='nearest')
+                gz[mask_nan] = gz_filled[mask_nan]
+                print(f"  🔧 Null-fill: {int(mask_nan.sum())} → {int(np.isnan(gz).sum())} cellules vides")
+        except ImportError:
+            pass  # scipy absent : grille telle quelle
+
+        # ── 6. baseline_rel = percentile 5 des z_rel (→ mnh ≈ wall_h à l'égout) ──
+        filled_vals = gz[~np.isnan(gz)].ravel()
+        z_baseline_rel = float(np.percentile(filled_vals, 5)) if len(filled_vals) else 0.0
+
+        # Convertir en grille Python sérialisable
+        grid = [
+            [None if np.isnan(gz[iy, ix]) else round(float(gz[iy, ix]), 2)
+             for ix in range(nx)]
+            for iy in range(ny)
+        ]
+        nb_filled    = sum(1 for row in grid for v in row if v is not None)
+        coverage_pct = round(100 * nb_filled / (nx * ny), 1)
+        print(f"  ✅ copc-grid: {nx}×{ny}, {nb_filled} remplies ({coverage_pct}%), "
+              f"step={step}m, {len(rx)} pts, baseline_rel={z_baseline_rel:.2f}m")
+
+        # ── 7. RANSAC optionnel (pour orientation des plans PV) ──────────────
+        roof_planes = None
+        if include_planes:
+            try:
+                z_baseline_ngf = z_min_abs + z_baseline_rel
+                z_mnh = (rz_np - z_baseline_ngf + wall_h).tolist()
+                poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
+                poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
+                try:
+                    acr_mask = _filter_acroteres(gx_np, gy_np, rz_np, poly_lx, poly_ly)
+                    rx_f = gx_np[acr_mask].tolist()
+                    ry_f = gy_np[acr_mask].tolist()
+                    zm_f = [z_mnh[i] for i, m in enumerate(acr_mask.tolist()) if m]
+                except Exception:
+                    rx_f, ry_f, zm_f = gx_np.tolist(), gy_np.tolist(), z_mnh
+                roof_planes = _segment_roof_planes_ransac(
+                    rx_f, ry_f, zm_f, grid_res=0.5, max_planes=30
+                )
+                print(f"  ✅ RANSAC inclus: {len(roof_planes)} plan(s)")
+            except Exception as e_pl:
+                app.logger.warning(f"copc-grid RANSAC échoué: {e_pl}")
+                roof_planes = []
+
+        # Points bruts (optionnel)
+        raw_points = None
+        if body.get('include_raw_points', False):
+            raw_points = [
+                {"x": round(float(gx_np[i]), 2),
+                 "y": round(float(gy_np[i]), 2),
+                 "z_rel": round(float(z_rel_np[i]), 2)}
+                for i in range(len(gx_np))
+            ]
+
+        result = {
+            "success":        True,
+            "tile_url":       copc_url,
+            "nb_points":      len(rx),
+            "step":           step,
+            "x0": round(x0, 2), "y0": round(y0, 2),
+            "x1": round(x1, 2), "y1": round(y1, 2),
+            "nx": nx, "ny": ny,
+            "nb_filled":      nb_filled,
+            "coverage_pct":   coverage_pct,
+            "z_min_abs":      round(z_min_abs, 2),
+            "z_baseline_rel": round(z_baseline_rel, 2),
+            "grid":           grid,
+            "center":         {"lat": cx_lat, "lon": cx_lon},
+        }
+        if roof_planes is not None:
+            result["roof_planes"] = roof_planes
+        if raw_points is not None:
+            result["raw_points"] = raw_points
+
+        return jsonify(result)
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 422
+    except Exception as e:
+        app.logger.error(f"copc-grid error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

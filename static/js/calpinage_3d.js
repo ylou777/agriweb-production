@@ -4076,61 +4076,70 @@ class Calpinage3DViewer {
     }
 
     /**
-     * Lance en arrière-plan un appel POST /api/lidar/copc-roof qui lit le nuage
-     * de points LAZ brut (~15-35 s).  Quand la réponse arrive, retire le toit
-     * MNH actuel et reconstruit un height-field à partir des plans RANSAC-LAZ
-     * beaucoup plus précis (±5-10 cm vs ±50 cm).
+     * Lance en arrière-plan un appel POST /api/lidar/copc-grid (~15-35 s).
+     * Rebuilt le toit depuis la grille Z brute LiDAR (pixel-perfect) :
+     *   - chaque cellule = médiane des points LiDAR dans 1 carré de 0.5m
+     *   - sheds, lanterneaux, noues, faîtages rendus fidèlement
+     *   - RANSAC lancé en parallèle uniquement pour les infos d'orientation PV
      */
     async _fetchAndApplyCOPCRoof(lat, lon) {
         if (!this.pvBuildingCoords?.length) return;
 
         const wallH = this._mainBldgBh ?? 6;
-        const resp  = await fetch('/api/lidar/copc-roof', {
+        const resp  = await fetch('/api/lidar/copc-grid', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({
                 lat,
                 lon,
                 building_coords: this.pvBuildingCoords,
+                step:            0.5,
                 wall_h:          wallH,
+                include_planes:  true,   // RANSAC pour orientation PV uniquement
             }),
             signal: AbortSignal.timeout(90_000),
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
-        if (!data.success || !data.roof_planes?.length) {
-            throw new Error(data.error || 'Aucun plan COPC retourné');
+        if (!data.success || !data.grid?.length) {
+            throw new Error(data.error || 'Aucune grille COPC retournée');
         }
 
-        console.log(`✅ COPC ${data.nb_points_raw} pts → ${data.roof_planes.length} plans`);
+        console.log(`✅ COPC grid: ${data.nb_points} pts → ${data.nx}×${data.ny} cellules (${data.coverage_pct}% couverture)`);
 
-        // Injecter dans lidarData pour que les fonctions de rebuild puissent y accéder
+        // Injecter dans lidarData
         if (!this.lidarData.building_hd) this.lidarData.building_hd = {};
-        this.lidarData.building_hd.roof_planes    = data.roof_planes;
-        if (data.building_center)
-            this.lidarData.building_hd.building_center = data.building_center;
+        this.lidarData.building_hd.copc_grid   = data;
+        if (data.roof_planes?.length)
+            this.lidarData.building_hd.roof_planes = data.roof_planes;
+        if (data.center)
+            this.lidarData.building_hd.building_center = data.center;
 
-        // Supprimer le toit MNH et reconstruire avec les plans COPC
+        // Supprimer le toit MNH et reconstruire depuis la grille brute
         this._removePVRoofMeshes();
 
-        const bldgCenter = data.building_center ?? this.lidarData.building_hd.building_center;
+        const bldgCenter = data.center;
         const bh         = this._mainBldgBh      ?? 6;
         const terrainH   = this._mainBldgTerrainH ?? 0;
         const roofType   = this._mainBldgRoofType ?? 'default';
 
-        let rebuilt = this._buildRoofHeightField(
-            data.roof_planes, bldgCenter, bh, terrainH,
+        // Rendu principal : grille Z brute (pixel-perfect)
+        const rebuilt = this._buildRoofFromGrid(
+            data, bldgCenter, bh, terrainH,
             this.pvBuildingCoords, roofType, /* isPVBuilding */ true
         );
         if (!rebuilt) {
-            this._buildRoofFromPlanes(
-                data.roof_planes, bldgCenter, bh, terrainH, roofType, /* isPVBuilding */ true
-            );
+            // Fallback : height-field RANSAC → fallback polygone
+            const planes = data.roof_planes;
+            if (planes?.length) {
+                if (!this._buildRoofHeightField(planes, bldgCenter, bh, terrainH, this.pvBuildingCoords, roofType, true))
+                    this._buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, true);
+            }
         }
 
-        // Mettre à jour roofPanelsInfo depuis les plans COPC (remplace le placeholder)
+        // Mise à jour roofPanelsInfo depuis les plans RANSAC (orientation PV)
         const _copcOBB = this.roofPanelsInfo?.buildingOBB;
-        if (_copcOBB) {
+        if (_copcOBB && data.roof_planes?.length) {
             const _panels = this._computeRoofPanelsInfoFromPlanes(
                 data.roof_planes, _copcOBB, terrainH, bh, bldgCenter, roofType
             );
@@ -4144,12 +4153,11 @@ class Calpinage3DViewer {
             }
         }
 
-        // Afficher un bandeau discret
-        this._showCOPCBanner(data.roof_planes.length, data.nb_points_raw);
+        this._showCOPCBanner(data.nb_points, data.nx, data.ny);
     }
 
     /** Affiche un bandeau "Toit LiDAR HD" discret pendant 6 s. */
-    _showCOPCBanner(nPlanes, nPoints) {
+    _showCOPCBanner(nPoints, nx, ny) {
         try {
             let banner = document.getElementById('copc-roof-banner');
             if (!banner) {
@@ -4172,7 +4180,7 @@ class Calpinage3DViewer {
                 });
                 document.body.appendChild(banner);
             }
-            banner.textContent = `🌿 Toit recalculé avec LiDAR HD brut (${nPlanes} plans · ${nPoints} pts)`;
+            banner.textContent = `🌿 Toit recalculé – LiDAR HD brut ${nx}×${ny} pts · ${nPoints} mesures`;
             banner.style.opacity = '1';
             clearTimeout(this._copcBannerTimer);
             this._copcBannerTimer = setTimeout(() => {
@@ -4438,6 +4446,154 @@ class Calpinage3DViewer {
         }
 
         console.log(`✅ Toit height-field: ${validPlanes.length} plans valides, grille ${nx}×${ny}, ${Math.round(positions.length/3)} sommets`);
+        return true;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RENDU TOIT DEPUIS GRILLE Z LiDAR BRUTE (méthode principale)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Construit le mesh de toit directement depuis la grille Z LiDAR brute.
+     * Pixel-perfect : chaque cellule = médiane des points LiDAR → sheds, lanterneaux,
+     * fenêtres de toit visibles sans aucune approximation mathématique.
+     *
+     * Coordonnées : gridData.x0/y0/step et bldgCenter partagent le même repère
+     * WGS84-équirectangulaire local produit par /api/lidar/copc-grid.
+     * Heights : mnh = max(bh, z_rel - z_baseline_rel + bh)
+     *  → z_baseline_rel ≈ niveau avant-toit (percentile 5), donc mnh ≈ bh au ras de la corniche.
+     *
+     * @param {Object} gridData      - réponse de /api/lidar/copc-grid
+     * @param {Object} bldgCenter    - {lat, lon} centre du bâtiment
+     * @param {number} bh            - hauteur de mur (m)
+     * @param {number} terrainH      - Y terrain Three.js
+     * @param {Array}  buildingCoords - [[lon,lat], ...] empreinte BD TOPO
+     * @param {string} roofType      - type toit (texture)
+     * @param {boolean} isPVBuilding
+     * @returns {boolean} true si mesh créé
+     */
+    _buildRoofFromGrid(gridData, bldgCenter, bh, terrainH, buildingCoords, roofType, isPVBuilding = false) {
+        const { grid, x0, y0, nx, ny, step, z_baseline_rel } = gridData;
+        if (!grid || nx < 2 || ny < 2) return false;
+
+        const LNG_TO_M    = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+        const bldgOffsetX = (bldgCenter.lon - this.centerLon) * LNG_TO_M;
+        const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
+
+        // ── 1. Footprint BD TOPO → espace local (pour jupe) ─────────────────
+        let fp = buildingCoords.map(([lon, lat]) => [
+            (lon - bldgCenter.lon) * LNG_TO_M,
+            (lat - bldgCenter.lat) * this.LAT_TO_M,
+        ]);
+        if (fp.length > 3) {
+            const [x0f, y0f] = fp[0], [xl, yl] = fp[fp.length - 1];
+            if ((x0f - xl) ** 2 + (y0f - yl) ** 2 < 0.01) fp.pop();
+        }
+
+        // ── 2. Buffers géométrie depuis la grille Z brute ────────────────────
+        const positions = [], uvs = [];
+        const vertexMap  = new Int32Array(nx * ny).fill(-1);
+        let vi = 0;
+
+        for (let iy = 0; iy < ny; iy++) {
+            for (let ix = 0; ix < nx; ix++) {
+                const z_rel = grid[iy][ix];
+                if (z_rel === null) continue;
+                const gx  = x0 + ix * step;
+                const gy  = y0 + iy * step;
+                // mnh : z_baseline_rel → bh, points plus hauts → bh + (z_rel - baseline)
+                const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
+                positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
+                uvs.push(gx / 4, gy / 4);
+                vertexMap[iy * nx + ix] = vi++;
+            }
+        }
+        if (positions.length < 9) return false;
+
+        // ── 3. Triangulation ─────────────────────────────────────────────────
+        const faceIdx = [];
+        for (let iy = 0; iy < ny - 1; iy++) {
+            for (let ix = 0; ix < nx - 1; ix++) {
+                const v00 = vertexMap[ iy      * nx + ix    ];
+                const v10 = vertexMap[ iy      * nx + ix + 1];
+                const v01 = vertexMap[(iy + 1) * nx + ix    ];
+                const v11 = vertexMap[(iy + 1) * nx + ix + 1];
+                if (v00 >= 0 && v10 >= 0 && v01 >= 0) faceIdx.push(v00, v10, v01);
+                if (v10 >= 0 && v11 >= 0 && v01 >= 0) faceIdx.push(v10, v11, v01);
+            }
+        }
+        if (faceIdx.length < 3) return false;
+
+        // ── 4. Mesh Three.js ──────────────────────────────────────────────────
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(faceIdx);
+        geo.computeVertexNormals();
+
+        const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
+            map:  this._getRoofTexture(roofType),
+            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+        }));
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.userData = { source: 'grid-lidar', isPVRoof: isPVBuilding };
+        this.scene.add(mesh);
+        this.buildings.push(mesh);
+
+        // ── 5. Jupe (skirt) le long du périmètre du footprint ────────────────
+        // Pour chaque sommet du footprint, cherche la cellule de grille la plus proche.
+        const getGridMnh = (gx, gy) => {
+            const fx  = (gx - x0) / step, fy = (gy - y0) / step;
+            const ix0 = Math.round(fx),   iy0 = Math.round(fy);
+            let best = null, bestD2 = Infinity;
+            for (let dy = -3; dy <= 3; dy++) {
+                for (let dx = -3; dx <= 3; dx++) {
+                    const jy = iy0 + dy, jx = ix0 + dx;
+                    if (jy < 0 || jy >= ny || jx < 0 || jx >= nx) continue;
+                    const v = grid[jy][jx];
+                    if (v === null) continue;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < bestD2) { best = v; bestD2 = d2; }
+                }
+            }
+            return best !== null ? Math.max(bh, best - z_baseline_rel + bh) : bh;
+        };
+
+        const skirtMat = new THREE.MeshPhongMaterial({
+            map: this._getRoofTexture(roofType), side: THREE.DoubleSide,
+            specular: 0x222222, shininess: 5,
+        });
+        const skirtPos = [], n_fp = fp.length;
+        for (let i = 0; i < n_fp; i++) {
+            const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
+            const h0 = getGridMnh(px0, py0), h1 = getGridMnh(px1, py1);
+            const hBot = bh - 0.15;
+            skirtPos.push(
+                bldgOffsetX + px0, terrainH + hBot,  bldgOffsetZ - py0,
+                bldgOffsetX + px1, terrainH + hBot,  bldgOffsetZ - py1,
+                bldgOffsetX + px1, terrainH + h1,    bldgOffsetZ - py1,
+                bldgOffsetX + px0, terrainH + h0,    bldgOffsetZ - py0,
+            );
+        }
+        if (skirtPos.length >= 12) {
+            const skirtGeo = new THREE.BufferGeometry();
+            skirtGeo.setAttribute('position', new THREE.Float32BufferAttribute(skirtPos, 3));
+            const skirtIdx = [];
+            for (let q = 0; q < skirtPos.length / 12; q++) {
+                const b = q * 4;
+                skirtIdx.push(b, b+1, b+2,  b, b+2, b+3);
+            }
+            skirtGeo.setIndex(skirtIdx);
+            skirtGeo.computeVertexNormals();
+            const sm = new THREE.Mesh(skirtGeo, skirtMat);
+            sm.castShadow = sm.receiveShadow = true;
+            sm.userData = { source: 'grid-lidar-skirt', isPVRoof: isPVBuilding };
+            this.scene.add(sm);
+            this.buildings.push(sm);
+        }
+
+        console.log(`✅ Toit grid LiDAR: ${nx}×${ny} cellules, step=${step}m, ${Math.round(positions.length / 3)} sommets`);
         return true;
     }
 
