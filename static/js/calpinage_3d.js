@@ -2303,75 +2303,42 @@ class Calpinage3DViewer {
             this._pvBuildingBboxMetric = null;
         }
 
-        // ── Chemin 1 : bâtiment PV → attente COPC LAZ brut ─────────────────────
-        // La géométrie MNH raster (±50cm) n'est plus construite ici.
-        // COPC (~15-35s) la construira avec des données ±5-10cm.
-        // On calcule seulement roofPanelsFrom (pour les calculs de calpinage) et
-        // on cache le cap plat de l'ExtrudeGeometry des murs.
-        if (isPVBuilding && hdData?.roof_planes?.length) {
-            roofBuilt = true;  // empêche Chemin 2 (OBB MNS) de s'exécuter
-            roofPanelsFrom = this._computeRoofPanelsInfoFromPlanes(
-                hdData.roof_planes, obb, terrainH, bh, bldgCenter, roofType
-            );
-            // Cacher le cap plat des murs (COPC construira le vrai toit)
+        // ── Bâtiment PV : toit exclusivement via COPC (~15-35s) ─────────────────
+        // Aucune géométrie MNH/MNS/OBB ne sera construite ici.
+        // On cache juste le cap plat des murs et on attend COPC.
+        if (isPVBuilding) {
+            roofBuilt = true;  // court-circuite Chemin 2
             if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
                 mesh.material[0].opacity = 0;
                 mesh.material[0].transparent = true;
                 mesh.material[0].depthWrite = false;
                 mesh.material[0].needsUpdate = true;
             }
-            console.log(`⏳ Toit PV: en attente COPC (${hdData.roof_planes.length} plans MNH en fallback)`);
+            console.log('⏳ Toit PV: en attente COPC LAZ brut');
         }
 
-        // ── Chemin 2 : analyse MNS LiDAR → géométrie OBB ──
-        // Pour le bâtiment PV : ne jamais construire de géométrie ici.
-        // COPC fournit le seul vrai toit. On calcule seulement roofPanelsFrom.
+        // ── Chemin 2 : analyse MNS LiDAR → géométrie OBB (bâtiments voisins uniquement) ──
         if (!roofBuilt) {
-            const roofPts = this._sampleMNSOnBuilding(
-                buildingData.coords || [],
-                isPVBuilding ? 0 : (neighborIdx ?? 0)
-            );
+            const roofPts = this._sampleMNSOnBuilding(buildingData.coords || [], neighborIdx ?? 0);
             const analysis = roofPts ? this._analyzeRoofShape(roofPts, obb) : null;
 
-            // BD TOPO ridgeExtra (alt_toit_max − alt_toit_min) : priorité sur MNS si plus élevé
-            // Guard : uniquement pour bâtiments simples (≤ 6 sommets uniques = ≤ 8 coords).
-            // Sur un bâtiment en L/T/U, min/max sont sur des ailes différentes → valeur incorrecte.
             const _nVertsC2 = (buildingData.coords || []).length;
             const _bdRidgeC2 = (_nVertsC2 <= 8 && buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
                 ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
             const _hasBdRidge = _bdRidgeC2 != null && _bdRidgeC2 > 0.5 && _bdRidgeC2 < 15;
 
             if (analysis && analysis.type !== 'flat' && analysis.ridgeExtra > 0.3) {
-                // Corriger ridgeExtra avec BD TOPO si plus fiable (LiDAR officiel ING)
                 const effectiveRidge = _hasBdRidge
                     ? Math.max(analysis.ridgeExtra, _bdRidgeC2)
                     : analysis.ridgeExtra;
-                if (!isPVBuilding) {
-                    // Bâtiments voisins uniquement — PV building n'a pas de géométrie MNS
-                    if (analysis.type === 'gable' || analysis.type === 'multi-gable') {
-                        this._createGableRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
-                    } else if (analysis.type === 'hip') {
-                        this._createHipRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
-                    } else if (analysis.type === 'shed' || analysis.type === 'multi-shed') {
-                        this._createShedRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType, analysis.ridgeOffset || 0);
-                    }
-                    // Cap invisible car toit OBB couvre le sommet des murs
-                    if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
-                        mesh.material[0].opacity = 0;
-                        mesh.material[0].transparent = true;
-                        mesh.material[0].depthWrite = false;
-                        mesh.material[0].needsUpdate = true;
-                    }
+                if (analysis.type === 'gable' || analysis.type === 'multi-gable') {
+                    this._createGableRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
+                } else if (analysis.type === 'hip') {
+                    this._createHipRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
+                } else if (analysis.type === 'shed' || analysis.type === 'multi-shed') {
+                    this._createShedRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType, analysis.ridgeOffset || 0);
                 }
                 roofBuilt = true;
-                if (isPVBuilding) {
-                    roofPanelsFrom = this._computeRoofPanelsInfo(
-                        obb, analysis.type, effectiveRidge, bh, terrainH,
-                        true, roofType, analysis.nRidges || 1, analysis
-                    );
-                    console.log(`⏳ Toit PV MNS (${analysis.type}, ridgeExtra=${effectiveRidge.toFixed(1)}m) — géométrie réservée à COPC`);
-                }
-                // Cap invisible car toit OBB couvre le sommet des murs
                 if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
                     mesh.material[0].opacity = 0;
                     mesh.material[0].transparent = true;
@@ -2379,45 +2346,28 @@ class Calpinage3DViewer {
                     mesh.material[0].needsUpdate = true;
                 }
             } else if (_hasBdRidge) {
-                // MNS analyse insuffisante mais BD TOPO indique un faîtage significatif
                 const _bdType = (obb.longDim / Math.max(obb.shortDim, 0.1) > 1.4) ? 'gable' : 'hip';
-                if (!isPVBuilding) {
-                    // Bâtiments voisins uniquement
-                    if (_bdType === 'gable') this._createGableRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
-                    else this._createHipRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
-                    if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
-                        mesh.material[0].opacity = 0;
-                        mesh.material[0].transparent = true;
-                        mesh.material[0].depthWrite = false;
-                        mesh.material[0].needsUpdate = true;
-                    }
-                }
+                if (_bdType === 'gable') this._createGableRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
+                else this._createHipRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
                 roofBuilt = true;
-                if (isPVBuilding) {
-                    roofPanelsFrom = this._computeRoofPanelsInfo(
-                        obb, _bdType, _bdRidgeC2, bh, terrainH, true, roofType, 1, null
-                    );
-                    console.log(`⏳ Toit PV BD TOPO (${_bdType}, ridgeExtra=${_bdRidgeC2.toFixed(1)}m) — géométrie réservée à COPC`);
-                }
-            } else {
-                // Toit plat — cap visible (matériau déjà opaque dans ExtrudeGeometry)
-                if (isPVBuilding) {
-                    roofPanelsFrom = this._computeRoofPanelsInfo(obb, 'flat', 0, bh, terrainH, false, roofType, 1, null);
-                    console.log(`✅ Toit plat LiDAR — bâtiment PV`);
+                if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
+                    mesh.material[0].opacity = 0;
+                    mesh.material[0].transparent = true;
+                    mesh.material[0].depthWrite = false;
+                    mesh.material[0].needsUpdate = true;
                 }
             }
         }
 
         // ── Mémoriser infos bâtiment principal pour les appels ultérieurs ──
         if (isPVBuilding) {
-            this.roofPanelsInfo = roofPanelsFrom
-                || this._computeRoofPanelsInfo(obb, 'flat', 0, bh, terrainH, false, roofType, 1, null);
+            // Placeholder minimal : COPC mettra à jour roofPanelsInfo complet à l'arrivée.
+            this.roofPanelsInfo = { type: 'pending', panels: [], couverture: roofType };
             this.roofPanelsInfo.buildingOBB         = { cx: obb.cx, cz: obb.cz, angle: obb.angle, longDim: obb.longDim, shortDim: obb.shortDim };
             this.roofPanelsInfo.buildingTerrainH    = terrainH;
             this.roofPanelsInfo.buildingWallH       = bh;
             this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({x: c.x, z: c.z}));
-            // Utiliser building_hd.building_center si disponible (origine exacte des polygon_2d RANSAC)
-            this.roofPanelsInfo.buildingCenterGeo = { lat: bldgCenter.lat, lng: bldgCenter.lon };
+            this.roofPanelsInfo.buildingCenterGeo   = { lat: bldgCenter.lat, lng: bldgCenter.lon };
         }
     }
     
@@ -4178,13 +4128,24 @@ class Calpinage3DViewer {
             );
         }
 
+        // Mettre à jour roofPanelsInfo depuis les plans COPC (remplace le placeholder)
+        const _copcOBB = this.roofPanelsInfo?.buildingOBB;
+        if (_copcOBB) {
+            const _panels = this._computeRoofPanelsInfoFromPlanes(
+                data.roof_planes, _copcOBB, terrainH, bh, bldgCenter, roofType
+            );
+            if (_panels) {
+                _panels.buildingOBB         = _copcOBB;
+                _panels.buildingTerrainH    = terrainH;
+                _panels.buildingWallH       = bh;
+                _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
+                _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
+                this.roofPanelsInfo = _panels;
+            }
+        }
+
         // Afficher un bandeau discret
         this._showCOPCBanner(data.roof_planes.length, data.nb_points_raw);
-
-        // Recalculer le calpinage si des panels existent déjà
-        if (this.roofPanelsInfo?.length && typeof this._recomputePanelsAfterCOPC === 'function') {
-            this._recomputePanelsAfterCOPC(data.roof_planes, bldgCenter, bh, terrainH);
-        }
     }
 
     /** Affiche un bandeau "Toit LiDAR HD" discret pendant 6 s. */
