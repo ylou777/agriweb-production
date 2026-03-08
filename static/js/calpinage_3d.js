@@ -4065,30 +4065,53 @@ class Calpinage3DViewer {
 
             const { mnh_a, mnh_b, mnh_c } = plane;
 
-            // ── Expansion du polygone par offset de bord (Minkowski) ──
-            // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.25m.
-            // Contrairement à l'expansion depuis le centroïde, le faîtage partagé
-            // entre deux plans adjacents reçoit un offset vers l'extérieur de CHAQUE plan
-            // → les deux plans se chevauchent au faîtage → plus de lacune visible.
+            // ── Expansion de bord robuste (Minkowski, offset =+0.25m) ─────────────
+            // Repousse chaque sommet le long de la bissectrice des normales sortantes.
+            //
+            // Corrections vs ancienne version :
+            // 1. Dédupliquer les sommets quasi-identiques (arêtes dégénérées → NaN/normal explosé)
+            // 2. Sens sortant determiné par l'aire signée (winding order), PAS depuis le centroïde.
+            //    Le test centroïde est faux pour les polygones non-convexes/concaves (grands bâtiments):
+            //    certains sommets rentrants sont côté intérieur du centroïde → normale inversée → spirale.
+            // 3. Plafonner le scaling pour éviter l'explosion aux angles quasi-plats (sommet aligné
+            //    sur ses voisins → bsLen→0 → scale→∞ → vertex projeté à des mètres → spirale).
+
+            // 1. Dédupliquer
+            const rawPoly = poly.filter(([px, py], i) => {
+                if (i === 0) return true;
+                const [px0, py0] = poly[i - 1];
+                return (px - px0) * (px - px0) + (py - py0) * (py - py0) > 1e-4;
+            });
+            if (rawPoly.length < 3) continue;
+
+            // 2. Aire signée (shoelace) → facteur de winding : CCW=+1, CW=-1
+            let _sa2 = 0;
+            for (let _si = 0, _sj = rawPoly.length - 1; _si < rawPoly.length; _sj = _si++)
+                _sa2 += rawPoly[_sj][0] * rawPoly[_si][1] - rawPoly[_si][0] * rawPoly[_sj][1];
+            const _w = _sa2 >= 0 ? 1 : -1; // CCW → right-hand = sortant ; CW → left-hand = sortant
+
+            // 3. Expansion
             const EXP = 0.25;
-            const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
-            const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
-            const n_poly = poly.length;
-            const expandedPoly = poly.map(([px, py], i) => {
-                const [ax, ay] = poly[(i - 1 + n_poly) % n_poly];
-                const [bx, by] = poly[(i + 1) % n_poly];
-                // Normales sortantes des deux arêtes adjacentes à ce sommet
-                const e1x = px - ax, e1y = py - ay, l1 = Math.sqrt(e1x*e1x + e1y*e1y) || 1;
-                let n1x = e1y / l1, n1y = -e1x / l1;
-                if (n1x*(px-cx_poly) + n1y*(py-cy_poly) < 0) { n1x=-n1x; n1y=-n1y; }
-                const e2x = bx - px, e2y = by - py, l2 = Math.sqrt(e2x*e2x + e2y*e2y) || 1;
-                let n2x = e2y / l2, n2y = -e2x / l2;
-                if (n2x*(px-cx_poly) + n2y*(py-cy_poly) < 0) { n2x=-n2x; n2y=-n2y; }
-                // Bissectrice des deux normales + scaling pour maintenir distance EXP
-                const bsx = n1x + n2x, bsy = n1y + n2y, bsLen = Math.sqrt(bsx*bsx + bsy*bsy) || 1;
-                const sinHalf = Math.max(0.1, bsLen / 2);
-                const scale = EXP / sinHalf;
-                return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
+            const n_poly = rawPoly.length;
+            const expandedPoly = rawPoly.map(([px, py], i) => {
+                const [ax, ay] = rawPoly[(i - 1 + n_poly) % n_poly];
+                const [bx, by] = rawPoly[(i + 1) % n_poly];
+                const e1x = px - ax, e1y = py - ay;
+                const l1 = Math.sqrt(e1x * e1x + e1y * e1y);
+                const e2x = bx - px, e2y = by - py;
+                const l2 = Math.sqrt(e2x * e2x + e2y * e2y);
+                if (l1 < 1e-6 || l2 < 1e-6) return [px, py]; // arête dégénérée → pas d'offset
+                // Normales sortantes basées sur le winding (indépendant du centroïde)
+                const n1x =  _w * e1y / l1, n1y = -_w * e1x / l1;
+                const n2x =  _w * e2y / l2, n2y = -_w * e2x / l2;
+                // Bissectrice
+                const bsx = n1x + n2x, bsy = n1y + n2y;
+                const bsLen = Math.sqrt(bsx * bsx + bsy * bsy);
+                if (bsLen < 1e-6) return [px, py]; // normes anti-parallèles → angle nul, pas d'offset
+                // Plafonnement agressif : sinH ∈ [0.35, 1] → scale ≤ 0.71m (vs 2.5m avant)
+                const sinH = Math.min(1, Math.max(0.35, bsLen / 2));
+                const scale = Math.min(EXP / sinH, EXP * 2.5);
+                return [px + (bsx / bsLen) * scale, py + (bsy / bsLen) * scale];
             });
 
             const positions = [];
