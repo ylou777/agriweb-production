@@ -2284,11 +2284,20 @@ class Calpinage3DViewer {
             this._pvBuildingBboxMetric = null;
         }
 
-        // ── Chemin 1 : plans RANSAC building_hd (bâtiment PV uniquement) ──
+        // ── Chemin 1 : plans RANSAC + Height Field sur empreinte BD TOPO ──────
+        // Chemin 1a : height field (footprint BD TOPO + équations de plan).
+        //   Aligne parfaitement murs et toit, gère les formes L/T/U/complexes.
+        //   Faîtage et croupe émergent naturellement de max(plans).
+        // Chemin 1b : fallback polygon_2d RANSAC (ancienne méthode si 1a échoue).
         if (isPVBuilding && hdData?.roof_planes?.length) {
-            roofBuilt = this._buildRoofFromPlanes(
-                hdData.roof_planes, bldgCenter, bh, terrainH, roofType
+            roofBuilt = this._buildRoofHeightField(
+                hdData.roof_planes, bldgCenter, bh, terrainH, buildingData.coords, roofType
             );
+            if (!roofBuilt) {
+                roofBuilt = this._buildRoofFromPlanes(
+                    hdData.roof_planes, bldgCenter, bh, terrainH, roofType
+                );
+            }
             if (roofBuilt) {
                 // Si Google Solar détecte 4 pans (toit en croupe) mais le LiDAR RANSAC
                 // n'en a que 2 (les faces triangulaires d'about ont trop peu de points),
@@ -4095,7 +4104,228 @@ class Calpinage3DViewer {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // RENDU TOIT DEPUIS PLANS RANSAC BACKEND
+    // TOIT HEIGHT-FIELD : empreinte BD TOPO + équations de plan RANSAC
+    // ─────────────────────────────────────────────────────────────────────
+    // Principe : pour chaque nœud d'une grille 50 cm couvrant l'empreinte
+    //   BD TOPO, la hauteur de toit = max(bh, max_plan(a*x + b*y + c)).
+    // Le faîtage, les noues et les angles de croupe émergent naturellement
+    // à l'intersection des plans. Alignement toit/murs parfait (même footprint).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Teste si le point (px, py) est à l'intérieur d'un polygone 2D.
+     * Algorithme ray-casting – fonctionne sur tout polygone simple.
+     */
+    _pointInPoly2D(px, py, poly) {
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const xi = poly[i][0], yi = poly[i][1];
+            const xj = poly[j][0], yj = poly[j][1];
+            if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    /**
+     * Construit le mesh de toit en projetant une grille 50 cm sur l'empreinte
+     * BD TOPO et en calculant la hauteur en chaque nœud depuis les équations
+     * de plan RANSAC (mnh = a*x + b*y + c, coordonnées métriques polygon_2d).
+     *
+     * Avantages vs _buildRoofFromPlanes :
+     *  - Forme = empreinte BD TOPO → alignement murs/toit parfait
+     *  - Gère les bâtiments complexes (L, T, U) sans OBB
+     *  - Faîtage, croupe, noues emergent naturellement de max(plans)
+     *  - Pas d'expansion Minkowski ni de clipping nécessaires
+     *
+     * @returns {boolean} true si le mesh a été créé
+     */
+    _buildRoofHeightField(planes, bldgCenter, bh, terrainH, buildingCoords, roofType) {
+        if (!planes?.length || !buildingCoords || buildingCoords.length < 3) return false;
+
+        const LNG_TO_M   = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+        const bldgOffsetX = (bldgCenter.lon - this.centerLon) * LNG_TO_M;
+        const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
+
+        // ── 1. Footprint BD TOPO → espace métrique polygon_2d ──────────────
+        // x = Est positif (même axe que polygon_2d rx)
+        // y = Nord positif (même axe que polygon_2d ry)
+        let fp = buildingCoords.map(([lon, lat]) => [
+            (lon - bldgCenter.lon) * LNG_TO_M,
+            (lat - bldgCenter.lat) * this.LAT_TO_M
+        ]);
+        // Supprimer le point de fermeture dupliqué si présent
+        if (fp.length > 3) {
+            const [x0, y0] = fp[0], [xl, yl] = fp[fp.length - 1];
+            if ((x0 - xl) ** 2 + (y0 - yl) ** 2 < 0.01) fp.pop();
+        }
+        if (fp.length < 3) return false;
+
+        // ── 2. Filtrer les plans invalides ──────────────────────────────────
+        const fpXs = fp.map(p => p[0]), fpYs = fp.map(p => p[1]);
+        const fpXMin = Math.min(...fpXs) - 1.5, fpXMax = Math.max(...fpXs) + 1.5;
+        const fpYMin = Math.min(...fpYs) - 1.5, fpYMax = Math.max(...fpYs) + 1.5;
+
+        const validPlanes = planes.filter(plane => {
+            const poly = plane.polygon_2d;
+            if (!poly || poly.length < 3) return false;
+            // Filtre acrotère : aire trop petite ou trop étroite
+            let sa = 0;
+            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+                sa += poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1];
+            const area = Math.abs(sa) / 2;
+            const bbW  = Math.max(...poly.map(p => p[0])) - Math.min(...poly.map(p => p[0]));
+            const bbH  = Math.max(...poly.map(p => p[1])) - Math.min(...poly.map(p => p[1]));
+            if (area < 4 || area / Math.max(bbW, bbH, 0.1) < 1.5) return false;
+            // Filtre toit adjacent : centroïde du plan hors de l'empreinte + 1.5 m
+            const cx = poly.reduce((s, p) => s + p[0], 0) / poly.length;
+            const cy = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+            return cx >= fpXMin && cx <= fpXMax && cy >= fpYMin && cy <= fpYMax;
+        });
+
+        if (!validPlanes.length) {
+            console.log('⚠️ _buildRoofHeightField: aucun plan valide après filtrage');
+            return false;
+        }
+
+        // ── 3. Grille 50 cm sur la bbox du footprint ─────────────────────────
+        const xMin = Math.min(...fpXs), xMax = Math.max(...fpXs);
+        const yMin = Math.min(...fpYs), yMax = Math.max(...fpYs);
+        const STEP = 0.5;
+        const nx = Math.max(3, Math.round((xMax - xMin) / STEP) + 1);
+        const ny = Math.max(3, Math.round((yMax - yMin) / STEP) + 1);
+        // Sécurité grands bâtiments (> 2500 m²)
+        if (nx * ny > 12000) {
+            console.log(`⚠️ _buildRoofHeightField: grille ${nx}×${ny} trop grande → fallback`);
+            return false;
+        }
+        const stepX = nx > 1 ? (xMax - xMin) / (nx - 1) : STEP;
+        const stepY = ny > 1 ? (yMax - yMin) / (ny - 1) : STEP;
+
+        // ── 4. Calcul du champ de hauteur ────────────────────────────────────
+        const heightArr = new Float32Array(nx * ny);
+        const insideArr = new Uint8Array(nx * ny);
+
+        for (let iy = 0; iy < ny; iy++) {
+            const gy = yMin + iy * stepY;
+            for (let ix = 0; ix < nx; ix++) {
+                const gx = xMin + ix * stepX;
+                const idx = iy * nx + ix;
+                if (!this._pointInPoly2D(gx, gy, fp)) continue;
+                insideArr[idx] = 1;
+                // Hauteur = max(corniche, max des plans RANSAC valides)
+                let h = bh;
+                for (const p of validPlanes) {
+                    const mnh = p.mnh_a * gx + p.mnh_b * gy + p.mnh_c;
+                    if (mnh > h) h = mnh;
+                }
+                // Plancher à bh (évite que le toit descende sous la corniche)
+                heightArr[idx] = Math.max(bh, h);
+            }
+        }
+
+        // ── 5. Construire les buffers de géométrie ────────────────────────────
+        const vertexMap = new Int32Array(nx * ny).fill(-1);
+        const positions = [], uvs = [];
+        let vi = 0;
+
+        for (let iy = 0; iy < ny; iy++) {
+            const gy = yMin + iy * stepY;
+            for (let ix = 0; ix < nx; ix++) {
+                const idx = iy * nx + ix;
+                if (!insideArr[idx]) continue;
+                const gx = xMin + ix * stepX;
+                positions.push(bldgOffsetX + gx, terrainH + heightArr[idx], bldgOffsetZ - gy);
+                uvs.push(gx / 4, gy / 4);
+                vertexMap[idx] = vi++;
+            }
+        }
+
+        if (positions.length < 9) return false;
+
+        // Triangulation de la grille irrégulière
+        const faceIdx = [];
+        for (let iy = 0; iy < ny - 1; iy++) {
+            for (let ix = 0; ix < nx - 1; ix++) {
+                const v00 = vertexMap[ iy      * nx + ix    ];
+                const v10 = vertexMap[ iy      * nx + ix + 1];
+                const v01 = vertexMap[(iy + 1) * nx + ix    ];
+                const v11 = vertexMap[(iy + 1) * nx + ix + 1];
+                if (v00 >= 0 && v10 >= 0 && v01 >= 0) faceIdx.push(v00, v10, v01);
+                if (v10 >= 0 && v11 >= 0 && v01 >= 0) faceIdx.push(v10, v11, v01);
+            }
+        }
+        if (faceIdx.length < 3) return false;
+
+        // ── 6. Créer le mesh Three.js ─────────────────────────────────────────
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(faceIdx);
+        geo.computeVertexNormals();
+
+        const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
+            map: this._getRoofTexture(roofType),
+            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+        }));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData = { source: 'heightfield', nPlanes: validPlanes.length };
+        this.scene.add(mesh);
+        this.buildings.push(mesh);
+
+        // ── 7. Jupe (skirt) le long du périmètre du footprint ────────────────
+        // Comble l'interstice éventuel entre haut des murs (bh) et bord du toit.
+        // Utilise les équations de plan pour connaître la hauteur en chaque sommet.
+        const skirtMat = new THREE.MeshPhongMaterial({
+            map: this._getRoofTexture(roofType),
+            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+        });
+        const skirtPos = [];
+        const n_fp = fp.length;
+        for (let i = 0; i < n_fp; i++) {
+            const [x0, y0] = fp[i], [x1, y1] = fp[(i + 1) % n_fp];
+            // Hauteur au sommet du footprint : max(bh, max mnh)
+            const getH = (x, y) => {
+                let h = bh;
+                for (const p of validPlanes) { const m = p.mnh_a * x + p.mnh_b * y + p.mnh_c; if (m > h) h = m; }
+                return Math.max(bh, h);
+            };
+            const h0 = getH(x0, y0), h1 = getH(x1, y1);
+            const hBot = bh - 0.15; // légèrement sous la corniche pour couvrir le joint
+            // Quad : (x0,bh−0.15), (x1,bh−0.15), (x1,h1), (x0,h0)
+            skirtPos.push(
+                bldgOffsetX + x0, terrainH + hBot,  bldgOffsetZ - y0,
+                bldgOffsetX + x1, terrainH + hBot,  bldgOffsetZ - y1,
+                bldgOffsetX + x1, terrainH + h1,    bldgOffsetZ - y1,
+                bldgOffsetX + x0, terrainH + h0,    bldgOffsetZ - y0,
+            );
+        }
+        if (skirtPos.length >= 12) {
+            const skirtGeo = new THREE.BufferGeometry();
+            skirtGeo.setAttribute('position', new THREE.Float32BufferAttribute(skirtPos, 3));
+            const skirtIdx = [];
+            const nQuads = skirtPos.length / 12;
+            for (let q = 0; q < nQuads; q++) {
+                const b = q * 4;
+                skirtIdx.push(b, b+1, b+2,  b, b+2, b+3);
+            }
+            skirtGeo.setIndex(skirtIdx);
+            skirtGeo.computeVertexNormals();
+            const sm = new THREE.Mesh(skirtGeo, skirtMat);
+            sm.castShadow = sm.receiveShadow = true;
+            this.scene.add(sm);
+            this.buildings.push(sm);
+        }
+
+        console.log(`✅ Toit height-field: ${validPlanes.length} plans valides, grille ${nx}×${ny}, ${Math.round(positions.length/3)} sommets`);
+        return true;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RENDU TOIT DEPUIS PLANS RANSAC BACKEND (fallback polygon_2d)
     // Source : Vosselman & Maas (2010) – adapté WebGL / Three.js
     // ═══════════════════════════════════════════════════════════════════════
 
