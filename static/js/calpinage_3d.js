@@ -2265,6 +2265,25 @@ class Calpinage3DViewer {
         let roofBuilt = false;
         let roofPanelsFrom = null;
 
+        // Mémoriser la bbox de l'empreinte BD TOPO en coordonnées métriques relatives à bldgCenter.
+        // Utilisé pour filtrer les polygones RANSAC qui appartiendraient à des bâtiments adjacents.
+        if (isPVBuilding && buildingData.coords?.length >= 3) {
+            const _lngToMBbox = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+            const _fpXY = buildingData.coords.map(([lon, lat]) => [
+                (lon - bldgCenter.lon) * _lngToMBbox,
+                (lat - bldgCenter.lat) * this.LAT_TO_M
+            ]);
+            const _fpXs = _fpXY.map(p => p[0]);
+            const _fpYs = _fpXY.map(p => p[1]);
+            const _bboxM = 1.5; // 1.5m de marge (précision plani LiDAR HD ≤ 50cm)
+            this._pvBuildingBboxMetric = {
+                xMin: Math.min(..._fpXs) - _bboxM, xMax: Math.max(..._fpXs) + _bboxM,
+                yMin: Math.min(..._fpYs) - _bboxM, yMax: Math.max(..._fpYs) + _bboxM,
+            };
+        } else if (isPVBuilding) {
+            this._pvBuildingBboxMetric = null;
+        }
+
         // ── Chemin 1 : plans RANSAC building_hd (bâtiment PV uniquement) ──
         if (isPVBuilding && hdData?.roof_planes?.length) {
             roofBuilt = this._buildRoofFromPlanes(
@@ -2277,8 +2296,10 @@ class Calpinage3DViewer {
                 const _nRansacInc = hdData.roof_planes.filter(p => p.slope_deg >= 1.0).length;
                 if ((this._solarPanCount ?? 0) >= 4 && _nRansacInc < 4) {
                     // Priorité BD TOPO: alt_toit_max - alt_toit_min = hauteur exacte faîtage au-dessus corniche
-                    // (valeur NGF directement mesurée sur MNS LiDAR HD par l'IGN)
-                    const _bdRidge = (buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
+                    // Guard : fiable uniquement sur bâtiments simples (≤ 6 sommets uniques = ≤ 8 coords).
+                    // Sur un bâtiment en L/T/U, min/max sont sur des ailes différentes → valeur incorrecte.
+                    const _nVerts = (buildingData.coords || []).length;
+                    const _bdRidge = (_nVerts <= 8 && buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
                         ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
                     let _ridgeExtra;
                     if (_bdRidge != null && _bdRidge > 0.1 && _bdRidge < 15) {
@@ -2321,7 +2342,10 @@ class Calpinage3DViewer {
             const analysis = roofPts ? this._analyzeRoofShape(roofPts, obb) : null;
 
             // BD TOPO ridgeExtra (alt_toit_max − alt_toit_min) : priorité sur MNS si plus élevé
-            const _bdRidgeC2 = (buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
+            // Guard : uniquement pour bâtiments simples (≤ 6 sommets uniques = ≤ 8 coords).
+            // Sur un bâtiment en L/T/U, min/max sont sur des ailes différentes → valeur incorrecte.
+            const _nVertsC2 = (buildingData.coords || []).length;
+            const _bdRidgeC2 = (_nVertsC2 <= 8 && buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
                 ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
             const _hasBdRidge = _bdRidgeC2 != null && _bdRidgeC2 > 0.5 && _bdRidgeC2 < 15;
 
@@ -4163,6 +4187,18 @@ class Calpinage3DViewer {
                 return (px - px0) * (px - px0) + (py - py0) * (py - py0) > 1e-4;
             });
             if (rawPoly.length < 3) continue;
+
+            // Filtre bâtiment adjacent : si le centroïde du plan est hors de l'empreinte BD TOPO
+            // (+ marge 1.5m), ce plan appartient probablement à un toit voisin capté par LiDAR.
+            if (this._pvBuildingBboxMetric) {
+                const _cxP = rawPoly.reduce((s, p) => s + p[0], 0) / rawPoly.length;
+                const _cyP = rawPoly.reduce((s, p) => s + p[1], 0) / rawPoly.length;
+                const _bb = this._pvBuildingBboxMetric;
+                if (_cxP < _bb.xMin || _cxP > _bb.xMax || _cyP < _bb.yMin || _cyP > _bb.yMax) {
+                    console.log(`⏭️ Plan RANSAC ignoré (toit adjacent): centroïde (${_cxP.toFixed(1)},${_cyP.toFixed(1)}) hors empreinte BD TOPO`);
+                    continue;
+                }
+            }
 
             // 2. Aire signée (shoelace) → facteur de winding : CCW=+1, CW=-1
             let _sa2 = 0;
