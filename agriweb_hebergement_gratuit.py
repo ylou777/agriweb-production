@@ -1723,29 +1723,41 @@ def api_lidar_copc_roof():
                 "nb_points": nb_raw,
             }), 422
 
-        # ── 3. Polygone local pour le filtre acrotère ────────────────────────
-        from pyproj import Transformer
-        t = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
-        lons_b = [float(c[0]) for c in building_coords]
-        lats_b = [float(c[1]) for c in building_coords]
-        xs_l93_poly, ys_l93_poly = t.transform(lons_b, lats_b)
-        poly_lx = [float(x - cx_l93) for x in xs_l93_poly]
-        poly_ly = [float(y - cy_l93) for y in ys_l93_poly]
+        # ── 3. Reprojection Lambert93 → WGS84-équirectangulaire local ─────────
+        # Le frontend calcule fp en WGS84-équirectangulaire (lon-cx_lon)*LNG_TO_M.
+        # Les coefficients mnh_a/b/c du RANSAC doivent être dans le même espace
+        # pour que l'évaluation a*gx+b*gy+c soit correcte.
+        from pyproj import Transformer as _Tr
+        t_bck = _Tr.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
+        LAT_TO_M_C = 111320.0
+        LNG_TO_M_C = LAT_TO_M_C * math.cos(math.radians(cx_lat))
 
         rx_np = np.array(rx, dtype=np.float64)
         ry_np = np.array(ry, dtype=np.float64)
         rz_np = np.array(rz, dtype=np.float64)
 
+        # Convertir les points COPC : Lambert93 absolu → WGS84 → WGS84-local
+        lons_pts, lats_pts = t_bck.transform(
+            (rx_np + cx_l93).tolist(),
+            (ry_np + cy_l93).tolist()
+        )
+        rx_geo_np = np.array([(lon - cx_lon) * LNG_TO_M_C for lon in lons_pts])
+        ry_geo_np = np.array([(lat - cx_lat) * LAT_TO_M_C for lat in lats_pts])
+
+        # Polygone bâtiment directement en WGS84-équirectangulaire local
+        poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
+        poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
+
         # ── 4. Filtre acrotères ──────────────────────────────────────────────
         try:
-            acr_mask = _filter_acroteres(rx_np, ry_np, rz_np, poly_lx, poly_ly)
-            rx_f = rx_np[acr_mask]
-            ry_f = ry_np[acr_mask]
+            acr_mask = _filter_acroteres(rx_geo_np, ry_geo_np, rz_np, poly_lx, poly_ly)
+            rx_f = rx_geo_np[acr_mask]
+            ry_f = ry_geo_np[acr_mask]
             rz_f = rz_np[acr_mask]
             print(f"  🏗️ COPC acrotère: {nb_raw} → {int(acr_mask.sum())} pts conservés")
         except Exception as e_acr:
             app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
-            rx_f, ry_f, rz_f = rx_np, ry_np, rz_np
+            rx_f, ry_f, rz_f = rx_geo_np, ry_geo_np, rz_np
 
         # ── 5. Normaliser z → vrai MNH (hauteur au-dessus du terrain) ─────
         wall_h  = float(body.get('wall_h', 6.0))
@@ -1755,7 +1767,7 @@ def api_lidar_copc_roof():
         print(f"  📏 COPC MNH: baseline={z_baseline:.1f}m NGF + wall_h={wall_h:.1f}m → "  
               f"mnh_range=[{min(z_mnh):.1f},{max(z_mnh):.1f}]m")
 
-        # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
+        # ── 6. RANSAC multi-plans (coordonnées WGS84-équirectangulaire local) ──
         roof_planes = _segment_roof_planes_ransac(
             rx_f.tolist(), ry_f.tolist(), z_mnh,
             grid_res=0.25,
