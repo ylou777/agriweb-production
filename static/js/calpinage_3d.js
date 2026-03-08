@@ -217,7 +217,15 @@ class Calpinage3DViewer {
             
             // Construire les bâtiments
             await this._buildBuildings(this.lidarData);
-            
+
+            // Amélioration asynchrone du toit avec le nuage de points LAZ brut
+            // (~15-35 s, ne bloque pas l'affichage).
+            if ((this.pvBuildingCoords?.length ?? 0) >= 3) {
+                this._fetchAndApplyCOPCRoof(lat, lon).catch(e =>
+                    console.warn('⚠️ COPC (non critique):', e.message)
+                );
+            }
+
             // Construire les routes
             this._buildRoads(this.lidarData);
             
@@ -2291,11 +2299,11 @@ class Calpinage3DViewer {
         // Chemin 1b : fallback polygon_2d RANSAC (ancienne méthode si 1a échoue).
         if (isPVBuilding && hdData?.roof_planes?.length) {
             roofBuilt = this._buildRoofHeightField(
-                hdData.roof_planes, bldgCenter, bh, terrainH, buildingData.coords, roofType
+                hdData.roof_planes, bldgCenter, bh, terrainH, buildingData.coords, roofType, isPVBuilding
             );
             if (!roofBuilt) {
                 roofBuilt = this._buildRoofFromPlanes(
-                    hdData.roof_planes, bldgCenter, bh, terrainH, roofType
+                    hdData.roof_planes, bldgCenter, bh, terrainH, roofType, isPVBuilding
                 );
             }
             if (roofBuilt) {
@@ -4116,6 +4124,118 @@ class Calpinage3DViewer {
      * Teste si le point (px, py) est à l'intérieur d'un polygone 2D.
      * Algorithme ray-casting – fonctionne sur tout polygone simple.
      */
+    // ── COPC LiDAR HD brut ─────────────────────────────────────────────────────
+
+    /** Retire de la scène les meshes du toit PV (isPVRoof=true). */
+    _removePVRoofMeshes() {
+        this.buildings = this.buildings.filter(m => {
+            if (!m.userData?.isPVRoof) return true;
+            this.scene.remove(m);
+            m.geometry?.dispose();
+            if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+            else m.material?.dispose();
+            return false;
+        });
+    }
+
+    /**
+     * Lance en arrière-plan un appel POST /api/lidar/copc-roof qui lit le nuage
+     * de points LAZ brut (~15-35 s).  Quand la réponse arrive, retire le toit
+     * MNH actuel et reconstruit un height-field à partir des plans RANSAC-LAZ
+     * beaucoup plus précis (±5-10 cm vs ±50 cm).
+     */
+    async _fetchAndApplyCOPCRoof(lat, lon) {
+        if (!this.pvBuildingCoords?.length) return;
+
+        const wallH = this._mainBldgBh ?? 6;
+        const resp  = await fetch('/api/lidar/copc-roof', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                lat,
+                lon,
+                building_coords: this.pvBuildingCoords,
+                wall_h:          wallH,
+            }),
+            signal: AbortSignal.timeout(90_000),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success || !data.roof_planes?.length) {
+            throw new Error(data.error || 'Aucun plan COPC retourné');
+        }
+
+        console.log(`✅ COPC ${data.nb_points_raw} pts → ${data.roof_planes.length} plans`);
+
+        // Injecter dans lidarData pour que les fonctions de rebuild puissent y accéder
+        if (!this.lidarData.building_hd) this.lidarData.building_hd = {};
+        this.lidarData.building_hd.roof_planes    = data.roof_planes;
+        if (data.building_center)
+            this.lidarData.building_hd.building_center = data.building_center;
+
+        // Supprimer le toit MNH et reconstruire avec les plans COPC
+        this._removePVRoofMeshes();
+
+        const bldgCenter = data.building_center ?? this.lidarData.building_hd.building_center;
+        const bh         = this._mainBldgBh      ?? 6;
+        const terrainH   = this._mainBldgTerrainH ?? 0;
+        const roofType   = this._mainBldgRoofType ?? 'default';
+
+        let rebuilt = this._buildRoofHeightField(
+            data.roof_planes, bldgCenter, bh, terrainH,
+            this.pvBuildingCoords, roofType, /* isPVBuilding */ true
+        );
+        if (!rebuilt) {
+            this._buildRoofFromPlanes(
+                data.roof_planes, bldgCenter, bh, terrainH, roofType, /* isPVBuilding */ true
+            );
+        }
+
+        // Afficher un bandeau discret
+        this._showCOPCBanner(data.roof_planes.length, data.nb_points_raw);
+
+        // Recalculer le calpinage si des panels existent déjà
+        if (this.roofPanelsInfo?.length && typeof this._recomputePanelsAfterCOPC === 'function') {
+            this._recomputePanelsAfterCOPC(data.roof_planes, bldgCenter, bh, terrainH);
+        }
+    }
+
+    /** Affiche un bandeau "Toit LiDAR HD" discret pendant 6 s. */
+    _showCOPCBanner(nPlanes, nPoints) {
+        try {
+            let banner = document.getElementById('copc-roof-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'copc-roof-banner';
+                Object.assign(banner.style, {
+                    position:   'fixed',
+                    bottom:     '70px',
+                    left:       '50%',
+                    transform:  'translateX(-50%)',
+                    background: 'rgba(16,185,129,0.92)',
+                    color:      '#fff',
+                    padding:    '8px 18px',
+                    borderRadius: '8px',
+                    fontSize:   '13px',
+                    fontWeight: '600',
+                    zIndex:     '9999',
+                    boxShadow:  '0 2px 8px rgba(0,0,0,0.25)',
+                    transition: 'opacity 0.4s',
+                });
+                document.body.appendChild(banner);
+            }
+            banner.textContent = `🌿 Toit recalculé avec LiDAR HD brut (${nPlanes} plans · ${nPoints} pts)`;
+            banner.style.opacity = '1';
+            clearTimeout(this._copcBannerTimer);
+            this._copcBannerTimer = setTimeout(() => {
+                banner.style.opacity = '0';
+                setTimeout(() => banner.remove(), 500);
+            }, 6000);
+        } catch (_) { /* pas critique */ }
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+
     _pointInPoly2D(px, py, poly) {
         let inside = false;
         for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -4141,7 +4261,7 @@ class Calpinage3DViewer {
      *
      * @returns {boolean} true si le mesh a été créé
      */
-    _buildRoofHeightField(planes, bldgCenter, bh, terrainH, buildingCoords, roofType) {
+    _buildRoofHeightField(planes, bldgCenter, bh, terrainH, buildingCoords, roofType, isPVBuilding = false) {
         if (!planes?.length || !buildingCoords || buildingCoords.length < 3) return false;
 
         const LNG_TO_M   = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
@@ -4272,7 +4392,7 @@ class Calpinage3DViewer {
         }));
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        mesh.userData = { source: 'heightfield', nPlanes: validPlanes.length };
+        mesh.userData = { source: 'heightfield', nPlanes: validPlanes.length, isPVRoof: isPVBuilding };
         this.scene.add(mesh);
         this.buildings.push(mesh);
 
@@ -4316,6 +4436,7 @@ class Calpinage3DViewer {
             skirtGeo.computeVertexNormals();
             const sm = new THREE.Mesh(skirtGeo, skirtMat);
             sm.castShadow = sm.receiveShadow = true;
+            sm.userData = { source: 'heightfield-skirt', isPVRoof: isPVBuilding };
             this.scene.add(sm);
             this.buildings.push(sm);
         }
@@ -4347,7 +4468,7 @@ class Calpinage3DViewer {
      * @param {string} roofType    - matériau de toit
      * @returns {boolean} true si au moins un pan rendu
      */
-    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
+    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, isPVBuilding = false) {
         if (!planes || planes.length === 0) return false;
 
         // Si Solar a déjà injecté ses quads, masquer les meshes RANSAC à la création
@@ -4510,6 +4631,7 @@ class Calpinage3DViewer {
                 slopeDeg:  plane.slope_deg,
                 azimuthDeg: plane.azimuth_deg,
                 source:    'ransac',
+                isPVRoof:  isPVBuilding,
             };
             this.scene.add(mesh);
             this.buildings.push(mesh);
