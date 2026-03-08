@@ -4257,16 +4257,23 @@ class Calpinage3DViewer {
             return false;
         }
 
-        // ── 3. Grille 50 cm sur la bbox du footprint ─────────────────────────
+        // ── 3. Grille adaptative sur la bbox du footprint ────────────────────
+        // Résolution cible 0.5 m. Si la bbox est trop grande, on augmente le pas
+        // par paliers de 0.25 m jusqu'à ce que nx×ny ≤ 12 000 (≈ 3 000 m²/0.25).
+        // Cela préserve la meilleure résolution possible sans jamais tomber en fallback.
         const xMin = Math.min(...fpXs), xMax = Math.max(...fpXs);
         const yMin = Math.min(...fpYs), yMax = Math.max(...fpYs);
-        const STEP = 0.5;
-        const nx = Math.max(3, Math.round((xMax - xMin) / STEP) + 1);
-        const ny = Math.max(3, Math.round((yMax - yMin) / STEP) + 1);
-        // Sécurité grands bâtiments (> 2500 m²)
-        if (nx * ny > 12000) {
-            console.log(`⚠️ _buildRoofHeightField: grille ${nx}×${ny} trop grande → fallback`);
-            return false;
+        const MAX_NODES = 12000;
+        let STEP = 0.5;
+        let nx = Math.max(3, Math.round((xMax - xMin) / STEP) + 1);
+        let ny = Math.max(3, Math.round((yMax - yMin) / STEP) + 1);
+        if (nx * ny > MAX_NODES) {
+            // STEP minimal pour tenir dans MAX_NODES (arrondi au 0.25 m supérieur)
+            const rawStep = Math.sqrt((xMax - xMin) * (yMax - yMin) / MAX_NODES);
+            STEP = Math.max(0.5, Math.ceil(rawStep / 0.25) * 0.25);
+            nx = Math.max(3, Math.round((xMax - xMin) / STEP) + 1);
+            ny = Math.max(3, Math.round((yMax - yMin) / STEP) + 1);
+            console.log(`📐 Grille adaptée: STEP=${STEP.toFixed(2)}m → ${nx}×${ny} nœuds`);
         }
         const stepX = nx > 1 ? (xMax - xMin) / (nx - 1) : STEP;
         const stepY = ny > 1 ? (yMax - yMin) / (ny - 1) : STEP;
