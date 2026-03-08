@@ -2333,7 +2333,7 @@ class Calpinage3DViewer {
                         }
                         _ridgeExtra = Math.max(0.3, _maxMnh - bh);
                     }
-                    this._addHipCroupeEnds(obb, terrainH + bh, _ridgeExtra, roofType);
+                    this._addHipCroupeEnds(obb, terrainH + bh, _ridgeExtra, roofType, /* isPVBuilding */ true);
                     console.log(`🏠 Croupe: 2 faces triangulaires ajoutées (ridgeExtra=${_ridgeExtra.toFixed(2)}m, Solar=${this._solarPanCount} pans, RANSAC=${_nRansacInc})`);
                 }
                 roofPanelsFrom = this._computeRoofPanelsInfoFromPlanes(
@@ -5032,7 +5032,7 @@ class Calpinage3DViewer {
             r2x: obb.cx - cA*hL, r2z: obb.cz - sA*hL,
         };
     }
-    _addTriMesh(verts, roofType) {
+    _addTriMesh(verts, roofType, isPVBuilding = false) {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
         geo.computeVertexNormals();
@@ -5043,7 +5043,8 @@ class Calpinage3DViewer {
         });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.castShadow = true;
-        mesh.userData.isRoofMesh = true;  // Tagged for selective removal (Google Solar rebuild)
+        mesh.userData.isRoofMesh = true;
+        if (isPVBuilding) mesh.userData.isPVRoof = true;
         this.scene.add(mesh);
         this.buildings.push(mesh);
     }
@@ -5124,7 +5125,7 @@ class Calpinage3DViewer {
      * Utilisé quand le RANSAC LiDAR n'a détecté que 2 plans (faces principales) mais que
      * Google Solar confirme un toit à 4 pans.
      */
-    _addHipCroupeEnds(obb, roofBaseY, ridgeExtra, roofType) {
+    _addHipCroupeEnds(obb, roofBaseY, ridgeExtra, roofType, isPVBuilding = false) {
         const c   = this._obbCorners(obb);
         const ry  = roofBaseY + ridgeExtra;
         const rhl = obb.longDim * 0.45 / 2;
@@ -5136,7 +5137,7 @@ class Calpinage3DViewer {
             // Face triangulaire "along-" (pignon arrière)
             r2x, ry, r2z,  c.blx, roofBaseY, c.blz,  c.brx, roofBaseY, c.brz,
         ]);
-        this._addTriMesh(verts, roofType);
+        this._addTriMesh(verts, roofType, isPVBuilding);
     }
 
     _createOBBHipRoof(obb, roofBaseY, ridgeExtra, roofType) {
