@@ -4491,9 +4491,25 @@ class Calpinage3DViewer {
         }
 
         // ── 2. Buffers géométrie depuis la grille Z brute ────────────────────
+        // On filtre par footprint (+ marge step*0.6) pour éliminer les cellules
+        // hors-bâtiment qui créaient les "dents" en bordure de toiture.
         const positions = [], uvs = [];
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
+
+        // Footprint légèrement dilatée (+step*0.6) : évite de perdre les cellules
+        // exactement sur le bord du polygone (points LiDAR décalés ~±step/2).
+        const FP_MARGIN = step * 0.6;
+        const fpCx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
+        const fpCy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
+        const fpExpanded = fp.map(([px, py]) => {
+            const dx = px - fpCx, dy = py - fpCy;
+            const d  = Math.sqrt(dx * dx + dy * dy) || 1;
+            return [px + dx / d * FP_MARGIN, py + dy / d * FP_MARGIN];
+        });
+
+        // Échelle UV : 1 tuile = 8 m (moins de moiré qu'à 4 m sur surfaces lisses)
+        const UV_SCALE = 8;
 
         for (let iy = 0; iy < ny; iy++) {
             for (let ix = 0; ix < nx; ix++) {
@@ -4501,10 +4517,12 @@ class Calpinage3DViewer {
                 if (z_rel === null) continue;
                 const gx  = x0 + ix * step;
                 const gy  = y0 + iy * step;
+                // Rejet des cellules hors empreinte bâtiment (source des "dents")
+                if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
                 // mnh : z_baseline_rel → bh, points plus hauts → bh + (z_rel - baseline)
                 const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
-                uvs.push(gx / 4, gy / 4);
+                uvs.push(gx / UV_SCALE, gy / UV_SCALE);
                 vertexMap[iy * nx + ix] = vi++;
             }
         }
