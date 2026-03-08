@@ -4063,6 +4063,30 @@ class Calpinage3DViewer {
             const poly = plane.polygon_2d;
             if (!poly || poly.length < 3) continue;
 
+            // ── Filtre acrotère / parapet ──────────────────────────────────────
+            // L'acrotère (relevé de étanchéité / parapet) est capté par le RANSAC
+            // comme plan quasi-horizontal sous forme d'une BANDELETTE FINE le long
+            // du périmètre du toit (largeur réelle ≈ 0.2–0.5 m).
+            // Ce polygon_2d "en cadre" ou "en L" crée des concavités résistantes à
+            // l'expansion Minkowski et génère l'artefact visuel "axe décalé".
+            // Critère de détection : largeur minimale effective = area / max_bbox_dim.
+            //   Acrotère réel  : ~0.3 m  → filtrée (<1.5 m)
+            //   Vrai pan de toit: ≥ 2.0 m → conservé
+            {
+                let _sa = 0;
+                for (let _i = 0, _j = poly.length - 1; _i < poly.length; _j = _i++)
+                    _sa += poly[_j][0] * poly[_i][1] - poly[_i][0] * poly[_j][1];
+                const _area = Math.abs(_sa) / 2;
+                const _pxs = poly.map(p => p[0]), _pys = poly.map(p => p[1]);
+                const _bbW  = Math.max(..._pxs) - Math.min(..._pxs);
+                const _bbH  = Math.max(..._pys) - Math.min(..._pys);
+                const _minW = _area / Math.max(_bbW, _bbH, 0.1);
+                if (_minW < 1.5 || _area < 4) {
+                    console.log(`⏭️ Plan RANSAC ignoré (acrotère probable): id=${plane.plane_id}, minW=${_minW.toFixed(2)}m, area=${_area.toFixed(1)}m²`);
+                    continue;
+                }
+            }
+
             const { mnh_a, mnh_b, mnh_c } = plane;
 
             // ── Expansion de bord robuste (Minkowski, offset =+0.25m) ─────────────
@@ -4172,33 +4196,39 @@ class Calpinage3DViewer {
             // ── Jupe (skirt) sous l'égout — comble le joint entre toit et murs ──
             // Chaque arête du polygone dilaté reçoit un quad vertical descendant jusqu'à
             // bh−1m sous le terrain pour couvrir tout interstice avec le haut des murs.
-            const skirtVerts = [];
-            const skirtBottom = terrainH - 0.5;
-            for (let si = 0; si < expandedPoly.length; si++) {
-                const [px1, py1] = expandedPoly[si];
-                const [px2, py2] = expandedPoly[(si + 1) % expandedPoly.length];
-                const wx1 = bldgOffsetX + px1, wz1 = bldgOffsetZ - py1;
-                const wx2 = bldgOffsetX + px2, wz2 = bldgOffsetZ - py2;
-                const mnh1 = mnh_a * px1 + mnh_b * py1 + mnh_c;
-                const mnh2 = mnh_a * px2 + mnh_b * py2 + mnh_c;
-                const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
-                const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
-                skirtVerts.push(
-                    wx1, skirtBottom, wz1,  wx2, wy2, wz2,        wx2, skirtBottom, wz2,
-                    wx1, skirtBottom, wz1,  wx1, wy1, wz1,         wx2, wy2, wz2
-                );
-            }
-            if (skirtVerts.length > 0) {
-                const sGeo = new THREE.BufferGeometry();
-                sGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(skirtVerts), 3));
-                sGeo.computeVertexNormals();
-                const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
-                sMesh.castShadow = false;
-                sMesh.visible    = !_solarActive;
-                sMesh.userData   = { source: 'ransac' };
-                this.scene.add(sMesh);
-                this.buildings.push(sMesh);
-            }
+            // Pour les toits plats (slope_deg < 3°) : la jupe est inutile (le Cap de
+            // l'ExtrudeGeometry est coplanaire avec le toit) et peut créer des murs
+            // parasites si le polygone RANSAC dépasse légèrement la BD TOPO.
+            const _isFlat = (plane.slope_deg ?? 0) < 3;
+            if (!_isFlat) {
+                const skirtVerts = [];
+                const skirtBottom = terrainH - 0.5;
+                for (let si = 0; si < expandedPoly.length; si++) {
+                    const [px1, py1] = expandedPoly[si];
+                    const [px2, py2] = expandedPoly[(si + 1) % expandedPoly.length];
+                    const wx1 = bldgOffsetX + px1, wz1 = bldgOffsetZ - py1;
+                    const wx2 = bldgOffsetX + px2, wz2 = bldgOffsetZ - py2;
+                    const mnh1 = mnh_a * px1 + mnh_b * py1 + mnh_c;
+                    const mnh2 = mnh_a * px2 + mnh_b * py2 + mnh_c;
+                    const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
+                    const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
+                    skirtVerts.push(
+                        wx1, skirtBottom, wz1,  wx2, wy2, wz2,        wx2, skirtBottom, wz2,
+                        wx1, skirtBottom, wz1,  wx1, wy1, wz1,         wx2, wy2, wz2
+                    );
+                }
+                if (skirtVerts.length > 0) {
+                    const sGeo = new THREE.BufferGeometry();
+                    sGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(skirtVerts), 3));
+                    sGeo.computeVertexNormals();
+                    const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
+                    sMesh.castShadow = false;
+                    sMesh.visible    = !_solarActive;
+                    sMesh.userData   = { source: 'ransac' };
+                    this.scene.add(sMesh);
+                    this.buildings.push(sMesh);
+                }
+            } // end !_isFlat (skirt)
         }
 
         if (nBuilt > 0) {
