@@ -1660,13 +1660,19 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     print(f"  🏠 COPC: {n_bldg}/{total_pts} points classe 6 (bâtiment)")
 
     if n_bldg < 5:
-        # Diagnostic : quelles classes sont présentes ?
-        unique_cls, counts = np.unique(classification, return_counts=True)
-        cls_info = ", ".join(f"cls{c}:{n}" for c, n in zip(unique_cls, counts))
-        raise ValueError(
-            f"COPC: seulement {n_bldg} point(s) classe 6 dans la zone "
-            f"(classes présentes: {cls_info})"
-        )
+        # Fallback : inclure aussi classe 1 (non-classifié) — bâtiments agricoles/industriels
+        mask_fallback = np.isin(classification, [1, 6])
+        n_fallback = int(mask_fallback.sum())
+        if n_fallback >= 5:
+            print(f"  ↩️ COPC: fallback classe 1+6 → {n_fallback} pts (classe 6 seule = {n_bldg})")
+            mask_bldg = mask_fallback
+        else:
+            unique_cls, counts = np.unique(classification, return_counts=True)
+            cls_info = ", ".join(f"cls{c}:{n}" for c, n in zip(unique_cls, counts))
+            raise ValueError(
+                f"COPC: seulement {n_bldg} point(s) classe 6 dans la zone "
+                f"(classes présentes: {cls_info})"
+            )
 
     x_l93 = np.array(pts.x, dtype=np.float64)[mask_bldg]
     y_l93 = np.array(pts.y, dtype=np.float64)[mask_bldg]

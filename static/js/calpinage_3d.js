@@ -223,6 +223,8 @@ class Calpinage3DViewer {
             if ((this.pvBuildingCoords?.length ?? 0) >= 3) {
                 this._fetchAndApplyCOPCRoof(lat, lon).catch(e => {
                     console.warn('⚠️ COPC (non critique):', e.message);
+                    // Supprimer le toit MNH initial avant d'ajouter le fallback
+                    this._removePVRoofMeshes();
                     // Fallback MNH : construire le toit depuis les plans RANSAC initiaux
                     const _fd = this.lidarData?.building_hd;
                     if (_fd?.roof_planes?.length) {
@@ -4099,7 +4101,10 @@ class Calpinage3DViewer {
             }),
             signal: AbortSignal.timeout(90_000),
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+            const _errBody = await resp.json().catch(() => ({}));
+            throw new Error(`HTTP ${resp.status}: ${_errBody.error || ''}`);
+        }
         const data = await resp.json();
         if (!data.success || !data.grid?.length) {
             throw new Error(data.error || 'Aucune grille COPC retournée');
@@ -5713,9 +5718,25 @@ class Calpinage3DViewer {
         
         let treeCount = 0, zoneCount = 0;
         
+        // Précalcul du footprint PV building en coords métriques locales pour exclusion végétation
+        let _pvFp = null;
+        if (this.pvBuildingCoords?.length >= 3) {
+            const _pvCtr = this._polygonCenter(this.pvBuildingCoords);
+            const _pvLng2m = this.LAT_TO_M * Math.cos(_pvCtr.y * Math.PI / 180);
+            _pvFp = this.pvBuildingCoords.map(([lo, la]) => [
+                (lo - this.centerLon) * _pvLng2m,
+                -(la - this.centerLat) * this.LAT_TO_M,
+            ]);
+        }
+
         data.vegetation.forEach((veg, i) => {
             try {
                 if (veg.type === 'tree') {
+                    // Exclure les arbres dont le tronc est dans l'empreinte du bâtiment PV
+                    if (_pvFp) {
+                        const _tl = this._geoToLocal(veg.lat, veg.lon);
+                        if (this._pointInPoly2D(_tl.x, _tl.z, _pvFp)) return;
+                    }
                     this._createTree3D(veg);
                     treeCount++;
                 } else if (veg.coords) {
