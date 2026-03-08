@@ -1748,13 +1748,74 @@ def api_lidar_copc_roof():
         poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
         poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
 
-        # ── 4. Filtre acrotères ──────────────────────────────────────────────
+        # ── 4a. Clip au polygone bâtiment (marge +1.5m) ─────────────────────
+        # Élimine les points COPC appartenant à des bâtiments voisins ou à la
+        # végétation adjacente avant le RANSAC. Sans ce clip, les plans RANSAC
+        # peuvent s'étendre bien au-delà de l'empreinte réelle du bâtiment.
+        def _pts_in_poly_np(xs, ys, px, py, margin=1.5):
+            """Numpy vectorized point-in-polygon (ray-casting) + distance margin."""
+            px_np = np.asarray(px, dtype=np.float64)
+            py_np = np.asarray(py, dtype=np.float64)
+            n_poly = len(px_np)
+            # ── bbox pre-filter ──────────────────────────────────────────────
+            xmin_p = px_np.min() - margin; xmax_p = px_np.max() + margin
+            ymin_p = py_np.min() - margin; ymax_p = py_np.max() + margin
+            in_bb = (xs >= xmin_p) & (xs <= xmax_p) & (ys >= ymin_p) & (ys <= ymax_p)
+            result = np.zeros(len(xs), dtype=bool)
+            xs_bb = xs[in_bb]; ys_bb = ys[in_bb]
+            if len(xs_bb) == 0:
+                return result
+            # ── vectorized ray-casting ───────────────────────────────────────
+            inside = np.zeros(len(xs_bb), dtype=bool)
+            j = n_poly - 1
+            for i in range(n_poly):
+                cond = (py_np[i] > ys_bb) != (py_np[j] > ys_bb)
+                denom_rc = py_np[j] - py_np[i]
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    x_int = (px_np[j] - px_np[i]) * (ys_bb - py_np[i]) / denom_rc + px_np[i]
+                inside ^= cond & (xs_bb < x_int)
+                j = i
+            result[in_bb] = inside
+            # ── points outside polygon but within margin ─────────────────────
+            outside = in_bb & ~result
+            if outside.any() and margin > 0:
+                xs_out = xs[outside]; ys_out = ys[outside]
+                min_d2 = np.full(len(xs_out), np.inf)
+                j = n_poly - 1
+                for i in range(n_poly):
+                    ex = px_np[i] - px_np[j]; ey = py_np[i] - py_np[j]
+                    ll2 = ex*ex + ey*ey
+                    if ll2 < 1e-12:
+                        d2 = (xs_out - px_np[j])**2 + (ys_out - py_np[j])**2
+                    else:
+                        t  = np.clip(((xs_out - px_np[j])*ex + (ys_out - py_np[j])*ey)/ll2, 0., 1.)
+                        d2 = (xs_out - px_np[j] - t*ex)**2 + (ys_out - py_np[j] - t*ey)**2
+                    min_d2 = np.minimum(min_d2, d2)
+                    j = i
+                result[outside] = min_d2 <= margin * margin
+            return result
+
+        try:
+            clip_mask = _pts_in_poly_np(rx_geo_np, ry_geo_np, poly_lx, poly_ly, margin=1.5)
+            n_clipped_out = int((~clip_mask).sum())
+            rx_geo_np = rx_geo_np[clip_mask]
+            ry_geo_np = ry_geo_np[clip_mask]
+            rz_np     = rz_np[clip_mask]
+            print(f"  ✂️ COPC clip polygone: {n_clipped_out}/{nb_raw} pts hors empreinte retirés → {int(clip_mask.sum())} restants")
+            if len(rx_geo_np) < 5:
+                raise ValueError(f"Clip polygone: trop peu de points ({len(rx_geo_np)}) dans l'empreinte bâtiment")
+        except ValueError:
+            raise
+        except Exception as e_clip:
+            app.logger.warning(f"COPC: clip polygone échoué ({e_clip}), on continue sans clip")
+
+        # ── 4b. Filtre acrotères ─────────────────────────────────────────────
         try:
             acr_mask = _filter_acroteres(rx_geo_np, ry_geo_np, rz_np, poly_lx, poly_ly)
             rx_f = rx_geo_np[acr_mask]
             ry_f = ry_geo_np[acr_mask]
             rz_f = rz_np[acr_mask]
-            print(f"  🏗️ COPC acrotère: {nb_raw} → {int(acr_mask.sum())} pts conservés")
+            print(f"  🏗️ COPC acrotère: {len(rx_geo_np)} → {int(acr_mask.sum())} pts conservés")
         except Exception as e_acr:
             app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
             rx_f, ry_f, rz_f = rx_geo_np, ry_geo_np, rz_np
