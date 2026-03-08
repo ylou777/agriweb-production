@@ -1179,13 +1179,31 @@ class Calpinage3DViewer {
             return minD;
         };
 
-        // Niveau 1 : containment (centre exact dans le polygone)
+        // ── Sélection du bâtiment PV principal ────────────────────────────────
+        // PRIORITÉ : building_hd.building_index (index retourné par le backend).
+        // Le backend choisit le bâtiment le plus proche du point cliqué dans la
+        // liste buildings_bdtopo. Si on utilise un index différent côté JS :
+        //   - les murs sont posés sur le bâtiment A
+        //   - le toit RANSAC (calculé pour bâtiment B) est placé aux coordonnées de B
+        //   → décalage visible de 10-50m entre murs et toit.
+        // On fait confiance à building_hd.building_index quand disponible.
+        const _hdBuildingIdx = this.lidarData?.building_hd?.building_index;
         let selectedIdx = -1;
-        for (let i = 0; i < allBuildings.length; i++) {
-            if (_pInPolyGeo(this.centerLon, this.centerLat, allBuildings[i].coords)) {
-                selectedIdx = i;
-                console.log(`🏗️ Bâtiment PV sélectionné par containment (idx=${i})`);
-                break;
+
+        if (_hdBuildingIdx !== undefined && _hdBuildingIdx >= 0 && _hdBuildingIdx < allBuildings.length) {
+            selectedIdx = _hdBuildingIdx;
+            console.log(`🏗️ Bâtiment PV sélectionné par building_hd.building_index (idx=${selectedIdx})`);
+        }
+
+        // Fallback si pas de building_hd ou index invalide :
+        if (selectedIdx === -1) {
+            // Niveau 1 : containment (centre exact dans le polygone)
+            for (let i = 0; i < allBuildings.length; i++) {
+                if (_pInPolyGeo(this.centerLon, this.centerLat, allBuildings[i].coords)) {
+                    selectedIdx = i;
+                    console.log(`🏗️ Bâtiment PV sélectionné par containment (idx=${i})`);
+                    break;
+                }
             }
         }
 
@@ -2258,15 +2276,25 @@ class Calpinage3DViewer {
                 // ajouter les 2 faces triangulaires de croupe depuis l'OBB.
                 const _nRansacInc = hdData.roof_planes.filter(p => p.slope_deg >= 1.0).length;
                 if ((this._solarPanCount ?? 0) >= 4 && _nRansacInc < 4) {
-                    // Hauteur faîtage = hauteur LiDAR max sur tous les polygones RANSAC
-                    let _maxMnh = bh;
-                    for (const _p of hdData.roof_planes) {
-                        for (const [_px, _py] of _p.polygon_2d || []) {
-                            const _mnh = _p.mnh_a * _px + _p.mnh_b * _py + _p.mnh_c;
-                            if (_mnh > _maxMnh) _maxMnh = _mnh;
+                    // Priorité BD TOPO: alt_toit_max - alt_toit_min = hauteur exacte faîtage au-dessus corniche
+                    // (valeur NGF directement mesurée sur MNS LiDAR HD par l'IGN)
+                    const _bdRidge = (buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
+                        ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
+                    let _ridgeExtra;
+                    if (_bdRidge != null && _bdRidge > 0.1 && _bdRidge < 15) {
+                        _ridgeExtra = _bdRidge;
+                        console.log(`🏠 ridgeExtra BD TOPO: ${_ridgeExtra.toFixed(2)}m (alt_toit_max − alt_toit_min)`);
+                    } else {
+                        // Fallback RANSAC: max MNH sur tous les polygones
+                        let _maxMnh = bh;
+                        for (const _p of hdData.roof_planes) {
+                            for (const [_px, _py] of _p.polygon_2d || []) {
+                                const _mnh = _p.mnh_a * _px + _p.mnh_b * _py + _p.mnh_c;
+                                if (_mnh > _maxMnh) _maxMnh = _mnh;
+                            }
                         }
+                        _ridgeExtra = Math.max(0.3, _maxMnh - bh);
                     }
-                    const _ridgeExtra = Math.max(0.3, _maxMnh - bh);
                     this._addHipCroupeEnds(obb, terrainH + bh, _ridgeExtra, roofType);
                     console.log(`🏠 Croupe: 2 faces triangulaires ajoutées (ridgeExtra=${_ridgeExtra.toFixed(2)}m, Solar=${this._solarPanCount} pans, RANSAC=${_nRansacInc})`);
                 }
@@ -2292,23 +2320,51 @@ class Calpinage3DViewer {
             );
             const analysis = roofPts ? this._analyzeRoofShape(roofPts, obb) : null;
 
+            // BD TOPO ridgeExtra (alt_toit_max − alt_toit_min) : priorité sur MNS si plus élevé
+            const _bdRidgeC2 = (buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
+                ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
+            const _hasBdRidge = _bdRidgeC2 != null && _bdRidgeC2 > 0.5 && _bdRidgeC2 < 15;
+
             if (analysis && analysis.type !== 'flat' && analysis.ridgeExtra > 0.3) {
+                // Corriger ridgeExtra avec BD TOPO si plus fiable (LiDAR officiel ING)
+                const effectiveRidge = _hasBdRidge
+                    ? Math.max(analysis.ridgeExtra, _bdRidgeC2)
+                    : analysis.ridgeExtra;
                 if (analysis.type === 'gable' || analysis.type === 'multi-gable') {
-                    this._createGableRoof(localCoords, obb, bh, terrainH, analysis.ridgeExtra, roofType, wallType);
+                    this._createGableRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
                 } else if (analysis.type === 'hip') {
-                    this._createHipRoof(localCoords, obb, bh, terrainH, analysis.ridgeExtra, roofType, wallType);
+                    this._createHipRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
                 } else if (analysis.type === 'shed' || analysis.type === 'multi-shed') {
-                    this._createShedRoof(localCoords, obb, bh, terrainH, analysis.ridgeExtra, roofType, wallType, analysis.ridgeOffset || 0);
+                    this._createShedRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType, analysis.ridgeOffset || 0);
                 }
                 roofBuilt = true;
                 if (isPVBuilding) {
                     roofPanelsFrom = this._computeRoofPanelsInfo(
-                        obb, analysis.type, analysis.ridgeExtra, bh, terrainH,
+                        obb, analysis.type, effectiveRidge, bh, terrainH,
                         true, roofType, analysis.nRidges || 1, analysis
                     );
-                    console.log(`✅ Toit MNS LiDAR (${analysis.type}, ridgeExtra=${analysis.ridgeExtra.toFixed(1)}m) — ${isPVBuilding ? 'bâtiment PV' : 'voisin'}`);
+                    console.log(`✅ Toit MNS LiDAR (${analysis.type}, ridgeExtra=${effectiveRidge.toFixed(1)}m${_hasBdRidge ? ' [BD TOPO]' : ''}) — ${isPVBuilding ? 'bâtiment PV' : 'voisin'}`);
                 }
                 // Cap invisible car toit OBB couvre le sommet des murs
+                if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
+                    mesh.material[0].opacity = 0;
+                    mesh.material[0].transparent = true;
+                    mesh.material[0].depthWrite = false;
+                    mesh.material[0].needsUpdate = true;
+                }
+            } else if (_hasBdRidge) {
+                // MNS analyse insuffisante mais BD TOPO indique un faîtage significatif
+                // → toit paramétrique OBB piloté par BD TOPO
+                const _bdType = (obb.longDim / Math.max(obb.shortDim, 0.1) > 1.4) ? 'gable' : 'hip';
+                if (_bdType === 'gable') this._createGableRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
+                else this._createHipRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
+                roofBuilt = true;
+                if (isPVBuilding) {
+                    roofPanelsFrom = this._computeRoofPanelsInfo(
+                        obb, _bdType, _bdRidgeC2, bh, terrainH, true, roofType, 1, null
+                    );
+                    console.log(`✅ Toit BD TOPO (${_bdType}, ridgeExtra=${_bdRidgeC2.toFixed(1)}m) — MNS analyse insuffisante`);
+                }
                 if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
                     mesh.material[0].opacity = 0;
                     mesh.material[0].transparent = true;
