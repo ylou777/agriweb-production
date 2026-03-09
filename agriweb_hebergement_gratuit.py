@@ -1982,7 +1982,7 @@ def api_lidar_copc_grid():
         nx = int(math.ceil((x1 - x0) / step)) + 1
         ny = int(math.ceil((y1 - y0) / step)) + 1
 
-        MAX_CELLS = 80_000
+        MAX_CELLS = 40_000
         if nx * ny > MAX_CELLS:
             step = math.ceil(math.sqrt((x1 - x0) * (y1 - y0) / MAX_CELLS) * 10) / 10
             nx = int(math.ceil((x1 - x0) / step)) + 1
