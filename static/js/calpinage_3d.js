@@ -37,6 +37,11 @@ class Calpinage3DViewer {
         
         // Cache de textures procédurales
         this._textureCache = {};
+
+        // Texture satellite IGN partagée sol + toitures
+        this._satTexture   = null;   // THREE.CanvasTexture dès qu'elle est prête
+        this._satRadiusM   = 100;    // rayon de la tuile satellite (en mètres)
+        this._lidarRoofMeshes = [];  // toits grid-lidar, pour mise à jour satellite
         
         // Informations sur les pans de toiture du bâtiment principal
         this.roofPanelsInfo = null;
@@ -479,12 +484,22 @@ class Calpinage3DViewer {
                     this.terrainMesh.material.color.set(0xffffff);
                     this.terrainMesh.material.needsUpdate = true;
                 }
-                
+
+                // Stocker la texture pour l'appliquer aussi aux toitures LiDAR
+                this._satTexture  = tex;
+                this._satRadiusM  = satRadius;
+                // Mettre à jour les toits déjà construits (arrivée asynchrone)
+                for (const rm of this._lidarRoofMeshes) {
+                    rm.material.map = tex;
+                    rm.material.color.set(0xffffff);
+                    rm.material.needsUpdate = true;
+                }
+
                 // Ne PAS appliquer au sol secondaire (600x600) :
                 // la même image satellite étirée sur un plan 3x plus grand
                 // crée un doublon flou et hors échelle
                 
-                console.log('✅ Texture satellite contrastée appliquée au terrain');
+                console.log('✅ Texture satellite contrastée appliquée au terrain + toitures');
                 URL.revokeObjectURL(objectUrl);
             };
             img.onerror = () => {
@@ -4654,6 +4669,11 @@ class Calpinage3DViewer {
             return out;
         };
 
+        // UV satellite : u = 0.5 + wx/(2R), v = 0.5 - wz/(2R)
+        // où wx = bldgOffsetX + v.x  et  wz = bldgOffsetZ - v.y
+        // (même convention que le terrain PlaneGeometry rotaté -PI/2)
+        const satR = this._satRadiusM * 2;  // dénominateur
+
         const clipPositions = [], clipUVs = [], clipFaces = [];
         for (let fi = 0; fi < faceIdx.length; fi += 3) {
             // Convertir les 3 sommets en coords locales {x=gx, y=gy, z=mnh}
@@ -4671,8 +4691,14 @@ class Calpinage3DViewer {
             if (clipPoly.length < 3) continue;
             const vOff = clipPositions.length / 3;
             for (const v of clipPoly) {
-                clipPositions.push(bldgOffsetX + v.x, terrainH + v.z, bldgOffsetZ - v.y);
-                clipUVs.push(v.x / UV_SCALE, v.y / UV_SCALE);
+                const wx = bldgOffsetX + v.x;
+                const wz = bldgOffsetZ - v.y;
+                clipPositions.push(wx, terrainH + v.z, wz);
+                // UV satellite calé sur l'emprise du terrain (même tuile)
+                clipUVs.push(
+                    0.5 + wx / satR,
+                    0.5 - wz / satR
+                );
             }
             // Fan triangulation depuis le premier sommet du polygone clippé
             for (let j = 1; j < clipPoly.length - 1; j++) {
@@ -4688,15 +4714,22 @@ class Calpinage3DViewer {
         geo.setIndex(clipFaces);
         geo.computeVertexNormals();
 
-        const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
-            map:  this._getRoofTexture(roofType),
-            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+        // Texture : satellite si disponible (bords du toit calés pixel-parfait),
+        // sinon texture procédurale en attendant (le mesh sera mis à jour par
+        // _loadSatelliteTexture quand elle sera prête).
+        const roofMatSat = new THREE.MeshPhongMaterial({
+            map:   this._satTexture || this._getRoofTexture(roofType),
+            color: this._satTexture ? 0xffffff : 0xffffff,
+            side: THREE.DoubleSide, specular: 0x111111, shininess: 3,
             polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
-        }));
+        });
+
+        const mesh = new THREE.Mesh(geo, roofMatSat);
         mesh.castShadow = mesh.receiveShadow = true;
         mesh.userData = { source: 'grid-lidar', isPVRoof: isPVBuilding };
         this.scene.add(mesh);
         this.buildings.push(mesh);
+        this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
         // ── 5. Jupe (skirt) le long du périmètre du footprint ────────────────
         // Interpolation BILINÉAIRE de la hauteur en chaque sommet du footprint.
