@@ -5983,6 +5983,11 @@ def test_carte():
     """Sert la page de test pour debug rapide"""
     return send_from_directory('.', 'test_carte_directe.html')
 
+@app.route("/test/roof-wall")
+def test_roof_wall():
+    """Page diagnostic Three.js pour la jonction toit-mur (v98)"""
+    return render_template('test_roof_wall.html')
+
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║                           TEMPLATES D'AUTHENTIFICATION                   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
