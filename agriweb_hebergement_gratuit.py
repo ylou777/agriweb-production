@@ -1971,8 +1971,14 @@ def api_lidar_copc_grid():
         gy_np = np.array([(la - cx_lat) * LAT_TO_M_C for la in lats_pts])
 
         # ── 4. Grille régulière ──────────────────────────────────────────────
-        x0 = float(gx_np.min()); x1 = float(gx_np.max())
-        y0 = float(gy_np.min()); y1 = float(gy_np.max())
+        # Emprise = union (points LiDAR ∪ polygone bâtiment) + marge 1 cellule
+        poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
+        poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
+        GRID_PAD = step          # 1 cellule de marge
+        x0 = min(float(gx_np.min()), min(poly_lx)) - GRID_PAD
+        x1 = max(float(gx_np.max()), max(poly_lx)) + GRID_PAD
+        y0 = min(float(gy_np.min()), min(poly_ly)) - GRID_PAD
+        y1 = max(float(gy_np.max()), max(poly_ly)) + GRID_PAD
         nx = int(math.ceil((x1 - x0) / step)) + 1
         ny = int(math.ceil((y1 - y0) / step)) + 1
 
@@ -2074,8 +2080,6 @@ def api_lidar_copc_grid():
             try:
                 z_baseline_ngf = z_min_abs + z_baseline_rel
                 z_mnh = (rz_np - z_baseline_ngf + wall_h).tolist()
-                poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
-                poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
                 try:
                     acr_mask = _filter_acroteres(gx_np, gy_np, rz_np, poly_lx, poly_ly)
                     rx_f = gx_np[acr_mask].tolist()

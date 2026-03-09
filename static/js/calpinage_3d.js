@@ -1284,6 +1284,14 @@ class Calpinage3DViewer {
             }
         }
 
+        // Stocker TOUS les footprints en coords locales pour exclusion végétation
+        this._allBldgFps = allBuildings.map(b => {
+            return b.coords.map(([lo, la]) => [
+                (lo - this.centerLon) * this.LNG_TO_M,
+                -(la - this.centerLat) * this.LAT_TO_M,
+            ]);
+        });
+
         console.log(`✅ ${successCount}/${allBuildings.length} bâtiments créés`);
     }
     
@@ -5946,24 +5954,17 @@ class Calpinage3DViewer {
         
         let treeCount = 0, zoneCount = 0;
         
-        // Précalcul du footprint PV building en coords métriques locales pour exclusion végétation
-        let _pvFp = null;
-        if (this.pvBuildingCoords?.length >= 3) {
-            const _pvCtr = this._polygonCenter(this.pvBuildingCoords);
-            const _pvLng2m = this.LAT_TO_M * Math.cos(_pvCtr.y * Math.PI / 180);
-            _pvFp = this.pvBuildingCoords.map(([lo, la]) => [
-                (lo - this.centerLon) * _pvLng2m,
-                -(la - this.centerLat) * this.LAT_TO_M,
-            ]);
-        }
+        // Précalcul des footprints de TOUS les bâtiments pour exclusion végétation
+        const _bldgFps = this._allBldgFps || [];
 
         data.vegetation.forEach((veg, i) => {
             try {
                 if (veg.type === 'tree') {
-                    // Exclure les arbres dont le tronc est dans l'empreinte du bâtiment PV
-                    if (_pvFp) {
+                    // Exclure les arbres dont le tronc est dans l'empreinte d'un bâtiment
+                    if (_bldgFps.length > 0) {
                         const _tl = this._geoToLocal(veg.lat, veg.lon);
-                        if (this._pointInPoly2D(_tl.x, _tl.z, _pvFp)) return;
+                        const insideAny = _bldgFps.some(fp => this._pointInPoly2D(_tl.x, _tl.z, fp));
+                        if (insideAny) return;
                     }
                     this._createTree3D(veg);
                     treeCount++;
