@@ -1936,8 +1936,8 @@ def api_lidar_copc_grid():
         lat   = float(body['lat'])
         lon   = float(body['lon'])
         building_coords  = body['building_coords']
-        step             = float(body.get('step', 0.25))
-        step             = max(0.15, min(step, 5.0))
+        step             = float(body.get('step', 0.5))
+        step             = max(0.25, min(step, 5.0))
         wall_h           = float(body.get('wall_h', 6.0))
         include_planes   = bool(body.get('include_planes', False))
 

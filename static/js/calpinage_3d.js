@@ -4124,7 +4124,7 @@ class Calpinage3DViewer {
     /**
      * Lance en arrière-plan un appel POST /api/lidar/copc-grid (~15-35 s).
      * Rebuilt le toit depuis la grille Z brute LiDAR (pixel-perfect) :
-     *   - chaque cellule = médiane des points LiDAR dans 1 carré de 0.25m
+     *   - chaque cellule = médiane des points LiDAR dans 1 carré de 0.5m
      *   - sheds, lanterneaux, noues, faîtages rendus fidèlement
      *   - RANSAC lancé en parallèle uniquement pour les infos d'orientation PV
      */
@@ -4139,7 +4139,7 @@ class Calpinage3DViewer {
                 lat,
                 lon,
                 building_coords: this.pvBuildingCoords,
-                step:            0.25,
+                step:            0.5,
                 wall_h:          wallH,
                 include_planes:  true,   // RANSAC pour orientation PV uniquement
             }),
@@ -4588,9 +4588,18 @@ class Calpinage3DViewer {
             if ((x0f - xl) ** 2 + (y0f - yl) ** 2 < 0.01) fp.pop();
         }
 
-        // ── 2. Buffers géométrie depuis la grille Z brute ────────────────────
+        // ── 2. Subdivision bilinéaire : grille backend 0.5m → sous-grille 0.25m ──
+        // Le LiDAR HD donne ~10 pts/m² → grille backend optimale à 0.5m.
+        // On subdivise chaque cellule en SUB×SUB sous-cellules côté frontend
+        // par interpolation bilinéaire des 4 coins → 4× plus de triangles,
+        // surface plus lisse sans nécessiter plus de données LiDAR.
+        const SUB = 2;                       // facteur de subdivision
+        const subStep = step / SUB;          // pas de la sous-grille (0.25m)
+        const snx = (nx - 1) * SUB + 1;     // nb colonnes sous-grille
+        const sny = (ny - 1) * SUB + 1;     // nb lignes sous-grille
+
         const positions = [], uvs = [];
-        const vertexMap  = new Int32Array(nx * ny).fill(-1);
+        const vertexMap  = new Int32Array(snx * sny).fill(-1);
         let vi = 0;
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
@@ -4598,14 +4607,10 @@ class Calpinage3DViewer {
         const FP_MARGIN = step * 2.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
-        // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
-        // (zones d'ombre de scan, faible densité sur les bords) sont remplies
-        // par interpolation du voisin valide le plus proche (≤ 8 cellules).
-        // Cela évite les trous/lacunes sur les arêtes du bâtiment.
+        // ── Null-filling sur la grille coarse ────────────────────────────────
         const getZ = (iy, ix) => {
             const v = grid[iy]?.[ix];
             if (v !== null && v !== undefined) return v;
-            // Chercher le voisin valide le plus proche dans un rayon de 8 cellules
             let best = null, bestD2 = Infinity;
             for (let dy = -8; dy <= 8; dy++) {
                 for (let dx = -8; dx <= 8; dx++) {
@@ -4621,15 +4626,35 @@ class Calpinage3DViewer {
             return best;
         };
 
+        // Pré-calculer la grille coarse complète (null-filled)
+        const coarseZ = new Float32Array(ny * nx);
+        for (let iy = 0; iy < ny; iy++) {
+            for (let ix = 0; ix < nx; ix++) {
+                const z = getZ(iy, ix);
+                coarseZ[iy * nx + ix] = z !== null ? z : z_baseline_rel;
+            }
+        }
+
+        // Interpolation bilinéaire sur la grille coarse
+        const getSubZ = (sy, sx) => {
+            // Coordonnées sous-grille → coordonnées grille coarse (flottantes)
+            const fy = sy / SUB, fx = sx / SUB;
+            const iy0 = Math.min(Math.floor(fy), ny - 2);
+            const ix0 = Math.min(Math.floor(fx), nx - 2);
+            const ty = fy - iy0, tx = fx - ix0;
+            const z00 = coarseZ[iy0 * nx + ix0];
+            const z10 = coarseZ[iy0 * nx + ix0 + 1];
+            const z01 = coarseZ[(iy0 + 1) * nx + ix0];
+            const z11 = coarseZ[(iy0 + 1) * nx + ix0 + 1];
+            return z00 * (1 - tx) * (1 - ty) + z10 * tx * (1 - ty)
+                 + z01 * (1 - tx) * ty        + z11 * tx * ty;
+        };
+
         const UV_SCALE = 8;
 
         // ── Distance point→polygone (pour lissage périmétral) ────────────────
-        // Pour chaque cellule, on calcule la distance minimale à l'arête la plus
-        // proche du footprint. Les cellules proches du bord ont un LiDAR bruité
-        // (acrotères, gouttières, murs) → on lisse vers bh proportionnellement.
-        // Bande plate (1 cellule) + rampe linéaire (2 cellules) → pas de dents, pas d'arrondi
-        const EDGE_FLAT = step * 1.0;  // 0→1 cell : z = bh (élimine les dents)
-        const EDGE_RAMP = step * 3.0;  // 1→3 cells : transition linéaire vers LiDAR
+        const EDGE_FLAT = step * 1.0;  // 0→1 cell coarse : z = bh
+        const EDGE_RAMP = step * 3.0;  // 1→3 cells coarse : rampe linéaire
         const _distToFp = (px, py) => {
             let minD = Infinity;
             for (let k = 0; k < fp.length; k++) {
@@ -4648,14 +4673,14 @@ class Calpinage3DViewer {
             return minD;
         };
 
-        for (let iy = 0; iy < ny; iy++) {
-            for (let ix = 0; ix < nx; ix++) {
-                const gx  = x0 + ix * step;
-                const gy  = y0 + iy * step;
+        // ── Génération des sommets sur la sous-grille ────────────────────────
+        for (let sy = 0; sy < sny; sy++) {
+            for (let sx = 0; sx < snx; sx++) {
+                const gx  = x0 + sx * subStep;
+                const gy  = y0 + sy * subStep;
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
                 const insideFP = this._pointInPoly2D(gx, gy, fp);
-                let z_rel = getZ(iy, ix);
-                if (z_rel === null) z_rel = z_baseline_rel; // pas de données → plat à bh
+                const z_rel = getSubZ(sy, sx);
                 const lidarMnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 let mnh;
                 if (!insideFP) {
@@ -4663,10 +4688,8 @@ class Calpinage3DViewer {
                 } else {
                     const d = _distToFp(gx, gy);
                     if (d < EDGE_FLAT) {
-                        // Bande plate = bh → même hauteur que les points de clip
                         mnh = bh;
                     } else if (d < EDGE_RAMP) {
-                        // Rampe linéaire courte vers le relief LiDAR réel
                         const t = (d - EDGE_FLAT) / (EDGE_RAMP - EDGE_FLAT);
                         mnh = bh + t * (lidarMnh - bh);
                     } else {
@@ -4675,19 +4698,19 @@ class Calpinage3DViewer {
                 }
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
-                vertexMap[iy * nx + ix] = vi++;
+                vertexMap[sy * snx + sx] = vi++;
             }
         }
         if (positions.length < 9) return false;
 
-        // ── 3. Triangulation ─────────────────────────────────────────────────
+        // ── 3. Triangulation sur la sous-grille ──────────────────────────────
         const faceIdx = [];
-        for (let iy = 0; iy < ny - 1; iy++) {
-            for (let ix = 0; ix < nx - 1; ix++) {
-                const v00 = vertexMap[ iy      * nx + ix    ];
-                const v10 = vertexMap[ iy      * nx + ix + 1];
-                const v01 = vertexMap[(iy + 1) * nx + ix    ];
-                const v11 = vertexMap[(iy + 1) * nx + ix + 1];
+        for (let sy = 0; sy < sny - 1; sy++) {
+            for (let sx = 0; sx < snx - 1; sx++) {
+                const v00 = vertexMap[ sy      * snx + sx    ];
+                const v10 = vertexMap[ sy      * snx + sx + 1];
+                const v01 = vertexMap[(sy + 1) * snx + sx    ];
+                const v11 = vertexMap[(sy + 1) * snx + sx + 1];
                 if (v00 >= 0 && v10 >= 0 && v01 >= 0) faceIdx.push(v00, v10, v01);
                 if (v10 >= 0 && v11 >= 0 && v01 >= 0) faceIdx.push(v10, v11, v01);
             }
@@ -4696,7 +4719,7 @@ class Calpinage3DViewer {
             console.warn(`[GRID-ROOF] ABORT faces: ${faceIdx.length} indices`);
             return false;
         }
-        console.log(`[GRID-ROOF] ${faceIdx.length/3} triangles avant clipping`);
+        console.log(`[GRID-ROOF] ${faceIdx.length/3} triangles (SUB=${SUB}, ${snx}×${sny} sous-grille) avant clipping`);
 
         // ── 3b. Clipping par inclusion ray-casting (polygones concaves OK) ───
         // On garde tous les triangles ayant ≥1 sommet inside, et on clippe les
