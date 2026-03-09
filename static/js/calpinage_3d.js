@@ -4604,7 +4604,7 @@ class Calpinage3DViewer {
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
         // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 2.0;
+        const FP_MARGIN = step * 3.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling sur la grille coarse ────────────────────────────────
