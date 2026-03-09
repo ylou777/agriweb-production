@@ -4558,23 +4558,44 @@ class Calpinage3DViewer {
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
 
-        // Footprint légèrement dilatée en absolu (+0.8m) pour ne pas perdre
-        // les cellules exactement sur le bord du polygone BD TOPO.
-        // IMPORTANT : ne pas utiliser d'expansion radiale depuis le centroïde :
-        // elle casse les polygones concaves (bâtiments en L, T, multi-sheds)
-        // et rejette ~50% des cellules valides → demi-toiture.
-        const FP_MARGIN = 0.8; // mètres fixes, indépendant du step
+        // Footprint légèrement dilatée en absolu (+0.15m) pour couvrir les cellules
+        // exactement sur le bord du polygone BD TOPO sans créer de "dents"
+        // (l'ancienne valeur de 0.8m incluait des cellules trop loin du mur).
+        const FP_MARGIN = 0.15; // réduit de 0.8m → 0.15m pour supprimer les dents
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
+
+        // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
+        // (zones d'ombre de scan, faible densité sur les bords) sont remplies
+        // par interpolation du voisin valide le plus proche (≤ 4 cellules).
+        // Cela évite les trous/lacunes sur les arêtes du bâtiment.
+        const getZ = (iy, ix) => {
+            const v = grid[iy]?.[ix];
+            if (v !== null && v !== undefined) return v;
+            // Chercher le voisin valide le plus proche dans un rayon de 4 cellules
+            let best = null, bestD2 = Infinity;
+            for (let dy = -4; dy <= 4; dy++) {
+                for (let dx = -4; dx <= 4; dx++) {
+                    if (dy === 0 && dx === 0) continue;
+                    const jy = iy + dy, jx = ix + dx;
+                    if (jy < 0 || jy >= ny || jx < 0 || jx >= nx) continue;
+                    const nv = grid[jy][jx];
+                    if (nv === null || nv === undefined) continue;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < bestD2) { best = nv; bestD2 = d2; }
+                }
+            }
+            return best;
+        };
 
         const UV_SCALE = 8;
 
         for (let iy = 0; iy < ny; iy++) {
             for (let ix = 0; ix < nx; ix++) {
-                const z_rel = grid[iy][ix];
-                if (z_rel === null) continue;
                 const gx  = x0 + ix * step;
                 const gy  = y0 + iy * step;
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
+                const z_rel = getZ(iy, ix);
+                if (z_rel === null) continue;
                 const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
