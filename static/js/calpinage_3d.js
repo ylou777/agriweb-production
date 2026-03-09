@@ -4915,11 +4915,12 @@ class Calpinage3DViewer {
             specular: 0x111111, shininess: 5,
         });
         const skirtPos = [], n_fp = fp.length;
-        const hTop = bh;
+        const CAP_RAISE = 0.05;   // 5cm au-dessus de bh → ferme les micro-fissures
+        const hTop = bh + CAP_RAISE;
         const hBot = 0;      // sol = terrainH + 0
         for (let i = 0; i < n_fp; i++) {
             const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
-            // Mur sol → bh (pas d'acrotère : le toit descend pile au ras du mur)
+            // Mur sol → bh+5cm (murs montent jusqu'au bandeau de jonction)
             skirtPos.push(
                 bldgOffsetX + px0, terrainH + hBot, bldgOffsetZ - py0,
                 bldgOffsetX + px1, terrainH + hBot, bldgOffsetZ - py1,
@@ -4957,7 +4958,9 @@ class Calpinage3DViewer {
             }
             const isCCW = areaFp > 0;
 
-            const CAP_W = step * 4;   // 2.0m vers l'intérieur (couvre EDGE_FLAT)
+            const CAP_IN  = step * 6;  // 3.0m vers l'intérieur (chevauche sous le toit)
+            const CAP_OUT = 0.3;       // 0.3m vers l'extérieur (couvre l'arête haute des murs)
+            const capY = terrainH + bh + CAP_RAISE;  // 5cm au-dessus de bh → pas de fissure
             const capPos = [];
             for (let i = 0; i < n_fp; i++) {
                 const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
@@ -4967,15 +4970,17 @@ class Calpinage3DViewer {
                 // Normale intérieure
                 const inx = isCCW ? -edy / elen : edy / elen;
                 const iny = isCCW ?  edx / elen : -edx / elen;
-                // Bord intérieur du bandeau
-                const qx0 = px0 + inx * CAP_W, qy0 = py0 + iny * CAP_W;
-                const qx1 = px1 + inx * CAP_W, qy1 = py1 + iny * CAP_W;
-                // Quad horizontal à terrainH + bh
+                // Bord extérieur (0.3m dehors) et intérieur (3m dedans)
+                const ox0 = px0 - inx * CAP_OUT, oy0 = py0 - iny * CAP_OUT;
+                const ox1 = px1 - inx * CAP_OUT, oy1 = py1 - iny * CAP_OUT;
+                const qx0 = px0 + inx * CAP_IN,  qy0 = py0 + iny * CAP_IN;
+                const qx1 = px1 + inx * CAP_IN,  qy1 = py1 + iny * CAP_IN;
+                // Quad horizontal à bh + 5cm
                 capPos.push(
-                    bldgOffsetX + px0, terrainH + bh, bldgOffsetZ - py0,
-                    bldgOffsetX + px1, terrainH + bh, bldgOffsetZ - py1,
-                    bldgOffsetX + qx1, terrainH + bh, bldgOffsetZ - qy1,
-                    bldgOffsetX + qx0, terrainH + bh, bldgOffsetZ - qy0,
+                    bldgOffsetX + ox0, capY, bldgOffsetZ - oy0,
+                    bldgOffsetX + ox1, capY, bldgOffsetZ - oy1,
+                    bldgOffsetX + qx1, capY, bldgOffsetZ - qy1,
+                    bldgOffsetX + qx0, capY, bldgOffsetZ - qy0,
                 );
             }
             if (capPos.length >= 12) {
@@ -4991,15 +4996,15 @@ class Calpinage3DViewer {
                 const capMat = new THREE.MeshPhongMaterial({
                     color: 0xD0C8B8, side: THREE.DoubleSide,
                     specular: 0x111111, shininess: 5,
-                    // Entre le toit (polygonOffset -1) et les murs (pas d'offset)
-                    polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 0.5,
+                    // Rendu SOUS le toit (polygonOffset +1 > toit -1) → toit gagne au z-fighting
+                    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
                 });
                 const cm = new THREE.Mesh(capGeo, capMat);
                 cm.castShadow = cm.receiveShadow = true;
                 cm.userData = { source: 'grid-lidar-cap', isPVRoof: isPVBuilding };
                 this.scene.add(cm);
                 this.buildings.push(cm);
-                console.log(`[GRID-ROOF v99] ✅ Bandeau jonction: ${capPos.length / 12} quads, CAP_W=${CAP_W.toFixed(2)}m`);
+                console.log(`[GRID-ROOF v99b] ✅ Bandeau jonction: ${capPos.length / 12} quads, CAP_IN=${CAP_IN}m CAP_OUT=${CAP_OUT}m raise=${CAP_RAISE}m`);
             }
         }
 
