@@ -4703,7 +4703,12 @@ class Calpinage3DViewer {
         }
         if (positions.length < 9) return false;
 
-        // ── 3. Triangulation sur la sous-grille ──────────────────────────────
+        // ── 3. Triangulation adaptative sur la sous-grille ─────────────────
+        // Pour chaque quad, on choisit la diagonale qui suit le mieux le relief :
+        //   diag1: v00-v11 (NW-SE)  →  |y(v00) - y(v11)|
+        //   diag2: v10-v01 (NE-SW)  →  |y(v10) - y(v01)|
+        // On prend la diagonale avec le plus petit écart de hauteur → les arêtes
+        // de toit (faîtages, noues, décrochés) sont suivies au lieu d'être coupées.
         const faceIdx = [];
         for (let sy = 0; sy < sny - 1; sy++) {
             for (let sx = 0; sx < snx - 1; sx++) {
@@ -4711,8 +4716,28 @@ class Calpinage3DViewer {
                 const v10 = vertexMap[ sy      * snx + sx + 1];
                 const v01 = vertexMap[(sy + 1) * snx + sx    ];
                 const v11 = vertexMap[(sy + 1) * snx + sx + 1];
-                if (v00 >= 0 && v10 >= 0 && v01 >= 0) faceIdx.push(v00, v10, v01);
-                if (v10 >= 0 && v11 >= 0 && v01 >= 0) faceIdx.push(v10, v11, v01);
+                const n = [v00, v10, v01, v11].filter(v => v >= 0).length;
+                if (n < 3) continue;
+                if (n === 4) {
+                    // Diagonale adaptative : comparer les écarts de hauteur
+                    const y00 = positions[v00 * 3 + 1];
+                    const y10 = positions[v10 * 3 + 1];
+                    const y01 = positions[v01 * 3 + 1];
+                    const y11 = positions[v11 * 3 + 1];
+                    if (Math.abs(y00 - y11) <= Math.abs(y10 - y01)) {
+                        // diag NW-SE (v00-v11) : suit mieux le relief
+                        faceIdx.push(v00, v10, v11,  v00, v11, v01);
+                    } else {
+                        // diag NE-SW (v10-v01) : suit mieux le relief
+                        faceIdx.push(v00, v10, v01,  v10, v11, v01);
+                    }
+                } else {
+                    // Seulement 3 sommets valides → un seul triangle
+                    if (v00 >= 0 && v10 >= 0 && v01 >= 0) faceIdx.push(v00, v10, v01);
+                    else if (v00 >= 0 && v10 >= 0 && v11 >= 0) faceIdx.push(v00, v10, v11);
+                    else if (v00 >= 0 && v01 >= 0 && v11 >= 0) faceIdx.push(v00, v11, v01);
+                    else if (v10 >= 0 && v01 >= 0 && v11 >= 0) faceIdx.push(v10, v11, v01);
+                }
             }
         }
         if (faceIdx.length < 3) {
