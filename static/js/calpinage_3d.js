@@ -4544,11 +4544,7 @@ class Calpinage3DViewer {
      */
     _buildRoofFromGrid(gridData, bldgCenter, bh, terrainH, buildingCoords, roofType, isPVBuilding = false) {
         const { grid, x0, y0, nx, ny, step, z_baseline_rel } = gridData;
-        console.log(`[GRID-ROOF] Début: nx=${nx}, ny=${ny}, step=${step}, x0=${x0}, y0=${y0}, z_baseline=${z_baseline_rel}, grid?=${!!grid}, grid.length=${grid?.length}`);
-        if (!grid || nx < 2 || ny < 2) {
-            console.warn(`[GRID-ROOF] ABORT: grid=${!!grid}, nx=${nx}, ny=${ny}`);
-            return false;
-        }
+        if (!grid || nx < 2 || ny < 2) return false;
 
         const LNG_TO_M    = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX = (bldgCenter.lon - this.centerLon) * LNG_TO_M;
@@ -4569,17 +4565,10 @@ class Calpinage3DViewer {
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
 
-        // Footprint dilatée de step*1.0 pour inclure TOUTES les cellules proches
-        // du bord — elles seront clippées exactement par Sutherland-Hodgman (étape 3b).
+        // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
+        // les sommets "outside" pour le clipping ray-cast → bords droits.
         const FP_MARGIN = step * 1.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
-
-        // DEBUG: afficher les bornes fp et grille pour vérifier le recouvrement
-        const fpXs = fp.map(p => p[0]), fpYs = fp.map(p => p[1]);
-        const fpBBox = { xMin: Math.min(...fpXs), xMax: Math.max(...fpXs), yMin: Math.min(...fpYs), yMax: Math.max(...fpYs) };
-        const gridBBox = { xMin: x0, xMax: x0 + (nx-1)*step, yMin: y0, yMax: y0 + (ny-1)*step };
-        console.log(`[GRID-ROOF] fp bbox: x=[${fpBBox.xMin.toFixed(2)}, ${fpBBox.xMax.toFixed(2)}] y=[${fpBBox.yMin.toFixed(2)}, ${fpBBox.yMax.toFixed(2)}]`);
-        console.log(`[GRID-ROOF] grid bbox: x=[${gridBBox.xMin.toFixed(2)}, ${gridBBox.xMax.toFixed(2)}] y=[${gridBBox.yMin.toFixed(2)}, ${gridBBox.yMax.toFixed(2)}]`);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
         // (zones d'ombre de scan, faible densité sur les bords) sont remplies
@@ -4643,88 +4632,90 @@ class Calpinage3DViewer {
             console.warn(`[GRID-ROOF] ABORT faces: ${faceIdx.length} indices`);
             return false;
         }
-        console.log(`[GRID-ROOF] ${faceIdx.length/3} triangles avant S-H`);
+        console.log(`[GRID-ROOF] ${faceIdx.length/3} triangles avant clipping`);
 
-        // ── 3b. Clipping Sutherland-Hodgman ──────────────────────────────────
-        // Chaque triangle de la grille est clippé EXACTEMENT sur le polygone du bâtiment.
-        // → Bord de toit parfaitement droit, zéro dent, quelle que soit l'orientation
-        //   du mur par rapport à la grille orthogonale LiDAR.
-        // → Heights interpolées linéairement au point de coupure : joint propre avec la jupe.
-
-        // Orientation CCW requise : « à gauche de l'arête A→B = intérieur »
-        let _shArea2 = 0;
-        for (let _i = 0; _i < fp.length; _i++) {
-            const _j = (_i + 1) % fp.length;
-            _shArea2 += fp[_i][0] * fp[_j][1] - fp[_j][0] * fp[_i][1];
-        }
-        const fpClip = _shArea2 >= 0 ? fp : [...fp].reverse();
-
-        // Clip d'un polygone contre un demi-plan défini par l'arête A→B
-        const shClipEdge = (poly, ax, ay, bx, by) => {
-            if (poly.length === 0) return [];
-            const eDX = bx - ax, eDY = by - ay;
-            const isIn = p => eDX * (p.y - ay) - eDY * (p.x - ax) >= -1e-9;
-            const cross = (p1, p2) => {
-                const n1 = eDX * (p1.y - ay) - eDY * (p1.x - ax);
-                const n2 = eDX * (p2.y - ay) - eDY * (p2.x - ax);
-                const d  = n1 - n2;
-                if (Math.abs(d) < 1e-12) return {...p1};
-                const t = n1 / d;
-                // z forcé à bh : le bord de toit = sommet exact du mur → zéro dents
-                return { x: p1.x + t*(p2.x-p1.x), y: p1.y + t*(p2.y-p1.y), z: bh };
-            };
-            const out = [];
-            const n = poly.length;
-            for (let ii = 0; ii < n; ii++) {
-                const cur = poly[ii], prev = poly[(ii - 1 + n) % n];
-                const cIn = isIn(cur), pIn = isIn(prev);
-                if (cIn)      { if (!pIn) out.push(cross(prev, cur)); out.push(cur); }
-                else if (pIn) { out.push(cross(prev, cur)); }
-            }
-            return out;
-        };
+        // ── 3b. Clipping par inclusion ray-casting (polygones concaves OK) ───
+        // S-H ne fonctionne que sur polygones CONVEXES (échoue sur bâtiments
+        // en L, T, U, sheds industriels). On utilise _pointInPoly2D (ray-cast)
+        // par sommet, puis on clippe les arêtes frontières contre le polygone
+        // pour garder des bords droits.
 
         // UV satellite : u = 0.5 + wx/(2R), v = 0.5 - wz/(2R)
-        // où wx = bldgOffsetX + v.x  et  wz = bldgOffsetZ - v.y
-        // (même convention que le terrain PlaneGeometry rotaté -PI/2)
-        const satR = this._satRadiusM * 2;  // dénominateur
+        const satR = this._satRadiusM * 2;
+
+        // Intersection segment a→b avec la frontière du polygone fp.
+        // Retourne le point d'intersection le plus proche de `a` si fromA=true,
+        // sinon le plus proche de `b`.
+        const segPolyHit = (a, b, fromA) => {
+            const dx = b.x - a.x, dy = b.y - a.y;
+            let bestT = fromA ? Infinity : -Infinity;
+            let bestPt = null;
+            for (let k = 0; k < fp.length; k++) {
+                const k1 = (k + 1) % fp.length;
+                const ex = fp[k][0], ey = fp[k][1];
+                const fx = fp[k1][0], fy = fp[k1][1];
+                const edx = fx - ex, edy = fy - ey;
+                const denom = dx * edy - dy * edx;
+                if (Math.abs(denom) < 1e-12) continue;
+                const t = ((ex - a.x) * edy - (ey - a.y) * edx) / denom;
+                const s = ((ex - a.x) * dy  - (ey - a.y) * dx)  / denom;
+                if (t < -1e-9 || t > 1 + 1e-9 || s < -1e-9 || s > 1 + 1e-9) continue;
+                if (fromA ? (t < bestT) : (t > bestT)) {
+                    bestT = t;
+                    bestPt = { x: a.x + t * dx, y: a.y + t * dy, z: bh };
+                }
+            }
+            return bestPt;
+        };
 
         const clipPositions = [], clipUVs = [], clipFaces = [];
         for (let fi = 0; fi < faceIdx.length; fi += 3) {
-            // Convertir les 3 sommets en coords locales {x=gx, y=gy, z=mnh}
-            const tri = [faceIdx[fi], faceIdx[fi+1], faceIdx[fi+2]].map(vi => ({
-                x: positions[vi*3 + 0] - bldgOffsetX,
-                y: bldgOffsetZ - positions[vi*3 + 2],
-                z: positions[vi*3 + 1] - terrainH,
+            const vIdx = [faceIdx[fi], faceIdx[fi + 1], faceIdx[fi + 2]];
+            const tri = vIdx.map(vi => ({
+                x: positions[vi * 3 + 0] - bldgOffsetX,
+                y: bldgOffsetZ - positions[vi * 3 + 2],
+                z: positions[vi * 3 + 1] - terrainH,
             }));
-            let clipPoly = tri;
-            for (let ei = 0; ei < fpClip.length; ei++) {
-                const [ax, ay] = fpClip[ei], [bx, by] = fpClip[(ei + 1) % fpClip.length];
-                clipPoly = shClipEdge(clipPoly, ax, ay, bx, by);
-                if (clipPoly.length === 0) break;
+
+            const ins = tri.map(v => this._pointInPoly2D(v.x, v.y, fp));
+            const nIn = ins.filter(Boolean).length;
+            if (nIn === 0) continue;
+
+            let poly;
+            if (nIn === 3) {
+                poly = tri;
+            } else {
+                // Construire le polygone clippé : sommets intérieurs + intersections
+                poly = [];
+                for (let i = 0; i < 3; i++) {
+                    const j = (i + 1) % 3;
+                    if (ins[i]) poly.push(tri[i]);
+                    if (ins[i] !== ins[j]) {
+                        // inside→outside : premier hit depuis le sommet intérieur
+                        // outside→inside : dernier hit avant le sommet intérieur
+                        const pt = segPolyHit(tri[i], tri[j], ins[i]);
+                        if (pt) poly.push(pt);
+                    }
+                }
+                if (poly.length < 3) continue;
             }
-            if (clipPoly.length < 3) continue;
+
             const vOff = clipPositions.length / 3;
-            for (const v of clipPoly) {
+            for (const v of poly) {
                 const wx = bldgOffsetX + v.x;
                 const wz = bldgOffsetZ - v.y;
                 clipPositions.push(wx, terrainH + v.z, wz);
-                // UV satellite calé sur l'emprise du terrain (même tuile)
-                clipUVs.push(
-                    0.5 + wx / satR,
-                    0.5 - wz / satR
-                );
+                clipUVs.push(0.5 + wx / satR, 0.5 - wz / satR);
             }
-            // Fan triangulation depuis le premier sommet du polygone clippé
-            for (let j = 1; j < clipPoly.length - 1; j++) {
+            for (let j = 1; j < poly.length - 1; j++) {
                 clipFaces.push(vOff, vOff + j, vOff + j + 1);
             }
         }
         if (clipPositions.length < 9) {
-            console.warn(`[GRID-ROOF] ABORT clip: ${clipPositions.length/3} sommets après S-H (faces=${clipFaces.length/3})`);
+            console.warn(`[GRID-ROOF] ABORT clip: ${clipPositions.length/3} sommets (faces=${clipFaces.length/3})`);
             return false;
         }
-        console.log(`[GRID-ROOF] ${Math.round(clipPositions.length/3)} sommets après S-H clipping, ${clipFaces.length/3} triangles`);
+        console.log(`[GRID-ROOF] ✅ ${Math.round(clipPositions.length/3)} sommets, ${clipFaces.length/3} triangles après clipping`);
 
         // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
         const geo = new THREE.BufferGeometry();
