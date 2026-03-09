@@ -4577,15 +4577,15 @@ class Calpinage3DViewer {
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
         // (zones d'ombre de scan, faible densité sur les bords) sont remplies
-        // par interpolation du voisin valide le plus proche (≤ 4 cellules).
+        // par interpolation du voisin valide le plus proche (≤ 8 cellules).
         // Cela évite les trous/lacunes sur les arêtes du bâtiment.
         const getZ = (iy, ix) => {
             const v = grid[iy]?.[ix];
             if (v !== null && v !== undefined) return v;
-            // Chercher le voisin valide le plus proche dans un rayon de 4 cellules
+            // Chercher le voisin valide le plus proche dans un rayon de 8 cellules
             let best = null, bestD2 = Infinity;
-            for (let dy = -4; dy <= 4; dy++) {
-                for (let dx = -4; dx <= 4; dx++) {
+            for (let dy = -8; dy <= 8; dy++) {
+                for (let dx = -8; dx <= 8; dx++) {
                     if (dy === 0 && dx === 0) continue;
                     const jy = iy + dy, jx = ix + dx;
                     if (jy < 0 || jy >= ny || jx < 0 || jx >= nx) continue;

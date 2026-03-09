@@ -1773,7 +1773,7 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     # ── Filtre polygon L93 : exclut les bâtiments voisins dans la marge bbox ──
     try:
         from shapely.geometry import Point as _Pt, Polygon as _Poly
-        _MARGIN_L93 = 0.6  # 0.6m tolérance (précision plani LiDAR HD ≤ 50cm)
+        _MARGIN_L93 = 2.0  # 2m tolérance : garder acrotères/gouttières en bord
         _bldg_poly = _Poly(list(zip(xs_l93, ys_l93))).buffer(_MARGIN_L93)
         mask_poly = np.array([
             _bldg_poly.contains(_Pt(float(x_l93[i]), float(y_l93[i])))
@@ -2001,19 +2001,21 @@ def api_lidar_copc_grid():
             gz[c] = float(np.median(sorted_z[s:e]))
         gz = gz.reshape(ny, nx)
 
-        # ── 5. Null-fill : 1 passe 3×3 (comble les trous de capteur ≤ 2 px) ──
-        # Exige ≥ 4 voisins non-nuls pour éviter d'interpoler les grandes ouvertures
-        # (lanterneaux, verrières) qui sont des vides intentionnels.
+        # ── 5. Null-fill : 2 passes 5×5 (comble trous bord + capteur) ────────
+        # Exige ≥ 3 voisins non-nuls. 2 passes propagent vers les bords.
         try:
             from scipy.ndimage import generic_filter as _gf
             def _fill_sparse(v):
                 v2 = v[~np.isnan(v)]
-                return float(np.median(v2)) if len(v2) >= 4 else np.nan
-            mask_nan = np.isnan(gz)
-            if mask_nan.any():
-                gz_filled = _gf(gz, _fill_sparse, size=3, mode='nearest')
+                return float(np.median(v2)) if len(v2) >= 3 else np.nan
+            for _pass in range(2):
+                mask_nan = np.isnan(gz)
+                if not mask_nan.any():
+                    break
+                gz_filled = _gf(gz, _fill_sparse, size=5, mode='nearest')
                 gz[mask_nan] = gz_filled[mask_nan]
-                print(f"  🔧 Null-fill: {int(mask_nan.sum())} → {int(np.isnan(gz).sum())} cellules vides")
+            remaining = int(np.isnan(gz).sum())
+            print(f"  🔧 Null-fill 5×5 ×2: → {remaining} cellules vides restantes")
         except ImportError:
             pass  # scipy absent : grille telle quelle
 
