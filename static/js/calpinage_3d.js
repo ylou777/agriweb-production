@@ -293,6 +293,11 @@ class Calpinage3DViewer {
      * Construit le mesh terrain à partir du MNT LiDAR
      */
     _buildTerrainMesh(terrain, radiusM) {
+        // Réinitialiser les listes de toits satellite pour ce nouveau chargement
+        this._lidarRoofMeshes = [];
+        this._satTexture      = null;
+        this._satRadiusM      = Math.ceil(radiusM); // radius connu dès maintenant pour les UV
+
         // Supprimer l'ancien sol
         if (this.ground) {
             this.scene.remove(this.ground);
@@ -422,6 +427,7 @@ class Calpinage3DViewer {
             // Demander une image satellite couvrant exactement le même rayon que le terrain
             // pour un alignement pixel-parfait avec les bâtiments
             const satRadius = Math.ceil(radiusM);
+            this._satRadiusM = satRadius; // disponible dès maintenant pour calcul UV des toits
             const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${satRadius}`;
             console.log('🛰️ Chargement texture satellite via proxy:', proxyUrl);
             
@@ -4656,7 +4662,8 @@ class Calpinage3DViewer {
                 const d  = n1 - n2;
                 if (Math.abs(d) < 1e-12) return {...p1};
                 const t = n1 / d;
-                return { x: p1.x + t*(p2.x-p1.x), y: p1.y + t*(p2.y-p1.y), z: p1.z + t*(p2.z-p1.z) };
+                // z forcé à bh : le bord de toit = sommet exact du mur → zéro dents
+                return { x: p1.x + t*(p2.x-p1.x), y: p1.y + t*(p2.y-p1.y), z: bh };
             };
             const out = [];
             const n = poly.length;
