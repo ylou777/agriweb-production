@@ -4640,21 +4640,18 @@ class Calpinage3DViewer {
         console.log(`[GRID-ROOF] ${faceIdx.length/3} triangles avant clipping`);
 
         // ── 3b. Clipping par inclusion ray-casting (polygones concaves OK) ───
-        // S-H ne fonctionne que sur polygones CONVEXES (échoue sur bâtiments
-        // en L, T, U, sheds industriels). On utilise _pointInPoly2D (ray-cast)
-        // par sommet, puis on clippe les arêtes frontières contre le polygone
-        // pour garder des bords droits.
+        // On garde tous les triangles ayant ≥1 sommet inside, et on clippe les
+        // arêtes frontières contre TOUTES les intersections avec le polygone.
+        // Gère correctement les bâtiments en L, T, U (concaves).
 
         // UV satellite : u = 0.5 + wx/(2R), v = 0.5 - wz/(2R)
         const satR = this._satRadiusM * 2;
 
-        // Intersection segment a→b avec la frontière du polygone fp.
-        // Retourne le point d'intersection le plus proche de `a` si fromA=true,
-        // sinon le plus proche de `b`.
-        const segPolyHit = (a, b, fromA) => {
+        // Trouve TOUTES les intersections d'un segment a→b avec les arêtes du polygone fp.
+        // Retourne un tableau de t ∈ [0,1] triés par ordre croissant.
+        const segPolyAllHits = (a, b) => {
             const dx = b.x - a.x, dy = b.y - a.y;
-            let bestT = fromA ? Infinity : -Infinity;
-            let bestPt = null;
+            const hits = [];
             for (let k = 0; k < fp.length; k++) {
                 const k1 = (k + 1) % fp.length;
                 const ex = fp[k][0], ey = fp[k][1];
@@ -4665,13 +4662,18 @@ class Calpinage3DViewer {
                 const t = ((ex - a.x) * edy - (ey - a.y) * edx) / denom;
                 const s = ((ex - a.x) * dy  - (ey - a.y) * dx)  / denom;
                 if (t < -1e-9 || t > 1 + 1e-9 || s < -1e-9 || s > 1 + 1e-9) continue;
-                if (fromA ? (t < bestT) : (t > bestT)) {
-                    bestT = t;
-                    bestPt = { x: a.x + t * dx, y: a.y + t * dy, z: bh };
-                }
+                hits.push(Math.max(0, Math.min(1, t)));
             }
-            return bestPt;
+            hits.sort((a, b) => a - b);
+            return hits;
         };
+
+        // Interpole un point sur le segment a→b à t ∈ [0,1], z forcé à bh au bord
+        const lerpEdge = (a, b, t) => ({
+            x: a.x + t * (b.x - a.x),
+            y: a.y + t * (b.y - a.y),
+            z: bh,
+        });
 
         const clipPositions = [], clipUVs = [], clipFaces = [];
         for (let fi = 0; fi < faceIdx.length; fi += 3) {
@@ -4690,16 +4692,31 @@ class Calpinage3DViewer {
             if (nIn === 3) {
                 poly = tri;
             } else {
-                // Construire le polygone clippé : sommets intérieurs + intersections
+                // Construire le polygone clippé en parcourant les 3 arêtes du triangle.
+                // Pour chaque arête, on collecte toutes les intersections avec le polygone
+                // et on garde les segments qui sont à l'intérieur.
                 poly = [];
                 for (let i = 0; i < 3; i++) {
                     const j = (i + 1) % 3;
                     if (ins[i]) poly.push(tri[i]);
+
                     if (ins[i] !== ins[j]) {
-                        // inside→outside : premier hit depuis le sommet intérieur
-                        // outside→inside : dernier hit avant le sommet intérieur
-                        const pt = segPolyHit(tri[i], tri[j], ins[i]);
-                        if (pt) poly.push(pt);
+                        // Une seule traversée : trouver le hit le plus proche du sommet inside
+                        const hits = segPolyAllHits(tri[i], tri[j]);
+                        if (hits.length > 0) {
+                            // inside→outside : premier hit ; outside→inside : dernier hit
+                            const t = ins[i] ? hits[0] : hits[hits.length - 1];
+                            poly.push(lerpEdge(tri[i], tri[j], t));
+                        }
+                    } else if (!ins[i] && !ins[j]) {
+                        // Les deux sommets sont dehors, mais l'arête peut traverser
+                        // le polygone (re-entry dans un polygone concave).
+                        const hits = segPolyAllHits(tri[i], tri[j]);
+                        // Chaque paire (entrée, sortie) produit des points intérieurs
+                        for (let h = 0; h + 1 < hits.length; h += 2) {
+                            poly.push(lerpEdge(tri[i], tri[j], hits[h]));
+                            poly.push(lerpEdge(tri[i], tri[j], hits[h + 1]));
+                        }
                     }
                 }
                 if (poly.length < 3) continue;
@@ -4746,20 +4763,16 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
-        // ── 5. Jupe (skirt) le long du périmètre du footprint ────────────────
-        // Jupe plate : bas = bh-1.0 (1 m dans le mur pour masquer le joint gris),
-        // haut = bh EXACTEMENT (sommet du mur).
-        // On n'utilise PAS getGridMnh ici : les hauteurs LiDAR au périmètre sont
-        // bruitées (parapet, débords) et créaient des dents triangulaires.
-        // Le mesh S-H du toit est clippé exactement sur le polygone → ses bords
-        // partent de bh ou plus, ils reposent donc naturellement sur ce bandeau.
+        // ── 5. Murs verticaux le long du périmètre du footprint ─────────────
+        // Murs complets du sol (terrainH) au sommet (terrainH + bh).
+        // Remplace l'ExtrudeGeometry qui a son cap rendu transparent pour le PV.
         const skirtMat = new THREE.MeshPhongMaterial({
-            color: 0xcccccc, side: THREE.DoubleSide,
-            specular: 0x111111, shininess: 2,
+            color: 0xD0C8B8, side: THREE.DoubleSide,
+            specular: 0x111111, shininess: 5,
         });
         const skirtPos = [], n_fp = fp.length;
-        const hTop = bh;         // top de la jupe = sommet exact du mur
-        const hBot = bh - 1.0;   // bas = 1 m dans le mur (masque gap gris)
+        const hTop = bh;
+        const hBot = 0;      // sol = terrainH + 0
         for (let i = 0; i < n_fp; i++) {
             const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
             skirtPos.push(
