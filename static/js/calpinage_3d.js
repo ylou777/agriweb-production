@@ -209,12 +209,27 @@ class Calpinage3DViewer {
             // ✅ Les plans RANSAC building_hd sont conservés — utilisés directement pour le toit
 
             // Construire la scène 3D
+            // Rayon satellite = max(radius, demi-diag plus grand bâtiment + 20m)
+            let satR = radius || 100;
+            if (this.lidarData.buildings_bdtopo) {
+                for (const b of this.lidarData.buildings_bdtopo) {
+                    if (!b.coords || b.coords.length < 3) continue;
+                    const lons = b.coords.map(c => c[0]);
+                    const lats = b.coords.map(c => c[1]);
+                    const dxM = (Math.max(...lons) - Math.min(...lons)) * this.LNG_TO_M;
+                    const dyM = (Math.max(...lats) - Math.min(...lats)) * this.LAT_TO_M;
+                    const bldgR = Math.sqrt(dxM * dxM + dyM * dyM) / 2 + 20;
+                    if (bldgR > satR) satR = bldgR;
+                }
+            }
+            satR = Math.ceil(satR);
+
             if (this.lidarData.terrain) {
-                this._buildTerrainMesh(this.lidarData.terrain, radius || 100);
+                this._buildTerrainMesh(this.lidarData.terrain, satR);
             }
             
             // Charger la texture satellite
-            await this._loadSatelliteTexture(lat, lon, radius || 100);
+            await this._loadSatelliteTexture(lat, lon, satR);
             
             // Lancer l'analyse IA du type de toiture EN PARALLÈLE
             // (ne bloque pas la construction 3D — le résultat arrive après)
