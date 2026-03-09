@@ -1936,8 +1936,8 @@ def api_lidar_copc_grid():
         lat   = float(body['lat'])
         lon   = float(body['lon'])
         building_coords  = body['building_coords']
-        step             = float(body.get('step', 0.5))
-        step             = max(0.25, min(step, 5.0))
+        step             = float(body.get('step', 0.25))
+        step             = max(0.15, min(step, 5.0))
         wall_h           = float(body.get('wall_h', 6.0))
         include_planes   = bool(body.get('include_planes', False))
 
@@ -1982,7 +1982,7 @@ def api_lidar_copc_grid():
         nx = int(math.ceil((x1 - x0) / step)) + 1
         ny = int(math.ceil((y1 - y0) / step)) + 1
 
-        MAX_CELLS = 20_000
+        MAX_CELLS = 80_000
         if nx * ny > MAX_CELLS:
             step = math.ceil(math.sqrt((x1 - x0) * (y1 - y0) / MAX_CELLS) * 10) / 10
             nx = int(math.ceil((x1 - x0) / step)) + 1
@@ -2042,9 +2042,8 @@ def api_lidar_copc_grid():
         except ImportError:
             pass
 
-        # ── 5c. Lissage Gaussien (σ=1.8 cellule ≈ 0.9m@step=0.5m) ──────────────
-        # Lisse les faîtages/arêtes qui apparaissent en dents de scie à cause
-        # du bruit LiDAR et de la discrétisation à 0.5m.
+        # ── 5c. Lissage Gaussien léger (σ=1.0 cellule ≈ 0.25m@step=0.25m) ────
+        # Micro-lissage du bruit LiDAR sans arrondir les arêtes/faîtages.
         # NaN traités via pondération (évite les artefacts de bord).
         try:
             from scipy.ndimage import gaussian_filter as _gf2
@@ -2053,7 +2052,7 @@ def api_lidar_copc_grid():
                 # Remplacer NaN par médiane temporaire pour le filtre
                 gz_tmp = gz.copy()
                 gz_tmp[nan_mask2] = float(np.nanmedian(gz))
-                gz_smooth = _gf2(gz_tmp, sigma=0.6, mode='nearest')
+                gz_smooth = _gf2(gz_tmp, sigma=1.0, mode='nearest')
                 gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
                 gz = gz_smooth
         except ImportError:

@@ -4124,7 +4124,7 @@ class Calpinage3DViewer {
     /**
      * Lance en arrière-plan un appel POST /api/lidar/copc-grid (~15-35 s).
      * Rebuilt le toit depuis la grille Z brute LiDAR (pixel-perfect) :
-     *   - chaque cellule = médiane des points LiDAR dans 1 carré de 0.5m
+     *   - chaque cellule = médiane des points LiDAR dans 1 carré de 0.25m
      *   - sheds, lanterneaux, noues, faîtages rendus fidèlement
      *   - RANSAC lancé en parallèle uniquement pour les infos d'orientation PV
      */
@@ -4139,7 +4139,7 @@ class Calpinage3DViewer {
                 lat,
                 lon,
                 building_coords: this.pvBuildingCoords,
-                step:            0.5,
+                step:            0.25,
                 wall_h:          wallH,
                 include_planes:  true,   // RANSAC pour orientation PV uniquement
             }),
