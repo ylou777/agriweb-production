@@ -4544,7 +4544,11 @@ class Calpinage3DViewer {
      */
     _buildRoofFromGrid(gridData, bldgCenter, bh, terrainH, buildingCoords, roofType, isPVBuilding = false) {
         const { grid, x0, y0, nx, ny, step, z_baseline_rel } = gridData;
-        if (!grid || nx < 2 || ny < 2) return false;
+        console.log(`[GRID-ROOF] Début: nx=${nx}, ny=${ny}, step=${step}, x0=${x0}, y0=${y0}, z_baseline=${z_baseline_rel}, grid?=${!!grid}, grid.length=${grid?.length}`);
+        if (!grid || nx < 2 || ny < 2) {
+            console.warn(`[GRID-ROOF] ABORT: grid=${!!grid}, nx=${nx}, ny=${ny}`);
+            return false;
+        }
 
         const LNG_TO_M    = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX = (bldgCenter.lon - this.centerLon) * LNG_TO_M;
@@ -4569,6 +4573,13 @@ class Calpinage3DViewer {
         // du bord — elles seront clippées exactement par Sutherland-Hodgman (étape 3b).
         const FP_MARGIN = step * 1.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
+
+        // DEBUG: afficher les bornes fp et grille pour vérifier le recouvrement
+        const fpXs = fp.map(p => p[0]), fpYs = fp.map(p => p[1]);
+        const fpBBox = { xMin: Math.min(...fpXs), xMax: Math.max(...fpXs), yMin: Math.min(...fpYs), yMax: Math.max(...fpYs) };
+        const gridBBox = { xMin: x0, xMax: x0 + (nx-1)*step, yMin: y0, yMax: y0 + (ny-1)*step };
+        console.log(`[GRID-ROOF] fp bbox: x=[${fpBBox.xMin.toFixed(2)}, ${fpBBox.xMax.toFixed(2)}] y=[${fpBBox.yMin.toFixed(2)}, ${fpBBox.yMax.toFixed(2)}]`);
+        console.log(`[GRID-ROOF] grid bbox: x=[${gridBBox.xMin.toFixed(2)}, ${gridBBox.xMax.toFixed(2)}] y=[${gridBBox.yMin.toFixed(2)}, ${gridBBox.yMax.toFixed(2)}]`);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
         // (zones d'ombre de scan, faible densité sur les bords) sont remplies
@@ -4628,7 +4639,11 @@ class Calpinage3DViewer {
                 if (v10 >= 0 && v11 >= 0 && v01 >= 0) faceIdx.push(v10, v11, v01);
             }
         }
-        if (faceIdx.length < 3) return false;
+        if (faceIdx.length < 3) {
+            console.warn(`[GRID-ROOF] ABORT faces: ${faceIdx.length} indices`);
+            return false;
+        }
+        console.log(`[GRID-ROOF] ${faceIdx.length/3} triangles avant S-H`);
 
         // ── 3b. Clipping Sutherland-Hodgman ──────────────────────────────────
         // Chaque triangle de la grille est clippé EXACTEMENT sur le polygone du bâtiment.
@@ -4705,7 +4720,11 @@ class Calpinage3DViewer {
                 clipFaces.push(vOff, vOff + j, vOff + j + 1);
             }
         }
-        if (clipPositions.length < 9) return false;
+        if (clipPositions.length < 9) {
+            console.warn(`[GRID-ROOF] ABORT clip: ${clipPositions.length/3} sommets après S-H (faces=${clipFaces.length/3})`);
+            return false;
+        }
+        console.log(`[GRID-ROOF] ${Math.round(clipPositions.length/3)} sommets après S-H clipping, ${clipFaces.length/3} triangles`);
 
         // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
         const geo = new THREE.BufferGeometry();
