@@ -1678,6 +1678,21 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     y_l93 = np.array(pts.y, dtype=np.float64)[mask_bldg]
     z_arr = np.array(pts.z, dtype=np.float64)[mask_bldg]
 
+    # ── Filtre polygon L93 : exclut les bâtiments voisins dans la marge bbox ──
+    try:
+        from shapely.geometry import Point as _Pt, Polygon as _Poly
+        _MARGIN_L93 = 0.6  # 0.6m tolérance (précision plani LiDAR HD ≤ 50cm)
+        _bldg_poly = _Poly(list(zip(xs_l93, ys_l93))).buffer(_MARGIN_L93)
+        mask_poly = np.array([
+            _bldg_poly.contains(_Pt(float(x_l93[i]), float(y_l93[i])))
+            for i in range(len(x_l93))
+        ], dtype=bool)
+        n_before = len(x_l93)
+        x_l93, y_l93, z_arr = x_l93[mask_poly], y_l93[mask_poly], z_arr[mask_poly]
+        print(f"  🔲 Filtre polygon L93: {n_before} → {len(x_l93)} pts (retirés: {n_before - len(x_l93)})")
+    except ImportError:
+        print("  ⚠ shapely absent — filtre polygon ignoré")
+
     # ── 5. Coordonnées locales (mètres, relatif centroïde L93) ───────────────
     x_local = (x_l93 - cx_l93).tolist()
     y_local = (y_l93 - cy_l93).tolist()

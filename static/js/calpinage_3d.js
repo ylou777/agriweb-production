@@ -2319,35 +2319,43 @@ class Calpinage3DViewer {
             console.log('⏳ Toit PV: en attente COPC LAZ brut');
         }
 
-        // ── Chemin 2 : analyse MNS LiDAR → géométrie OBB (bâtiments voisins uniquement) ──
-        if (!roofBuilt) {
-            const roofPts = this._sampleMNSOnBuilding(buildingData.coords || [], neighborIdx ?? 0);
-            const analysis = roofPts ? this._analyzeRoofShape(roofPts, obb) : null;
+        // ── Garde polygonale : si le voisin chevauche le polygone PV, son toit OBB
+        // recouvrira le mesh LiDAR COPC → on le bloque avant le Chemin 2.
+        if (!roofBuilt && !isPVBuilding && this.pvBuildingCoords?.length >= 3) {
+            const _pvPoly  = this.pvBuildingCoords;
+            const _nePoly  = buildingData.coords || [];
+            const _ptInPoly = (lon, lat, poly) => {
+                let inside = false;
+                const n = poly.length;
+                for (let i = 0, j = n - 1; i < n; j = i++) {
+                    const xi = poly[i][0], yi = poly[i][1];
+                    const xj = poly[j][0], yj = poly[j][1];
+                    if (((yi > lat) !== (yj > lat)) &&
+                        (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi))
+                        inside = !inside;
+                }
+                return inside;
+            };
+            const _neCtr = this._polygonCenter(_nePoly);
+            const _pvCtrGeo = this._polygonCenter(_pvPoly);
+            const _overlaps =
+                _ptInPoly(_neCtr.x, _neCtr.y, _pvPoly) ||
+                (_nePoly.length >= 3 && _ptInPoly(_pvCtrGeo.x, _pvCtrGeo.y, _nePoly)) ||
+                _nePoly.some(([lon, lat]) => _ptInPoly(lon, lat, _pvPoly));
+            if (_overlaps) {
+                roofBuilt = true;
+                console.log(`🚫 Voisin idx=${neighborIdx} chevauche le polygone PV → toit OBB ignoré`);
+            }
+        }
 
+        // ── Chemin 2 : BD TOPO uniquement (voisins, sans WMS MNH) ────────────
+        if (!roofBuilt) {
             const _nVertsC2 = (buildingData.coords || []).length;
             const _bdRidgeC2 = (_nVertsC2 <= 8 && buildingData.alt_toit_max != null && buildingData.alt_toit_min != null)
                 ? (buildingData.alt_toit_max - buildingData.alt_toit_min) : null;
             const _hasBdRidge = _bdRidgeC2 != null && _bdRidgeC2 > 0.5 && _bdRidgeC2 < 15;
 
-            if (analysis && analysis.type !== 'flat' && analysis.ridgeExtra > 0.3) {
-                const effectiveRidge = _hasBdRidge
-                    ? Math.max(analysis.ridgeExtra, _bdRidgeC2)
-                    : analysis.ridgeExtra;
-                if (analysis.type === 'gable' || analysis.type === 'multi-gable') {
-                    this._createGableRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
-                } else if (analysis.type === 'hip') {
-                    this._createHipRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType);
-                } else if (analysis.type === 'shed' || analysis.type === 'multi-shed') {
-                    this._createShedRoof(localCoords, obb, bh, terrainH, effectiveRidge, roofType, wallType, analysis.ridgeOffset || 0);
-                }
-                roofBuilt = true;
-                if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
-                    mesh.material[0].opacity = 0;
-                    mesh.material[0].transparent = true;
-                    mesh.material[0].depthWrite = false;
-                    mesh.material[0].needsUpdate = true;
-                }
-            } else if (_hasBdRidge) {
+            if (_hasBdRidge) {
                 const _bdType = (obb.longDim / Math.max(obb.shortDim, 0.1) > 1.4) ? 'gable' : 'hip';
                 if (_bdType === 'gable') this._createGableRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
                 else this._createHipRoof(localCoords, obb, bh, terrainH, _bdRidgeC2, roofType, wallType);
