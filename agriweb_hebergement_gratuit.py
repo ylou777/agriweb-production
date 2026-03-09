@@ -2017,7 +2017,24 @@ def api_lidar_copc_grid():
         except ImportError:
             pass  # scipy absent : grille telle quelle
 
-        # ── 5b. Lissage Gaussien (σ=1.2 cellule ≈ 0.6m@step=0.5m) ──────────────
+        # ── 5b. Filtrage morphologique : médian 3×3 (supprime spikes acrotères) ──
+        # Les acrotères/gouttières sont des features étroites (1-2 cellules) dont
+        # l'altitude dépasse de 0.5-1.5m le toit. Un filtre médian les remplace
+        # par la valeur dominante voisine (= altitude toit réelle).
+        try:
+            from scipy.ndimage import median_filter as _mf3
+            nan_mask_mf = np.isnan(gz)
+            if not nan_mask_mf.all():
+                gz_mf = gz.copy()
+                gz_mf[nan_mask_mf] = float(np.nanmedian(gz))
+                gz_mf = _mf3(gz_mf, size=3).astype(np.float32)
+                gz_mf[nan_mask_mf] = np.nan
+                gz = gz_mf
+                print(f"  🔧 Médian 3×3 appliqué")
+        except ImportError:
+            pass
+
+        # ── 5c. Lissage Gaussien (σ=1.8 cellule ≈ 0.9m@step=0.5m) ──────────────
         # Lisse les faîtages/arêtes qui apparaissent en dents de scie à cause
         # du bruit LiDAR et de la discrétisation à 0.5m.
         # NaN traités via pondération (évite les artefacts de bord).
@@ -2028,7 +2045,7 @@ def api_lidar_copc_grid():
                 # Remplacer NaN par médiane temporaire pour le filtre
                 gz_tmp = gz.copy()
                 gz_tmp[nan_mask2] = float(np.nanmedian(gz))
-                gz_smooth = _gf2(gz_tmp, sigma=1.2, mode='nearest')
+                gz_smooth = _gf2(gz_tmp, sigma=1.8, mode='nearest')
                 gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
                 gz = gz_smooth
         except ImportError:

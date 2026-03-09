@@ -4604,7 +4604,7 @@ class Calpinage3DViewer {
         // Pour chaque cellule, on calcule la distance minimale à l'arête la plus
         // proche du footprint. Les cellules proches du bord ont un LiDAR bruité
         // (acrotères, gouttières, murs) → on lisse vers bh proportionnellement.
-        const SMOOTH_MARGIN = step * 5.0; // rampe de lissage : ~5 cellules (2.5m)
+        const SMOOTH_MARGIN = step * 8.0; // rampe de lissage : ~8 cellules (4m)
         const _distToFp = (px, py) => {
             let minD = Infinity;
             for (let k = 0; k < fp.length; k++) {
@@ -4809,13 +4809,22 @@ class Calpinage3DViewer {
         const skirtPos = [], n_fp = fp.length;
         const hTop = bh;
         const hBot = 0;      // sol = terrainH + 0
+        const ACRO_H = 0.5;  // acrotère géométrique : 0.5m au-dessus du mur
         for (let i = 0; i < n_fp; i++) {
             const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
+            // Mur principal sol → bh
             skirtPos.push(
                 bldgOffsetX + px0, terrainH + hBot, bldgOffsetZ - py0,
                 bldgOffsetX + px1, terrainH + hBot, bldgOffsetZ - py1,
                 bldgOffsetX + px1, terrainH + hTop, bldgOffsetZ - py1,
                 bldgOffsetX + px0, terrainH + hTop, bldgOffsetZ - py0,
+            );
+            // Acrotère bh → bh + ACRO_H
+            skirtPos.push(
+                bldgOffsetX + px0, terrainH + hTop,            bldgOffsetZ - py0,
+                bldgOffsetX + px1, terrainH + hTop,            bldgOffsetZ - py1,
+                bldgOffsetX + px1, terrainH + hTop + ACRO_H,   bldgOffsetZ - py1,
+                bldgOffsetX + px0, terrainH + hTop + ACRO_H,   bldgOffsetZ - py0,
             );
         }
         if (skirtPos.length >= 12) {
