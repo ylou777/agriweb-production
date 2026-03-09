@@ -441,78 +441,61 @@ class Calpinage3DViewer {
             const objectUrl = URL.createObjectURL(blob);
             console.log('🛰️ Image satellite reçue:', (blob.size / 1024).toFixed(0), 'Ko');
             
-            // Charger l'image pour appliquer contraste/saturation
+            // Charger l'image et ATTENDRE qu'elle soit prête (vrai await)
             const img = new Image();
-            img.onload = () => {
-                // Créer un canvas pour booster le contraste
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                
-                // Dessiner l'image originale
-                ctx.drawImage(img, 0, 0);
-                
-                // Booster le contraste et la saturation
-                ctx.globalCompositeOperation = 'source-over';
-                // Augmenter le contraste via courbe S
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const d = imageData.data;
-                const contrast = 1.3; // 1.0 = normal, 1.3 = +30%
-                const satBoost = 1.25; // +25% saturation
-                for (let i = 0; i < d.length; i += 4) {
-                    // Contraste
-                    let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
-                    let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
-                    let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
-                    
-                    // Saturation
-                    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                    r = gray + (r - gray) * satBoost;
-                    g = gray + (g - gray) * satBoost;
-                    b = gray + (b - gray) * satBoost;
-                    
-                    d[i]   = Math.max(0, Math.min(255, r));
-                    d[i+1] = Math.max(0, Math.min(255, g));
-                    d[i+2] = Math.max(0, Math.min(255, b));
-                }
-                ctx.putImageData(imageData, 0, 0);
-                
-                const tex = new THREE.CanvasTexture(canvas);
-                tex.wrapS = THREE.ClampToEdgeWrapping;
-                tex.wrapT = THREE.ClampToEdgeWrapping;
-                tex.minFilter = THREE.LinearMipMapLinearFilter;
-                tex.magFilter = THREE.LinearFilter;
-                tex.anisotropy = 4; // Meilleur rendu en perspective
-                
-                if (this.terrainMesh) {
-                    this.terrainMesh.material.map = tex;
-                    this.terrainMesh.material.color.set(0xffffff);
-                    this.terrainMesh.material.needsUpdate = true;
-                }
+            await new Promise((resolve, reject) => {
+                img.onload  = resolve;
+                img.onerror = () => reject(new Error('satellite img load error'));
+                img.src     = objectUrl;
+            });
 
-                // Stocker la texture pour l'appliquer aussi aux toitures LiDAR
-                this._satTexture  = tex;
-                this._satRadiusM  = satRadius;
-                // Mettre à jour les toits déjà construits (arrivée asynchrone)
-                for (const rm of this._lidarRoofMeshes) {
-                    rm.material.map = tex;
-                    rm.material.color.set(0xffffff);
-                    rm.material.needsUpdate = true;
-                }
+            // Créer un canvas pour booster le contraste
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imageData.data;
+            const contrast = 1.3, satBoost = 1.25;
+            for (let i = 0; i < d.length; i += 4) {
+                let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
+                let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
+                let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                r = gray + (r - gray) * satBoost;
+                g = gray + (g - gray) * satBoost;
+                b = gray + (b - gray) * satBoost;
+                d[i]   = Math.max(0, Math.min(255, r));
+                d[i+1] = Math.max(0, Math.min(255, g));
+                d[i+2] = Math.max(0, Math.min(255, b));
+            }
+            ctx.putImageData(imageData, 0, 0);
 
-                // Ne PAS appliquer au sol secondaire (600x600) :
-                // la même image satellite étirée sur un plan 3x plus grand
-                // crée un doublon flou et hors échelle
-                
-                console.log('✅ Texture satellite contrastée appliquée au terrain + toitures');
-                URL.revokeObjectURL(objectUrl);
-            };
-            img.onerror = () => {
-                console.warn('⚠ Erreur chargement image satellite');
-                URL.revokeObjectURL(objectUrl);
-            };
-            img.src = objectUrl;
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.minFilter = THREE.LinearMipMapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.anisotropy = 4;
+
+            if (this.terrainMesh) {
+                this.terrainMesh.material.map = tex;
+                this.terrainMesh.material.color.set(0xffffff);
+                this.terrainMesh.material.needsUpdate = true;
+            }
+
+            // Stocker la texture AVANT la construction des toits
+            this._satTexture = tex;
+            // Mettre à jour les toits déjà construits (cas rare)
+            for (const rm of this._lidarRoofMeshes) {
+                rm.material.map = tex;
+                rm.material.color.set(0xffffff);
+                rm.material.needsUpdate = true;
+            }
+
+            console.log('✅ Texture satellite contrastée appliquée au terrain + toitures');
+            URL.revokeObjectURL(objectUrl);
         } catch (e) {
             console.warn('⚠ Erreur texture satellite:', e);
         }
@@ -4096,6 +4079,10 @@ class Calpinage3DViewer {
 
     /** Retire de la scène les meshes du toit PV (isPVRoof=true). */
     _removePVRoofMeshes() {
+        // Purger aussi _lidarRoofMeshes pour éviter stale refs
+        this._lidarRoofMeshes = this._lidarRoofMeshes.filter(m => {
+            return !m.userData?.isPVRoof;
+        });
         this.buildings = this.buildings.filter(m => {
             if (!m.userData?.isPVRoof) return true;
             this.scene.remove(m);
@@ -4615,7 +4602,13 @@ class Calpinage3DViewer {
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
                 const z_rel = getZ(iy, ix);
                 if (z_rel === null) continue;
-                const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
+                // Cellules HORS du polygone réel mais dans fpExpanded : forcer z=bh.
+                // Elles servent uniquement à fournir des triangles au S-H pour un
+                // clipping propre ; leur z ne doit PAS créer de dents au périmètre.
+                const insideFP = this._pointInPoly2D(gx, gy, fp);
+                const mnh = insideFP
+                    ? Math.max(bh, z_rel - z_baseline_rel + bh)
+                    : bh;
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
                 vertexMap[iy * nx + ix] = vi++;
