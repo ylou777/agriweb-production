@@ -1545,10 +1545,58 @@ class _HttpRangeFile(io.RawIOBase):
             raise IOError(f"COPC range request failed ({self._pos}-{end}): {e}") from e
 
 
+def _find_lidar_hd_tile_urls(building_coords_wgs84):
+    """
+    Interroge le WFS IGN pour trouver TOUTES les tuiles LiDAR HD couvrant
+    le polygone bâtiment (utile quand le bâtiment chevauche plusieurs dalles 1km×1km).
+
+    Returns:
+        list[str]: liste d'URLs .copc.laz (peut en contenir plusieurs)
+    Raises:
+        ValueError: si aucune dalle n'est disponible
+    """
+    lons = [c[0] for c in building_coords_wgs84]
+    lats = [c[1] for c in building_coords_wgs84]
+    margin = 0.001  # ~100m, suffisant pour couvrir le bâtiment entier
+    w = min(lons) - margin
+    s = min(lats) - margin
+    e = max(lons) + margin
+    n = max(lats) + margin
+    bbox = f"{w},{s},{e},{n},EPSG:4326"
+    wfs_url = (
+        "https://data.geopf.fr/wfs/ows"
+        "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
+        "&TYPENAMES=IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle"
+        f"&BBOX={bbox}&OUTPUTFORMAT=application/json&COUNT=16"
+    )
+    try:
+        r = requests.get(wfs_url, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        raise ValueError(f"WFS LiDAR HD inaccessible: {e}") from e
+
+    features = data.get("features", [])
+    if not features:
+        raise ValueError("Aucune dalle LiDAR HD disponible pour ce bâtiment")
+
+    urls = []
+    for feat in features:
+        url = feat["properties"].get("url", "")
+        name = feat["properties"].get("name", "?")
+        if url and url not in urls:
+            urls.append(url)
+            print(f"  🗺️ Dalle LiDAR HD: {name}")
+    if not urls:
+        raise ValueError("WFS LiDAR HD: propriété 'url' absente dans toutes les features")
+    return urls
+
+
 def _find_lidar_hd_tile_url(lat, lon):
     """
     Interroge le WFS IGN (IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle) pour
     trouver l'URL du fichier COPC correspondant à une position WGS84.
+    Retourne la première tuile (usage point unique, sans polygone bâtiment).
     
     Returns:
         str: URL directe du fichier .copc.laz IGN
@@ -1582,6 +1630,50 @@ def _find_lidar_hd_tile_url(lat, lon):
     name = features[0]["properties"].get("name", "?")
     print(f"  🗺️ Dalle LiDAR HD: {name}")
     return url
+
+
+def _extract_copc_building_points_multi(copc_urls, building_coords_wgs84):
+    """
+    Extrait les points LiDAR de TOUTES les tuiles COPC et fusionne les résultats.
+    Utilisé quand un grand bâtiment chevauche plusieurs dalles.
+
+    Returns:
+        même tuple que _extract_copc_building_points
+    """
+    if len(copc_urls) == 1:
+        return _extract_copc_building_points(copc_urls[0], building_coords_wgs84)
+
+    import numpy as np
+
+    all_x, all_y, all_z = [], [], []
+    ref = None  # centroïdes de référence (première tuile valide)
+    for url in copc_urls:
+        try:
+            rx, ry, rz, cx_l93, cy_l93, cx_lon, cx_lat = \
+                _extract_copc_building_points(url, building_coords_wgs84)
+            if not rx:
+                continue
+            if ref is None:
+                ref = (cx_l93, cy_l93, cx_lon, cx_lat)
+                all_x.extend(rx)
+                all_y.extend(ry)
+                all_z.extend(rz)
+            else:
+                # Décaler les points relatifs vers le même centre de référence
+                # (les coordonnées locales de chaque tuile sont centrées sur son propre centroïde)
+                dx_l93 = cx_l93 - ref[0]
+                dy_l93 = cy_l93 - ref[1]
+                all_x.extend([v + dx_l93 for v in rx])
+                all_y.extend([v + dy_l93 for v in ry])
+                all_z.extend(rz)
+            print(f"  ✅ Tuile {url[-30:]}: {len(rx)} pts ajoutés (total {len(all_x)})")
+        except Exception as e:
+            print(f"  ⚠️ Tuile {url[-30:]} ignorée: {e}")
+
+    if not all_x:
+        raise ValueError("Aucun point LiDAR valide dans aucune des tuiles")
+
+    return all_x, all_y, all_z, ref[0], ref[1], ref[2], ref[3]
 
 
 def _extract_copc_building_points(copc_url, building_coords_wgs84):
@@ -1730,17 +1822,17 @@ def api_lidar_copc_roof():
 
         import numpy as np
         # ── 1. Trouver la dalle COPC ─────────────────────────────────────────
-        copc_url = _find_lidar_hd_tile_url(lat, lon)
+        copc_urls = _find_lidar_hd_tile_urls(building_coords)
 
-        # ── 2. Extraire les points bâtiment ──────────────────────────────────
+        # ── 2. Extraire et fusionner les points de toutes les tuiles ──────────────────────────────────
         rx, ry, rz, cx_l93, cy_l93, cx_lon, cx_lat = \
-            _extract_copc_building_points(copc_url, building_coords)
+            _extract_copc_building_points_multi(copc_urls, building_coords)
 
         nb_raw = len(rx)
         if nb_raw < 10:
             return jsonify({
                 "error": f"Trop peu de points LiDAR classe 6: {nb_raw}",
-                "tile_url": copc_url,
+                "tile_url": copc_urls[0],
                 "nb_points": nb_raw,
             }), 422
 
@@ -1799,7 +1891,7 @@ def api_lidar_copc_roof():
         return jsonify({
             "success": True,
             "source": "copc",
-            "tile_url": copc_url,
+            "tile_url": copc_urls[0],
             "nb_points_raw": nb_raw,
             "nb_points_filtered": int(len(rx_f)),
             "z_baseline_abs": round(z_baseline, 2),
@@ -1856,11 +1948,11 @@ def api_lidar_copc_grid():
         from pyproj import Transformer as _Tr
 
         # ── 1. Tuile COPC ────────────────────────────────────────────────────
-        copc_url = _find_lidar_hd_tile_url(lat, lon)
+        copc_urls = _find_lidar_hd_tile_urls(building_coords)
 
         # ── 2. Extraction points bâtiment (Lambert93 local) ──────────────────
         rx, ry, rz, cx_l93, cy_l93, cx_lon, cx_lat = \
-            _extract_copc_building_points(copc_url, building_coords)
+            _extract_copc_building_points_multi(copc_urls, building_coords)
 
         if len(rx) < 5:
             return jsonify({"error": f"Trop peu de points LiDAR classe 6: {len(rx)}"}), 422
@@ -1975,7 +2067,7 @@ def api_lidar_copc_grid():
 
         result = {
             "success":        True,
-            "tile_url":       copc_url,
+            "tile_url":       copc_urls[0],
             "nb_points":      len(rx),
             "step":           step,
             "x0": round(x0, 2), "y0": round(y0, 2),
