@@ -4557,9 +4557,9 @@ class Calpinage3DViewer {
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
 
-        // Footprint dilatée de step*0.3 (≈0.15m@0.5m step) pour inclure les
-        // cellules à cheval sur le bord sans faire saillir des dents hors du mur.
-        const FP_MARGIN = step * 0.3;
+        // Footprint dilatée de step*1.0 pour inclure TOUTES les cellules proches
+        // du bord — elles seront clippées exactement par Sutherland-Hodgman (étape 3b).
+        const FP_MARGIN = step * 1.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
@@ -4616,11 +4616,76 @@ class Calpinage3DViewer {
         }
         if (faceIdx.length < 3) return false;
 
-        // ── 4. Mesh Three.js ──────────────────────────────────────────────────
+        // ── 3b. Clipping Sutherland-Hodgman ──────────────────────────────────
+        // Chaque triangle de la grille est clippé EXACTEMENT sur le polygone du bâtiment.
+        // → Bord de toit parfaitement droit, zéro dent, quelle que soit l'orientation
+        //   du mur par rapport à la grille orthogonale LiDAR.
+        // → Heights interpolées linéairement au point de coupure : joint propre avec la jupe.
+
+        // Orientation CCW requise : « à gauche de l'arête A→B = intérieur »
+        let _shArea2 = 0;
+        for (let _i = 0; _i < fp.length; _i++) {
+            const _j = (_i + 1) % fp.length;
+            _shArea2 += fp[_i][0] * fp[_j][1] - fp[_j][0] * fp[_i][1];
+        }
+        const fpClip = _shArea2 >= 0 ? fp : [...fp].reverse();
+
+        // Clip d'un polygone contre un demi-plan défini par l'arête A→B
+        const shClipEdge = (poly, ax, ay, bx, by) => {
+            if (poly.length === 0) return [];
+            const eDX = bx - ax, eDY = by - ay;
+            const isIn = p => eDX * (p.y - ay) - eDY * (p.x - ax) >= -1e-9;
+            const cross = (p1, p2) => {
+                const n1 = eDX * (p1.y - ay) - eDY * (p1.x - ax);
+                const n2 = eDX * (p2.y - ay) - eDY * (p2.x - ax);
+                const d  = n1 - n2;
+                if (Math.abs(d) < 1e-12) return {...p1};
+                const t = n1 / d;
+                return { x: p1.x + t*(p2.x-p1.x), y: p1.y + t*(p2.y-p1.y), z: p1.z + t*(p2.z-p1.z) };
+            };
+            const out = [];
+            const n = poly.length;
+            for (let ii = 0; ii < n; ii++) {
+                const cur = poly[ii], prev = poly[(ii - 1 + n) % n];
+                const cIn = isIn(cur), pIn = isIn(prev);
+                if (cIn)      { if (!pIn) out.push(cross(prev, cur)); out.push(cur); }
+                else if (pIn) { out.push(cross(prev, cur)); }
+            }
+            return out;
+        };
+
+        const clipPositions = [], clipUVs = [], clipFaces = [];
+        for (let fi = 0; fi < faceIdx.length; fi += 3) {
+            // Convertir les 3 sommets en coords locales {x=gx, y=gy, z=mnh}
+            const tri = [faceIdx[fi], faceIdx[fi+1], faceIdx[fi+2]].map(vi => ({
+                x: positions[vi*3 + 0] - bldgOffsetX,
+                y: bldgOffsetZ - positions[vi*3 + 2],
+                z: positions[vi*3 + 1] - terrainH,
+            }));
+            let clipPoly = tri;
+            for (let ei = 0; ei < fpClip.length; ei++) {
+                const [ax, ay] = fpClip[ei], [bx, by] = fpClip[(ei + 1) % fpClip.length];
+                clipPoly = shClipEdge(clipPoly, ax, ay, bx, by);
+                if (clipPoly.length === 0) break;
+            }
+            if (clipPoly.length < 3) continue;
+            const vOff = clipPositions.length / 3;
+            for (const v of clipPoly) {
+                clipPositions.push(bldgOffsetX + v.x, terrainH + v.z, bldgOffsetZ - v.y);
+                clipUVs.push(v.x / UV_SCALE, v.y / UV_SCALE);
+            }
+            // Fan triangulation depuis le premier sommet du polygone clippé
+            for (let j = 1; j < clipPoly.length - 1; j++) {
+                clipFaces.push(vOff, vOff + j, vOff + j + 1);
+            }
+        }
+        if (clipPositions.length < 9) return false;
+
+        // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
         const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
-        geo.setIndex(faceIdx);
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(clipPositions, 3));
+        geo.setAttribute('uv',       new THREE.Float32BufferAttribute(clipUVs, 2));
+        geo.setIndex(clipFaces);
         geo.computeVertexNormals();
 
         const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
@@ -4643,13 +4708,13 @@ class Calpinage3DViewer {
             const ix0b = Math.max(0, Math.min(nx - 2, Math.floor(fx)));
             const iy0b = Math.max(0, Math.min(ny - 2, Math.floor(fy)));
             const tx = fx - ix0b, ty = fy - iy0b;
-            const v00 = grid[iy0b    ]?.[ix0b    ];
-            const v10 = grid[iy0b    ]?.[ix0b + 1];
-            const v01 = grid[iy0b + 1]?.[ix0b    ];
-            const v11 = grid[iy0b + 1]?.[ix0b + 1];
+            // Utilise getZ() (null-fill cohérent avec le mesh) → joint skirt/toit sans écart
+            const v00 = getZ(iy0b,     ix0b    );
+            const v10 = getZ(iy0b,     ix0b + 1);
+            const v01 = getZ(iy0b + 1, ix0b    );
+            const v11 = getZ(iy0b + 1, ix0b + 1);
             let z_rel;
-            if (v00 !== null && v10 !== null && v01 !== null && v11 !== null &&
-                v00 !== undefined && v10 !== undefined && v01 !== undefined && v11 !== undefined) {
+            if (v00 !== null && v10 !== null && v01 !== null && v11 !== null) {
                 // Interpolation bilinéaire complète
                 z_rel = v00*(1-tx)*(1-ty) + v10*tx*(1-ty) + v01*(1-tx)*ty + v11*tx*ty;
             } else {
@@ -4705,7 +4770,7 @@ class Calpinage3DViewer {
             this.buildings.push(sm);
         }
 
-        console.log(`✅ Toit grid LiDAR: ${nx}×${ny} cellules, step=${step}m, ${Math.round(positions.length / 3)} sommets`);
+        console.log(`✅ Toit grid LiDAR: ${nx}×${ny} cellules, step=${step}m, ${Math.round(clipPositions.length / 3)} sommets S-H clippés`);
         return true;
     }
 
