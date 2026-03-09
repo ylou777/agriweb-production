@@ -4105,14 +4105,17 @@ class Calpinage3DViewer {
      */
     // ── COPC LiDAR HD brut ─────────────────────────────────────────────────────
 
-    /** Retire de la scène les meshes du toit PV (isPVRoof=true). */
+    /** Retire de la scène les meshes du toit PV (isPVRoof=true)
+     *  ET l'ExtrudeGeometry du bâtiment principal (isMainBuilding=true)
+     *  pour éviter le z-fighting murs doubles quand le toit COPC fournit
+     *  ses propres murs (skirt). */
     _removePVRoofMeshes() {
         // Purger aussi _lidarRoofMeshes pour éviter stale refs
         this._lidarRoofMeshes = this._lidarRoofMeshes.filter(m => {
             return !m.userData?.isPVRoof;
         });
         this.buildings = this.buildings.filter(m => {
-            if (!m.userData?.isPVRoof) return true;
+            if (!m.userData?.isPVRoof && !m.userData?.isMainBuilding) return true;
             this.scene.remove(m);
             m.geometry?.dispose();
             if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
@@ -4880,22 +4883,14 @@ class Calpinage3DViewer {
         const skirtPos = [], n_fp = fp.length;
         const hTop = bh;
         const hBot = 0;      // sol = terrainH + 0
-        const ACRO_H = 0.5;  // acrotère géométrique : 0.5m au-dessus du mur
         for (let i = 0; i < n_fp; i++) {
             const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
-            // Mur principal sol → bh
+            // Mur sol → bh (pas d'acrotère : le toit descend pile au ras du mur)
             skirtPos.push(
                 bldgOffsetX + px0, terrainH + hBot, bldgOffsetZ - py0,
                 bldgOffsetX + px1, terrainH + hBot, bldgOffsetZ - py1,
                 bldgOffsetX + px1, terrainH + hTop, bldgOffsetZ - py1,
                 bldgOffsetX + px0, terrainH + hTop, bldgOffsetZ - py0,
-            );
-            // Acrotère bh → bh + ACRO_H
-            skirtPos.push(
-                bldgOffsetX + px0, terrainH + hTop,            bldgOffsetZ - py0,
-                bldgOffsetX + px1, terrainH + hTop,            bldgOffsetZ - py1,
-                bldgOffsetX + px1, terrainH + hTop + ACRO_H,   bldgOffsetZ - py1,
-                bldgOffsetX + px0, terrainH + hTop + ACRO_H,   bldgOffsetZ - py0,
             );
         }
         if (skirtPos.length >= 12) {
