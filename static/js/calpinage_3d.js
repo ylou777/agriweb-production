@@ -4580,7 +4580,7 @@ class Calpinage3DViewer {
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
         // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 1.0;
+        const FP_MARGIN = step * 3.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
@@ -4638,10 +4638,7 @@ class Calpinage3DViewer {
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
                 const insideFP = this._pointInPoly2D(gx, gy, fp);
                 let z_rel = getZ(iy, ix);
-                if (z_rel === null) {
-                    if (!insideFP) continue; // hors fp sans données → ignorer
-                    z_rel = z_baseline_rel;  // dans fp sans données → plat à bh
-                }
+                if (z_rel === null) z_rel = z_baseline_rel; // pas de données → plat à bh
                 const lidarMnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 let mnh;
                 if (!insideFP) {
