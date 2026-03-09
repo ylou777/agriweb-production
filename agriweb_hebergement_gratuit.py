@@ -2017,7 +2017,7 @@ def api_lidar_copc_grid():
         except ImportError:
             pass  # scipy absent : grille telle quelle
 
-        # ── 5b. Lissage Gaussien léger (σ=0.8 cellule ≈ 0.4m@step=0.5m) ─────────
+        # ── 5b. Lissage Gaussien (σ=1.2 cellule ≈ 0.6m@step=0.5m) ──────────────
         # Lisse les faîtages/arêtes qui apparaissent en dents de scie à cause
         # du bruit LiDAR et de la discrétisation à 0.5m.
         # NaN traités via pondération (évite les artefacts de bord).
@@ -2028,7 +2028,7 @@ def api_lidar_copc_grid():
                 # Remplacer NaN par médiane temporaire pour le filtre
                 gz_tmp = gz.copy()
                 gz_tmp[nan_mask2] = float(np.nanmedian(gz))
-                gz_smooth = _gf2(gz_tmp, sigma=0.8, mode='nearest')
+                gz_smooth = _gf2(gz_tmp, sigma=1.2, mode='nearest')
                 gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
                 gz = gz_smooth
         except ImportError:

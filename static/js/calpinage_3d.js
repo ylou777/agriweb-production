@@ -4604,7 +4604,7 @@ class Calpinage3DViewer {
         // Pour chaque cellule, on calcule la distance minimale à l'arête la plus
         // proche du footprint. Les cellules proches du bord ont un LiDAR bruité
         // (acrotères, gouttières, murs) → on lisse vers bh proportionnellement.
-        const SMOOTH_MARGIN = step * 3.0; // rampe de lissage : ~3 cellules
+        const SMOOTH_MARGIN = step * 5.0; // rampe de lissage : ~5 cellules (2.5m)
         const _distToFp = (px, py) => {
             let minD = Infinity;
             for (let k = 0; k < fp.length; k++) {
@@ -4628,21 +4628,23 @@ class Calpinage3DViewer {
                 const gx  = x0 + ix * step;
                 const gy  = y0 + iy * step;
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
-                const z_rel = getZ(iy, ix);
-                if (z_rel === null) continue;
-                // Cellules HORS du polygone réel mais dans fpExpanded : forcer z=bh.
                 const insideFP = this._pointInPoly2D(gx, gy, fp);
+                let z_rel = getZ(iy, ix);
+                if (z_rel === null) {
+                    if (!insideFP) continue; // hors fp sans données → ignorer
+                    z_rel = z_baseline_rel;  // dans fp sans données → plat à bh
+                }
                 const lidarMnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 let mnh;
                 if (!insideFP) {
                     mnh = bh;
                 } else {
-                    // Lissage périmétral : les cellules proches du bord (< SMOOTH_MARGIN)
-                    // sont interpolées entre bh (bord) et la hauteur LiDAR réelle (intérieur).
-                    // → rampe douce au lieu de dents brutales d'acrotère/gouttière.
+                    // Lissage périmétral smoothstep : transition douce bord→intérieur.
+                    // Hermite 3t²−2t³ : dérivée nulle aux deux extrémités → pas de cassure.
                     const d = _distToFp(gx, gy);
                     if (d < SMOOTH_MARGIN) {
-                        const t = d / SMOOTH_MARGIN; // 0 au bord → 1 en intérieur
+                        const tLin = d / SMOOTH_MARGIN; // 0 au bord → 1 en intérieur
+                        const t = tLin * tLin * (3 - 2 * tLin); // smoothstep
                         mnh = bh + t * (lidarMnh - bh);
                     } else {
                         mnh = lidarMnh;
