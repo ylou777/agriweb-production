@@ -4595,7 +4595,7 @@ class Calpinage3DViewer {
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
         // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 3.0;
+        const FP_MARGIN = step * 2.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
@@ -4627,7 +4627,9 @@ class Calpinage3DViewer {
         // Pour chaque cellule, on calcule la distance minimale à l'arête la plus
         // proche du footprint. Les cellules proches du bord ont un LiDAR bruité
         // (acrotères, gouttières, murs) → on lisse vers bh proportionnellement.
-        const SMOOTH_MARGIN = step * 8.0; // rampe de lissage : ~8 cellules (4m)
+        // Bande plate (1 cellule) + rampe linéaire (2 cellules) → pas de dents, pas d'arrondi
+        const EDGE_FLAT = step * 1.0;  // 0→1 cell : z = bh (élimine les dents)
+        const EDGE_RAMP = step * 3.0;  // 1→3 cells : transition linéaire vers LiDAR
         const _distToFp = (px, py) => {
             let minD = Infinity;
             for (let k = 0; k < fp.length; k++) {
@@ -4659,12 +4661,13 @@ class Calpinage3DViewer {
                 if (!insideFP) {
                     mnh = bh;
                 } else {
-                    // Lissage périmétral smoothstep : transition douce bord→intérieur.
-                    // Hermite 3t²−2t³ : dérivée nulle aux deux extrémités → pas de cassure.
                     const d = _distToFp(gx, gy);
-                    if (d < SMOOTH_MARGIN) {
-                        const tLin = d / SMOOTH_MARGIN; // 0 au bord → 1 en intérieur
-                        const t = tLin * tLin * (3 - 2 * tLin); // smoothstep
+                    if (d < EDGE_FLAT) {
+                        // Bande plate = bh → même hauteur que les points de clip
+                        mnh = bh;
+                    } else if (d < EDGE_RAMP) {
+                        // Rampe linéaire courte vers le relief LiDAR réel
+                        const t = (d - EDGE_FLAT) / (EDGE_RAMP - EDGE_FLAT);
                         mnh = bh + t * (lidarMnh - bh);
                     } else {
                         mnh = lidarMnh;

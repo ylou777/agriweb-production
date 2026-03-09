@@ -2053,7 +2053,7 @@ def api_lidar_copc_grid():
                 # Remplacer NaN par médiane temporaire pour le filtre
                 gz_tmp = gz.copy()
                 gz_tmp[nan_mask2] = float(np.nanmedian(gz))
-                gz_smooth = _gf2(gz_tmp, sigma=1.8, mode='nearest')
+                gz_smooth = _gf2(gz_tmp, sigma=0.6, mode='nearest')
                 gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
                 gz = gz_smooth
         except ImportError:
