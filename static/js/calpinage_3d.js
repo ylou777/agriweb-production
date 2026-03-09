@@ -4732,58 +4732,26 @@ class Calpinage3DViewer {
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
         // ── 5. Jupe (skirt) le long du périmètre du footprint ────────────────
-        // Interpolation BILINÉAIRE de la hauteur en chaque sommet du footprint.
-        // Remplace l'ancien échantillonnage cellule-la-plus-proche qui créait
-        // un effet dents-de-scie visible le long des arêtes diagonales du toit.
-        const getGridMnh = (gx, gy) => {
-            const fx = (gx - x0) / step;
-            const fy = (gy - y0) / step;
-            const ix0b = Math.max(0, Math.min(nx - 2, Math.floor(fx)));
-            const iy0b = Math.max(0, Math.min(ny - 2, Math.floor(fy)));
-            const tx = fx - ix0b, ty = fy - iy0b;
-            // Utilise getZ() (null-fill cohérent avec le mesh) → joint skirt/toit sans écart
-            const v00 = getZ(iy0b,     ix0b    );
-            const v10 = getZ(iy0b,     ix0b + 1);
-            const v01 = getZ(iy0b + 1, ix0b    );
-            const v11 = getZ(iy0b + 1, ix0b + 1);
-            let z_rel;
-            if (v00 !== null && v10 !== null && v01 !== null && v11 !== null) {
-                // Interpolation bilinéaire complète
-                z_rel = v00*(1-tx)*(1-ty) + v10*tx*(1-ty) + v01*(1-tx)*ty + v11*tx*ty;
-            } else {
-                // Fallback nearest-non-null dans ±4 cellules
-                const ix0n = Math.round(fx), iy0n = Math.round(fy);
-                let best = null, bestD2 = Infinity;
-                for (let dy = -4; dy <= 4; dy++) {
-                    for (let dx = -4; dx <= 4; dx++) {
-                        const jy = iy0n + dy, jx = ix0n + dx;
-                        if (jy < 0 || jy >= ny || jx < 0 || jx >= nx) continue;
-                        const v = grid[jy]?.[jx];
-                        if (v === null || v === undefined) continue;
-                        const d2 = dx*dx + dy*dy;
-                        if (d2 < bestD2) { best = v; bestD2 = d2; }
-                    }
-                }
-                if (best === null) return bh;
-                z_rel = best;
-            }
-            return Math.max(bh, z_rel - z_baseline_rel + bh);
-        };
-
+        // Jupe plate : bas = bh-1.0 (1 m dans le mur pour masquer le joint gris),
+        // haut = bh EXACTEMENT (sommet du mur).
+        // On n'utilise PAS getGridMnh ici : les hauteurs LiDAR au périmètre sont
+        // bruitées (parapet, débords) et créaient des dents triangulaires.
+        // Le mesh S-H du toit est clippé exactement sur le polygone → ses bords
+        // partent de bh ou plus, ils reposent donc naturellement sur ce bandeau.
         const skirtMat = new THREE.MeshPhongMaterial({
-            map: this._getRoofTexture(roofType), side: THREE.DoubleSide,
-            specular: 0x222222, shininess: 5,
+            color: 0xcccccc, side: THREE.DoubleSide,
+            specular: 0x111111, shininess: 2,
         });
         const skirtPos = [], n_fp = fp.length;
+        const hTop = bh;         // top de la jupe = sommet exact du mur
+        const hBot = bh - 1.0;   // bas = 1 m dans le mur (masque gap gris)
         for (let i = 0; i < n_fp; i++) {
             const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
-            const h0 = getGridMnh(px0, py0), h1 = getGridMnh(px1, py1);
-            const hBot = bh - 1.0; // descend 1m dans le mur pour couvrir le joint + cap gris
             skirtPos.push(
-                bldgOffsetX + px0, terrainH + hBot,  bldgOffsetZ - py0,
-                bldgOffsetX + px1, terrainH + hBot,  bldgOffsetZ - py1,
-                bldgOffsetX + px1, terrainH + h1,    bldgOffsetZ - py1,
-                bldgOffsetX + px0, terrainH + h0,    bldgOffsetZ - py0,
+                bldgOffsetX + px0, terrainH + hBot, bldgOffsetZ - py0,
+                bldgOffsetX + px1, terrainH + hBot, bldgOffsetZ - py1,
+                bldgOffsetX + px1, terrainH + hTop, bldgOffsetZ - py1,
+                bldgOffsetX + px0, terrainH + hTop, bldgOffsetZ - py0,
             );
         }
         if (skirtPos.length >= 12) {
