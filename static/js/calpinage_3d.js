@@ -4481,8 +4481,7 @@ class Calpinage3DViewer {
                 return Math.max(bh, h);
             };
             const h0 = getH(x0, y0), h1 = getH(x1, y1);
-            const hBot = bh - 0.15; // légèrement sous la corniche pour couvrir le joint
-            // Quad : (x0,bh−0.15), (x1,bh−0.15), (x1,h1), (x0,h0)
+            const hBot = bh - 1.0; // descend 1m dans le mur pour couvrir le joint + cap gris
             skirtPos.push(
                 bldgOffsetX + x0, terrainH + hBot,  bldgOffsetZ - y0,
                 bldgOffsetX + x1, terrainH + hBot,  bldgOffsetZ - y1,
@@ -4558,10 +4557,9 @@ class Calpinage3DViewer {
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
 
-        // Footprint légèrement dilatée en absolu (+0.15m) pour couvrir les cellules
-        // exactement sur le bord du polygone BD TOPO sans créer de "dents"
-        // (l'ancienne valeur de 0.8m incluait des cellules trop loin du mur).
-        const FP_MARGIN = 0.15; // réduit de 0.8m → 0.15m pour supprimer les dents
+        // Footprint dilatée en absolu (+0.4m) pour couvrir les cellules
+        // exactement sur le bord du polygone BD TOPO sans créer de "dents".
+        const FP_MARGIN = 0.4; // 0.4m : compromis bord couvert sans dents
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
@@ -4662,7 +4660,7 @@ class Calpinage3DViewer {
         for (let i = 0; i < n_fp; i++) {
             const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
             const h0 = getGridMnh(px0, py0), h1 = getGridMnh(px1, py1);
-            const hBot = bh - 0.15;
+            const hBot = bh - 1.0; // descend 1m dans le mur pour couvrir le joint + cap gris
             skirtPos.push(
                 bldgOffsetX + px0, terrainH + hBot,  bldgOffsetZ - py0,
                 bldgOffsetX + px1, terrainH + hBot,  bldgOffsetZ - py1,
