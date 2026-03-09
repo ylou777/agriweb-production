@@ -2017,6 +2017,23 @@ def api_lidar_copc_grid():
         except ImportError:
             pass  # scipy absent : grille telle quelle
 
+        # ── 5b. Lissage Gaussien léger (σ=0.8 cellule ≈ 0.4m@step=0.5m) ─────────
+        # Lisse les faîtages/arêtes qui apparaissent en dents de scie à cause
+        # du bruit LiDAR et de la discrétisation à 0.5m.
+        # NaN traités via pondération (évite les artefacts de bord).
+        try:
+            from scipy.ndimage import gaussian_filter as _gf2
+            nan_mask2 = np.isnan(gz)
+            if not nan_mask2.all():
+                # Remplacer NaN par médiane temporaire pour le filtre
+                gz_tmp = gz.copy()
+                gz_tmp[nan_mask2] = float(np.nanmedian(gz))
+                gz_smooth = _gf2(gz_tmp, sigma=0.8, mode='nearest')
+                gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
+                gz = gz_smooth
+        except ImportError:
+            pass
+
         # ── 6. baseline_rel = percentile 5 des z_rel (→ mnh ≈ wall_h à l'égout) ──
         filled_vals = gz[~np.isnan(gz)].ravel()
         z_baseline_rel = float(np.percentile(filled_vals, 5)) if len(filled_vals) else 0.0

@@ -4557,9 +4557,9 @@ class Calpinage3DViewer {
         const vertexMap  = new Int32Array(nx * ny).fill(-1);
         let vi = 0;
 
-        // Footprint dilatée en absolu (+0.4m) pour couvrir les cellules
-        // exactement sur le bord du polygone BD TOPO sans créer de "dents".
-        const FP_MARGIN = 0.4; // 0.4m : compromis bord couvert sans dents
+        // Footprint dilatée de step*0.3 (≈0.15m@0.5m step) pour inclure les
+        // cellules à cheval sur le bord sans faire saillir des dents hors du mur.
+        const FP_MARGIN = step * 0.3;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling : les cellules dans l'emprise sans donnée LiDAR ──────
@@ -4634,22 +4634,42 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
 
         // ── 5. Jupe (skirt) le long du périmètre du footprint ────────────────
-        // Pour chaque sommet du footprint, cherche la cellule de grille la plus proche.
+        // Interpolation BILINÉAIRE de la hauteur en chaque sommet du footprint.
+        // Remplace l'ancien échantillonnage cellule-la-plus-proche qui créait
+        // un effet dents-de-scie visible le long des arêtes diagonales du toit.
         const getGridMnh = (gx, gy) => {
-            const fx  = (gx - x0) / step, fy = (gy - y0) / step;
-            const ix0 = Math.round(fx),   iy0 = Math.round(fy);
-            let best = null, bestD2 = Infinity;
-            for (let dy = -3; dy <= 3; dy++) {
-                for (let dx = -3; dx <= 3; dx++) {
-                    const jy = iy0 + dy, jx = ix0 + dx;
-                    if (jy < 0 || jy >= ny || jx < 0 || jx >= nx) continue;
-                    const v = grid[jy][jx];
-                    if (v === null) continue;
-                    const d2 = dx * dx + dy * dy;
-                    if (d2 < bestD2) { best = v; bestD2 = d2; }
+            const fx = (gx - x0) / step;
+            const fy = (gy - y0) / step;
+            const ix0b = Math.max(0, Math.min(nx - 2, Math.floor(fx)));
+            const iy0b = Math.max(0, Math.min(ny - 2, Math.floor(fy)));
+            const tx = fx - ix0b, ty = fy - iy0b;
+            const v00 = grid[iy0b    ]?.[ix0b    ];
+            const v10 = grid[iy0b    ]?.[ix0b + 1];
+            const v01 = grid[iy0b + 1]?.[ix0b    ];
+            const v11 = grid[iy0b + 1]?.[ix0b + 1];
+            let z_rel;
+            if (v00 !== null && v10 !== null && v01 !== null && v11 !== null &&
+                v00 !== undefined && v10 !== undefined && v01 !== undefined && v11 !== undefined) {
+                // Interpolation bilinéaire complète
+                z_rel = v00*(1-tx)*(1-ty) + v10*tx*(1-ty) + v01*(1-tx)*ty + v11*tx*ty;
+            } else {
+                // Fallback nearest-non-null dans ±4 cellules
+                const ix0n = Math.round(fx), iy0n = Math.round(fy);
+                let best = null, bestD2 = Infinity;
+                for (let dy = -4; dy <= 4; dy++) {
+                    for (let dx = -4; dx <= 4; dx++) {
+                        const jy = iy0n + dy, jx = ix0n + dx;
+                        if (jy < 0 || jy >= ny || jx < 0 || jx >= nx) continue;
+                        const v = grid[jy]?.[jx];
+                        if (v === null || v === undefined) continue;
+                        const d2 = dx*dx + dy*dy;
+                        if (d2 < bestD2) { best = v; bestD2 = d2; }
+                    }
                 }
+                if (best === null) return bh;
+                z_rel = best;
             }
-            return best !== null ? Math.max(bh, best - z_baseline_rel + bh) : bh;
+            return Math.max(bh, z_rel - z_baseline_rel + bh);
         };
 
         const skirtMat = new THREE.MeshPhongMaterial({
