@@ -4600,6 +4600,29 @@ class Calpinage3DViewer {
 
         const UV_SCALE = 8;
 
+        // ── Distance point→polygone (pour lissage périmétral) ────────────────
+        // Pour chaque cellule, on calcule la distance minimale à l'arête la plus
+        // proche du footprint. Les cellules proches du bord ont un LiDAR bruité
+        // (acrotères, gouttières, murs) → on lisse vers bh proportionnellement.
+        const SMOOTH_MARGIN = step * 3.0; // rampe de lissage : ~3 cellules
+        const _distToFp = (px, py) => {
+            let minD = Infinity;
+            for (let k = 0; k < fp.length; k++) {
+                const k1 = (k + 1) % fp.length;
+                const ax = fp[k][0], ay = fp[k][1];
+                const bx = fp[k1][0], by = fp[k1][1];
+                const abx = bx - ax, aby = by - ay;
+                const apx = px - ax, apy = py - ay;
+                const ab2 = abx * abx + aby * aby;
+                let t = ab2 > 0 ? (apx * abx + apy * aby) / ab2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                const dx = px - (ax + t * abx), dy = py - (ay + t * aby);
+                const d = Math.sqrt(dx * dx + dy * dy);
+                if (d < minD) minD = d;
+            }
+            return minD;
+        };
+
         for (let iy = 0; iy < ny; iy++) {
             for (let ix = 0; ix < nx; ix++) {
                 const gx  = x0 + ix * step;
@@ -4608,12 +4631,23 @@ class Calpinage3DViewer {
                 const z_rel = getZ(iy, ix);
                 if (z_rel === null) continue;
                 // Cellules HORS du polygone réel mais dans fpExpanded : forcer z=bh.
-                // Elles servent uniquement à fournir des triangles au S-H pour un
-                // clipping propre ; leur z ne doit PAS créer de dents au périmètre.
                 const insideFP = this._pointInPoly2D(gx, gy, fp);
-                const mnh = insideFP
-                    ? Math.max(bh, z_rel - z_baseline_rel + bh)
-                    : bh;
+                const lidarMnh = Math.max(bh, z_rel - z_baseline_rel + bh);
+                let mnh;
+                if (!insideFP) {
+                    mnh = bh;
+                } else {
+                    // Lissage périmétral : les cellules proches du bord (< SMOOTH_MARGIN)
+                    // sont interpolées entre bh (bord) et la hauteur LiDAR réelle (intérieur).
+                    // → rampe douce au lieu de dents brutales d'acrotère/gouttière.
+                    const d = _distToFp(gx, gy);
+                    if (d < SMOOTH_MARGIN) {
+                        const t = d / SMOOTH_MARGIN; // 0 au bord → 1 en intérieur
+                        mnh = bh + t * (lidarMnh - bh);
+                    } else {
+                        mnh = lidarMnh;
+                    }
+                }
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
                 vertexMap[iy * nx + ix] = vi++;
