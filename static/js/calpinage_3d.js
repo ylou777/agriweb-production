@@ -317,7 +317,9 @@ class Calpinage3DViewer {
         console.log(`🗺️ MNT range: min=${terrain.mnt_min}m, max=${terrain.mnt_max}m, delta=${(terrain.mnt_max - terrain.mnt_min).toFixed(1)}m`);
         
         // Exagération verticale pour rendre le relief visible
-        const altDelta = terrain.mnt_max - terrain.mnt_min;
+        // altitude_base = min NGF non-nul (ignore les 0 = no-data WMS)
+        const altBase  = terrain.altitude_base ?? terrain.mnt_min;
+        const altDelta = terrain.mnt_max - altBase;
         // Exagération modérée pour réalisme — trop d'exagération crée des escaliers
         // et des bâtiments flottants
         let verticalExaggeration;
@@ -358,10 +360,13 @@ class Calpinage3DViewer {
             const tx = fx - x0;
             const ty = fy - y0;
             
-            const v00 = mnt[y0] ? (mnt[y0][x0] || 0) : 0;
-            const v10 = mnt[y0] ? (mnt[y0][x1] || 0) : 0;
-            const v01 = mnt[y1] ? (mnt[y1][x0] || 0) : 0;
-            const v11 = mnt[y1] ? (mnt[y1][x1] || 0) : 0;
+            // Clamp <0 : les cellules WMS no-data (altitude=0) deviennent
+            // mnt_relative=-102m → les ramener à 0 (niveau base terrain).
+            const _c = v => (v != null && v >= 0) ? v : 0;
+            const v00 = mnt[y0] ? _c(mnt[y0][x0]) : 0;
+            const v10 = mnt[y0] ? _c(mnt[y0][x1]) : 0;
+            const v01 = mnt[y1] ? _c(mnt[y1][x0]) : 0;
+            const v11 = mnt[y1] ? _c(mnt[y1][x1]) : 0;
             
             return v00 * (1 - tx) * (1 - ty) + v10 * tx * (1 - ty)
                  + v01 * (1 - tx) * ty       + v11 * tx * ty;
