@@ -4944,6 +4944,65 @@ class Calpinage3DViewer {
             this.buildings.push(sm);
         }
 
+        // ── 5b. Bandeau de jonction horizontal à z=bh ─────────────────────
+        // Le maillage toit (grille régulière 0.25m) et les murs (arêtes fp)
+        // ne partagent pas les mêmes sommets au bord → fissures triangulaires.
+        // Ce bandeau plat à hauteur bh couvre les trous entre le haut des murs
+        // et le bord du toit, comme un solin (flashing) sur un vrai bâtiment.
+        {
+            // Sens d'enroulement du polygone fp
+            let areaFp = 0;
+            for (let k = 0, j = n_fp - 1; k < n_fp; j = k++) {
+                areaFp += fp[j][0] * fp[k][1] - fp[k][0] * fp[j][1];
+            }
+            const isCCW = areaFp > 0;
+
+            const CAP_W = step * 4;   // 2.0m vers l'intérieur (couvre EDGE_FLAT)
+            const capPos = [];
+            for (let i = 0; i < n_fp; i++) {
+                const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
+                const edx = px1 - px0, edy = py1 - py0;
+                const elen = Math.sqrt(edx * edx + edy * edy);
+                if (elen < 0.01) continue;
+                // Normale intérieure
+                const inx = isCCW ? -edy / elen : edy / elen;
+                const iny = isCCW ?  edx / elen : -edx / elen;
+                // Bord intérieur du bandeau
+                const qx0 = px0 + inx * CAP_W, qy0 = py0 + iny * CAP_W;
+                const qx1 = px1 + inx * CAP_W, qy1 = py1 + iny * CAP_W;
+                // Quad horizontal à terrainH + bh
+                capPos.push(
+                    bldgOffsetX + px0, terrainH + bh, bldgOffsetZ - py0,
+                    bldgOffsetX + px1, terrainH + bh, bldgOffsetZ - py1,
+                    bldgOffsetX + qx1, terrainH + bh, bldgOffsetZ - qy1,
+                    bldgOffsetX + qx0, terrainH + bh, bldgOffsetZ - qy0,
+                );
+            }
+            if (capPos.length >= 12) {
+                const capGeo = new THREE.BufferGeometry();
+                capGeo.setAttribute('position', new THREE.Float32BufferAttribute(capPos, 3));
+                const capIdx = [];
+                for (let q = 0; q < capPos.length / 12; q++) {
+                    const b = q * 4;
+                    capIdx.push(b, b+1, b+2,  b, b+2, b+3);
+                }
+                capGeo.setIndex(capIdx);
+                capGeo.computeVertexNormals();
+                const capMat = new THREE.MeshPhongMaterial({
+                    color: 0xD0C8B8, side: THREE.DoubleSide,
+                    specular: 0x111111, shininess: 5,
+                    // Entre le toit (polygonOffset -1) et les murs (pas d'offset)
+                    polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 0.5,
+                });
+                const cm = new THREE.Mesh(capGeo, capMat);
+                cm.castShadow = cm.receiveShadow = true;
+                cm.userData = { source: 'grid-lidar-cap', isPVRoof: isPVBuilding };
+                this.scene.add(cm);
+                this.buildings.push(cm);
+                console.log(`[GRID-ROOF v99] ✅ Bandeau jonction: ${capPos.length / 12} quads, CAP_W=${CAP_W.toFixed(2)}m`);
+            }
+        }
+
         console.log(`✅ Toit grid LiDAR: ${nx}×${ny} cellules, step=${step}m, ${Math.round(clipPositions.length / 3)} sommets S-H clippés`);
         return true;
     }
