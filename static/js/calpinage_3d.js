@@ -2337,18 +2337,21 @@ class Calpinage3DViewer {
             this._pvBuildingBboxMetric = null;
         }
 
-        // ── Bâtiment PV : toit exclusivement via COPC (~15-35s) ─────────────────
-        // Aucune géométrie MNH/MNS/OBB ne sera construite ici.
-        // On cache juste le cap plat des murs et on attend COPC.
+        // ── Bâtiment PV : tout vient du LiDAR COPC (~15-35s) ───────────────────
+        // On cache TOUT l'ExtrudeGeometry (cap + murs BD TOPO).
+        // Les murs et le toit seront dessinés exclusivement par _buildRoofFromGrid.
         if (isPVBuilding) {
             roofBuilt = true;  // court-circuite Chemin 2
-            if (mesh && Array.isArray(mesh.material) && mesh.material[0]) {
-                mesh.material[0].opacity = 0;
-                mesh.material[0].transparent = true;
-                mesh.material[0].depthWrite = false;
-                mesh.material[0].needsUpdate = true;
+            if (mesh && Array.isArray(mesh.material)) {
+                for (const mt of mesh.material) {
+                    if (!mt) continue;
+                    mt.opacity    = 0;
+                    mt.transparent = true;
+                    mt.depthWrite  = false;
+                    mt.needsUpdate = true;
+                }
             }
-            console.log('⏳ Toit PV: en attente COPC LAZ brut');
+            console.log('⏳ Bâtiment PV masqué (BD TOPO) → en attente murs+toit LiDAR COPC');
         }
 
         // ── Garde polygonale : si le voisin chevauche le polygone PV, son toit OBB
