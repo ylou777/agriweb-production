@@ -52,6 +52,11 @@ class Calpinage3DViewer {
         // Callback appelé quand COPC+RANSAC ont mis à jour roofPanelsInfo
         // (utile pour re-appliquer les pentes auto aux zones 2D depuis la page HTML)
         this.onRoofUpdated = null;
+
+        // Callback déclenché après addModules3D quand des modules sont exclus (obstacles)
+        // signature: (excluded: [{lat,lng,zoneNumero}]) => void
+        this.onModulesExcluded = null;
+        this._excludedModuleGeoPos = [];
         
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
@@ -6445,35 +6450,76 @@ class Calpinage3DViewer {
         const _bOZadd  = -(_bCGadd.lat - this.centerLat) * this.LAT_TO_M;
         const _bWHadd  = this.roofPanelsInfo?.buildingWallH || 6;
 
-        // ── Pré-scan obstacles : modules dont hauteur COPC réelle > plan RANSAC + 25 cm ──────
-        // Un module qui intersecte un obstacle (cheminée, CVC, lanterneau) a sa hauteur LiDAR
-        // mesurée significativement au-dessus du plan théorique du pan RANSAC → on le marque
-        // comme centre d'obstacle et on exclut tout module dans un rayon de 50 cm.
-        const _obstCenters = []; // {x, z} world coords des centres d'obstacles détectés
-        const _EXCL_R2     = 0.50 * 0.50; // 50 cm² (comparaison distance carrée)
+        // ── Pré-scan obstacles : modules dont la hauteur COPC > plan RANSAC + 25 cm ────────────
+        // Stratégie :
+        //  1. Modules qui «touchent» un obstacle → calculer leur empreinte 2D réelle (corners)
+        //  2. Fusionner les empreintes proches en obstacles uniques (bboxes)
+        //  3. Dilater chaque bbox de 50 cm → zone d'exclusion
+        //  4. Exclure tout module dont UN COIN touche une zone d'exclusion (RANSAC + OBB)
+        //  5. Mémoriser les exclus pour les propager en 2D via onModulesExcluded
+        const _obstBBoxes  = []; // [{xMin,xMax,zMin,zMax}] — zones d'exclusion finales
+        this._excludedModuleGeoPos = []; // réinitialiser pour ce cycle
         const _tHGlobal    = this.roofPanelsInfo?.buildingTerrainH ?? 0;
         if (this.lidarData?.building_hd?.copc_grid?.grid) {
+            const _rawBBoxes = [];
             zones.forEach(zone => {
                 if (!zone.modulesPositions?.length) return;
                 const _mp  = this.roofPanelsInfo?.panels ? this._matchZoneToPanel(zone) : null;
                 const _isR = _mp?.mnh_a !== undefined && _mp?.mnh_b !== undefined;
-                if (!_isR) return; // RANSAC requis pour avoir une référence fiable
+                if (!_isR) return;
                 zone.modulesPositions.forEach(modPos => {
                     if (!modPos.lat || !modPos.lng) return;
                     const ml    = this._geoToLocal(modPos.lat, modPos.lng);
                     const copcY = this._sampleCopcHeight(ml.x, ml.z);
                     if (copcY === null) return;
-                    const px = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
-                    const mnh   = _mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c;
-                    const refY  = _tHGlobal + Math.max(_bWHadd, mnh);
-                    if (copcY > refY + 0.25) _obstCenters.push({ x: ml.x, z: ml.z });
+                    const px  = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
+                    const mnh = _mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c;
+                    if (copcY <= _tHGlobal + Math.max(_bWHadd, mnh) + 0.25) return;
+                    // Empreinte réelle du module depuis ses coins géo
+                    let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
+                    if (modPos.corners?.length >= 4) {
+                        modPos.corners.forEach(corner => {
+                            const cl = this._geoToLocal(corner.lat, corner.lng);
+                            if (cl.x < xMin) xMin = cl.x; if (cl.x > xMax) xMax = cl.x;
+                            if (cl.z < zMin) zMin = cl.z; if (cl.z > zMax) zMax = cl.z;
+                        });
+                    } else {
+                        xMin = ml.x - 1.0; xMax = ml.x + 1.0;
+                        zMin = ml.z - 0.75; zMax = ml.z + 0.75;
+                    }
+                    _rawBBoxes.push({ xMin, xMax, zMin, zMax });
                 });
             });
-            if (_obstCenters.length)
-                console.log(`🔍 [Obstacles] ${_obstCenters.length} module(s) intersectent un obstacle → rayon exclusion 50 cm`);
+            if (_rawBBoxes.length) {
+                // Fusionner les bboxes qui se touchent ou se chevauchent en obstacles uniques
+                const _MERGE_GAP = 0.10;
+                const _merged    = [];
+                _rawBBoxes.forEach(bb => {
+                    let found = false;
+                    for (const m of _merged) {
+                        if (bb.xMin <= m.xMax + _MERGE_GAP && bb.xMax >= m.xMin - _MERGE_GAP &&
+                            bb.zMin <= m.zMax + _MERGE_GAP && bb.zMax >= m.zMin - _MERGE_GAP) {
+                            m.xMin = Math.min(m.xMin, bb.xMin); m.xMax = Math.max(m.xMax, bb.xMax);
+                            m.zMin = Math.min(m.zMin, bb.zMin); m.zMax = Math.max(m.zMax, bb.zMax);
+                            found = true; break;
+                        }
+                    }
+                    if (!found) _merged.push({ ...bb });
+                });
+                // Dilater le périmètre de chaque obstacle de 50 cm
+                const _BUFFER = 0.50;
+                _merged.forEach(m => _obstBBoxes.push({
+                    xMin: m.xMin - _BUFFER, xMax: m.xMax + _BUFFER,
+                    zMin: m.zMin - _BUFFER, zMax: m.zMax + _BUFFER,
+                }));
+                console.log(`🔍 [Obstacles] ${_obstBBoxes.length} obstacle(s) détecté(s) — ${_rawBBoxes.length} module(s) touchent un obstacle`);
+            }
         }
-        const _isNearObstacle = (wx, wz) =>
-            _obstCenters.some(o => (wx - o.x) ** 2 + (wz - o.z) ** 2 <= _EXCL_R2);
+        // Retourne true si AU MOINS UN coin d'un module est dans une zone d'exclusion
+        const _cornerInObstacle = (c0, c1, c2, c3) =>
+            _obstBBoxes.length > 0 && [c0, c1, c2, c3].some(c =>
+                _obstBBoxes.some(b => c.x >= b.xMin && c.x <= b.xMax && c.z >= b.zMin && c.z <= b.zMax)
+            );
 
         let totalModules = 0;
 
@@ -6544,9 +6590,13 @@ class Calpinage3DViewer {
                     if (w < 0.1 || h < 0.1) return;
 
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+                    const c2 = this._geoToLocal(c[2].lat, c[2].lng);
 
-                    // Exclure les modules sur ou à < 50 cm d'un obstacle de toiture
-                    if (_isNearObstacle(modLocal.x, modLocal.z)) return;
+                    // Exclure les modules dont un coin touche la zone d'exclusion (périmètre obstacle +50cm)
+                    if (_cornerInObstacle(c0, c1, c2, c3)) {
+                        this._excludedModuleGeoPos.push({ lat: modPos.lat, lng: modPos.lng, zoneNumero: zone.numero });
+                        return;
+                    }
 
                     // Hauteur exacte via équation du plan RANSAC
                     const sPx = modLocal.x - _bOXadd;
@@ -6592,9 +6642,13 @@ class Calpinage3DViewer {
                     const h  = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
                     if (w < 0.1 || h < 0.1) return;
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+                    const c2 = this._geoToLocal(c[2].lat, c[2].lng);
 
-                    // Exclure les modules sur ou à < 50 cm d'un obstacle de toiture
-                    if (_isNearObstacle(modLocal.x, modLocal.z)) return;
+                    // Exclure les modules dont un coin touche la zone d'exclusion (périmètre obstacle +50cm)
+                    if (_cornerInObstacle(c0, c1, c2, c3)) {
+                        this._excludedModuleGeoPos.push({ lat: modPos.lat, lng: modPos.lng, zoneNumero: zone.numero });
+                        return;
+                    }
 
                     const dx       = modLocal.x - zoneLocalCenter.x;
                     const dz       = modLocal.z - zoneLocalCenter.z;
@@ -6630,6 +6684,10 @@ class Calpinage3DViewer {
         });
 
         console.log(`✅ ${totalModules} modules PV 3D ajoutés en ${this.modules3D.length} pan(s) — pente auto-détectée`);
+        // Propager les modules exclus vers la vue 2D
+        if (this._excludedModuleGeoPos.length && typeof this.onModulesExcluded === 'function') {
+            this.onModulesExcluded(this._excludedModuleGeoPos);
+        }
     }
     
     /**
