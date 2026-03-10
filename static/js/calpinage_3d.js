@@ -760,9 +760,17 @@ class Calpinage3DViewer {
                         panAcrossEnd = -marge;
                     }
                 } else {
-                    // Croupes — trop petites en général, skip
-                    console.log(`⏭️ Croupe ${panel.name} ignorée (surface trop petite)`);
-                    return;
+                    // Croupes (triangulaires)
+                    const croupeLen = halfShort * 0.8;
+                    if (pi === 2) {
+                        panAlongStart = halfLong - croupeLen + marge;
+                        panAlongEnd = halfLong - marge;
+                    } else {
+                        panAlongStart = -halfLong + marge;
+                        panAlongEnd = -halfLong + croupeLen - marge;
+                    }
+                    panAcrossStart = -halfShort + marge;
+                    panAcrossEnd = halfShort - marge;
                 }
             } else if (info.type === 'shed') {
                 panAlongStart = -halfLong + marge;
@@ -2397,7 +2405,7 @@ class Calpinage3DViewer {
         // ── Mémoriser infos bâtiment principal pour les appels ultérieurs ──
         if (isPVBuilding) {
             // Placeholder minimal : COPC mettra à jour roofPanelsInfo complet à l'arrivée.
-            this.roofPanelsInfo = { type: 'pending', panels: [], couverture: roofType };
+            this.roofPanelsInfo = { type: 'pending', typeLabel: 'Analyse LiDAR en cours…', panels: [], couverture: roofType };
             this.roofPanelsInfo.buildingOBB         = { cx: obb.cx, cz: obb.cz, angle: obb.angle, longDim: obb.longDim, shortDim: obb.shortDim };
             this.roofPanelsInfo.buildingTerrainH    = terrainH;
             this.roofPanelsInfo.buildingWallH       = bh;
@@ -2613,14 +2621,14 @@ class Calpinage3DViewer {
                     }
                 }
                 
-                // Filtrer les faux extrema (amplitude < 0.3m)
+                // Filtrer les faux extrema (amplitude < 0.1m)
                 const allExtrema = [...ridges.map(i => ({i, type: 'ridge'})), ...valleys.map(i => ({i, type: 'valley'}))];
                 allExtrema.sort((a, b) => a.i - b.i);
                 const filteredExtrema = [];
                 for (let k = 0; k < allExtrema.length; k++) {
                     if (k > 0) {
                         const amp = Math.abs(smoothH[allExtrema[k].i] - smoothH[allExtrema[k-1].i]);
-                        if (amp >= 0.3) filteredExtrema.push(allExtrema[k]);
+                        if (amp >= 0.1) filteredExtrema.push(allExtrema[k]);
                     } else {
                         filteredExtrema.push(allExtrema[k]);
                     }
@@ -4649,8 +4657,8 @@ class Calpinage3DViewer {
         const UV_SCALE = 8;
 
         // ── Distance point→polygone (pour lissage périmétral) ────────────────
-        const EDGE_FLAT = step * 2.0;  // 0→2 cells coarse (1.0m) : z = bh — assez large pour que toutes les arêtes au bord soient plates
-        const EDGE_RAMP = step * 6.0;  // 2→6 cells coarse (3.0m) : rampe linéaire douce
+        const EDGE_FLAT = step * 0.5;  // 0→0.5 cell coarse (0.25m) : z = bh — soudure toit/mur
+        const EDGE_RAMP = step * 2.0;  // 0.5→2 cells coarse (1.0m) : rampe linéaire douce
         const _distToFp = (px, py) => {
             let minD = Infinity;
             for (let k = 0; k < fp.length; k++) {
@@ -5458,9 +5466,10 @@ class Calpinage3DViewer {
     _computeRoofPanelsInfoFromPlanes(planes, obb, terrainH, bh, bldgCenter, roofType = 'tuile') {
         if (!planes || planes.length === 0) return null;
 
-        const inclined = planes.filter(p => p.slope_deg >= 1.0);
+        // Inclure tous les plans (plats + inclinés) pour ne pas perdre de surface
+        const validPlanes = planes.filter(p => (p.polygon_2d?.length >= 3));
 
-        const panelList = inclined.map((plane, idx) => {
+        const panelList = validPlanes.map((plane, idx) => {
             // Surface en projection horizontale (shoelace)
             const poly = plane.polygon_2d || [];
             let area2d = 0;
@@ -5498,16 +5507,16 @@ class Calpinage3DViewer {
             };
         });
 
-        const nInc = inclined.length;
+        const nInc = validPlanes.filter(p => p.slope_deg >= 1.0).length;
+        const nTotal = validPlanes.length;
         // Si Google Solar a détecté plus de plans que le RANSAC (ex: 4 pans détectés par Solar
         // quand LiDAR ne donne que 2), la géométrie est enrichie (_addHipCroupeEnds) → type = 'hip'.
         const _solarPanCount = this._solarPanCount ?? 0;
         const _effectiveInc  = (_solarPanCount > nInc) ? _solarPanCount : nInc;
         const roofTypeName = (_solarPanCount >= 4 && nInc < 4)
-            ? 'hip'  // type géométrique réel enrichi par Solar
+            ? 'hip'
             : (nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat');
         const typeLabels = { 'gable': 'Bi-pan (2 versants)', 'hip': '4 pans (croupe)', 'shed': 'Mono-pente', 'flat': 'Toit plat' };
-        // Label enrichi quand Solar détecte davantage de pans que le LiDAR RANSAC
         let typeLabel = typeLabels[roofTypeName] || 'Toiture RANSAC';
         if (_solarPanCount >= 4 && nInc < 4) {
             typeLabel = `4 pans (croupe) — ${nInc} pans LiDAR`;

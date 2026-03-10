@@ -779,89 +779,6 @@ def _convex_hull_2d(xs, ys):
     return [[round(p[0], 2), round(p[1], 2)] for p in hull_gs]
 
 
-def _filter_roof_obstacles(x_arr, y_arr, z_arr, grid_res=0.5, sigma=1.8):
-    """
-    Masque les anomalies de hauteur locales : cheminées, superstructures HVAC,
-    lucarnes, végétation dépassant du toit.
-
-    Algorithme :
-        1. Discrétise les points sur une grille régulière (grid_res m).
-        2. Pour chaque cellule, calcule la médiane z sur la fenêtre 5×5 voisine.
-        3. Résidu = z_point − z_median_local.
-        4. MAD global = médiane des |résidus|. Facteur k=1.4826 → équivalence σ Gauss.
-        5. Obstacle : résidu > +sigma × MAD × k  (saillie vers le haut = cheminée…)
-           Bruit négatif (gouttière, bord d'ombre) rejeté si < −1.0 × MAD × k.
-
-    Returns: np.array bool — True = point valide pour RANSAC
-    """
-    import numpy as np
-    x = np.asarray(x_arr, dtype=np.float64)
-    y = np.asarray(y_arr, dtype=np.float64)
-    z = np.asarray(z_arr, dtype=np.float64)
-    n = len(x)
-    if n < 4:
-        return np.ones(n, dtype=bool)
-
-    cell = max(grid_res, 0.4)
-    gx = np.round(x / cell).astype(int);  gx -= gx.min()
-    gy = np.round(y / cell).astype(int);  gy -= gy.min()
-    NX, NY = int(gx.max()) + 1, int(gy.max()) + 1
-
-    # Grille des z médians par cellule (multi-points → médiane)
-    from collections import defaultdict
-    cell_z = defaultdict(list)
-    for i in range(n):
-        cell_z[(int(gx[i]), int(gy[i]))].append(z[i])
-    z_grid = np.full((NX, NY), np.nan)
-    for (cx, cy), vals in cell_z.items():
-        z_grid[cx, cy] = float(np.median(vals))
-
-    # Médiane locale 5×5 vectorisée
-    z_local = np.full_like(z_grid, np.nan)
-    WIN = 2   # ±2 cellules = fenêtre 5×5
-    for dx in range(-WIN, WIN + 1):
-        for dy in range(-WIN, WIN + 1):
-            sx = slice(max(0, -dx),  min(NX, NX - dx))
-            sy = slice(max(0, -dy),  min(NY, NY - dy))
-            tx = slice(max(0, dx),   min(NX, NX + dx))
-            ty = slice(max(0, dy),   min(NY, NY + dy))
-            patch = z_grid[sx, sy]
-            target = z_local[tx, ty]
-            valid_patch = ~np.isnan(patch)
-            # Accumulation pour médiane : on fait la moyenne sur 25 décalages → approx raisonnable
-            # (médiane exacte serait trop coûteuse sans scipy)
-            accum = np.where(valid_patch, patch, 0.0)
-            count = valid_patch.astype(float)
-            # Initialement NaN → premier passage = valeur brute
-            target_nan = np.isnan(target)
-            z_local[tx, ty] = np.where(target_nan & valid_patch, accum,
-                               np.where(~target_nan & valid_patch,
-                                        (target * count + accum) / (count + 1),
-                                        target))
-
-    # Résidu par point par rapport à sa médiane locale
-    z_ref = np.array([
-        z_local[int(gx[i]), int(gy[i])]
-        if not np.isnan(z_local[int(gx[i]), int(gy[i])]) else z[i]
-        for i in range(n)
-    ])
-    resid = z - z_ref
-
-    mad_val = float(np.median(np.abs(resid - np.median(resid))))
-    mad_val = max(mad_val, 0.04)   # au moins 4 cm (bruit capteur)
-    k = 1.4826                     # facteur de consistance Gauss
-
-    upper_thresh =  sigma * mad_val * k    # cheminée / saillie
-    lower_thresh = -1.2 * mad_val  * k     # gouttière / bord d'ombre
-
-    valid = (resid <= upper_thresh) & (resid >= lower_thresh)
-    n_removed = int(np.sum(~valid))
-    if n_removed > 0:
-        print(f"  🧹 Filtre obstacles : {n_removed}/{n} points retirés "
-              f"(MAD={mad_val:.3f}m, seuil±{upper_thresh:.2f}m)")
-    return valid
-
-
 def _largest_connected_component_mask(xi, yi, grid_res=0.5):
     """
     Retourne le masque booléen de la plus grande composante connexe dans un
@@ -937,20 +854,17 @@ def _largest_connected_component_mask(xi, yi, grid_res=0.5):
 
 def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
                                 threshold=0.12, min_pts=8, max_planes=8, n_iter=150,
-                                pre_filter=True, min_area_m2=1.5, density_check=True,
+                                pre_filter=False, min_area_m2=0.0, density_check=False,
                                 grid_res=0.25, filter_sigma=1.8):
     """
-    Segmentation planaire RANSAC itérative avec robustesse obstacles/discontinuités.
+    Segmentation planaire RANSAC itérative.
 
     Modèle: z = a*x + b*y + c  (altitude MNH en coordonnées métriques locales)
     Conforme pipeline Vosselman & Maas (2010), Ch.5.
 
-    Niveaux de protection :
-        1. Pré-filtrage  : _filter_roof_obstacles() → retire cheminées/végétation
-        2. Connexité     : _largest_connected_component_mask() → brise les plans
+    Protection :
+        1. Connexité     : _largest_connected_component_mask() → brise les plans
                            qui "pontent" deux surfaces d'un toit à niveaux
-        3. Densité/aire  : rejette les plans dont le hull est creux (gap détecté)
-                           ou trop petits (bruit résiduel)
 
     Args:
         x_arr, y_arr   : positions relatives au centre bâtiment (m) — x=Est, y=Nord
@@ -959,8 +873,6 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
         min_pts        : nombre minimum d'inliers pour valider un plan
         max_planes     : nombre maximum de plans à extraire
         n_iter         : itérations RANSAC par plan
-        pre_filter     : activer le filtrage des obstacles avant RANSAC
-        min_area_m2    : superficie min du pan pour être conservé (m²)
         density_check  : activer la vérification densité hull (anti-discontinuité)
 
     Returns:
@@ -975,14 +887,7 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
     y = np.asarray(y_arr, dtype=np.float64)
     z = np.asarray(z_arr, dtype=np.float64)
 
-    # ── Niveau 1 : Pré-filtrage des obstacles (cheminées, superstructures…) ──────
-    if pre_filter and len(x) >= 8:
-        valid_mask = _filter_roof_obstacles(x, y, z, sigma=filter_sigma)
-        n_before = len(x)
-        x, y, z = x[valid_mask], y[valid_mask], z[valid_mask]
-        if len(x) < min_pts:
-            print(f'  ⚠ RANSAC: après filtrage obstacles {len(x)}/{n_before} pts — insuffisant')
-            return []
+    # (Pré-filtrage obstacles désactivé — LiDAR HD suffisamment précis)
 
     planes = []
     remaining = np.ones(len(x), dtype=bool)
@@ -1081,40 +986,16 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
         # Enveloppe convexe 2D des inliers
         polygon_2d = _convex_hull_2d(xi_f.tolist(), yi_f.tolist())
 
-        # ── Niveau 3 : Validation aire & densité ──────────────────────────────────
-        # a) Superficie minimale : filtre les fragments d'obstacles residuels
+        # ── Validation aire (supprimée — LiDAR HD précis) ──────────────────────
         hull_area = 0.0
         poly = polygon_2d
         for i in range(len(poly)):
             j = (i + 1) % len(poly)
             hull_area += poly[i][0] * poly[j][1] - poly[j][0] * poly[i][1]
         hull_area = abs(hull_area) / 2.0
-        if hull_area < min_area_m2:
-            print(f"  ⛔ Plan {plane_idx+1} rejeté : aire hull={hull_area:.1f}m² < {min_area_m2}m² (obstacle résiduel)")
-            # Retirer quand même ces points pour la prochaine itération
-            rem_idx = np.where(remaining)[0]
-            remaining[rem_idx[final_mask]] = False
-            continue
 
-        # b) Densité : ratio pts_réels / pts_attendus_dans_hull
-        #    Un ratio trop faible indique un hull qui englobe un vide (discontinuité)
-        if density_check and hull_area > 0:
-            # pts attendus = aire / (espacement²) — s'adapte à la résolution réelle
-            expected_pts = hull_area / (grid_res ** 2)
-            density_ratio = len(xi_f) / max(expected_pts, 1.0)
-            if density_ratio < 0.18:   # hull trop creux → discontinuité probable
-                print(f"  ⚠ Plan {plane_idx+1} densité faible "
-                      f"({len(xi_f)}/{expected_pts:.0f} pts, ratio={density_ratio:.2f}) "
-                      f"— possible discontinuité ignorée")
-                # On garde le plan mais abaisse la confiance
-                confidence_density_penalty = True
-            else:
-                confidence_density_penalty = False
-        else:
-            confidence_density_penalty = False
-
-        # Niveau de confiance
-        if   len(xi_f) >= 40 and rmse < 0.12 and not confidence_density_penalty: confidence = 'high'
+        # Niveau de confiance simplifié
+        if   len(xi_f) >= 40 and rmse < 0.12: confidence = 'high'
         elif len(xi_f) >= 12 and rmse < 0.30: confidence = 'medium'
         else:                                  confidence = 'low'
 
@@ -1920,38 +1801,7 @@ def api_lidar_copc_grid():
         except ImportError:
             pass  # scipy absent : grille telle quelle
 
-        # ── 5b. Filtrage morphologique : médian 3×3 (supprime spikes acrotères) ──
-        # Les acrotères/gouttières sont des features étroites (1-2 cellules) dont
-        # l'altitude dépasse de 0.5-1.5m le toit. Un filtre médian les remplace
-        # par la valeur dominante voisine (= altitude toit réelle).
-        try:
-            from scipy.ndimage import median_filter as _mf3
-            nan_mask_mf = np.isnan(gz)
-            if not nan_mask_mf.all():
-                gz_mf = gz.copy()
-                gz_mf[nan_mask_mf] = float(np.nanmedian(gz))
-                gz_mf = _mf3(gz_mf, size=3).astype(np.float32)
-                gz_mf[nan_mask_mf] = np.nan
-                gz = gz_mf
-                print(f"  🔧 Médian 3×3 appliqué")
-        except ImportError:
-            pass
-
-        # ── 5c. Lissage Gaussien léger (σ=1.0 cellule ≈ 0.25m@step=0.25m) ────
-        # Micro-lissage du bruit LiDAR sans arrondir les arêtes/faîtages.
-        # NaN traités via pondération (évite les artefacts de bord).
-        try:
-            from scipy.ndimage import gaussian_filter as _gf2
-            nan_mask2 = np.isnan(gz)
-            if not nan_mask2.all():
-                # Remplacer NaN par médiane temporaire pour le filtre
-                gz_tmp = gz.copy()
-                gz_tmp[nan_mask2] = float(np.nanmedian(gz))
-                gz_smooth = _gf2(gz_tmp, sigma=1.0, mode='nearest')
-                gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
-                gz = gz_smooth
-        except ImportError:
-            pass
+        # (Médian 3×3 et Gaussien supprimés — LiDAR HD suffisamment précis)
 
         # ── 6. baseline_rel = percentile 5 des z_rel (→ mnh ≈ wall_h à l'égout) ──
         filled_vals = gz[~np.isnan(gz)].ravel()
@@ -2521,38 +2371,26 @@ def api_solar_dsm_roof():
             x_bld.tolist(), y_bld.tolist(), z_mnh,
             grid_res=max(0.25, pixel_size_m)
         )
-        # Si RANSAC strict échoue (toit très peu incliné ou bruit), retry relaxé
+        # Si RANSAC strict échoue (toit très peu incliné), retry relaxé
         if not roof_planes:
             print(f"  ⚠ RANSAC strict: 0 plans — retry avec seuil relaxé (threshold=0.25m, min_pts=6)")
             roof_planes = _segment_roof_planes_ransac(
                 x_bld.tolist(), y_bld.tolist(), z_mnh,
-                threshold=0.25, min_pts=6, min_area_m2=4.0,
+                threshold=0.25, min_pts=6,
                 grid_res=max(0.25, pixel_size_m)
             )
-        # Dernier recours : utiliser le pre_filter avec sigma très relaxé (sigma=4.0)
-        # Sigma 1.8 filtre trop agressivement un toit < 8° (variation naturelle
-        # de pente ≈ bruit pour le filtre MAD). Sigma 4.0 ne retire que les
-        # vraies anomalies extrêmes (cheminées, antennes, bruit DSM évid. cassé).
+        # Dernier recours : seuil très relaxé
         if not roof_planes:
-            print(f"  ⚠ RANSAC relaxé: 0 plans — retry avec filtre obstacles sigma=4.0 (toit plat/peu incliné)")
+            print(f"  ⚠ RANSAC relaxé: 0 plans — retry très relaxé (threshold=0.30m, min_pts=5)")
             roof_planes = _segment_roof_planes_ransac(
                 x_bld.tolist(), y_bld.tolist(), z_mnh,
-                threshold=0.30, min_pts=5, min_area_m2=3.0,
-                max_planes=10, pre_filter=True, filter_sigma=4.0,
+                threshold=0.30, min_pts=5,
+                max_planes=10,
                 grid_res=max(0.25, pixel_size_m)
             )
-        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) bruts")
+        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) détectés")
 
-        # ── Filtre pente aberrante ─────────────────────────────────────────────
-        # Les plans issus d'artefacts de bord (pixels sol/mur à l'extérieur du masque)
-        # ont souvent une pente > 65° : on les écarte pour éviter la géométrie explosée.
-        MAX_SLOPE_DEG = 65.0
-        n_before_slope = len(roof_planes)
-        roof_planes = [p for p in roof_planes if p.get('slope_deg', 0) <= MAX_SLOPE_DEG]
-        n_removed_slope = n_before_slope - len(roof_planes)
-        if n_removed_slope:
-            print(f"  🧹 Filtre pente > {MAX_SLOPE_DEG}°: {n_removed_slope} plan(s) artefact retirés")
-        print(f"  ✅ DSM RANSAC final: {len(roof_planes)} plan(s) valides")
+        # (Filtre pente MAX_SLOPE_DEG supprimé — LiDAR HD précis)
 
         if not roof_planes:
             return jsonify({
