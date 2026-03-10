@@ -52,6 +52,11 @@ class Calpinage3DViewer {
         // Callback appelé quand COPC+RANSAC ont mis à jour roofPanelsInfo
         // (utile pour re-appliquer les pentes auto aux zones 2D depuis la page HTML)
         this.onRoofUpdated = null;
+
+        // Zones d'exclusion calculées depuis les obstacles détectés sur le toit
+        // (cheminées, CVC, lanterneaux). Les modules PV dans ces zones sont supprimés.
+        // Format : [{ bxMin, bxMax, byMin, byMax }] en coords bâtiment-relatif
+        this._obstacleExclusionZones = [];
         
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
@@ -4217,6 +4222,9 @@ class Calpinage3DViewer {
         // _sampleCopcHeight() sera disponible maintenant pour positionner chaque module
         // sur la surface réelle du toit au lieu de l'approximation bh+8cm.
         if (this._lastZones?.length) {
+            // Détecter les obstacles (cheminées, CVC, lanterneaux) et calculer les zones
+            // d'exclusion de 50 cm. Les modules qui tombent dedans sont supprimés par addModules3D.
+            this._detectObstacleBBoxes();
             console.log(`🔄 [COPC] Re-placement modules PV sur grille LiDAR HD`);
             this.addModules3D(this._lastZones);
         }
@@ -6518,6 +6526,11 @@ class Calpinage3DViewer {
                     // Hauteur exacte via équation du plan RANSAC
                     const sPx = modLocal.x - _bOXadd;
                     const sPy = -(modLocal.z - _bOZadd);
+
+                    // Exclure les modules dans les zones d'exclusion (obstacles du toit)
+                    if (this._obstacleExclusionZones?.some(z =>
+                        sPx >= z.bxMin && sPx <= z.bxMax && sPy >= z.byMin && sPy <= z.byMax
+                    )) return;
                     const mnh = matchedPanel.mnh_a * sPx + matchedPanel.mnh_b * sPy + matchedPanel.mnh_c;
                     const modY = terrainH + Math.max(_bWHadd, mnh) + 0.08;
 
@@ -6559,6 +6572,14 @@ class Calpinage3DViewer {
                     const h  = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
                     if (w < 0.1 || h < 0.1) return;
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+
+                    // Exclure les modules dans les zones d'exclusion (obstacles du toit)
+                    const _bxObb = modLocal.x - _bOXadd;
+                    const _byObb = -(modLocal.z - _bOZadd);
+                    if (this._obstacleExclusionZones?.some(z =>
+                        _bxObb >= z.bxMin && _bxObb <= z.bxMax && _byObb >= z.byMin && _byObb <= z.byMax
+                    )) return;
+
                     const dx       = modLocal.x - zoneLocalCenter.x;
                     const dz       = modLocal.z - zoneLocalCenter.z;
                     // Si COPC disponible : hauteur individuelle de chaque module
@@ -6769,6 +6790,107 @@ class Calpinage3DViewer {
                     + v(j1,i0)*(1-ti)*tj     + v(j1,i1)*ti*tj;
         const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
         return terrainH + mnh;
+    }
+
+    /**
+     * Détecte les obstacles sur le toit (cheminées, CVC, lanterneaux, acrotères)
+     * à partir de la grille COPC en calculant le résidu entre la hauteur LiDAR réelle
+     * et la hauteur théorique donnée par les plans RANSAC.
+     *
+     * Remplit this._obstacleExclusionZones :
+     *   tableau de { bxMin, bxMax, byMin, byMax } en coordonnées bâtiment-relatif
+     *   (même repère que _sampleCopcHeight), déjà dilatées de 50 cm.
+     *
+     * Les modules PV placés dans ces zones seront ignorés dans addModules3D().
+     */
+    _detectObstacleBBoxes() {
+        const cg     = this.lidarData?.building_hd?.copc_grid;
+        const planes = this.lidarData?.building_hd?.roof_planes;
+
+        if (!cg?.grid || !planes?.length) {
+            this._obstacleExclusionZones = [];
+            return;
+        }
+
+        const { grid, x0, y0, nx, ny, step, z_baseline_rel } = cg;
+        const bh         = this._mainBldgBh ?? 6;
+        const THRESHOLD  = 0.25;  // résidu > 25 cm → obstacle au-dessus du pan
+        const MIN_CELLS  = 3;     // taille minimale d'un cluster (≈ 0.75 m²)
+        const BUFFER     = 0.50;  // périmètre d'exclusion autour de l'obstacle (m)
+
+        // ── 1. Calculer les résidus (min sur tous les plans RANSAC) ──────────
+        // residual[iy][ix] = mnh_lidar − mnh_ransac_théorique
+        // Si le résidu est positif et > THRESHOLD, il y a un obstacle.
+        const residual = new Float32Array(ny * nx).fill(-Infinity);
+
+        for (let iy = 0; iy < ny; iy++) {
+            for (let ix = 0; ix < nx; ix++) {
+                const z_rel = grid[iy]?.[ix];
+                if (z_rel === null || z_rel === undefined) continue;
+                const mnh_copc = z_rel - z_baseline_rel + bh;
+                const bx = x0 + ix * step;
+                const by = y0 + iy * step;
+                let minRes = Infinity;
+                for (const plane of planes) {
+                    if (plane.mnh_a === undefined) continue;
+                    const mnh_ransac = plane.mnh_a * bx + plane.mnh_b * by + plane.mnh_c;
+                    const res = mnh_copc - mnh_ransac;
+                    if (res < minRes) minRes = res;
+                }
+                if (minRes !== Infinity) residual[iy * nx + ix] = minRes;
+            }
+        }
+
+        // ── 2. BFS : regrouper les cellules dont le résidu > THRESHOLD ───────
+        const visited = new Uint8Array(ny * nx);
+        const clusters = [];
+
+        for (let iy = 0; iy < ny; iy++) {
+            for (let ix = 0; ix < nx; ix++) {
+                const idx = iy * nx + ix;
+                if (visited[idx] || residual[idx] <= THRESHOLD) continue;
+                // Démarrer un cluster BFS
+                const cluster = [];
+                const queue   = [idx];
+                visited[idx]  = 1;
+                while (queue.length > 0) {
+                    const cur = queue.shift();
+                    cluster.push(cur);
+                    const cy = (cur / nx) | 0;
+                    const cx = cur % nx;
+                    for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                        const ny2 = cy + dy, nx2 = cx + dx;
+                        if (ny2 < 0 || ny2 >= ny || nx2 < 0 || nx2 >= nx) continue;
+                        const ni = ny2 * nx + nx2;
+                        if (visited[ni] || residual[ni] <= THRESHOLD) continue;
+                        visited[ni] = 1;
+                        queue.push(ni);
+                    }
+                }
+                if (cluster.length >= MIN_CELLS) clusters.push(cluster);
+            }
+        }
+
+        // ── 3. Convertir chaque cluster en bbox dilatée (50 cm) ─────────────
+        this._obstacleExclusionZones = clusters.map(cluster => {
+            let ixMin = nx, ixMax = -1, iyMin = ny, iyMax = -1;
+            for (const idx of cluster) {
+                const iy = (idx / nx) | 0;
+                const ix = idx % nx;
+                if (ix < ixMin) ixMin = ix;
+                if (ix > ixMax) ixMax = ix;
+                if (iy < iyMin) iyMin = iy;
+                if (iy > iyMax) iyMax = iy;
+            }
+            return {
+                bxMin: x0 + ixMin * step - BUFFER,
+                bxMax: x0 + ixMax * step + step + BUFFER,
+                byMin: y0 + iyMin * step - BUFFER,
+                byMax: y0 + iyMax * step + step + BUFFER,
+            };
+        });
+
+        console.log(`🔍 [Obstacles] ${this._obstacleExclusionZones.length} zone(s) d'exclusion détectées (périmètre 50 cm)`);
     }
 
     /**
