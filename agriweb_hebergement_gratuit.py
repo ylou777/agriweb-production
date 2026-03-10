@@ -2161,8 +2161,30 @@ def api_lidar_copc_grid():
         ]
         nb_filled    = sum(1 for row in grid for v in row if v is not None)
         coverage_pct = round(100 * nb_filled / (nx * ny), 1)
-        print(f"  ✅ copc-grid: {nx}×{ny}, {nb_filled} remplies ({coverage_pct}%), "
-              f"step={step}m, {len(rx)} pts, baseline_rel={z_baseline_rel:.2f}m")
+
+        # Couverture réelle = cellules remplies À L'INTÉRIEUR du footprint
+        # (exclut le GRID_PAD et les zones extérieures qui sont toujours vides)
+        try:
+            from shapely.geometry import Point as _SPt, Polygon as _SPoly
+            _fp_shp = _SPoly(list(zip(poly_lx, poly_ly)))
+            fp_cells_total = 0
+            fp_cells_filled = 0
+            for iy in range(ny):
+                for ix in range(nx):
+                    cx_ = x0 + ix * step
+                    cy_ = y0 + iy * step
+                    if _fp_shp.contains(_SPt(cx_, cy_)):
+                        fp_cells_total += 1
+                        if grid[iy][ix] is not None:
+                            fp_cells_filled += 1
+            fp_coverage = round(100 * fp_cells_filled / fp_cells_total, 1) if fp_cells_total else 0.0
+        except Exception:
+            fp_coverage = coverage_pct
+            fp_cells_total = nx * ny
+
+        print(f"  ✅ copc-grid: {nx}×{ny}, step={step}m, {len(rx)} pts")
+        print(f"     Grille totale : {nb_filled}/{nx*ny} remplies ({coverage_pct}%) — inclut GRID_PAD")
+        print(f"     Footprint seul: {fp_cells_filled}/{fp_cells_total} remplies ({fp_coverage}%) — couverture réelle")
 
         # ── 7. RANSAC optionnel (pour orientation des plans PV) ──────────────
         roof_planes = None
@@ -2205,6 +2227,7 @@ def api_lidar_copc_grid():
             "nx": nx, "ny": ny,
             "nb_filled":      nb_filled,
             "coverage_pct":   coverage_pct,
+            "fp_coverage_pct": fp_coverage,
             "z_min_abs":      round(z_min_abs, 2),
             "z_baseline_rel": round(z_baseline_rel, 2),
             "grid":           grid,

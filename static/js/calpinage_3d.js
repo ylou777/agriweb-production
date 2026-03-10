@@ -4157,7 +4157,7 @@ class Calpinage3DViewer {
             throw new Error(data.error || 'Aucune grille COPC retournée');
         }
 
-        console.log(`✅ COPC grid: ${data.nb_points} pts → ${data.nx}×${data.ny} cellules (${data.coverage_pct}% couverture)`);
+        console.log(`✅ COPC grid: ${data.nb_points} pts → ${data.nx}×${data.ny} cellules | grille: ${data.coverage_pct}% | footprint: ${data.fp_coverage_pct ?? '?'}%`);
 
         // Injecter dans lidarData
         if (!this.lidarData.building_hd) this.lidarData.building_hd = {};
