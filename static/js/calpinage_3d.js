@@ -6846,22 +6846,6 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Zoom programmatique : factor < 1 = zoom avant, factor > 1 = zoom arrière
-     */
-    zoom(factor) {
-        if (!this.camera || !this.controls) return;
-        const target = this.controls.target;
-        const dir = this.camera.position.clone().sub(target);
-        const newLen = Math.max(
-            this.controls.minDistance,
-            Math.min(this.controls.maxDistance, dir.length() * factor)
-        );
-        dir.setLength(newLen);
-        this.camera.position.copy(target).add(dir);
-        this.controls.update();
-    }
-
-    /**
      * Ajuste la caméra pour voir toute la scène
      */
     _fitCamera(radiusM) {
