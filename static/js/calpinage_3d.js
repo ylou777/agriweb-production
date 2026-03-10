@@ -4605,9 +4605,12 @@ class Calpinage3DViewer {
         const vertexMap  = new Int32Array(snx * sny).fill(-1);
         let vi = 0;
 
-        // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
-        // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 3.0;
+        // Footprint légèrement dilatée : génère des sommets au-delà de fp pour que
+        // le clipping ray-cast (étape 3b) puisse produire des bords nets au bord exact de fp.
+        // ⚠️ NE PAS forcer bh pour les sommets hors fp — c'est la cause de la «fissure» :
+        //    le passage brutal lidar_h → bh au bord du footprint crée une crevasse visible.
+        //    Tous les sommets utilisent la hauteur LiDAR continue ; step 3b clippe à fp.
+        const FP_MARGIN = step * 1.5;  // 0.75m — juste assez pour que le clipper ait des sommets outside
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling sur la grille coarse ────────────────────────────────
@@ -4655,17 +4658,16 @@ class Calpinage3DViewer {
 
         const UV_SCALE = 8;
 
-        // ── Génération des sommets sur la sous-grille (hauteur brute LiDAR) ──
+        // ── Génération des sommets sur la sous-grille (hauteur LiDAR continue) ──
+        // Même formule inside ET outside fp → pas de discontinuité de hauteur au bord.
+        // Step 3b (clipping) coupe exactement sur fp → bord net sans fissure.
         for (let sy = 0; sy < sny; sy++) {
             for (let sx = 0; sx < snx; sx++) {
                 const gx  = x0 + sx * subStep;
                 const gy  = y0 + sy * subStep;
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
-                const insideFP = this._pointInPoly2D(gx, gy, fp);
                 const z_rel = getSubZ(sy, sx);
-                const mnh = insideFP
-                    ? Math.max(bh, z_rel - z_baseline_rel + bh)
-                    : bh;
+                const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
                 vertexMap[sy * snx + sx] = vi++;
