@@ -4842,42 +4842,26 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
-        // ── 5. Murs subdivisés depuis coarseZ : profil LiDAR naturel ──────────
-        // Pour chaque arête du footprint, subdivision en ~step mètres.
-        // Hauteur haut = échantillonnage de coarseZ À LA POSITION DU MUR (d=0),
-        // sans décalage inward. coarseZ n'est pas tronqué par EDGE_FLAT/EDGE_RAMP :
-        //   - Murs longs (arêtes parallèles au faîtage) : coarseZ ≈ z_baseline_rel + bh → hTop ≈ bh ✓
-        //   - Pignons (arêtes ⊥ au faîtage) : coarseZ varie de base (coins = bh)
-        //     à sommet (apex = bh + ridge delta) → profil triangulaire naturel ✓
-        //   - Si coarseZ vide (extrapolé à z_baseline_rel) : hTop = bh (fallback sûr)
+        // ── 5. Murs depuis profil LiDAR — perpendiculaire inward par arête ────
+        // On utilise getSubZ (même interpolation bilinéaire que le toit) en
+        // décalant chaque point de INSET mètres vers l'intérieur PERPENDICULAIREMENT
+        // à l'arête (et non vers le centroïde, ce qui était faux aux coins/pignons).
+        // Recherche du max sur 3 passes (décalages 1.5/2.5/3.5 * step) pour éviter
+        // les cellules "trou" null-fill à z_baseline_rel.
         {
             const n_fp = fp.length;
+            const fpCx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
+            const fpCy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
 
-            // Interpolation bilinéaire sur coarseZ brut (sans EDGE_FLAT)
-            const _sampleMnh = (gx, gy) => {
-                const fx = (gx - x0) / step, fy = (gy - y0) / step;
-                if (fx < 0 || fx > nx - 1 || fy < 0 || fy > ny - 1) return bh;
-                const ix_ = Math.min(Math.floor(fx), nx - 2);
-                const iy_ = Math.min(Math.floor(fy), ny - 2);
-                const tx = Math.max(0, Math.min(1, fx - ix_));
-                const ty = Math.max(0, Math.min(1, fy - iy_));
-                const z00 = coarseZ[ iy_      * nx + ix_    ];
-                const z10 = coarseZ[ iy_      * nx + ix_ + 1];
-                const z01 = coarseZ[(iy_ + 1) * nx + ix_    ];
-                const z11 = coarseZ[(iy_ + 1) * nx + ix_ + 1];
-                const zr = z00*(1-tx)*(1-ty) + z10*tx*(1-ty)
-                         + z01*(1-tx)*ty      + z11*tx*ty;
-                return Math.max(bh, zr - z_baseline_rel + bh);
+            // Échantillonnage via getSubZ — identique au toit (cohérence parfaite)
+            const _sampleH = (wx, wy) => {
+                const z_rel = getSubZ((wy - y0) / subStep, (wx - x0) / subStep);
+                return Math.max(bh, z_rel - z_baseline_rel + bh);
             };
 
             const wallPos = [], wallIdx = [];
             let wallVi = 0;
-            const OVERLAP = 0.05;  // 5cm sous le toit pour couvrir la micro-fissure
-
-            // Centroïde du fp : direction inward pour l'échantillonnage du LiDAR
-            const fpCx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
-            const fpCy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
-            const INSET = step * 1.5;  // décalage vers l'intérieur (≥1 cellule coarseZ)
+            const OVERLAP = 0.05;
 
             for (let ei = 0; ei < n_fp; ei++) {
                 const [px0, py0] = fp[ei], [px1, py1] = fp[(ei + 1) % n_fp];
@@ -4885,7 +4869,12 @@ class Calpinage3DViewer {
                 const eLen = Math.sqrt(edx * edx + edy * edy);
                 if (eLen < 0.01) continue;
 
-                // Segments de ~step mètre le long de l'arête
+                // Perpendiculaire inward : choisir le côté pointant vers le centroïde
+                const perpAx =  edy / eLen, perpAy = -edx / eLen;
+                const midX = (px0 + px1) * 0.5, midY = (py0 + py1) * 0.5;
+                const inward = (perpAx * (fpCx - midX) + perpAy * (fpCy - midY)) >= 0 ? 1 : -1;
+                const inX = perpAx * inward, inY = perpAy * inward;
+
                 const nSeg = Math.max(2, Math.round(eLen / step) + 1);
                 const colBase = wallVi;
 
@@ -4893,21 +4882,20 @@ class Calpinage3DViewer {
                     const t = nSeg > 1 ? s / (nSeg - 1) : 0;
                     const wx = px0 + t * edx;
                     const wy = py0 + t * edy;
-                    // Décalage inward : évite les cellules extérieures (=z_baseline_rel)
-                    const idx = fpCx - wx, idy = fpCy - wy;
-                    const idist = Math.sqrt(idx * idx + idy * idy);
-                    const inset = Math.min(INSET, idist * 0.4);
-                    const sWx = idist > 0.01 ? wx + idx / idist * inset : wx;
-                    const sWy = idist > 0.01 ? wy + idy / idist * inset : wy;
-                    const hTop = _sampleMnh(sWx, sWy) + OVERLAP;
+
+                    // Échantillonner à plusieurs profondeurs inward, prendre le max
+                    // → robuste face aux trous de couverture LiDAR (42.6%)
+                    const h1 = _sampleH(wx + inX * step * 1.5, wy + inY * step * 1.5);
+                    const h2 = _sampleH(wx + inX * step * 2.5, wy + inY * step * 2.5);
+                    const h3 = _sampleH(wx + inX * step * 3.5, wy + inY * step * 3.5);
+                    const hTop = Math.max(h1, h2, h3) + OVERLAP;
 
                     wallPos.push(
-                        bldgOffsetX + wx, terrainH,        bldgOffsetZ - wy,  // bas
-                        bldgOffsetX + wx, terrainH + hTop, bldgOffsetZ - wy,  // haut
+                        bldgOffsetX + wx, terrainH,        bldgOffsetZ - wy,
+                        bldgOffsetX + wx, terrainH + hTop, bldgOffsetZ - wy,
                     );
                 }
 
-                // 2 triangles par quad (quad = 2 colonnes adjacentes × 2 rangées)
                 for (let s = 0; s < nSeg - 1; s++) {
                     const bl = colBase + s * 2;
                     const tl = colBase + s * 2 + 1;
@@ -4932,7 +4920,7 @@ class Calpinage3DViewer {
                 wallMesh.userData = { source: 'grid-lidar-wall', isPVRoof: isPVBuilding };
                 this.scene.add(wallMesh);
                 this.buildings.push(wallMesh);
-                console.log(`[GRID-ROOF v101] ✅ Murs LiDAR: ${n_fp} arêtes, ${wallVi} sommets, ${wallIdx.length/3} tri`);
+                console.log(`[GRID-ROOF v105] ✅ Murs LiDAR: ${n_fp} arêtes, ${wallVi} sommets, ${wallIdx.length/3} tri`);
             }
         }
 
