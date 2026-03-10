@@ -4907,104 +4907,109 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
-        // ── 5. Murs verticaux le long du périmètre du footprint ─────────────
-        // Murs complets du sol (terrainH) au sommet (terrainH + bh).
-        // Remplace l'ExtrudeGeometry qui a son cap rendu transparent pour le PV.
-        const skirtMat = new THREE.MeshPhongMaterial({
-            color: 0xD0C8B8, side: THREE.DoubleSide,
-            specular: 0x111111, shininess: 5,
-        });
-        const skirtPos = [], n_fp = fp.length;
-        const CAP_RAISE = 0.05;   // 5cm au-dessus de bh → ferme les micro-fissures
-        const hTop = bh + CAP_RAISE;
-        const hBot = 0;      // sol = terrainH + 0
-        for (let i = 0; i < n_fp; i++) {
-            const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
-            // Mur sol → bh+5cm (murs montent jusqu'au bandeau de jonction)
-            skirtPos.push(
-                bldgOffsetX + px0, terrainH + hBot, bldgOffsetZ - py0,
-                bldgOffsetX + px1, terrainH + hBot, bldgOffsetZ - py1,
-                bldgOffsetX + px1, terrainH + hTop, bldgOffsetZ - py1,
-                bldgOffsetX + px0, terrainH + hTop, bldgOffsetZ - py0,
-            );
-        }
-        if (skirtPos.length >= 12) {
-            const skirtGeo = new THREE.BufferGeometry();
-            skirtGeo.setAttribute('position', new THREE.Float32BufferAttribute(skirtPos, 3));
-            const skirtIdx = [];
-            for (let q = 0; q < skirtPos.length / 12; q++) {
-                const b = q * 4;
-                skirtIdx.push(b, b+1, b+2,  b, b+2, b+3);
-            }
-            skirtGeo.setIndex(skirtIdx);
-            skirtGeo.computeVertexNormals();
-            const sm = new THREE.Mesh(skirtGeo, skirtMat);
-            sm.castShadow = sm.receiveShadow = true;
-            sm.userData = { source: 'grid-lidar-skirt', isPVRoof: isPVBuilding };
-            this.scene.add(sm);
-            this.buildings.push(sm);
-        }
-
-        // ── 5b. Bandeau de jonction horizontal à z=bh ─────────────────────
-        // Le maillage toit (grille régulière 0.25m) et les murs (arêtes fp)
-        // ne partagent pas les mêmes sommets au bord → fissures triangulaires.
-        // Ce bandeau plat à hauteur bh couvre les trous entre le haut des murs
-        // et le bord du toit, comme un solin (flashing) sur un vrai bâtiment.
+        // ── 5. Murs LiDAR avec continuité toit ──────────────────────────────
+        // Chaque arête du footprint subdivisée ≈ tous les 0.5m.
+        // Sommet haut calé sur le profil LiDAR (wall_profiles) ou échantillonnage
+        // de la grille toit → jonction parfaite mur/toit sans bandeau nécessaire.
         {
-            // Sens d'enroulement du polygone fp
-            let areaFp = 0;
-            for (let k = 0, j = n_fp - 1; k < n_fp; j = k++) {
-                areaFp += fp[j][0] * fp[k][1] - fp[k][0] * fp[j][1];
-            }
-            const isCCW = areaFp > 0;
+            const n_fp = fp.length;
 
-            const CAP_IN  = step * 6;  // 3.0m vers l'intérieur (chevauche sous le toit)
-            const CAP_OUT = 0.3;       // 0.3m vers l'extérieur (couvre l'arête haute des murs)
-            const capY = terrainH + bh + CAP_RAISE;  // 5cm au-dessus de bh → pas de fissure
-            const capPos = [];
-            for (let i = 0; i < n_fp; i++) {
-                const [px0, py0] = fp[i], [px1, py1] = fp[(i + 1) % n_fp];
-                const edx = px1 - px0, edy = py1 - py0;
-                const elen = Math.sqrt(edx * edx + edy * edy);
-                if (elen < 0.01) continue;
-                // Normale intérieure
-                const inx = isCCW ? -edy / elen : edy / elen;
-                const iny = isCCW ?  edx / elen : -edx / elen;
-                // Bord extérieur (0.3m dehors) et intérieur (3m dedans)
-                const ox0 = px0 - inx * CAP_OUT, oy0 = py0 - iny * CAP_OUT;
-                const ox1 = px1 - inx * CAP_OUT, oy1 = py1 - iny * CAP_OUT;
-                const qx0 = px0 + inx * CAP_IN,  qy0 = py0 + iny * CAP_IN;
-                const qx1 = px1 + inx * CAP_IN,  qy1 = py1 + iny * CAP_IN;
-                // Quad horizontal à bh + 5cm
-                capPos.push(
-                    bldgOffsetX + ox0, capY, bldgOffsetZ - oy0,
-                    bldgOffsetX + ox1, capY, bldgOffsetZ - oy1,
-                    bldgOffsetX + qx1, capY, bldgOffsetZ - qy1,
-                    bldgOffsetX + qx0, capY, bldgOffsetZ - qy0,
-                );
+            // Helper : échantillonne la hauteur toit MNH à une position locale
+            // (gx, gy) via interpolation bilinéaire sur la grille coarseZ.
+            const _sampleRoofMnh = (gx, gy) => {
+                const fx = (gx - x0) / step, fy = (gy - y0) / step;
+                if (fx < 0 || fx >= nx - 1 || fy < 0 || fy >= ny - 1) return bh;
+                const ix_ = Math.min(Math.floor(fx), nx - 2);
+                const iy_ = Math.min(Math.floor(fy), ny - 2);
+                const tx = fx - ix_, ty = fy - iy_;
+                const z00 = coarseZ[iy_ * nx + ix_];
+                const z10 = coarseZ[iy_ * nx + ix_ + 1];
+                const z01 = coarseZ[(iy_ + 1) * nx + ix_];
+                const z11 = coarseZ[(iy_ + 1) * nx + ix_ + 1];
+                const zr = z00*(1-tx)*(1-ty) + z10*tx*(1-ty) + z01*(1-tx)*ty + z11*tx*ty;
+                return Math.max(bh, zr - z_baseline_rel + bh);
+            };
+
+            // Sens d'enroulement du polygone fp → direction de la normale intérieure
+            let areaSign = 0;
+            for (let k = 0, j = n_fp - 1; k < n_fp; j = k++) {
+                areaSign += fp[j][0] * fp[k][1] - fp[k][0] * fp[j][1];
             }
-            if (capPos.length >= 12) {
-                const capGeo = new THREE.BufferGeometry();
-                capGeo.setAttribute('position', new THREE.Float32BufferAttribute(capPos, 3));
-                const capIdx = [];
-                for (let q = 0; q < capPos.length / 12; q++) {
-                    const b = q * 4;
-                    capIdx.push(b, b+1, b+2,  b, b+2, b+3);
+            const isCCW = areaSign > 0;
+
+            const wallProfiles = gridData.wall_profiles || [];
+            const wallPos = [], wallIdx = [];
+            let wallVi = 0;
+            const INWARD = 0.8;    // échantillonne le toit 0.8m vers l'intérieur
+            const OVERLAP = 0.02;  // +2cm pour glisser sous le mesh toit (pas de fissure)
+
+            for (let ei = 0; ei < n_fp; ei++) {
+                const [px0, py0] = fp[ei], [px1, py1] = fp[(ei + 1) % n_fp];
+                const edx = px1 - px0, edy = py1 - py0;
+                const eLen = Math.sqrt(edx * edx + edy * edy);
+                if (eLen < 0.01) continue;
+
+                // Normale intérieure
+                const ux = edx / eLen, uy = edy / eLen;
+                const inx = isCCW ? -uy : uy;
+                const iny = isCCW ?  ux : -ux;
+
+                // Profil mural LiDAR (même index que l'arête du footprint)
+                const wp = wallProfiles[ei];
+                const hasProfile = wp && wp.n_pts > 0 && wp.z_tops && wp.z_tops.length === wp.n_seg;
+                const nSeg = hasProfile ? wp.n_seg : Math.max(2, Math.round(eLen / 0.5) + 1);
+
+                const colBase = wallVi;
+                for (let s = 0; s < nSeg; s++) {
+                    const t = nSeg > 1 ? s / (nSeg - 1) : 0;
+                    const wx = px0 + t * edx;
+                    const wy = py0 + t * edy;
+
+                    // Hauteur au sommet du mur à cette position
+                    let hTop;
+                    if (hasProfile && wp.z_tops[s] !== null) {
+                        // Profil LiDAR : conversion z_rel → MNH
+                        hTop = Math.max(bh, wp.z_tops[s] - z_baseline_rel + bh);
+                    } else {
+                        // Fallback : toit grille à 0.8m vers l'intérieur
+                        hTop = _sampleRoofMnh(wx + inx * INWARD, wy + iny * INWARD);
+                    }
+                    hTop += OVERLAP;
+
+                    // Sommet bas (sol)
+                    wallPos.push(bldgOffsetX + wx, terrainH, bldgOffsetZ - wy);
+                    // Sommet haut (toit)
+                    wallPos.push(bldgOffsetX + wx, terrainH + hTop, bldgOffsetZ - wy);
                 }
-                capGeo.setIndex(capIdx);
-                capGeo.computeVertexNormals();
-                const capMat = new THREE.MeshPhongMaterial({
+
+                // Quads entre colonnes adjacentes (2 triangles chacun)
+                for (let s = 0; s < nSeg - 1; s++) {
+                    const bl = colBase + s * 2;
+                    const tl = colBase + s * 2 + 1;
+                    const br = colBase + (s + 1) * 2;
+                    const tr = colBase + (s + 1) * 2 + 1;
+                    wallIdx.push(bl, br, tr, bl, tr, tl);
+                }
+                wallVi += nSeg * 2;
+            }
+
+            if (wallPos.length >= 12) {
+                const wallGeo = new THREE.BufferGeometry();
+                wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(wallPos, 3));
+                // Uint32 pour sécurité (>65535 sommets sur grands bâtiments)
+                wallGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(wallIdx), 1));
+                wallGeo.computeVertexNormals();
+
+                const wallMat = new THREE.MeshPhongMaterial({
                     color: 0xD0C8B8, side: THREE.DoubleSide,
                     specular: 0x111111, shininess: 5,
-                    // Rendu SOUS le toit (polygonOffset +1 > toit -1) → toit gagne au z-fighting
-                    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
                 });
-                const cm = new THREE.Mesh(capGeo, capMat);
-                cm.castShadow = cm.receiveShadow = true;
-                cm.userData = { source: 'grid-lidar-cap', isPVRoof: isPVBuilding };
-                this.scene.add(cm);
-                this.buildings.push(cm);
-                console.log(`[GRID-ROOF v99b] ✅ Bandeau jonction: ${capPos.length / 12} quads, CAP_IN=${CAP_IN}m CAP_OUT=${CAP_OUT}m raise=${CAP_RAISE}m`);
+                const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+                wallMesh.castShadow = wallMesh.receiveShadow = true;
+                wallMesh.userData = { source: 'grid-lidar-wall', isPVRoof: isPVBuilding };
+                this.scene.add(wallMesh);
+                this.buildings.push(wallMesh);
+                console.log(`[GRID-ROOF v100] ✅ Murs LiDAR: ${n_fp} arêtes, ${wallVi} sommets, ${wallIdx.length/3} triangles`);
             }
         }
 

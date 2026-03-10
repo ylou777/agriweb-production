@@ -1908,6 +1908,97 @@ def api_lidar_copc_roof():
 
 
 # ──────────────────────────────────────────────────────────────
+# Profils muraux LiDAR : hauteur des murs depuis les points classe 6
+# ──────────────────────────────────────────────────────────────
+def _compute_wall_profiles(gx_np, gy_np, z_rel_np, poly_lx, poly_ly, wall_step=0.5):
+    """
+    Calcule le profil de hauteur des murs pour chaque arête du footprint
+    à partir des points LiDAR classe 6.
+
+    Pour chaque arête, subdivise en segments de ~wall_step mètres et calcule
+    le z_top (percentile 95 des z des points proches) → profil de silhouette du mur.
+
+    Args:
+        gx_np, gy_np: positions LiDAR en mètres locaux (ndarray)
+        z_rel_np: Z relatif (z - z_min_abs) (ndarray)
+        poly_lx, poly_ly: footprint en mètres locaux (listes)
+        wall_step: pas de subdivision en mètres
+
+    Returns:
+        list of dicts (un par arête du footprint), chaque dict contient:
+        - n_seg: nombre de points le long de l'arête
+        - z_tops: [z_rel_top_1, z_rel_top_2, ...] ou [] si pas de données
+        - n_pts: nombre de points LiDAR utilisés
+    """
+    import numpy as np
+
+    # Supprimer le point de fermeture s'il est dupliqué
+    n_v = len(poly_lx)
+    if n_v > 2:
+        if (poly_lx[0] - poly_lx[-1])**2 + (poly_ly[0] - poly_ly[-1])**2 < 0.01:
+            poly_lx = poly_lx[:-1]
+            poly_ly = poly_ly[:-1]
+            n_v -= 1
+
+    profiles = []
+
+    for i in range(n_v):
+        p0x, p0y = poly_lx[i], poly_ly[i]
+        p1x, p1y = poly_lx[(i + 1) % n_v], poly_ly[(i + 1) % n_v]
+
+        edx = p1x - p0x
+        edy = p1y - p0y
+        edge_len = math.sqrt(edx**2 + edy**2)
+
+        n_seg = max(2, int(math.ceil(edge_len / wall_step)) + 1)
+
+        if edge_len < 0.3:
+            profiles.append({"n_seg": n_seg, "z_tops": [], "n_pts": 0})
+            continue
+
+        ux, uy = edx / edge_len, edy / edge_len
+        nx_, ny_ = -uy, ux  # perpendiculaire
+
+        # Projection de tous les points LiDAR sur le repère de l'arête
+        dx = gx_np - p0x
+        dy = gy_np - p0y
+        t_along = dx * ux + dy * uy        # position le long de l'arête
+        d_perp = np.abs(dx * nx_ + dy * ny_)  # distance perpendiculaire
+
+        # Garder les points à ≤1.5m de l'arête et dans l'étendue ± 0.3m
+        WALL_DIST = 1.5
+        mask = (d_perp < WALL_DIST) & (t_along >= -0.3) & (t_along <= edge_len + 0.3)
+        n_pts = int(mask.sum())
+
+        if n_pts < 3:
+            profiles.append({"n_seg": n_seg, "z_tops": [], "n_pts": 0})
+            continue
+
+        t_masked = t_along[mask]
+        z_masked = z_rel_np[mask]
+
+        z_tops = []
+        seg_step = edge_len / (n_seg - 1) if n_seg > 1 else edge_len
+        half = seg_step * 0.7  # léger recouvrement entre segments adjacents
+
+        for s in range(n_seg):
+            tc = s * seg_step if n_seg > 1 else 0
+            seg_m = np.abs(t_masked - tc) < half
+            if seg_m.sum() > 0:
+                z_tops.append(round(float(np.percentile(z_masked[seg_m], 95)), 2))
+            else:
+                z_tops.append(None)
+
+        profiles.append({
+            "n_seg": n_seg,
+            "z_tops": z_tops,
+            "n_pts": n_pts,
+        })
+
+    return profiles
+
+
+# ──────────────────────────────────────────────────────────────
 # Route grille : relevé de points bruts sur grille 1pt/m²
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/copc-grid', methods=['POST'])
@@ -2123,6 +2214,16 @@ def api_lidar_copc_grid():
             result["roof_planes"] = roof_planes
         if raw_points is not None:
             result["raw_points"] = raw_points
+
+        # ── 8. Profils muraux depuis LiDAR ────────────────────────────────
+        try:
+            wall_profiles = _compute_wall_profiles(
+                gx_np, gy_np, z_rel_np, poly_lx, poly_ly, wall_step=step)
+            result["wall_profiles"] = wall_profiles
+            n_with_data = sum(1 for p in wall_profiles if p["n_pts"] > 0)
+            print(f"  ✅ Wall profiles: {n_with_data}/{len(wall_profiles)} arêtes avec données LiDAR")
+        except Exception as e_wp:
+            app.logger.warning(f"wall_profiles error: {e_wp}")
 
         return jsonify(result)
 
