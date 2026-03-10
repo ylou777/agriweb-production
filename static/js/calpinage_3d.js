@@ -241,14 +241,8 @@ class Calpinage3DViewer {
             // Toit PV : uniquement via COPC LAZ brut (~15-35s).
             // Si COPC échoue, fallback sur les plans MNH stockés dans lidarData.
             if ((this.pvBuildingCoords?.length ?? 0) >= 3) {
-                this._copcRoofBuilt = false;
                 this._fetchAndApplyCOPCRoof(lat, lon).catch(e => {
                     console.warn('⚠️ COPC (non critique):', e.message);
-                    // Ne pas supprimer si le toit COPC a déjà été construit
-                    if (this._copcRoofBuilt) {
-                        console.warn('⚠️ Toit COPC déjà construit — on garde le mesh existant');
-                        return;
-                    }
                     // Supprimer le toit MNH initial avant d'ajouter le fallback
                     this._removePVRoofMeshes();
                     // Fallback MNH : construire le toit depuis les plans RANSAC initiaux
@@ -587,9 +581,16 @@ class Calpinage3DViewer {
             modAcross = Math.max(moduleW, moduleH);
         }
         
-        // Marge depuis le bord du toit (rive, etc.)
+        // Marge depuis le bord du toit (acrotère, rive, etc.)
+        // Pour un toit plat avec acrotère (parapet), 80cm ; pour toit incliné, 30cm.
+        // Si le LiDAR a détecté un acrotère, on utilise sa largeur + 20cm de sécurité.
         const isFlat = info.type === 'flat' || !info.type;
-        const marge = isFlat ? 0.80 : 0.30;
+        const marge = (() => {
+            if (this.roofPanelsInfo && this.roofPanelsInfo._acrotereWidth) {
+                return this.roofPanelsInfo._acrotereWidth + 0.20;
+            }
+            return isFlat ? 0.80 : 0.30;
+        })();
         
         const generatedZones = [];
         
@@ -766,17 +767,9 @@ class Calpinage3DViewer {
                         panAcrossEnd = -marge;
                     }
                 } else {
-                    // Croupes (triangulaires)
-                    const croupeLen = halfShort * 0.8;
-                    if (pi === 2) {
-                        panAlongStart = halfLong - croupeLen + marge;
-                        panAlongEnd = halfLong - marge;
-                    } else {
-                        panAlongStart = -halfLong + marge;
-                        panAlongEnd = -halfLong + croupeLen - marge;
-                    }
-                    panAcrossStart = -halfShort + marge;
-                    panAcrossEnd = halfShort - marge;
+                    // Croupes — trop petites en général, skip
+                    console.log(`⏭️ Croupe ${panel.name} ignorée (surface trop petite)`);
+                    return;
                 }
             } else if (info.type === 'shed') {
                 panAlongStart = -halfLong + marge;
@@ -2411,7 +2404,7 @@ class Calpinage3DViewer {
         // ── Mémoriser infos bâtiment principal pour les appels ultérieurs ──
         if (isPVBuilding) {
             // Placeholder minimal : COPC mettra à jour roofPanelsInfo complet à l'arrivée.
-            this.roofPanelsInfo = { type: 'pending', typeLabel: 'Analyse LiDAR en cours…', panels: [], couverture: roofType };
+            this.roofPanelsInfo = { type: 'pending', panels: [], couverture: roofType };
             this.roofPanelsInfo.buildingOBB         = { cx: obb.cx, cz: obb.cz, angle: obb.angle, longDim: obb.longDim, shortDim: obb.shortDim };
             this.roofPanelsInfo.buildingTerrainH    = terrainH;
             this.roofPanelsInfo.buildingWallH       = bh;
@@ -2627,14 +2620,14 @@ class Calpinage3DViewer {
                     }
                 }
                 
-                // Filtrer les faux extrema (amplitude < 0.1m)
+                // Filtrer les faux extrema (amplitude < 0.3m)
                 const allExtrema = [...ridges.map(i => ({i, type: 'ridge'})), ...valleys.map(i => ({i, type: 'valley'}))];
                 allExtrema.sort((a, b) => a.i - b.i);
                 const filteredExtrema = [];
                 for (let k = 0; k < allExtrema.length; k++) {
                     if (k > 0) {
                         const amp = Math.abs(smoothH[allExtrema[k].i] - smoothH[allExtrema[k-1].i]);
-                        if (amp >= 0.1) filteredExtrema.push(allExtrema[k]);
+                        if (amp >= 0.3) filteredExtrema.push(allExtrema[k]);
                     } else {
                         filteredExtrema.push(allExtrema[k]);
                     }
@@ -4117,22 +4110,18 @@ class Calpinage3DViewer {
      *  pour éviter le z-fighting murs doubles quand le toit COPC fournit
      *  ses propres murs (skirt). */
     _removePVRoofMeshes() {
-        const nBefore = this.buildings.length;
-        let nRemoved = 0;
         // Purger aussi _lidarRoofMeshes pour éviter stale refs
         this._lidarRoofMeshes = this._lidarRoofMeshes.filter(m => {
             return !m.userData?.isPVRoof;
         });
         this.buildings = this.buildings.filter(m => {
             if (!m.userData?.isPVRoof && !m.userData?.isMainBuilding) return true;
-            nRemoved++;
             this.scene.remove(m);
             m.geometry?.dispose();
             if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
             else m.material?.dispose();
             return false;
         });
-        console.log(`[REMOVE-PV] 🗑️ Supprimé ${nRemoved} mesh(es) (buildings: ${nBefore} → ${this.buildings.length})`);
     }
 
     /**
@@ -4178,17 +4167,13 @@ class Calpinage3DViewer {
         if (data.center)
             this.lidarData.building_hd.building_center = data.center;
 
-        // ── Build-then-remove : construire le nouveau toit AVANT de supprimer
-        // l'ancien, pour garder le bâtiment visible en cas d'échec COPC. ─────
+        // Supprimer le toit MNH et reconstruire depuis la grille brute
+        this._removePVRoofMeshes();
+
         const bldgCenter = data.center;
         const bh         = this._mainBldgBh      ?? 6;
         const terrainH   = this._mainBldgTerrainH ?? 0;
         const roofType   = this._mainBldgRoofType ?? 'default';
-
-        // Snapshot des anciens meshes AVANT le build
-        const _oldPvMeshes = this.buildings.filter(m =>
-            m.userData?.isPVRoof || m.userData?.isMainBuilding);
-        const _oldLidarRoofs = [...(this._lidarRoofMeshes || [])];
 
         // Rendu principal : grille Z brute (pixel-perfect)
         const rebuilt = this._buildRoofFromGrid(
@@ -4204,78 +4189,23 @@ class Calpinage3DViewer {
             }
         }
 
-        // ── Supprimer les anciens meshes MAINTENANT que les nouveaux existent ──
-        {
-            let nOldRemoved = 0;
-            for (const m of _oldPvMeshes) {
-                this.scene.remove(m);
-                m.geometry?.dispose();
-                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
-                else m.material?.dispose();
-                nOldRemoved++;
-            }
-            const oldSet = new Set(_oldPvMeshes);
-            this.buildings = this.buildings.filter(m => !oldSet.has(m));
-            this._lidarRoofMeshes = (this._lidarRoofMeshes || []).filter(m =>
-                !_oldLidarRoofs.includes(m) || !m.userData?.isPVRoof);
-            console.log(`[COPC] 🗑️ Anciens meshes supprimés: ${nOldRemoved} | buildings restants: ${this.buildings.length}`);
-        }
-
-        // Marquer le toit comme construit AVANT le code non critique
-        this._copcRoofBuilt = true;
-
-        // ── Code non critique (info panneaux, bannière, DOM) ─────────────
-        // Enveloppé en try-catch pour ne pas déclencher le .catch() fallback
-        // qui supprimerait le toit déjà construit.
-        try {
-
         // Mise à jour roofPanelsInfo depuis les plans RANSAC (orientation PV)
         const _copcOBB = this.roofPanelsInfo?.buildingOBB;
-        if (_copcOBB) {
-            if (data.roof_planes?.length) {
-                const _panels = this._computeRoofPanelsInfoFromPlanes(
-                    data.roof_planes, _copcOBB, terrainH, bh, bldgCenter, roofType
-                );
-                if (_panels) {
-                    _panels.buildingOBB         = _copcOBB;
-                    _panels.buildingTerrainH    = terrainH;
-                    _panels.buildingWallH       = bh;
-                    _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
-                    _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
-                    this.roofPanelsInfo = _panels;
-                }
-            } else {
-                // Pas de plans RANSAC : surface estimée depuis la grille
-                const gridCells = data.nb_filled || 0;
-                const cellArea  = (data.step || 0.5) ** 2;
-                const surfGrid  = Math.round(gridCells * cellArea * 10) / 10;
-                this.roofPanelsInfo = {
-                    type:            'flat',
-                    typeLabel:       'Toit LiDAR HD',
-                    couverture:      roofType,
-                    surfaceTotale:   surfGrid,
-                    panels:          [{ name: 'Surface toiture', pente_deg: 0, orientation_deg: 0, orientation_label: '', surface: surfGrid, longueur: 0, largeur: 0, source: 'grid' }],
-                    source:          'copc-grid',
-                    buildingOBB:     _copcOBB,
-                    buildingTerrainH:    terrainH,
-                    buildingWallH:       bh,
-                    buildingLocalCoords: this.roofPanelsInfo.buildingLocalCoords,
-                    buildingCenterGeo:   this.roofPanelsInfo.buildingCenterGeo,
-                };
+        if (_copcOBB && data.roof_planes?.length) {
+            const _panels = this._computeRoofPanelsInfoFromPlanes(
+                data.roof_planes, _copcOBB, terrainH, bh, bldgCenter, roofType
+            );
+            if (_panels) {
+                _panels.buildingOBB         = _copcOBB;
+                _panels.buildingTerrainH    = terrainH;
+                _panels.buildingWallH       = bh;
+                _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
+                _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
+                this.roofPanelsInfo = _panels;
             }
         }
 
         this._showCOPCBanner(data.nb_points, data.nx, data.ny);
-
-        // Rafraîchir le panneau d'infos toiture dans le DOM
-        try {
-            const content = document.getElementById('roofPanelsInfoContent');
-            if (content) content.innerHTML = this.getRoofPanelsHTML();
-        } catch (_e) { /* page sans panneau info */ }
-
-        } catch (postBuildErr) {
-            console.warn('⚠️ COPC post-build (non critique):', postBuildErr.message);
-        }
     }
 
     /** Affiche un bandeau "Toit LiDAR HD" discret pendant 6 s. */
@@ -4418,7 +4348,7 @@ class Calpinage3DViewer {
         const validPlanes = planes.filter(plane => {
             const poly = plane.polygon_2d;
             if (!poly || poly.length < 3) return false;
-            // Filtre plans invalides : aire trop petite ou trop étroite
+            // Filtre acrotère : aire trop petite ou trop étroite
             let sa = 0;
             for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
                 sa += poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1];
@@ -4677,7 +4607,7 @@ class Calpinage3DViewer {
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
         // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 2.0;
+        const FP_MARGIN = step * 3.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling sur la grille coarse ────────────────────────────────
@@ -4726,8 +4656,8 @@ class Calpinage3DViewer {
         const UV_SCALE = 8;
 
         // ── Distance point→polygone (pour lissage périmétral) ────────────────
-        const EDGE_FLAT = step * 0.5;  // 0→0.5 cell coarse (0.25m) : z = bh — soudure toit/mur
-        const EDGE_RAMP = step * 2.0;  // 0.5→2 cells coarse (1.0m) : rampe linéaire douce
+        const EDGE_FLAT = step * 2.0;  // 0→2 cells coarse (1.0m) : z = bh — assez large pour que toutes les arêtes au bord soient plates
+        const EDGE_RAMP = step * 6.0;  // 2→6 cells coarse (3.0m) : rampe linéaire douce
         const _distToFp = (px, py) => {
             let minD = Infinity;
             for (let k = 0; k < fp.length; k++) {
@@ -4842,12 +4772,6 @@ class Calpinage3DViewer {
         // arêtes frontières contre TOUTES les intersections avec le polygone.
         // Gère correctement les bâtiments en L, T, U (concaves).
 
-        // v100: clipper sur fpClip (fp dilaté 0.2m) au lieu de fp exact.
-        // Le toit déborde de 20cm au-delà des murs → couvre la jonction mur/toit.
-        // Les sommets hors fp sont déjà à z=bh → bord plat à hauteur de mur.
-        const CLIP_OVERHANG = 0.50;  // 50cm de débord
-        const fpClip = this._expandPolygonEdges(fp, CLIP_OVERHANG);
-
         // UV satellite : u = 0.5 + wx/(2R), v = 0.5 - wz/(2R)
         const satR = this._satRadiusM * 2;
 
@@ -4856,10 +4780,10 @@ class Calpinage3DViewer {
         const segPolyAllHits = (a, b) => {
             const dx = b.x - a.x, dy = b.y - a.y;
             const hits = [];
-            for (let k = 0; k < fpClip.length; k++) {
-                const k1 = (k + 1) % fpClip.length;
-                const ex = fpClip[k][0], ey = fpClip[k][1];
-                const fx = fpClip[k1][0], fy = fpClip[k1][1];
+            for (let k = 0; k < fp.length; k++) {
+                const k1 = (k + 1) % fp.length;
+                const ex = fp[k][0], ey = fp[k][1];
+                const fx = fp[k1][0], fy = fp[k1][1];
                 const edx = fx - ex, edy = fy - ey;
                 const denom = dx * edy - dy * edx;
                 if (Math.abs(denom) < 1e-12) continue;
@@ -4888,7 +4812,7 @@ class Calpinage3DViewer {
                 z: positions[vi * 3 + 1] - terrainH,
             }));
 
-            const ins = tri.map(v => this._pointInPoly2D(v.x, v.y, fpClip));
+            const ins = tri.map(v => this._pointInPoly2D(v.x, v.y, fp));
             const nIn = ins.filter(Boolean).length;
             if (nIn === 0) continue;
 
@@ -4959,24 +4883,11 @@ class Calpinage3DViewer {
         }
         console.log(`[GRID-ROOF] ✅ ${Math.round(clipPositions.length/3)} sommets, ${clipFaces.length/3} triangles après clipping`);
 
-        // ── NaN guard : remplacer les NaN/Infinity par terrainH + bh ──
-        {
-            let nNaN = 0;
-            for (let k = 0; k < clipPositions.length; k++) {
-                if (!isFinite(clipPositions[k])) {
-                    clipPositions[k] = (k % 3 === 1) ? terrainH + bh : 0;
-                    nNaN++;
-                }
-            }
-            if (nNaN > 0) console.warn(`[GRID-ROOF] ⚠️ ${nNaN} NaN/Inf corrigés dans clipPositions`);
-        }
-
         // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(clipPositions, 3));
         geo.setAttribute('uv',       new THREE.Float32BufferAttribute(clipUVs, 2));
-        // Force Uint32 pour les grands bâtiments (>65535 vertices)
-        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(clipFaces), 1));
+        geo.setIndex(clipFaces);
         geo.computeVertexNormals();
 
         // Texture : satellite si disponible (bords du toit calés pixel-parfait),
@@ -4995,23 +4906,6 @@ class Calpinage3DViewer {
         this.scene.add(mesh);
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
-
-        // ── Diagnostic : bounding box du mesh pour debug position ─────────
-        {
-            let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity, zMin = Infinity, zMax = -Infinity;
-            for (let k = 0; k < clipPositions.length; k += 3) {
-                const vx = clipPositions[k], vy = clipPositions[k+1], vz = clipPositions[k+2];
-                if (vx < xMin) xMin = vx; if (vx > xMax) xMax = vx;
-                if (vy < yMin) yMin = vy; if (vy > yMax) yMax = vy;
-                if (vz < zMin) zMin = vz; if (vz > zMax) zMax = vz;
-            }
-            console.log(`[GRID-ROOF] 📐 BBox mesh: X=[${xMin.toFixed(1)},${xMax.toFixed(1)}] Y=[${yMin.toFixed(1)},${yMax.toFixed(1)}] Z=[${zMin.toFixed(1)},${zMax.toFixed(1)}]`);
-            console.log(`[GRID-ROOF] 📐 terrainH=${terrainH.toFixed(2)}, bh=${bh.toFixed(2)}, bldgOffset=(${bldgOffsetX.toFixed(1)},${bldgOffsetZ.toFixed(1)}), buildings.length=${this.buildings.length}`);
-            if (this.camera) {
-                const cp = this.camera.position;
-                console.log(`[GRID-ROOF] 📐 Camera pos=(${cp.x.toFixed(1)},${cp.y.toFixed(1)},${cp.z.toFixed(1)})`);
-            }
-        }
 
         // ── 5. Murs verticaux le long du périmètre du footprint ─────────────
         // Murs complets du sol (terrainH) au sommet (terrainH + bh).
@@ -5042,14 +4936,13 @@ class Calpinage3DViewer {
                 const b = q * 4;
                 skirtIdx.push(b, b+1, b+2,  b, b+2, b+3);
             }
-            skirtGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(skirtIdx), 1));
+            skirtGeo.setIndex(skirtIdx);
             skirtGeo.computeVertexNormals();
             const sm = new THREE.Mesh(skirtGeo, skirtMat);
             sm.castShadow = sm.receiveShadow = true;
             sm.userData = { source: 'grid-lidar-skirt', isPVRoof: isPVBuilding };
             this.scene.add(sm);
             this.buildings.push(sm);
-            console.log(`[GRID-ROOF] ✅ Murs (skirt): ${n_fp} quads, Y=[${(terrainH).toFixed(1)},${(terrainH+hTop).toFixed(1)}]`);
         }
 
         // ── 5b. Bandeau de jonction horizontal à z=bh ─────────────────────
@@ -5098,14 +4991,11 @@ class Calpinage3DViewer {
                     const b = q * 4;
                     capIdx.push(b, b+1, b+2,  b, b+2, b+3);
                 }
-                capGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(capIdx), 1));
+                capGeo.setIndex(capIdx);
                 capGeo.computeVertexNormals();
-                // Même matériau que le toit → invisible sous la texture satellite
                 const capMat = new THREE.MeshPhongMaterial({
-                    map:   this._satTexture || null,
-                    color: this._satTexture ? 0xffffff : 0xD0C8B8,
-                    side: THREE.DoubleSide,
-                    specular: 0x111111, shininess: 3,
+                    color: 0xD0C8B8, side: THREE.DoubleSide,
+                    specular: 0x111111, shininess: 5,
                     // Rendu SOUS le toit (polygonOffset +1 > toit -1) → toit gagne au z-fighting
                     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
                 });
@@ -5170,6 +5060,30 @@ class Calpinage3DViewer {
         for (const plane of planes) {
             const poly = plane.polygon_2d;
             if (!poly || poly.length < 3) continue;
+
+            // ── Filtre acrotère / parapet ──────────────────────────────────────
+            // L'acrotère (relevé de étanchéité / parapet) est capté par le RANSAC
+            // comme plan quasi-horizontal sous forme d'une BANDELETTE FINE le long
+            // du périmètre du toit (largeur réelle ≈ 0.2–0.5 m).
+            // Ce polygon_2d "en cadre" ou "en L" crée des concavités résistantes à
+            // l'expansion Minkowski et génère l'artefact visuel "axe décalé".
+            // Critère de détection : largeur minimale effective = area / max_bbox_dim.
+            //   Acrotère réel  : ~0.3 m  → filtrée (<1.5 m)
+            //   Vrai pan de toit: ≥ 2.0 m → conservé
+            {
+                let _sa = 0;
+                for (let _i = 0, _j = poly.length - 1; _i < poly.length; _j = _i++)
+                    _sa += poly[_j][0] * poly[_i][1] - poly[_i][0] * poly[_j][1];
+                const _area = Math.abs(_sa) / 2;
+                const _pxs = poly.map(p => p[0]), _pys = poly.map(p => p[1]);
+                const _bbW  = Math.max(..._pxs) - Math.min(..._pxs);
+                const _bbH  = Math.max(..._pys) - Math.min(..._pys);
+                const _minW = _area / Math.max(_bbW, _bbH, 0.1);
+                if (_minW < 1.5 || _area < 4) {
+                    console.log(`⏭️ Plan RANSAC ignoré (acrotère probable): id=${plane.plane_id}, minW=${_minW.toFixed(2)}m, area=${_area.toFixed(1)}m²`);
+                    continue;
+                }
+            }
 
             const { mnh_a, mnh_b, mnh_c } = plane;
 
@@ -5566,10 +5480,9 @@ class Calpinage3DViewer {
     _computeRoofPanelsInfoFromPlanes(planes, obb, terrainH, bh, bldgCenter, roofType = 'tuile') {
         if (!planes || planes.length === 0) return null;
 
-        // Inclure tous les plans (plats + inclinés) pour ne pas perdre de surface
-        const validPlanes = planes.filter(p => (p.polygon_2d?.length >= 3));
+        const inclined = planes.filter(p => p.slope_deg >= 1.0);
 
-        const panelList = validPlanes.map((plane, idx) => {
+        const panelList = inclined.map((plane, idx) => {
             // Surface en projection horizontale (shoelace)
             const poly = plane.polygon_2d || [];
             let area2d = 0;
@@ -5607,16 +5520,16 @@ class Calpinage3DViewer {
             };
         });
 
-        const nInc = validPlanes.filter(p => p.slope_deg >= 1.0).length;
-        const nTotal = validPlanes.length;
+        const nInc = inclined.length;
         // Si Google Solar a détecté plus de plans que le RANSAC (ex: 4 pans détectés par Solar
         // quand LiDAR ne donne que 2), la géométrie est enrichie (_addHipCroupeEnds) → type = 'hip'.
         const _solarPanCount = this._solarPanCount ?? 0;
         const _effectiveInc  = (_solarPanCount > nInc) ? _solarPanCount : nInc;
         const roofTypeName = (_solarPanCount >= 4 && nInc < 4)
-            ? 'hip'
+            ? 'hip'  // type géométrique réel enrichi par Solar
             : (nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat');
         const typeLabels = { 'gable': 'Bi-pan (2 versants)', 'hip': '4 pans (croupe)', 'shed': 'Mono-pente', 'flat': 'Toit plat' };
+        // Label enrichi quand Solar détecte davantage de pans que le LiDAR RANSAC
         let typeLabel = typeLabels[roofTypeName] || 'Toiture RANSAC';
         if (_solarPanCount >= 4 && nInc < 4) {
             typeLabel = `4 pans (croupe) — ${nInc} pans LiDAR`;

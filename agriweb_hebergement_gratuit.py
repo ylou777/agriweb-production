@@ -779,6 +779,185 @@ def _convex_hull_2d(xs, ys):
     return [[round(p[0], 2), round(p[1], 2)] for p in hull_gs]
 
 
+def _filter_acroteres(x_arr, y_arr, z_arr, poly_local_x, poly_local_y,
+                      margin=1.40, z_thresh=0.12):
+    """
+    Masque les acrotères (relevés de toiture / parapet périphérique).
+
+    Contrairement aux cheminées (saillies ponctuelles), l'acrotère forme un
+    anneau continu au bord du bâtiment.  Le filtre MAD local ne le détecte pas
+    car le voisinage d'un point d'acrotère contient d'autres acrotères.
+
+    Algorithme :
+        1. Calcule la distance de chaque point LiDAR au périmètre du polygone
+           bâtiment (coordonnées métriques locales).
+        2. Sépare « bande bord » (dist < margin) et « intérieur » (dist ≥ margin).
+        3. Calcule la médiane z de l'intérieur (= hauteur réelle du toit plat
+           ou médiane du pan réel).
+        4. Si median_bord − median_intérieur > z_thresh ET au moins 4 pts de bord :
+               → acrotère probable → masque les pts de bord > median_int + z_thresh/2
+        5. Les points de bord dont la hauteur est ≤ median_int + z_thresh/2
+           sont conservés (égout d'un toit incliné ≠ acrotère).
+
+    Args:
+        x_arr, y_arr, z_arr    : coordonnées métriques locales des points toit
+        poly_local_x/y         : polygone bâtiment en coordonnées métriques locales
+        margin                 : largeur de la bande bord (m), ~1 rangée LiDAR HD
+        z_thresh               : seuil hauteur acrotère vs intérieur (m)
+
+    Returns:
+        np.array bool — True = point valide (pas acrotère)
+    """
+    import numpy as np
+    x = np.asarray(x_arr, dtype=np.float64)
+    y = np.asarray(y_arr, dtype=np.float64)
+    z = np.asarray(z_arr, dtype=np.float64)
+    n = len(x)
+    if n < 4 or len(poly_local_x) < 3:
+        return np.ones(n, dtype=bool)
+
+    px = np.asarray(poly_local_x, dtype=np.float64)
+    py = np.asarray(poly_local_y, dtype=np.float64)
+
+    # Distance de chaque point LiDAR au bord le plus proche du polygone
+    # = min sur tous les segments [Vi, Vi+1] de la distance point-segment
+    m_poly = len(px)
+    dist = np.full(n, np.inf)
+    for i in range(m_poly):
+        j = (i + 1) % m_poly
+        ex, ey = px[j] - px[i], py[j] - py[i]
+        seg_len2 = ex * ex + ey * ey
+        if seg_len2 < 1e-10:
+            # Segment dégénéré → distance au sommet
+            d = np.sqrt((x - px[i])**2 + (y - py[i])**2)
+        else:
+            # t = paramètre de projection sur le segment [0..1]
+            t = np.clip(((x - px[i]) * ex + (y - py[i]) * ey) / seg_len2, 0.0, 1.0)
+            cx_ = px[i] + t * ex
+            cy_ = py[i] + t * ey
+            d = np.sqrt((x - cx_)**2 + (y - cy_)**2)
+        dist = np.minimum(dist, d)
+
+    border_mask   = dist <  margin
+    interior_mask = dist >= margin
+
+    n_border   = int(np.sum(border_mask))
+    n_interior = int(np.sum(interior_mask))
+
+    if n_interior < 4 or n_border < 4:
+        return np.ones(n, dtype=bool)
+
+    med_int    = float(np.median(z[interior_mask]))
+    med_border = float(np.median(z[border_mask]))  
+    p85_border = float(np.percentile(z[border_mask], 85))  # robuste aux quelques pts d'egout
+    delta      = med_border - med_int
+    delta_p85  = p85_border - med_int
+
+    print(f"  [acrotere] bord={n_border}pts med={med_border:.2f}m p85={p85_border:.2f}m "
+          f"| int={n_interior}pts med={med_int:.2f}m | delta={delta:.3f}m "
+          f"delta_p85={delta_p85:.3f}m (seuil={z_thresh}m)")
+
+    # Utilise le p85 des bords pour eviter les faux positifs sur toits inclines
+    # (l'egout d'un toit incline est bas -> p85 reste proche de med_border)
+    if delta <= z_thresh and delta_p85 <= z_thresh:
+        return np.ones(n, dtype=bool)   # pas d'acrotere detecte
+
+    effective_delta = max(delta, delta_p85)
+
+    # Acrotere detecte : masque les points de bord dont z depasse le niveau du toit
+    # Seuil adaptatif : med_int + moitie de l'ecart detecte (min 0.06m)
+    acrotere_z_cutoff = med_int + max(z_thresh * 0.5, effective_delta * 0.4)
+    acrotere_pts = border_mask & (z > acrotere_z_cutoff)
+    n_masked = int(np.sum(acrotere_pts))
+    print(f"  [acrotere] DETECTE delta_eff={effective_delta:.3f}m "
+          f"cutoff={acrotere_z_cutoff:.3f}m -> {n_masked}/{n_border} pts masques")
+
+    return ~acrotere_pts
+
+
+def _filter_roof_obstacles(x_arr, y_arr, z_arr, grid_res=0.5, sigma=1.8):
+    """
+    Masque les anomalies de hauteur locales : cheminées, superstructures HVAC,
+    lucarnes, végétation dépassant du toit.
+
+    Algorithme :
+        1. Discrétise les points sur une grille régulière (grid_res m).
+        2. Pour chaque cellule, calcule la médiane z sur la fenêtre 5×5 voisine.
+        3. Résidu = z_point − z_median_local.
+        4. MAD global = médiane des |résidus|. Facteur k=1.4826 → équivalence σ Gauss.
+        5. Obstacle : résidu > +sigma × MAD × k  (saillie vers le haut = cheminée…)
+           Bruit négatif (gouttière, bord d'ombre) rejeté si < −1.0 × MAD × k.
+
+    Returns: np.array bool — True = point valide pour RANSAC
+    """
+    import numpy as np
+    x = np.asarray(x_arr, dtype=np.float64)
+    y = np.asarray(y_arr, dtype=np.float64)
+    z = np.asarray(z_arr, dtype=np.float64)
+    n = len(x)
+    if n < 4:
+        return np.ones(n, dtype=bool)
+
+    cell = max(grid_res, 0.4)
+    gx = np.round(x / cell).astype(int);  gx -= gx.min()
+    gy = np.round(y / cell).astype(int);  gy -= gy.min()
+    NX, NY = int(gx.max()) + 1, int(gy.max()) + 1
+
+    # Grille des z médians par cellule (multi-points → médiane)
+    from collections import defaultdict
+    cell_z = defaultdict(list)
+    for i in range(n):
+        cell_z[(int(gx[i]), int(gy[i]))].append(z[i])
+    z_grid = np.full((NX, NY), np.nan)
+    for (cx, cy), vals in cell_z.items():
+        z_grid[cx, cy] = float(np.median(vals))
+
+    # Médiane locale 5×5 vectorisée
+    z_local = np.full_like(z_grid, np.nan)
+    WIN = 2   # ±2 cellules = fenêtre 5×5
+    for dx in range(-WIN, WIN + 1):
+        for dy in range(-WIN, WIN + 1):
+            sx = slice(max(0, -dx),  min(NX, NX - dx))
+            sy = slice(max(0, -dy),  min(NY, NY - dy))
+            tx = slice(max(0, dx),   min(NX, NX + dx))
+            ty = slice(max(0, dy),   min(NY, NY + dy))
+            patch = z_grid[sx, sy]
+            target = z_local[tx, ty]
+            valid_patch = ~np.isnan(patch)
+            # Accumulation pour médiane : on fait la moyenne sur 25 décalages → approx raisonnable
+            # (médiane exacte serait trop coûteuse sans scipy)
+            accum = np.where(valid_patch, patch, 0.0)
+            count = valid_patch.astype(float)
+            # Initialement NaN → premier passage = valeur brute
+            target_nan = np.isnan(target)
+            z_local[tx, ty] = np.where(target_nan & valid_patch, accum,
+                               np.where(~target_nan & valid_patch,
+                                        (target * count + accum) / (count + 1),
+                                        target))
+
+    # Résidu par point par rapport à sa médiane locale
+    z_ref = np.array([
+        z_local[int(gx[i]), int(gy[i])]
+        if not np.isnan(z_local[int(gx[i]), int(gy[i])]) else z[i]
+        for i in range(n)
+    ])
+    resid = z - z_ref
+
+    mad_val = float(np.median(np.abs(resid - np.median(resid))))
+    mad_val = max(mad_val, 0.04)   # au moins 4 cm (bruit capteur)
+    k = 1.4826                     # facteur de consistance Gauss
+
+    upper_thresh =  sigma * mad_val * k    # cheminée / saillie
+    lower_thresh = -1.2 * mad_val  * k     # gouttière / bord d'ombre
+
+    valid = (resid <= upper_thresh) & (resid >= lower_thresh)
+    n_removed = int(np.sum(~valid))
+    if n_removed > 0:
+        print(f"  🧹 Filtre obstacles : {n_removed}/{n} points retirés "
+              f"(MAD={mad_val:.3f}m, seuil±{upper_thresh:.2f}m)")
+    return valid
+
+
 def _largest_connected_component_mask(xi, yi, grid_res=0.5):
     """
     Retourne le masque booléen de la plus grande composante connexe dans un
@@ -854,17 +1033,20 @@ def _largest_connected_component_mask(xi, yi, grid_res=0.5):
 
 def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
                                 threshold=0.12, min_pts=8, max_planes=8, n_iter=150,
-                                pre_filter=False, min_area_m2=0.0, density_check=False,
+                                pre_filter=True, min_area_m2=1.5, density_check=True,
                                 grid_res=0.25, filter_sigma=1.8):
     """
-    Segmentation planaire RANSAC itérative.
+    Segmentation planaire RANSAC itérative avec robustesse obstacles/discontinuités.
 
     Modèle: z = a*x + b*y + c  (altitude MNH en coordonnées métriques locales)
     Conforme pipeline Vosselman & Maas (2010), Ch.5.
 
-    Protection :
-        1. Connexité     : _largest_connected_component_mask() → brise les plans
+    Niveaux de protection :
+        1. Pré-filtrage  : _filter_roof_obstacles() → retire cheminées/végétation
+        2. Connexité     : _largest_connected_component_mask() → brise les plans
                            qui "pontent" deux surfaces d'un toit à niveaux
+        3. Densité/aire  : rejette les plans dont le hull est creux (gap détecté)
+                           ou trop petits (bruit résiduel)
 
     Args:
         x_arr, y_arr   : positions relatives au centre bâtiment (m) — x=Est, y=Nord
@@ -873,6 +1055,8 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
         min_pts        : nombre minimum d'inliers pour valider un plan
         max_planes     : nombre maximum de plans à extraire
         n_iter         : itérations RANSAC par plan
+        pre_filter     : activer le filtrage des obstacles avant RANSAC
+        min_area_m2    : superficie min du pan pour être conservé (m²)
         density_check  : activer la vérification densité hull (anti-discontinuité)
 
     Returns:
@@ -887,7 +1071,14 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
     y = np.asarray(y_arr, dtype=np.float64)
     z = np.asarray(z_arr, dtype=np.float64)
 
-    # (Pré-filtrage obstacles désactivé — LiDAR HD suffisamment précis)
+    # ── Niveau 1 : Pré-filtrage des obstacles (cheminées, superstructures…) ──────
+    if pre_filter and len(x) >= 8:
+        valid_mask = _filter_roof_obstacles(x, y, z, sigma=filter_sigma)
+        n_before = len(x)
+        x, y, z = x[valid_mask], y[valid_mask], z[valid_mask]
+        if len(x) < min_pts:
+            print(f'  ⚠ RANSAC: après filtrage obstacles {len(x)}/{n_before} pts — insuffisant')
+            return []
 
     planes = []
     remaining = np.ones(len(x), dtype=bool)
@@ -986,16 +1177,40 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
         # Enveloppe convexe 2D des inliers
         polygon_2d = _convex_hull_2d(xi_f.tolist(), yi_f.tolist())
 
-        # ── Validation aire (supprimée — LiDAR HD précis) ──────────────────────
+        # ── Niveau 3 : Validation aire & densité ──────────────────────────────────
+        # a) Superficie minimale : filtre les fragments d'obstacles residuels
         hull_area = 0.0
         poly = polygon_2d
         for i in range(len(poly)):
             j = (i + 1) % len(poly)
             hull_area += poly[i][0] * poly[j][1] - poly[j][0] * poly[i][1]
         hull_area = abs(hull_area) / 2.0
+        if hull_area < min_area_m2:
+            print(f"  ⛔ Plan {plane_idx+1} rejeté : aire hull={hull_area:.1f}m² < {min_area_m2}m² (obstacle résiduel)")
+            # Retirer quand même ces points pour la prochaine itération
+            rem_idx = np.where(remaining)[0]
+            remaining[rem_idx[final_mask]] = False
+            continue
 
-        # Niveau de confiance simplifié
-        if   len(xi_f) >= 40 and rmse < 0.12: confidence = 'high'
+        # b) Densité : ratio pts_réels / pts_attendus_dans_hull
+        #    Un ratio trop faible indique un hull qui englobe un vide (discontinuité)
+        if density_check and hull_area > 0:
+            # pts attendus = aire / (espacement²) — s'adapte à la résolution réelle
+            expected_pts = hull_area / (grid_res ** 2)
+            density_ratio = len(xi_f) / max(expected_pts, 1.0)
+            if density_ratio < 0.18:   # hull trop creux → discontinuité probable
+                print(f"  ⚠ Plan {plane_idx+1} densité faible "
+                      f"({len(xi_f)}/{expected_pts:.0f} pts, ratio={density_ratio:.2f}) "
+                      f"— possible discontinuité ignorée")
+                # On garde le plan mais abaisse la confiance
+                confidence_density_penalty = True
+            else:
+                confidence_density_penalty = False
+        else:
+            confidence_density_penalty = False
+
+        # Niveau de confiance
+        if   len(xi_f) >= 40 and rmse < 0.12 and not confidence_density_penalty: confidence = 'high'
         elif len(xi_f) >= 12 and rmse < 0.30: confidence = 'medium'
         else:                                  confidence = 'low'
 
@@ -1502,8 +1717,8 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     cy_l93 = float(np.mean(ys_l93))
     cx_lon, cx_lat = t_bck.transform(cx_l93, cy_l93)
 
-    # Bounding box avec marge 5m de chaque côté (2m utile + 3m sécurité)
-    margin = 5.0
+    # Bounding box avec marge 3m de chaque côté
+    margin = 3.0
     x_min = min(xs_l93) - margin
     x_max = max(xs_l93) + margin
     y_min = min(ys_l93) - margin
@@ -1558,7 +1773,7 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     # ── Filtre polygon L93 : exclut les bâtiments voisins dans la marge bbox ──
     try:
         from shapely.geometry import Point as _Pt, Polygon as _Poly
-        _MARGIN_L93 = 3.0  # 3m tolérance : garder points LiDAR autour du bâtiment
+        _MARGIN_L93 = 2.0  # 2m tolérance : garder acrotères/gouttières en bord
         _bldg_poly = _Poly(list(zip(xs_l93, ys_l93))).buffer(_MARGIN_L93)
         mask_poly = np.array([
             _bldg_poly.contains(_Pt(float(x_l93[i]), float(y_l93[i])))
@@ -1588,7 +1803,7 @@ def api_lidar_copc_roof():
     
     Step 1 : WFS → URL de la dalle COPC covering the building
     Step 2 : HTTP range requests → extraction classe 6 dans la bbox
-    Step 3 : RANSAC multi-plans
+    Step 3 : Filtre acrotère + RANSAC multi-plans
     Step 4 : Retourne roof_planes identiques au format /api/lidar/3d-data
     
     POST body (JSON):
@@ -1646,9 +1861,18 @@ def api_lidar_copc_roof():
         poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
         poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
 
-        rx_f, ry_f, rz_f = rx_geo_np, ry_geo_np, rz_np
+        # ── 4. Filtre acrotères ──────────────────────────────────────────────
+        try:
+            acr_mask = _filter_acroteres(rx_geo_np, ry_geo_np, rz_np, poly_lx, poly_ly)
+            rx_f = rx_geo_np[acr_mask]
+            ry_f = ry_geo_np[acr_mask]
+            rz_f = rz_np[acr_mask]
+            print(f"  🏗️ COPC acrotère: {nb_raw} → {int(acr_mask.sum())} pts conservés")
+        except Exception as e_acr:
+            app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
+            rx_f, ry_f, rz_f = rx_geo_np, ry_geo_np, rz_np
 
-        # ── 4. Normaliser z → vrai MNH (hauteur au-dessus du terrain) ─────
+        # ── 5. Normaliser z → vrai MNH (hauteur au-dessus du terrain) ─────
         wall_h  = float(body.get('wall_h', 6.0))
         z_arr_f = np.array(rz_f, dtype=np.float64)
         z_baseline = float(np.percentile(z_arr_f, 5))     # ≈ altitude avant-toit NGF
@@ -1750,7 +1974,7 @@ def api_lidar_copc_grid():
         # Emprise = union (points LiDAR ∪ polygone bâtiment) + marge 1 cellule
         poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
         poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
-        GRID_PAD = step * 2       # 2 cellules de marge (1.0m) → étend le LiDAR autour du bâtiment
+        GRID_PAD = step * 3       # 3 cellules de marge (1.5m) → sommets outside pour clipping
         x0 = min(float(gx_np.min()), min(poly_lx)) - GRID_PAD
         x1 = max(float(gx_np.max()), max(poly_lx)) + GRID_PAD
         y0 = min(float(gy_np.min()), min(poly_ly)) - GRID_PAD
@@ -1801,7 +2025,38 @@ def api_lidar_copc_grid():
         except ImportError:
             pass  # scipy absent : grille telle quelle
 
-        # (Médian 3×3 et Gaussien supprimés — LiDAR HD suffisamment précis)
+        # ── 5b. Filtrage morphologique : médian 3×3 (supprime spikes acrotères) ──
+        # Les acrotères/gouttières sont des features étroites (1-2 cellules) dont
+        # l'altitude dépasse de 0.5-1.5m le toit. Un filtre médian les remplace
+        # par la valeur dominante voisine (= altitude toit réelle).
+        try:
+            from scipy.ndimage import median_filter as _mf3
+            nan_mask_mf = np.isnan(gz)
+            if not nan_mask_mf.all():
+                gz_mf = gz.copy()
+                gz_mf[nan_mask_mf] = float(np.nanmedian(gz))
+                gz_mf = _mf3(gz_mf, size=3).astype(np.float32)
+                gz_mf[nan_mask_mf] = np.nan
+                gz = gz_mf
+                print(f"  🔧 Médian 3×3 appliqué")
+        except ImportError:
+            pass
+
+        # ── 5c. Lissage Gaussien léger (σ=1.0 cellule ≈ 0.25m@step=0.25m) ────
+        # Micro-lissage du bruit LiDAR sans arrondir les arêtes/faîtages.
+        # NaN traités via pondération (évite les artefacts de bord).
+        try:
+            from scipy.ndimage import gaussian_filter as _gf2
+            nan_mask2 = np.isnan(gz)
+            if not nan_mask2.all():
+                # Remplacer NaN par médiane temporaire pour le filtre
+                gz_tmp = gz.copy()
+                gz_tmp[nan_mask2] = float(np.nanmedian(gz))
+                gz_smooth = _gf2(gz_tmp, sigma=1.0, mode='nearest')
+                gz_smooth[nan_mask2] = np.nan  # restaurer les NaN
+                gz = gz_smooth
+        except ImportError:
+            pass
 
         # ── 6. baseline_rel = percentile 5 des z_rel (→ mnh ≈ wall_h à l'égout) ──
         filled_vals = gz[~np.isnan(gz)].ravel()
@@ -1824,8 +2079,15 @@ def api_lidar_copc_grid():
             try:
                 z_baseline_ngf = z_min_abs + z_baseline_rel
                 z_mnh = (rz_np - z_baseline_ngf + wall_h).tolist()
+                try:
+                    acr_mask = _filter_acroteres(gx_np, gy_np, rz_np, poly_lx, poly_ly)
+                    rx_f = gx_np[acr_mask].tolist()
+                    ry_f = gy_np[acr_mask].tolist()
+                    zm_f = [z_mnh[i] for i, m in enumerate(acr_mask.tolist()) if m]
+                except Exception:
+                    rx_f, ry_f, zm_f = gx_np.tolist(), gy_np.tolist(), z_mnh
                 roof_planes = _segment_roof_planes_ransac(
-                    gx_np.tolist(), gy_np.tolist(), z_mnh, grid_res=0.5, max_planes=30
+                    rx_f, ry_f, zm_f, grid_res=0.5, max_planes=30
                 )
                 print(f"  ✅ RANSAC inclus: {len(roof_planes)} plan(s)")
             except Exception as e_pl:
@@ -2371,26 +2633,38 @@ def api_solar_dsm_roof():
             x_bld.tolist(), y_bld.tolist(), z_mnh,
             grid_res=max(0.25, pixel_size_m)
         )
-        # Si RANSAC strict échoue (toit très peu incliné), retry relaxé
+        # Si RANSAC strict échoue (toit très peu incliné ou bruit), retry relaxé
         if not roof_planes:
             print(f"  ⚠ RANSAC strict: 0 plans — retry avec seuil relaxé (threshold=0.25m, min_pts=6)")
             roof_planes = _segment_roof_planes_ransac(
                 x_bld.tolist(), y_bld.tolist(), z_mnh,
-                threshold=0.25, min_pts=6,
+                threshold=0.25, min_pts=6, min_area_m2=4.0,
                 grid_res=max(0.25, pixel_size_m)
             )
-        # Dernier recours : seuil très relaxé
+        # Dernier recours : utiliser le pre_filter avec sigma très relaxé (sigma=4.0)
+        # Sigma 1.8 filtre trop agressivement un toit < 8° (variation naturelle
+        # de pente ≈ bruit pour le filtre MAD). Sigma 4.0 ne retire que les
+        # vraies anomalies extrêmes (cheminées, antennes, bruit DSM évid. cassé).
         if not roof_planes:
-            print(f"  ⚠ RANSAC relaxé: 0 plans — retry très relaxé (threshold=0.30m, min_pts=5)")
+            print(f"  ⚠ RANSAC relaxé: 0 plans — retry avec filtre obstacles sigma=4.0 (toit plat/peu incliné)")
             roof_planes = _segment_roof_planes_ransac(
                 x_bld.tolist(), y_bld.tolist(), z_mnh,
-                threshold=0.30, min_pts=5,
-                max_planes=10,
+                threshold=0.30, min_pts=5, min_area_m2=3.0,
+                max_planes=10, pre_filter=True, filter_sigma=4.0,
                 grid_res=max(0.25, pixel_size_m)
             )
-        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) détectés")
+        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) bruts")
 
-        # (Filtre pente MAX_SLOPE_DEG supprimé — LiDAR HD précis)
+        # ── Filtre pente aberrante ─────────────────────────────────────────────
+        # Les plans issus d'artefacts de bord (pixels sol/mur à l'extérieur du masque)
+        # ont souvent une pente > 65° : on les écarte pour éviter la géométrie explosée.
+        MAX_SLOPE_DEG = 65.0
+        n_before_slope = len(roof_planes)
+        roof_planes = [p for p in roof_planes if p.get('slope_deg', 0) <= MAX_SLOPE_DEG]
+        n_removed_slope = n_before_slope - len(roof_planes)
+        if n_removed_slope:
+            print(f"  🧹 Filtre pente > {MAX_SLOPE_DEG}°: {n_removed_slope} plan(s) artefact retirés")
+        print(f"  ✅ DSM RANSAC final: {len(roof_planes)} plan(s) valides")
 
         if not roof_planes:
             return jsonify({
@@ -3788,10 +4062,35 @@ def api_lidar_3d_data():
                             ry.append((px_lat - bldg_cx_lat) * 111320.0)
                             rz.append(float(mnh_v))
 
+                    # Polygone bâtiment en coordonnées métriques locales (même repère que rx/ry)
+                    poly_lx = [(c[0] - bldg_cx_lon) * hd_lng_to_m      for c in building_coords]
+                    poly_ly = [(c[1] - bldg_cx_lat) * 111320.0         for c in building_coords]
+
                     print(f"\U0001f52c RANSAC: {len(rx)} points toit (seuil MNH\u2265{mnh_thresh:.1f}m)")
                     if len(rx) >= 8:
+                        rx_np = np.array(rx); ry_np = np.array(ry); rz_np = np.array(rz)
 
-                        roof_planes = _segment_roof_planes_ransac(rx, ry, rz, grid_res=0.25)
+                        # ── Filtre acroteres (avant RANSAC) ───────────────────────────
+                        try:
+                            acr_mask = _filter_acroteres(
+                                rx_np, ry_np, rz_np, poly_lx, poly_ly)
+                            rx_f = rx_np[acr_mask].tolist()
+                            ry_f = ry_np[acr_mask].tolist()
+                            rz_f = rz_np[acr_mask].tolist()
+                            n_acr_removed = int((~acr_mask).sum())
+                            if len(rx_f) < 8:
+                                print(f"  Apres filtre acrotere : {len(rx_f)} pts insuffisant, garde tout")
+                                rx_f, ry_f, rz_f = rx, ry, rz
+                            else:
+                                print(f"  Apres filtre acrotere : {len(rx_f)}/{len(rx)} pts retenus "
+                                      f"({n_acr_removed} pts bord retires)")
+                        except Exception as e_acr:
+                            import traceback as _tb
+                            print(f"  WARN filtre acrotere : {e_acr}")
+                            _tb.print_exc()
+                            rx_f, ry_f, rz_f = rx, ry, rz
+
+                        roof_planes = _segment_roof_planes_ransac(rx_f, ry_f, rz_f, grid_res=0.25)
                         result["building_hd"]["roof_planes"] = roof_planes
                         result["building_hd"]["building_center"] = {
                             "lat": round(bldg_cx_lat, 7),
