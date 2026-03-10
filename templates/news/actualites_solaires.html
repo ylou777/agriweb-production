@@ -7,17 +7,18 @@
 <meta name="description" content="Fil d'actualités solaire France et monde : brèves AFP-style issues de PV Magazine, Enerzine, PV Tech, CleanTechnica… Mis à jour toutes les 2h.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
   :root {
-    --bg:       #0d1117;
+    --bg:       #0a0e27;
     --bg-card:  #161b22;
     --bg-deep:  #010409;
     --border:   #21262d;
     --text:     #e6edf3;
     --sub:      #8b949e;
-    --cyan:     #00d4ff;
-    --green:    #00ff88;
-    --gold:     #ffd700;
+    --cyan:     #FFB700;
+    --green:    #4ade80;
+    --gold:     #FFB700;
     --red:      #ff4444;
     --orange:   #f0883e;
     --radius:   10px;
@@ -28,37 +29,72 @@
   a { color: var(--cyan); text-decoration: none; }
   a:hover { text-decoration: underline; }
 
-  /* ── Topbar ── */
-  .topbar {
-    background: rgba(13,17,23,.95);
-    border-bottom: 1px solid var(--border);
-    padding: 0 24px;
-    height: 52px;
-    display: flex;
-    align-items: center;
+  /* ── Topbar – charte HeliaPV ── */
+  .top-nav {
+    background: rgba(10, 14, 39, 0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 183, 0, 0.12);
+    padding: 14px 0;
     position: sticky;
     top: 0;
-    z-index: 100;
-    backdrop-filter: blur(8px);
+    z-index: 999;
   }
-  .topbar-inner { max-width: 1400px; margin: 0 auto; width: 100%; display: flex; align-items: center; gap: 28px; }
-  .topbar-logo { font-weight: 800; font-size: 1rem; color: var(--text); }
-  .topbar-logo span { color: var(--cyan); }
-  .topbar-nav { display: flex; gap: 20px; margin-left: auto; align-items: center; }
-  .topbar-nav a { color: var(--sub); font-size: .85rem; }
-  .topbar-nav a:hover { color: var(--text); text-decoration: none; }
-  .topbar-cta {
-    background: var(--cyan);
-    color: #000 !important;
-    font-weight: 700;
-    font-size: .82rem;
-    padding: 6px 16px;
+  .top-nav .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .top-nav .navbar-brand {
+    font-size: 1.35rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #FFB700 0%, #FFA000 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .nav-links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .nav-commune-link {
+    color: rgba(74, 222, 128, 0.85) !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid rgba(74, 222, 128, 0.3);
     border-radius: 20px;
+    padding: 6px 14px;
+    transition: all 0.25s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
+  .nav-commune-link:hover {
+    background: rgba(74, 222, 128, 0.1);
+    border-color: rgba(74, 222, 128, 0.6);
+    color: #4ade80 !important;
+    text-decoration: none;
+  }
+  .nav-btn-app {
+    margin-left: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff !important;
+    font-weight: 600;
+    font-size: 0.88rem;
+    border-radius: 8px;
+    padding: 8px 18px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.25s ease;
+  }
+  .nav-btn-app:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(102,126,234,.4); text-decoration: none; }
 
   /* ── Header fil dépêches ── */
   .wire-header {
-    background: linear-gradient(145deg, #0d1117, #0a1929);
+    background: linear-gradient(145deg, #0a0e27, #0a1929);
     border-bottom: 1px solid var(--border);
     padding: 48px 24px 40px;
   }
@@ -78,8 +114,8 @@
     font-family: var(--mono);
     font-weight: 400;
     color: var(--green);
-    background: rgba(0,255,136,.08);
-    border: 1px solid rgba(0,255,136,.25);
+    background: rgba(74,222,128,.08);
+    border: 1px solid rgba(74,222,128,.25);
     border-radius: 4px;
     padding: 3px 10px;
     letter-spacing: .1em;
@@ -105,13 +141,13 @@
     font-size: .78rem;
   }
   .wire-meta .badge.live {
-    border-color: rgba(0,255,136,.4);
+    border-color: rgba(74,222,128,.4);
     color: var(--green);
   }
   .refresh-btn {
     margin-left: auto;
-    background: rgba(0,212,255,.1);
-    border: 1px solid rgba(0,212,255,.3);
+    background: rgba(255,183,0,.1);
+    border: 1px solid rgba(255,183,0,.3);
     color: var(--cyan);
     font-size: .82rem;
     font-weight: 600;
@@ -120,7 +156,7 @@
     cursor: pointer;
     transition: all .2s;
   }
-  .refresh-btn:hover { background: rgba(0,212,255,.2); }
+  .refresh-btn:hover { background: rgba(255,183,0,.2); }
   .refresh-btn:disabled { opacity: .5; cursor: wait; }
 
   /* ── Filtres ── */
@@ -151,8 +187,8 @@
   }
   .filter-btn:hover { border-color: var(--border); color: var(--text); }
   .filter-btn.active {
-    background: rgba(0,212,255,.12);
-    border-color: rgba(0,212,255,.4);
+    background: rgba(255,183,0,.12);
+    border-color: rgba(255,183,0,.4);
     color: var(--cyan);
   }
 
@@ -257,7 +293,7 @@
   .brief.featured {
     border-left-width: 4px;
     border-left-color: var(--cyan);
-    background: rgba(0,212,255,.03);
+    background: rgba(255,183,0,.03);
     border-radius: 0 8px 8px 0;
     padding: 20px 18px;
   }
@@ -286,14 +322,14 @@
 </head>
 <body>
 
-<nav class="topbar">
-  <div class="topbar-inner">
-    <a href="/app" class="topbar-logo">☀️ Helia<span>PV</span></a>
-    <div class="topbar-nav">
-      <a href="/blog">Blog technique</a>
-      <a href="/bureaux-etudes">Bureaux d'études</a>
-      <a href="/app">Application</a>
-      <a href="/auth/register" class="topbar-cta">Essai gratuit →</a>
+<nav class="top-nav">
+  <div class="container">
+    <a href="/" class="navbar-brand">☀️ HeliaPV</a>
+    <div class="nav-links">
+      <a href="/blog" class="nav-commune-link"><i class="bi bi-journal-code"></i> Blog</a>
+      <a href="/bureaux-etudes" class="nav-commune-link"><i class="bi bi-buildings"></i> BET</a>
+      <a href="/actualites-solaires" class="nav-commune-link"><i class="bi bi-newspaper"></i> Actualités</a>
+      <a href="/app" class="nav-btn-app">Application →</a>
     </div>
   </div>
 </nav>
@@ -491,3 +527,4 @@ setTimeout(() => location.reload(), 30 * 60 * 1000);
 </script>
 </body>
 </html>
+
