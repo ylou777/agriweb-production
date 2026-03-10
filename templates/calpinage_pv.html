@@ -1303,12 +1303,6 @@
                         <div class="card-body p-0 position-relative">
                             <div id="viewer3D"></div>
                             <div class="viewer3d-controls">
-                                <button id="btnObstacles" onclick="toggleObstaclesPanel()"
-                                    class="btn btn-sm w-100 mb-2"
-                                    style="font-size:0.78rem;background:rgba(50,70,100,0.75);color:#e2e8f0;border:1px solid rgba(150,180,220,0.25);display:none;"
-                                    title="Détecter cheminées, CVC, fenêtres de toit...">
-                                    🔍 Accidents de toit
-                                </button>
                                 <small class="text-muted d-block mb-2"><strong>🎮 Contrôles 3D:</strong></small>
                                 <small class="d-block">🖱️ <strong>Souris gauche:</strong> Rotation</small>
                                 <small class="d-block">🖱️ <strong>Roulette:</strong> Zoom</small>
@@ -1335,18 +1329,6 @@
                                     <button class="btn btn-sm btn-link p-0" onclick="document.getElementById('googleSolarPanel').style.display='none'" title="Fermer">✕</button>
                                 </div>
                                 <div id="googleSolarContent"></div>
-                            </div>
-
-                            <!-- Panneau accidents de toiture -->
-                            <div id="obstaclesPanel" style="display:none; position:absolute; bottom:10px; left:10px; z-index:10;
-                                 background:rgba(6,10,20,0.88); border-radius:8px; padding:10px 14px;
-                                 box-shadow:0 2px 14px rgba(0,0,0,0.5); max-width:320px; max-height:240px; overflow-y:auto;
-                                 backdrop-filter:blur(8px); border:1px solid rgba(180,200,255,0.15);">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <strong style="font-size:0.83rem;color:#e2e8f0;">🔍 Accidents de toiture</strong>
-                                    <button class="btn btn-sm btn-link p-0" style="color:#aaa;" onclick="toggleObstaclesPanel(false)" title="Fermer">✕</button>
-                                </div>
-                                <div id="obstaclesContent" style="font-size:0.80rem;color:#d0dff0;"></div>
                             </div>
 
                         </div>
@@ -7622,7 +7604,6 @@
                     viewer3D.onRoofUpdated = () => {
                         ajusterZonesDepuisToiture3D();
                         updateRoofPanelsInfoPanel();
-                        updateObstaclesPanel();
                     };
                 });
             }
@@ -10895,58 +10876,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (panel && viewer3D.roofPanelsInfo) {
                 panel.style.display = 'block';
             }
-        }
-
-        /**
-         * Met à jour le panneau des accidents de toiture détectés par analyse LiDAR.
-         */
-        function updateObstaclesPanel() {
-            const obs = viewer3D?._detectedObstacles;
-            const btn = document.getElementById('btnObstacles');
-            const content = document.getElementById('obstaclesContent');
-            if (!obs || !content) return;
-
-            // Afficher le bouton dès qu'on a des données (même sans obstacles)
-            if (btn) btn.style.display = 'block';
-
-            if (obs.length === 0) {
-                content.innerHTML = '<span style="color:#88a0b8;"><em>Aucun accident détecté (toit uniforme)</em></span>';
-                return;
-            }
-
-            // Comptage par type
-            const counts = {};
-            obs.forEach(o => { counts[o.type] = (counts[o.type] || 0) + 1; });
-
-            let html = `<div style="margin-bottom:6px;font-size:0.75rem;color:#88a0b8;">${obs.length} obstacle(s) détecté(s)</div>`;
-            obs.forEach((o, i) => {
-                html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:3px 5px;
-                          background:rgba(255,255,255,0.05);border-radius:4px;
-                          border-left:3px solid ${o.colorHex};">
-                    <span>${o.icon}</span>
-                    <div style="flex:1;">
-                        <strong style="color:#e8f0ff;font-size:0.79rem;">${o.type}</strong>
-                        <div style="color:#7a96b8;font-size:0.72rem;">
-                            ${o.wm.toFixed(1)}×${o.dm.toFixed(1)}m &bull; H&nbsp;+${o.hMax.toFixed(2)}m &bull; ${o.surfm2.toFixed(1)}m²
-                        </div>
-                    </div>
-                </div>`;
-            });
-            content.innerHTML = html;
-        }
-
-        /**
-         * Affiche/masque le panneau des accidents de toiture et les marqueurs 3D.
-         * @param {boolean} [force] - true=afficher, false=masquer, undefined=toggle
-         */
-        function toggleObstaclesPanel(force) {
-            const panel = document.getElementById('obstaclesPanel');
-            if (!panel) return;
-            const isVisible = panel.style.display !== 'none';
-            const show = (force !== undefined) ? force : !isVisible;
-            panel.style.display = show ? 'block' : 'none';
-            if (viewer3D) viewer3D.toggleRoofObstacles(show);
-            if (show) updateObstaclesPanel();
         }
         
         /**
