@@ -4178,13 +4178,17 @@ class Calpinage3DViewer {
         if (data.center)
             this.lidarData.building_hd.building_center = data.center;
 
-        // Supprimer le toit MNH et reconstruire depuis la grille brute
-        this._removePVRoofMeshes();
-
+        // ── Build-then-remove : construire le nouveau toit AVANT de supprimer
+        // l'ancien, pour garder le bâtiment visible en cas d'échec COPC. ─────
         const bldgCenter = data.center;
         const bh         = this._mainBldgBh      ?? 6;
         const terrainH   = this._mainBldgTerrainH ?? 0;
         const roofType   = this._mainBldgRoofType ?? 'default';
+
+        // Snapshot des anciens meshes AVANT le build
+        const _oldPvMeshes = this.buildings.filter(m =>
+            m.userData?.isPVRoof || m.userData?.isMainBuilding);
+        const _oldLidarRoofs = [...(this._lidarRoofMeshes || [])];
 
         // Rendu principal : grille Z brute (pixel-perfect)
         const rebuilt = this._buildRoofFromGrid(
@@ -4198,6 +4202,23 @@ class Calpinage3DViewer {
                 if (!this._buildRoofHeightField(planes, bldgCenter, bh, terrainH, this.pvBuildingCoords, roofType, true))
                     this._buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, true);
             }
+        }
+
+        // ── Supprimer les anciens meshes MAINTENANT que les nouveaux existent ──
+        {
+            let nOldRemoved = 0;
+            for (const m of _oldPvMeshes) {
+                this.scene.remove(m);
+                m.geometry?.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+                else m.material?.dispose();
+                nOldRemoved++;
+            }
+            const oldSet = new Set(_oldPvMeshes);
+            this.buildings = this.buildings.filter(m => !oldSet.has(m));
+            this._lidarRoofMeshes = (this._lidarRoofMeshes || []).filter(m =>
+                !_oldLidarRoofs.includes(m) || !m.userData?.isPVRoof);
+            console.log(`[COPC] 🗑️ Anciens meshes supprimés: ${nOldRemoved} | buildings restants: ${this.buildings.length}`);
         }
 
         // Marquer le toit comme construit AVANT le code non critique
@@ -4656,7 +4677,7 @@ class Calpinage3DViewer {
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
         // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 4.0;
+        const FP_MARGIN = step * 2.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling sur la grille coarse ────────────────────────────────
@@ -4938,11 +4959,24 @@ class Calpinage3DViewer {
         }
         console.log(`[GRID-ROOF] ✅ ${Math.round(clipPositions.length/3)} sommets, ${clipFaces.length/3} triangles après clipping`);
 
+        // ── NaN guard : remplacer les NaN/Infinity par terrainH + bh ──
+        {
+            let nNaN = 0;
+            for (let k = 0; k < clipPositions.length; k++) {
+                if (!isFinite(clipPositions[k])) {
+                    clipPositions[k] = (k % 3 === 1) ? terrainH + bh : 0;
+                    nNaN++;
+                }
+            }
+            if (nNaN > 0) console.warn(`[GRID-ROOF] ⚠️ ${nNaN} NaN/Inf corrigés dans clipPositions`);
+        }
+
         // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(clipPositions, 3));
         geo.setAttribute('uv',       new THREE.Float32BufferAttribute(clipUVs, 2));
-        geo.setIndex(clipFaces);
+        // Force Uint32 pour les grands bâtiments (>65535 vertices)
+        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(clipFaces), 1));
         geo.computeVertexNormals();
 
         // Texture : satellite si disponible (bords du toit calés pixel-parfait),
@@ -5008,13 +5042,14 @@ class Calpinage3DViewer {
                 const b = q * 4;
                 skirtIdx.push(b, b+1, b+2,  b, b+2, b+3);
             }
-            skirtGeo.setIndex(skirtIdx);
+            skirtGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(skirtIdx), 1));
             skirtGeo.computeVertexNormals();
             const sm = new THREE.Mesh(skirtGeo, skirtMat);
             sm.castShadow = sm.receiveShadow = true;
             sm.userData = { source: 'grid-lidar-skirt', isPVRoof: isPVBuilding };
             this.scene.add(sm);
             this.buildings.push(sm);
+            console.log(`[GRID-ROOF] ✅ Murs (skirt): ${n_fp} quads, Y=[${(terrainH).toFixed(1)},${(terrainH+hTop).toFixed(1)}]`);
         }
 
         // ── 5b. Bandeau de jonction horizontal à z=bh ─────────────────────
@@ -5063,7 +5098,7 @@ class Calpinage3DViewer {
                     const b = q * 4;
                     capIdx.push(b, b+1, b+2,  b, b+2, b+3);
                 }
-                capGeo.setIndex(capIdx);
+                capGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(capIdx), 1));
                 capGeo.computeVertexNormals();
                 // Même matériau que le toit → invisible sous la texture satellite
                 const capMat = new THREE.MeshPhongMaterial({

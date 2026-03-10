@@ -1750,7 +1750,7 @@ def api_lidar_copc_grid():
         # Emprise = union (points LiDAR ∪ polygone bâtiment) + marge 1 cellule
         poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
         poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
-        GRID_PAD = step * 4       # 4 cellules de marge (2.0m) → étend le LiDAR autour du bâtiment
+        GRID_PAD = step * 2       # 2 cellules de marge (1.0m) → étend le LiDAR autour du bâtiment
         x0 = min(float(gx_np.min()), min(poly_lx)) - GRID_PAD
         x1 = max(float(gx_np.max()), max(poly_lx)) + GRID_PAD
         y0 = min(float(gy_np.min()), min(poly_ly)) - GRID_PAD
