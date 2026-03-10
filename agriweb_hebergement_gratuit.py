@@ -1502,8 +1502,8 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     cy_l93 = float(np.mean(ys_l93))
     cx_lon, cx_lat = t_bck.transform(cx_l93, cy_l93)
 
-    # Bounding box avec marge 3m de chaque côté
-    margin = 3.0
+    # Bounding box avec marge 5m de chaque côté (2m utile + 3m sécurité)
+    margin = 5.0
     x_min = min(xs_l93) - margin
     x_max = max(xs_l93) + margin
     y_min = min(ys_l93) - margin
@@ -1558,7 +1558,7 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     # ── Filtre polygon L93 : exclut les bâtiments voisins dans la marge bbox ──
     try:
         from shapely.geometry import Point as _Pt, Polygon as _Poly
-        _MARGIN_L93 = 2.0  # 2m tolérance : garder acrotères/gouttières en bord
+        _MARGIN_L93 = 3.0  # 3m tolérance : garder points LiDAR autour du bâtiment
         _bldg_poly = _Poly(list(zip(xs_l93, ys_l93))).buffer(_MARGIN_L93)
         mask_poly = np.array([
             _bldg_poly.contains(_Pt(float(x_l93[i]), float(y_l93[i])))
@@ -1750,7 +1750,7 @@ def api_lidar_copc_grid():
         # Emprise = union (points LiDAR ∪ polygone bâtiment) + marge 1 cellule
         poly_lx = [(float(c[0]) - cx_lon) * LNG_TO_M_C for c in building_coords]
         poly_ly = [(float(c[1]) - cx_lat) * LAT_TO_M_C for c in building_coords]
-        GRID_PAD = step * 3       # 3 cellules de marge (1.5m) → sommets outside pour clipping
+        GRID_PAD = step * 4       # 4 cellules de marge (2.0m) → étend le LiDAR autour du bâtiment
         x0 = min(float(gx_np.min()), min(poly_lx)) - GRID_PAD
         x1 = max(float(gx_np.max()), max(poly_lx)) + GRID_PAD
         y0 = min(float(gy_np.min()), min(poly_ly)) - GRID_PAD

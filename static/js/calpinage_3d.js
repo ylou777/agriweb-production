@@ -4192,21 +4192,47 @@ class Calpinage3DViewer {
 
         // Mise à jour roofPanelsInfo depuis les plans RANSAC (orientation PV)
         const _copcOBB = this.roofPanelsInfo?.buildingOBB;
-        if (_copcOBB && data.roof_planes?.length) {
-            const _panels = this._computeRoofPanelsInfoFromPlanes(
-                data.roof_planes, _copcOBB, terrainH, bh, bldgCenter, roofType
-            );
-            if (_panels) {
-                _panels.buildingOBB         = _copcOBB;
-                _panels.buildingTerrainH    = terrainH;
-                _panels.buildingWallH       = bh;
-                _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
-                _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
-                this.roofPanelsInfo = _panels;
+        if (_copcOBB) {
+            if (data.roof_planes?.length) {
+                const _panels = this._computeRoofPanelsInfoFromPlanes(
+                    data.roof_planes, _copcOBB, terrainH, bh, bldgCenter, roofType
+                );
+                if (_panels) {
+                    _panels.buildingOBB         = _copcOBB;
+                    _panels.buildingTerrainH    = terrainH;
+                    _panels.buildingWallH       = bh;
+                    _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
+                    _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
+                    this.roofPanelsInfo = _panels;
+                }
+            } else {
+                // Pas de plans RANSAC : surface estimée depuis la grille
+                const gridCells = data.nb_filled || 0;
+                const cellArea  = (data.step || 0.5) ** 2;
+                const surfGrid  = Math.round(gridCells * cellArea * 10) / 10;
+                this.roofPanelsInfo = {
+                    type:            'flat',
+                    typeLabel:       'Toit LiDAR HD',
+                    couverture:      roofType,
+                    surfaceTotale:   surfGrid,
+                    panels:          [{ name: 'Surface toiture', pente_deg: 0, orientation_deg: 0, orientation_label: '', surface: surfGrid, longueur: 0, largeur: 0, source: 'grid' }],
+                    source:          'copc-grid',
+                    buildingOBB:     _copcOBB,
+                    buildingTerrainH:    terrainH,
+                    buildingWallH:       bh,
+                    buildingLocalCoords: this.roofPanelsInfo.buildingLocalCoords,
+                    buildingCenterGeo:   this.roofPanelsInfo.buildingCenterGeo,
+                };
             }
         }
 
         this._showCOPCBanner(data.nb_points, data.nx, data.ny);
+
+        // Rafraîchir le panneau d'infos toiture dans le DOM
+        try {
+            const content = document.getElementById('roofPanelsInfoContent');
+            if (content) content.innerHTML = this.getRoofPanelsHTML();
+        } catch (_e) { /* page sans panneau info */ }
     }
 
     /** Affiche un bandeau "Toit LiDAR HD" discret pendant 6 s. */
@@ -4608,7 +4634,7 @@ class Calpinage3DViewer {
 
         // Footprint dilatée : les cellules HORS fp mais dans fpExpanded fournissent
         // les sommets "outside" pour le clipping ray-cast → bords droits.
-        const FP_MARGIN = step * 3.0;
+        const FP_MARGIN = step * 4.0;
         const fpExpanded = this._expandPolygonEdges(fp, FP_MARGIN);
 
         // ── Null-filling sur la grille coarse ────────────────────────────────
@@ -4776,7 +4802,7 @@ class Calpinage3DViewer {
         // v100: clipper sur fpClip (fp dilaté 0.2m) au lieu de fp exact.
         // Le toit déborde de 20cm au-delà des murs → couvre la jonction mur/toit.
         // Les sommets hors fp sont déjà à z=bh → bord plat à hauteur de mur.
-        const CLIP_OVERHANG = 0.20;  // 20cm de débord
+        const CLIP_OVERHANG = 0.50;  // 50cm de débord
         const fpClip = this._expandPolygonEdges(fp, CLIP_OVERHANG);
 
         // UV satellite : u = 0.5 + wx/(2R), v = 0.5 - wz/(2R)
