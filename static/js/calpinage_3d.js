@@ -4655,28 +4655,7 @@ class Calpinage3DViewer {
 
         const UV_SCALE = 8;
 
-        // ── Distance point→polygone (pour lissage périmétral) ────────────────
-        const EDGE_FLAT = step * 2.0;  // 0→2 cells coarse (1.0m) : z = bh — assez large pour que toutes les arêtes au bord soient plates
-        const EDGE_RAMP = step * 6.0;  // 2→6 cells coarse (3.0m) : rampe linéaire douce
-        const _distToFp = (px, py) => {
-            let minD = Infinity;
-            for (let k = 0; k < fp.length; k++) {
-                const k1 = (k + 1) % fp.length;
-                const ax = fp[k][0], ay = fp[k][1];
-                const bx = fp[k1][0], by = fp[k1][1];
-                const abx = bx - ax, aby = by - ay;
-                const apx = px - ax, apy = py - ay;
-                const ab2 = abx * abx + aby * aby;
-                let t = ab2 > 0 ? (apx * abx + apy * aby) / ab2 : 0;
-                t = Math.max(0, Math.min(1, t));
-                const dx = px - (ax + t * abx), dy = py - (ay + t * aby);
-                const d = Math.sqrt(dx * dx + dy * dy);
-                if (d < minD) minD = d;
-            }
-            return minD;
-        };
-
-        // ── Génération des sommets sur la sous-grille ────────────────────────
+        // ── Génération des sommets sur la sous-grille (hauteur brute LiDAR) ──
         for (let sy = 0; sy < sny; sy++) {
             for (let sx = 0; sx < snx; sx++) {
                 const gx  = x0 + sx * subStep;
@@ -4684,45 +4663,15 @@ class Calpinage3DViewer {
                 if (!this._pointInPoly2D(gx, gy, fpExpanded)) continue;
                 const insideFP = this._pointInPoly2D(gx, gy, fp);
                 const z_rel = getSubZ(sy, sx);
-                const lidarMnh = Math.max(bh, z_rel - z_baseline_rel + bh);
-                let mnh;
-                if (!insideFP) {
-                    mnh = bh;
-                } else {
-                    const d = _distToFp(gx, gy);
-                    if (d < EDGE_FLAT) {
-                        mnh = bh;
-                    } else if (d < EDGE_RAMP) {
-                        const t = (d - EDGE_FLAT) / (EDGE_RAMP - EDGE_FLAT);
-                        mnh = bh + t * (lidarMnh - bh);
-                    } else {
-                        mnh = lidarMnh;
-                    }
-                }
+                const mnh = insideFP
+                    ? Math.max(bh, z_rel - z_baseline_rel + bh)
+                    : bh;
                 positions.push(bldgOffsetX + gx, terrainH + mnh, bldgOffsetZ - gy);
                 uvs.push(gx / UV_SCALE, gy / UV_SCALE);
                 vertexMap[sy * snx + sx] = vi++;
             }
         }
         if (positions.length < 9) return false;
-
-        // ── Diagnostic zone stats ────────────────────────────────────────────
-        {
-            let nFlat = 0, nRamp = 0, nInside = 0, nOutside = 0;
-            let rampMinZ = Infinity, rampMaxZ = -Infinity;
-            for (let k = 0; k < vi; k++) {
-                const vz = positions[k * 3 + 1] - terrainH;
-                if (Math.abs(vz - bh) < 0.001) { nFlat++; nOutside++; } // flat or outside (both at bh)
-                else if (vz > bh && vz < bh + 0.01) { nFlat++; }
-                else {
-                    if (vz < bh + (positions[k * 3 + 1] !== undefined ? 999 : 0)) { nRamp++; }
-                    else { nInside++; }
-                    if (vz < rampMinZ) rampMinZ = vz;
-                    if (vz > rampMaxZ) rampMaxZ = vz;
-                }
-            }
-            console.log(`[GRID-ROOF v98] 🔍 Zone stats: ${vi} vertices total | flat/outside=${nFlat} | ramp+inside=${nRamp + nInside} | ramp Z range=[${rampMinZ.toFixed(2)}, ${rampMaxZ.toFixed(2)}] | bh=${bh.toFixed(2)} | EDGE_FLAT=${EDGE_FLAT.toFixed(2)}m EDGE_RAMP=${EDGE_RAMP.toFixed(2)}m`);
-        }
 
         // ── 3. Triangulation adaptative sur la sous-grille ─────────────────
         // Pour chaque quad, on choisit la diagonale qui suit le mieux le relief :
@@ -4796,11 +4745,11 @@ class Calpinage3DViewer {
             return hits;
         };
 
-        // Interpole un point sur le segment a→b à t ∈ [0,1], z forcé à bh au bord
+        // Interpole un point sur le segment a→b à t ∈ [0,1], z interpolé
         const lerpEdge = (a, b, t) => ({
             x: a.x + t * (b.x - a.x),
             y: a.y + t * (b.y - a.y),
-            z: bh,
+            z: a.z + t * (b.z - a.z),
         });
 
         const clipPositions = [], clipUVs = [], clipFaces = [];
@@ -4848,9 +4797,6 @@ class Calpinage3DViewer {
                     }
                 }
                 if (poly.length < 3) continue;
-                // v98: forcer TOUS les sommets du polygone clippé à z=bh
-                // pour éliminer les fins/dents aux arêtes partiellement clippées.
-                for (const v of poly) v.z = bh;
             }
 
             const vOff = clipPositions.length / 3;
@@ -4871,16 +4817,6 @@ class Calpinage3DViewer {
 
         // v98 diagnostic: vérifier les Z au bord du toit
         {
-            const nClipV = clipPositions.length / 3;
-            let nAtBh = 0, nAbove = 0, maxAbove = 0;
-            for (let k = 0; k < nClipV; k++) {
-                const vz = clipPositions[k * 3 + 1] - terrainH;
-                const diff = vz - bh;
-                if (Math.abs(diff) < 0.01) nAtBh++;
-                else if (diff > 0.01) { nAbove++; if (diff > maxAbove) maxAbove = diff; }
-            }
-            console.log(`[GRID-ROOF v98] 🔍 Clip vertices: ${nClipV} total | at_bh=${nAtBh} | above_bh=${nAbove} | max_above=${maxAbove.toFixed(3)}m`);
-        }
         console.log(`[GRID-ROOF] ✅ ${Math.round(clipPositions.length/3)} sommets, ${clipFaces.length/3} triangles après clipping`);
 
         // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
