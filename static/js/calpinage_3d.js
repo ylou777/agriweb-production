@@ -6445,6 +6445,36 @@ class Calpinage3DViewer {
         const _bOZadd  = -(_bCGadd.lat - this.centerLat) * this.LAT_TO_M;
         const _bWHadd  = this.roofPanelsInfo?.buildingWallH || 6;
 
+        // ── Pré-scan obstacles : modules dont hauteur COPC réelle > plan RANSAC + 25 cm ──────
+        // Un module qui intersecte un obstacle (cheminée, CVC, lanterneau) a sa hauteur LiDAR
+        // mesurée significativement au-dessus du plan théorique du pan RANSAC → on le marque
+        // comme centre d'obstacle et on exclut tout module dans un rayon de 50 cm.
+        const _obstCenters = []; // {x, z} world coords des centres d'obstacles détectés
+        const _EXCL_R2     = 0.50 * 0.50; // 50 cm² (comparaison distance carrée)
+        const _tHGlobal    = this.roofPanelsInfo?.buildingTerrainH ?? 0;
+        if (this.lidarData?.building_hd?.copc_grid?.grid) {
+            zones.forEach(zone => {
+                if (!zone.modulesPositions?.length) return;
+                const _mp  = this.roofPanelsInfo?.panels ? this._matchZoneToPanel(zone) : null;
+                const _isR = _mp?.mnh_a !== undefined && _mp?.mnh_b !== undefined;
+                if (!_isR) return; // RANSAC requis pour avoir une référence fiable
+                zone.modulesPositions.forEach(modPos => {
+                    if (!modPos.lat || !modPos.lng) return;
+                    const ml    = this._geoToLocal(modPos.lat, modPos.lng);
+                    const copcY = this._sampleCopcHeight(ml.x, ml.z);
+                    if (copcY === null) return;
+                    const px = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
+                    const mnh   = _mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c;
+                    const refY  = _tHGlobal + Math.max(_bWHadd, mnh);
+                    if (copcY > refY + 0.25) _obstCenters.push({ x: ml.x, z: ml.z });
+                });
+            });
+            if (_obstCenters.length)
+                console.log(`🔍 [Obstacles] ${_obstCenters.length} module(s) intersectent un obstacle → rayon exclusion 50 cm`);
+        }
+        const _isNearObstacle = (wx, wz) =>
+            _obstCenters.some(o => (wx - o.x) ** 2 + (wz - o.z) ** 2 <= _EXCL_R2);
+
         let totalModules = 0;
 
         zones.forEach(zone => {
@@ -6515,6 +6545,9 @@ class Calpinage3DViewer {
 
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
 
+                    // Exclure les modules sur ou à < 50 cm d'un obstacle de toiture
+                    if (_isNearObstacle(modLocal.x, modLocal.z)) return;
+
                     // Hauteur exacte via équation du plan RANSAC
                     const sPx = modLocal.x - _bOXadd;
                     const sPy = -(modLocal.z - _bOZadd);
@@ -6559,6 +6592,10 @@ class Calpinage3DViewer {
                     const h  = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
                     if (w < 0.1 || h < 0.1) return;
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+
+                    // Exclure les modules sur ou à < 50 cm d'un obstacle de toiture
+                    if (_isNearObstacle(modLocal.x, modLocal.z)) return;
+
                     const dx       = modLocal.x - zoneLocalCenter.x;
                     const dz       = modLocal.z - zoneLocalCenter.z;
                     // Si COPC disponible : hauteur individuelle de chaque module
