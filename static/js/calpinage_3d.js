@@ -4816,7 +4816,6 @@ class Calpinage3DViewer {
         }
 
         // v98 diagnostic: vérifier les Z au bord du toit
-        {
         console.log(`[GRID-ROOF] ✅ ${Math.round(clipPositions.length/3)} sommets, ${clipFaces.length/3} triangles après clipping`);
 
         // ── 4. Mesh Three.js (géométrie clippée exactement sur le footprint) ─
