@@ -4205,12 +4205,16 @@ class Calpinage3DViewer {
                 _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
                 _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
                 this.roofPanelsInfo = _panels;
-                // Re-placer les modules PV avec les nouvelles infos RANSAC (évite les zones sous la toiture)
-                if (this._lastZones?.length) {
-                    console.log(`🔄 [COPC] Re-placement modules PV (RANSAC disponible)`);
-                    this.addModules3D(this._lastZones);
-                }
             }
+        }
+
+        // Toujours re-placer les modules après COPC : la grille LiDAR HD replace le toit BD TOPO
+        // et peut avoir un relief différent (superstructures, acrotères, lanterneaux).
+        // _sampleCopcHeight() sera disponible maintenant pour positionner chaque module
+        // sur la surface réelle du toit au lieu de l'approximation bh+8cm.
+        if (this._lastZones?.length) {
+            console.log(`🔄 [COPC] Re-placement modules PV sur grille LiDAR HD`);
+            this.addModules3D(this._lastZones);
         }
 
         this._showCOPCBanner(data.nb_points, data.nx, data.ny);
@@ -6522,12 +6526,17 @@ class Calpinage3DViewer {
                 });
 
             } else {
-                // ── CHEMIN OBB (fallback) : hauteur uniforme + tilt du groupe ──
-                // Priorité à buildingWallH constant (calculé au centre bâtiment) pour éviter
-                // les variations de hauteur selon la position de la zone.
-                const wallH    = this.roofPanelsInfo?.buildingWallH
-                              || this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-                const roofBaseY = terrainH + wallH + 0.08;
+                // ── CHEMIN OBB (fallback) : hauteur via grille COPC ou bh uniforme ──
+                // Si la grille COPC est disponible, chaque module utilise la hauteur
+                // réelle du toit en son centre (évite les modules dans les superstructures).
+                // Sinon : fallback bh constant.
+                const hasCOPC = !!(this.lidarData?.building_hd?.copc_grid?.grid);
+                const wallH   = this.roofPanelsInfo?.buildingWallH
+                             || this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+                // Hauteur de référence pour le groupe (centre de zone)
+                const roofBaseY = hasCOPC
+                    ? (this._sampleCopcHeight(zoneLocalCenter.x, zoneLocalCenter.z) ?? (terrainH + wallH)) + 0.12
+                    : terrainH + wallH + 0.12;
                 panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
 
                 zone.modulesPositions.forEach(modPos => {
@@ -6539,12 +6548,21 @@ class Calpinage3DViewer {
                     const w  = Math.sqrt(Math.pow(c1.x - c0.x, 2) + Math.pow(c1.z - c0.z, 2));
                     const h  = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
                     if (w < 0.1 || h < 0.1) return;
-                    const modLocal   = this._geoToLocal(modPos.lat, modPos.lng);
-                    const dx         = modLocal.x - zoneLocalCenter.x;
-                    const dz         = modLocal.z - zoneLocalCenter.z;
-                    const edgeAngle  = Math.atan2(c1.z - c0.z, c1.x - c0.x);
+                    const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+                    const dx       = modLocal.x - zoneLocalCenter.x;
+                    const dz       = modLocal.z - zoneLocalCenter.z;
+                    // Si COPC disponible : hauteur individuelle de chaque module
+                    // pour suivre le relief exact du toit (au lieu de tout aligner sur le centre)
+                    let yOffset = 0;
+                    if (hasCOPC) {
+                        const modCopcY = this._sampleCopcHeight(modLocal.x, modLocal.z);
+                        if (modCopcY !== null) {
+                            yOffset = modCopcY + 0.12 - roofBaseY;
+                        }
+                    }
+                    const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
                     const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
-                    panel.position.set(dx, 0.20, dz);
+                    panel.position.set(dx, yOffset, dz);
                     panel.rotation.y    = -edgeAngle;
                     panel.castShadow    = true;
                     panel.receiveShadow = true;
@@ -6706,6 +6724,42 @@ class Calpinage3DViewer {
         return panels.length > 0 ? panels[0] : null;
     }
     
+    /**
+     * Échantillonne la grille COPC (LiDAR HD) à la position world (x, z)
+     * pour obtenir la hauteur Y du toit en coordonnées 3D.
+     * Retourne null si la grille n'est pas disponible ou si la position est hors grille.
+     * @param {number} worldX - coordonnée X locale Three.js
+     * @param {number} worldZ - coordonnée Z locale Three.js
+     * @returns {number|null} hauteur Y absolue (terrainH + mnh), ou null
+     */
+    _sampleCopcHeight(worldX, worldZ) {
+        const cg = this.lidarData?.building_hd?.copc_grid;
+        if (!cg || !cg.grid) return null;
+        const bc = this.lidarData?.building_hd?.building_center;
+        if (!bc) return null;
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const bh       = this._mainBldgBh ?? 6;
+        const LNG_TO_M = this.LAT_TO_M * Math.cos(bc.lat * Math.PI / 180);
+        const bldgOX   = (bc.lon - this.centerLon) * LNG_TO_M;
+        const bldgOZ   = -(bc.lat - this.centerLat) * this.LAT_TO_M;
+        // Convertir world → coords bâtiment-relatif (même repère que la grille backend)
+        const bx = worldX - bldgOX;
+        const by = -(worldZ - bldgOZ);
+        const { grid, x0, y0, nx, ny, step, z_baseline_rel } = cg;
+        const fi = (bx - x0) / step;
+        const fj = (by - y0) / step;
+        if (fi < 0 || fi >= nx - 1 || fj < 0 || fj >= ny - 1) return null;
+        // Bilinéaire
+        const i0 = Math.floor(fi), i1 = i0 + 1;
+        const j0 = Math.floor(fj), j1 = j0 + 1;
+        const ti = fi - i0, tj = fj - j0;
+        const v = (iy, ix) => { const v = grid[iy]?.[ix]; return v ?? z_baseline_rel; };
+        const z_rel = v(j0,i0)*(1-ti)*(1-tj) + v(j0,i1)*ti*(1-tj)
+                    + v(j1,i0)*(1-ti)*tj     + v(j1,i1)*ti*tj;
+        const mnh = Math.max(bh, z_rel - z_baseline_rel + bh);
+        return terrainH + mnh;
+    }
+
     /**
      * Trouve la hauteur des MURS (égout) du bâtiment le plus proche.
      * C'est la hauteur à laquelle le toit commence (pas le faîtage).
