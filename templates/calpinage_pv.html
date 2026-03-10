@@ -7619,14 +7619,21 @@
          */
         function supprimerModulesExclus3D(excluded) {
             if (!excluded?.length) return;
-            const modulePuissance = parseFloat(document.getElementById('modulePuissance').value) || 560;
             let totalSuppressed = 0;
             zones.forEach(zone => {
                 const exclForZone = excluded.filter(e => e.zoneNumero === zone.numero);
                 if (!exclForZone.length || !zone.moduleGroup) return;
-                const toRemove = [];
+
+                // Parcourir les modules dessinés dans l'ordre exact (même ordre que dessinerModulesDansZone)
+                // et retrouver l'indice de grille correspondant à chaque module exclu.
+                // C'est cet indice qui doit être ajouté à _deletedModuleIndices pour que
+                // les redessins futurs (clic Modifier) persistent l'exclusion.
+                if (!zone._deletedModuleIndices) zone._deletedModuleIndices = new Set();
+                let _moduleIdx = -1;
+                let foundCount = 0;
                 zone.moduleGroup.eachLayer(function(layer) {
                     if (!(layer instanceof L.Polygon) || layer._isZoneOutline) return;
+                    _moduleIdx++;
                     const ll = layer.getLatLngs()[0];
                     if (!ll || ll.length < 4) return;
                     const cLat = (ll[0].lat + ll[2].lat) / 2;
@@ -7634,18 +7641,21 @@
                     const match = exclForZone.some(e =>
                         Math.abs(e.lat - cLat) < 1e-8 && Math.abs(e.lng - cLng) < 1e-8
                     );
-                    if (match) toRemove.push(layer);
+                    if (match) {
+                        zone._deletedModuleIndices.add(_moduleIdx);
+                        foundCount++;
+                    }
                 });
-                if (!toRemove.length) return;
-                toRemove.forEach(l => zone.moduleGroup.removeLayer(l));
-                totalSuppressed += toRemove.length;
-                zone.nbModules = Math.max(0, (zone.nbModules || 0) - toRemove.length);
-                zone.puissanceKw = zone.nbModules * modulePuissance / 1000;
-                updateZoneDisplay(zone);
+                if (!foundCount) return;
+                totalSuppressed += foundCount;
+                // Redessiner la zone pour que l'exclusion soit immédiatement visible
+                // ET persistante via _deletedModuleIndices (survit à tout clic Modifier)
+                dessinerModulesDansZone(zone);
+                updateManualModuleCount(zone);
             });
             if (totalSuppressed > 0) {
                 calculerTotaux();
-                console.log(`🏗️ [Obstacles 3D→2D] ${totalSuppressed} module(s) supprimé(s) de la vue 2D`);
+                console.log(`🏗️ [Obstacles 3D→2D] ${totalSuppressed} module(s) exclus persistants via _deletedModuleIndices`);
             }
         }
 
