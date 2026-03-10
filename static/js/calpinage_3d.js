@@ -4874,6 +4874,11 @@ class Calpinage3DViewer {
             let wallVi = 0;
             const OVERLAP = 0.05;  // 5cm sous le toit pour couvrir la micro-fissure
 
+            // Centroïde du fp : direction inward pour l'échantillonnage du LiDAR
+            const fpCx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
+            const fpCy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
+            const INSET = step * 1.5;  // décalage vers l'intérieur (≥1 cellule coarseZ)
+
             for (let ei = 0; ei < n_fp; ei++) {
                 const [px0, py0] = fp[ei], [px1, py1] = fp[(ei + 1) % n_fp];
                 const edx = px1 - px0, edy = py1 - py0;
@@ -4888,7 +4893,13 @@ class Calpinage3DViewer {
                     const t = nSeg > 1 ? s / (nSeg - 1) : 0;
                     const wx = px0 + t * edx;
                     const wy = py0 + t * edy;
-                    const hTop = _sampleMnh(wx, wy) + OVERLAP;
+                    // Décalage inward : évite les cellules extérieures (=z_baseline_rel)
+                    const idx = fpCx - wx, idy = fpCy - wy;
+                    const idist = Math.sqrt(idx * idx + idy * idy);
+                    const inset = Math.min(INSET, idist * 0.4);
+                    const sWx = idist > 0.01 ? wx + idx / idist * inset : wx;
+                    const sWy = idist > 0.01 ? wy + idy / idist * inset : wy;
+                    const hTop = _sampleMnh(sWx, sWy) + OVERLAP;
 
                     wallPos.push(
                         bldgOffsetX + wx, terrainH,        bldgOffsetZ - wy,  // bas
