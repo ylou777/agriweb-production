@@ -4847,48 +4847,29 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
-        // ── 5. Murs LiDAR — hauteur corniche depuis le bord du footprint ─────
-        //
-        // Principe : on marche sur chaque arête du footprint et on échantillonne
-        // la hauteur LiDAR très près du bord (0.25–0.5 m inward).
-        // Ces points sont encore sur la ligne de corniche/égout → hauteur ≈ bh.
-        // On prend le MINIMUM des deux passes pour rester à la corniche (pas au faîtage).
-        //
-        // ❌ Ancien bug : max(h1,h2,h3) avec décalages 0.75–1.75 m capturait la
-        //    surface du toit (bh + pente) → murs montaient jusqu'au faîtage,
-        //    s'imbriquaient dans le toit et disparaissaient visuellement.
+        // ── 5. Murs LiDAR depuis wall_profiles (backend copc-grid) ──────────
+        // Le backend calcule pour chaque arête du footprint les z_tops (percentile 95
+        // des points LiDAR classe 6 à ≤1.5m de l'arête) → silhouette réelle du mur.
+        // On utilise directement ces valeurs : pas d'approximation, pas de sampling.
         {
+            const wallProfiles = gridData.wall_profiles;
             const n_fp = fp.length;
-            const fpCx = fp.reduce((s, p) => s + p[0], 0) / fp.length;
-            const fpCy = fp.reduce((s, p) => s + p[1], 0) / fp.length;
-
-            // Échantillonnage LiDAR via getSubZ — avec protection out-of-bounds
-            const _sampleH = (wx, wy) => {
-                const rawSy = (wy - y0) / subStep;
-                const rawSx = (wx - x0) / subStep;
-                // Clamp indices : ignorer les points hors grille
-                if (rawSy < 0 || rawSy > sny - 1 || rawSx < 0 || rawSx > snx - 1) return bh;
-                const z_rel = getSubZ(rawSy, rawSx);
-                return Math.max(bh, z_rel - z_baseline_rel + bh);
-            };
-
             const wallPos = [], wallIdx = [];
             let wallVi = 0;
-            const OVERLAP = 0.08;   // léger chevauchement avec le toit (anti-interstice)
+            const OVERLAP = 0.08;
 
             for (let ei = 0; ei < n_fp; ei++) {
+                const prof = wallProfiles?.[ei];
                 const [px0, py0] = fp[ei], [px1, py1] = fp[(ei + 1) % n_fp];
                 const edx = px1 - px0, edy = py1 - py0;
-                const eLen = Math.sqrt(edx * edx + edy * edy);
-                if (eLen < 0.01) continue;
 
-                // Perpendiculaire inward : côté pointant vers le centroïde
-                const perpAx =  edy / eLen, perpAy = -edx / eLen;
-                const midX = (px0 + px1) * 0.5, midY = (py0 + py1) * 0.5;
-                const inward = (perpAx * (fpCx - midX) + perpAy * (fpCy - midY)) >= 0 ? 1 : -1;
-                const inX = perpAx * inward, inY = perpAy * inward;
+                let zTops = null;
+                if (prof && prof.n_pts >= 3 && prof.z_tops?.length >= 2) {
+                    zTops = prof.z_tops;
+                }
 
-                const nSeg = Math.max(2, Math.round(eLen / step) + 1);
+                // Fallback si pas de données LiDAR pour cette arête : hauteur fixe bh
+                const nSeg = zTops ? zTops.length : 2;
                 const colBase = wallVi;
 
                 for (let s = 0; s < nSeg; s++) {
@@ -4896,12 +4877,14 @@ class Calpinage3DViewer {
                     const wx = px0 + t * edx;
                     const wy = py0 + t * edy;
 
-                    // Passes peu profondes (0.25 m et 0.5 m) → corniche, pas faîtage.
-                    // min() : on veut le BAS de la surface toit = hauteur de corniche vraie.
-                    const h1 = _sampleH(wx + inX * step * 0.5, wy + inY * step * 0.5);   // 0.25 m
-                    const h2 = _sampleH(wx + inX * step * 1.0, wy + inY * step * 1.0);   // 0.5 m
-                    const h3 = _sampleH(wx + inX * step * 1.5, wy + inY * step * 1.5);   // 0.75 m
-                    const hTop = Math.min(h1, h2, h3) + OVERLAP;
+                    let hTop = bh;
+                    if (zTops) {
+                        const zv = zTops[s];
+                        if (zv != null) {
+                            // z_tops est relatif à z_min_abs, identique à la grille
+                            hTop = Math.max(bh, zv - z_baseline_rel + bh) + OVERLAP;
+                        }
+                    }
 
                     wallPos.push(
                         bldgOffsetX + wx, terrainH,        bldgOffsetZ - wy,
@@ -4925,7 +4908,7 @@ class Calpinage3DViewer {
                 wallGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(wallIdx), 1));
                 wallGeo.computeVertexNormals();
                 const wallMat = new THREE.MeshPhongMaterial({
-                    color: 0xD0C8B8, side: THREE.FrontSide,
+                    color: 0xD4CABC, side: THREE.DoubleSide,
                     specular: 0x222222, shininess: 8,
                 });
                 const wallMesh = new THREE.Mesh(wallGeo, wallMat);
@@ -4933,7 +4916,8 @@ class Calpinage3DViewer {
                 wallMesh.userData = { source: 'grid-lidar-wall', isPVRoof: isPVBuilding };
                 this.scene.add(wallMesh);
                 this.buildings.push(wallMesh);
-                console.log(`[GRID-ROOF v106] ✅ Murs LiDAR corniche: ${n_fp} arêtes, ${wallVi} sommets`);
+                const nWithData = (gridData.wall_profiles || []).filter(p => p?.n_pts >= 3).length;
+                console.log(`[GRID-ROOF] ✅ Murs LiDAR wall_profiles: ${nWithData}/${n_fp} arêtes avec données`);
             }
         }
 
