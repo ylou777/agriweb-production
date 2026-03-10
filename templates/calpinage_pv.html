@@ -1976,6 +1976,7 @@
         let _moduleBrushDirty  = false; // Au moins un module effacé par le pinceau ce geste
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
         let zoneResizeHandles = {}; // Poignées de coin pour redimensionner les zones PV
+        let dragUpdateInterval = null; // Interval de mise à jour pendant le glissement
         let _lockedZoneId = null; // Zone "saisie" (calque actif) — seule zone éditable
         let lidarDetecting = false; // Mode auto-détection toiture LiDAR
         let lidarClickHandler = null; // Handler click map pour détection
@@ -3201,7 +3202,7 @@
             });
 
             // Variables pour le suivi du déplacement en temps réel
-            let dragUpdateInterval = null;
+            dragUpdateInterval = null;
 
             // Événement de début d'édition - rendre visible et activer suivi temps réel
             map.on(L.Draw.Event.EDITSTART, function() {
@@ -9476,7 +9477,17 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
             } catch(e) {
                 console.error('Flux heatmap error:', e);
-                alert(`❌ Carte d'irradiation indisponible : ${e.message}`);
+                // Pour les zones non couvertes par Google Solar, éviter la popup bloquante
+                if (e.message && (e.message.includes('aucune qualité') || e.message.includes('NO_COVERAGE'))) {
+                    const _nt = document.createElement('div');
+                    _nt.className = 'alert alert-warning';
+                    _nt.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:420px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                    _nt.innerHTML = `⚠️ Irradiation Google Solar non disponible pour cette zone. Le ratio PVGIS affiché dans le panneau est utilisé pour les calculs.`;
+                    document.body.appendChild(_nt);
+                    setTimeout(() => { _nt.style.opacity='0'; _nt.style.transition='opacity 0.5s'; setTimeout(()=>_nt.remove(),500); }, 6000);
+                } else {
+                    alert(`❌ Carte d'irradiation indisponible : ${e.message}`);
+                }
             } finally {
                 _syncFluxBtns(_fluxActive, false);
             }

@@ -4205,6 +4205,11 @@ class Calpinage3DViewer {
                 _panels.buildingLocalCoords = this.roofPanelsInfo.buildingLocalCoords;
                 _panels.buildingCenterGeo   = this.roofPanelsInfo.buildingCenterGeo;
                 this.roofPanelsInfo = _panels;
+                // Re-placer les modules PV avec les nouvelles infos RANSAC (évite les zones sous la toiture)
+                if (this._lastZones?.length) {
+                    console.log(`🔄 [COPC] Re-placement modules PV (RANSAC disponible)`);
+                    this.addModules3D(this._lastZones);
+                }
             }
         }
 
@@ -6388,6 +6393,9 @@ class Calpinage3DViewer {
      *   - Le champ est posé 10cm au-dessus de la surface du toit
      */
     addModules3D(zones) {
+        // Mémoriser pour re-placement automatique quand COPC/RANSAC arrive après
+        this._lastZones = zones;
+
         // Supprimer les anciens modules (groupes ou meshes individuels)
         this.modules3D.forEach(m => {
             this.scene.remove(m);
@@ -6461,8 +6469,9 @@ class Calpinage3DViewer {
             // Utiliser _getTerrainHeight(zoneLocalCenter) causerait des décalages de
             // jusqu'à 4.5m (exagération x1.8 × delta terrain 2.5m) entre zones,
             // faisant apparaître certaines zones dans le bâtiment (invisibles).
+            // Note: ?? (nullish) au lieu de || pour éviter qu'une valeur 0 déclenche le fallback.
             const terrainH = this.roofPanelsInfo?.buildingTerrainH
-                          || this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+                          ?? this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
 
             // Matériau partagé
             const panelMat = new THREE.MeshPhongMaterial({
@@ -6514,7 +6523,10 @@ class Calpinage3DViewer {
 
             } else {
                 // ── CHEMIN OBB (fallback) : hauteur uniforme + tilt du groupe ──
-                const wallH    = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+                // Priorité à buildingWallH constant (calculé au centre bâtiment) pour éviter
+                // les variations de hauteur selon la position de la zone.
+                const wallH    = this.roofPanelsInfo?.buildingWallH
+                              || this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
                 const roofBaseY = terrainH + wallH + 0.08;
                 panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
 
