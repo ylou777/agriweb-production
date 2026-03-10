@@ -581,16 +581,9 @@ class Calpinage3DViewer {
             modAcross = Math.max(moduleW, moduleH);
         }
         
-        // Marge depuis le bord du toit (acrotère, rive, etc.)
-        // Pour un toit plat avec acrotère (parapet), 80cm ; pour toit incliné, 30cm.
-        // Si le LiDAR a détecté un acrotère, on utilise sa largeur + 20cm de sécurité.
+        // Marge depuis le bord du toit (rive, etc.)
         const isFlat = info.type === 'flat' || !info.type;
-        const marge = (() => {
-            if (this.roofPanelsInfo && this.roofPanelsInfo._acrotereWidth) {
-                return this.roofPanelsInfo._acrotereWidth + 0.20;
-            }
-            return isFlat ? 0.80 : 0.30;
-        })();
+        const marge = isFlat ? 0.80 : 0.30;
         
         const generatedZones = [];
         
@@ -4348,7 +4341,7 @@ class Calpinage3DViewer {
         const validPlanes = planes.filter(plane => {
             const poly = plane.polygon_2d;
             if (!poly || poly.length < 3) return false;
-            // Filtre acrotère : aire trop petite ou trop étroite
+            // Filtre plans invalides : aire trop petite ou trop étroite
             let sa = 0;
             for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
                 sa += poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1];
@@ -4772,6 +4765,12 @@ class Calpinage3DViewer {
         // arêtes frontières contre TOUTES les intersections avec le polygone.
         // Gère correctement les bâtiments en L, T, U (concaves).
 
+        // v100: clipper sur fpClip (fp dilaté 0.2m) au lieu de fp exact.
+        // Le toit déborde de 20cm au-delà des murs → couvre la jonction mur/toit.
+        // Les sommets hors fp sont déjà à z=bh → bord plat à hauteur de mur.
+        const CLIP_OVERHANG = 0.20;  // 20cm de débord
+        const fpClip = this._expandPolygonEdges(fp, CLIP_OVERHANG);
+
         // UV satellite : u = 0.5 + wx/(2R), v = 0.5 - wz/(2R)
         const satR = this._satRadiusM * 2;
 
@@ -4780,10 +4779,10 @@ class Calpinage3DViewer {
         const segPolyAllHits = (a, b) => {
             const dx = b.x - a.x, dy = b.y - a.y;
             const hits = [];
-            for (let k = 0; k < fp.length; k++) {
-                const k1 = (k + 1) % fp.length;
-                const ex = fp[k][0], ey = fp[k][1];
-                const fx = fp[k1][0], fy = fp[k1][1];
+            for (let k = 0; k < fpClip.length; k++) {
+                const k1 = (k + 1) % fpClip.length;
+                const ex = fpClip[k][0], ey = fpClip[k][1];
+                const fx = fpClip[k1][0], fy = fpClip[k1][1];
                 const edx = fx - ex, edy = fy - ey;
                 const denom = dx * edy - dy * edx;
                 if (Math.abs(denom) < 1e-12) continue;
@@ -4812,7 +4811,7 @@ class Calpinage3DViewer {
                 z: positions[vi * 3 + 1] - terrainH,
             }));
 
-            const ins = tri.map(v => this._pointInPoly2D(v.x, v.y, fp));
+            const ins = tri.map(v => this._pointInPoly2D(v.x, v.y, fpClip));
             const nIn = ins.filter(Boolean).length;
             if (nIn === 0) continue;
 
@@ -4993,9 +4992,12 @@ class Calpinage3DViewer {
                 }
                 capGeo.setIndex(capIdx);
                 capGeo.computeVertexNormals();
+                // Même matériau que le toit → invisible sous la texture satellite
                 const capMat = new THREE.MeshPhongMaterial({
-                    color: 0xD0C8B8, side: THREE.DoubleSide,
-                    specular: 0x111111, shininess: 5,
+                    map:   this._satTexture || null,
+                    color: this._satTexture ? 0xffffff : 0xD0C8B8,
+                    side: THREE.DoubleSide,
+                    specular: 0x111111, shininess: 3,
                     // Rendu SOUS le toit (polygonOffset +1 > toit -1) → toit gagne au z-fighting
                     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
                 });
@@ -5060,30 +5062,6 @@ class Calpinage3DViewer {
         for (const plane of planes) {
             const poly = plane.polygon_2d;
             if (!poly || poly.length < 3) continue;
-
-            // ── Filtre acrotère / parapet ──────────────────────────────────────
-            // L'acrotère (relevé de étanchéité / parapet) est capté par le RANSAC
-            // comme plan quasi-horizontal sous forme d'une BANDELETTE FINE le long
-            // du périmètre du toit (largeur réelle ≈ 0.2–0.5 m).
-            // Ce polygon_2d "en cadre" ou "en L" crée des concavités résistantes à
-            // l'expansion Minkowski et génère l'artefact visuel "axe décalé".
-            // Critère de détection : largeur minimale effective = area / max_bbox_dim.
-            //   Acrotère réel  : ~0.3 m  → filtrée (<1.5 m)
-            //   Vrai pan de toit: ≥ 2.0 m → conservé
-            {
-                let _sa = 0;
-                for (let _i = 0, _j = poly.length - 1; _i < poly.length; _j = _i++)
-                    _sa += poly[_j][0] * poly[_i][1] - poly[_i][0] * poly[_j][1];
-                const _area = Math.abs(_sa) / 2;
-                const _pxs = poly.map(p => p[0]), _pys = poly.map(p => p[1]);
-                const _bbW  = Math.max(..._pxs) - Math.min(..._pxs);
-                const _bbH  = Math.max(..._pys) - Math.min(..._pys);
-                const _minW = _area / Math.max(_bbW, _bbH, 0.1);
-                if (_minW < 1.5 || _area < 4) {
-                    console.log(`⏭️ Plan RANSAC ignoré (acrotère probable): id=${plane.plane_id}, minW=${_minW.toFixed(2)}m, area=${_area.toFixed(1)}m²`);
-                    continue;
-                }
-            }
 
             const { mnh_a, mnh_b, mnh_c } = plane;
 
