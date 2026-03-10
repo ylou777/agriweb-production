@@ -48,6 +48,10 @@ class Calpinage3DViewer {
         
         // Coordonnées géo du bâtiment PV principal (pour matching zone→pan)
         this.pvBuildingCoords = null;
+
+        // Callback appelé quand COPC+RANSAC ont mis à jour roofPanelsInfo
+        // (utile pour re-appliquer les pentes auto aux zones 2D depuis la page HTML)
+        this.onRoofUpdated = null;
         
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
@@ -4217,6 +4221,12 @@ class Calpinage3DViewer {
             this.addModules3D(this._lastZones);
         }
 
+        // Notifier la page HTML que roofPanelsInfo a été mis à jour avec les données RANSAC
+        // → l'interface 2D pourra re-appliquer les pentes auto aux sliders des zones
+        if (typeof this.onRoofUpdated === 'function') {
+            this.onRoofUpdated();
+        }
+
         this._showCOPCBanner(data.nb_points, data.nx, data.ny);
     }
 
@@ -6563,18 +6573,19 @@ class Calpinage3DViewer {
                     const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
                     const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
                     panel.position.set(dx, yOffset, dz);
-                    panel.rotation.y    = -edgeAngle;
+                    // Rotation individuelle : pas de rotation de groupe pour ne pas faire
+                    // plonger la moitié des modules dans la toiture.
+                    // YXZ : d'abord aligner l'azimut (Y), puis incliner (X).
+                    panel.rotation.order = 'YXZ';
+                    panel.rotation.y = -edgeAngle;
+                    panel.rotation.x = pente;
                     panel.castShadow    = true;
                     panel.receiveShadow = true;
                     panel.renderOrder   = 10;
                     panGroup.add(panel);
                     totalModules++;
                 });
-
-                if (pente > 0.001) {
-                    const tiltAxis = new THREE.Vector3(-Math.cos(azimut), 0, -Math.sin(azimut)).normalize();
-                    panGroup.rotateOnWorldAxis(tiltAxis, pente);
-                }
+                // Pas de rotation de groupe (panGroup.rotateOnWorldAxis supprimé) :
             }
 
             this.scene.add(panGroup);

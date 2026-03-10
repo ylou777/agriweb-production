@@ -7626,6 +7626,13 @@
                     }
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
+
+                    // ── 2. Quand COPC+RANSAC arrivent (~15-35 s après), ré-appliquer
+                    //    les pentes détectées aux sliders des zones 2D ──────────────
+                    viewer3D.onRoofUpdated = () => {
+                        ajusterZonesDepuisToiture3D();
+                        updateRoofPanelsInfoPanel();
+                    };
                 });
             }
         }
