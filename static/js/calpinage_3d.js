@@ -4281,9 +4281,9 @@ class Calpinage3DViewer {
             const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % n];
             const ex = x2 - x1, ey = y2 - y1;
             const len = Math.sqrt(ex * ex + ey * ey) || 1;
-            // Normale perpendiculaire vers l'extérieur
-            const nx_ = -ey / len * sign * d;
-            const ny_ =  ex / len * sign * d;
+            // Normale perpendiculaire vers l'extérieur (perpendiculaire droite pour CCW)
+            const nx_ =  ey / len * sign * d;
+            const ny_ = -ex / len * sign * d;
             offsetLines.push({ x1: x1 + nx_, y1: y1 + ny_, x2: x2 + nx_, y2: y2 + ny_ });
         }
 
