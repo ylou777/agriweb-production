@@ -4907,36 +4907,75 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
 
-        // ── 5. Murs du sol au bord du toit (continuité avec EDGE_FLAT) ─────
-        // Le toit est aplati à bh dans la zone EDGE_FLAT (1.8m) au bord du footprint.
-        // Les murs montent de terrainH+0 à terrainH+bh+5cm → jonction nette.
+        // ── 5. Murs subdivisés depuis coarseZ : profil LiDAR naturel ──────────
+        // Pour chaque arête du footprint, subdivision en ~step mètres.
+        // Hauteur haut = échantillonnage de coarseZ À LA POSITION DU MUR (d=0),
+        // sans décalage inward. coarseZ n'est pas tronqué par EDGE_FLAT/EDGE_RAMP :
+        //   - Murs longs (arêtes parallèles au faîtage) : coarseZ ≈ z_baseline_rel + bh → hTop ≈ bh ✓
+        //   - Pignons (arêtes ⊥ au faîtage) : coarseZ varie de base (coins = bh)
+        //     à sommet (apex = bh + ridge delta) → profil triangulaire naturel ✓
+        //   - Si coarseZ vide (extrapolé à z_baseline_rel) : hTop = bh (fallback sûr)
         {
             const n_fp = fp.length;
+
+            // Interpolation bilinéaire sur coarseZ brut (sans EDGE_FLAT)
+            const _sampleMnh = (gx, gy) => {
+                const fx = (gx - x0) / step, fy = (gy - y0) / step;
+                if (fx < 0 || fx > nx - 1 || fy < 0 || fy > ny - 1) return bh;
+                const ix_ = Math.min(Math.floor(fx), nx - 2);
+                const iy_ = Math.min(Math.floor(fy), ny - 2);
+                const tx = Math.max(0, Math.min(1, fx - ix_));
+                const ty = Math.max(0, Math.min(1, fy - iy_));
+                const z00 = coarseZ[ iy_      * nx + ix_    ];
+                const z10 = coarseZ[ iy_      * nx + ix_ + 1];
+                const z01 = coarseZ[(iy_ + 1) * nx + ix_    ];
+                const z11 = coarseZ[(iy_ + 1) * nx + ix_ + 1];
+                const zr = z00*(1-tx)*(1-ty) + z10*tx*(1-ty)
+                         + z01*(1-tx)*ty      + z11*tx*ty;
+                return Math.max(bh, zr - z_baseline_rel + bh);
+            };
+
             const wallPos = [], wallIdx = [];
             let wallVi = 0;
-            const CAP_RAISE = 0.05;  // 5cm au-dessus de bh → couvre micro-fissures
-            const hTop = bh + CAP_RAISE;
+            const OVERLAP = 0.05;  // 5cm sous le toit pour couvrir la micro-fissure
 
             for (let ei = 0; ei < n_fp; ei++) {
                 const [px0, py0] = fp[ei], [px1, py1] = fp[(ei + 1) % n_fp];
                 const edx = px1 - px0, edy = py1 - py0;
-                if (edx * edx + edy * edy < 0.0001) continue;
+                const eLen = Math.sqrt(edx * edx + edy * edy);
+                if (eLen < 0.01) continue;
 
-                const b = wallVi;
-                wallPos.push(
-                    bldgOffsetX + px0, terrainH,        bldgOffsetZ - py0,   // bas-gauche
-                    bldgOffsetX + px0, terrainH + hTop,  bldgOffsetZ - py0,   // haut-gauche
-                    bldgOffsetX + px1, terrainH,        bldgOffsetZ - py1,   // bas-droite
-                    bldgOffsetX + px1, terrainH + hTop,  bldgOffsetZ - py1,   // haut-droite
-                );
-                wallIdx.push(b, b+2, b+3,  b, b+3, b+1);
-                wallVi += 4;
+                // Segments de ~step mètre le long de l'arête
+                const nSeg = Math.max(2, Math.round(eLen / step) + 1);
+                const colBase = wallVi;
+
+                for (let s = 0; s < nSeg; s++) {
+                    const t = nSeg > 1 ? s / (nSeg - 1) : 0;
+                    const wx = px0 + t * edx;
+                    const wy = py0 + t * edy;
+                    const hTop = _sampleMnh(wx, wy) + OVERLAP;
+
+                    wallPos.push(
+                        bldgOffsetX + wx, terrainH,        bldgOffsetZ - wy,  // bas
+                        bldgOffsetX + wx, terrainH + hTop, bldgOffsetZ - wy,  // haut
+                    );
+                }
+
+                // 2 triangles par quad (quad = 2 colonnes adjacentes × 2 rangées)
+                for (let s = 0; s < nSeg - 1; s++) {
+                    const bl = colBase + s * 2;
+                    const tl = colBase + s * 2 + 1;
+                    const br = colBase + (s + 1) * 2;
+                    const tr = colBase + (s + 1) * 2 + 1;
+                    wallIdx.push(bl, br, tr,  bl, tr, tl);
+                }
+                wallVi += nSeg * 2;
             }
 
             if (wallPos.length >= 12) {
                 const wallGeo = new THREE.BufferGeometry();
                 wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(wallPos, 3));
-                wallGeo.setIndex(wallIdx);
+                wallGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(wallIdx), 1));
                 wallGeo.computeVertexNormals();
                 const wallMat = new THREE.MeshPhongMaterial({
                     color: 0xD0C8B8, side: THREE.DoubleSide,
@@ -4947,7 +4986,7 @@ class Calpinage3DViewer {
                 wallMesh.userData = { source: 'grid-lidar-wall', isPVRoof: isPVBuilding };
                 this.scene.add(wallMesh);
                 this.buildings.push(wallMesh);
-                console.log(`[GRID-ROOF v100b] ✅ Murs: ${n_fp} arêtes, hTop=${hTop.toFixed(2)}m`);
+                console.log(`[GRID-ROOF v101] ✅ Murs LiDAR: ${n_fp} arêtes, ${wallVi} sommets, ${wallIdx.length/3} tri`);
             }
         }
 
