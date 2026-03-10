@@ -241,8 +241,14 @@ class Calpinage3DViewer {
             // Toit PV : uniquement via COPC LAZ brut (~15-35s).
             // Si COPC échoue, fallback sur les plans MNH stockés dans lidarData.
             if ((this.pvBuildingCoords?.length ?? 0) >= 3) {
+                this._copcRoofBuilt = false;
                 this._fetchAndApplyCOPCRoof(lat, lon).catch(e => {
                     console.warn('⚠️ COPC (non critique):', e.message);
+                    // Ne pas supprimer si le toit COPC a déjà été construit
+                    if (this._copcRoofBuilt) {
+                        console.warn('⚠️ Toit COPC déjà construit — on garde le mesh existant');
+                        return;
+                    }
                     // Supprimer le toit MNH initial avant d'ajouter le fallback
                     this._removePVRoofMeshes();
                     // Fallback MNH : construire le toit depuis les plans RANSAC initiaux
@@ -4111,18 +4117,22 @@ class Calpinage3DViewer {
      *  pour éviter le z-fighting murs doubles quand le toit COPC fournit
      *  ses propres murs (skirt). */
     _removePVRoofMeshes() {
+        const nBefore = this.buildings.length;
+        let nRemoved = 0;
         // Purger aussi _lidarRoofMeshes pour éviter stale refs
         this._lidarRoofMeshes = this._lidarRoofMeshes.filter(m => {
             return !m.userData?.isPVRoof;
         });
         this.buildings = this.buildings.filter(m => {
             if (!m.userData?.isPVRoof && !m.userData?.isMainBuilding) return true;
+            nRemoved++;
             this.scene.remove(m);
             m.geometry?.dispose();
             if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
             else m.material?.dispose();
             return false;
         });
+        console.log(`[REMOVE-PV] 🗑️ Supprimé ${nRemoved} mesh(es) (buildings: ${nBefore} → ${this.buildings.length})`);
     }
 
     /**
@@ -4190,6 +4200,14 @@ class Calpinage3DViewer {
             }
         }
 
+        // Marquer le toit comme construit AVANT le code non critique
+        this._copcRoofBuilt = true;
+
+        // ── Code non critique (info panneaux, bannière, DOM) ─────────────
+        // Enveloppé en try-catch pour ne pas déclencher le .catch() fallback
+        // qui supprimerait le toit déjà construit.
+        try {
+
         // Mise à jour roofPanelsInfo depuis les plans RANSAC (orientation PV)
         const _copcOBB = this.roofPanelsInfo?.buildingOBB;
         if (_copcOBB) {
@@ -4233,6 +4251,10 @@ class Calpinage3DViewer {
             const content = document.getElementById('roofPanelsInfoContent');
             if (content) content.innerHTML = this.getRoofPanelsHTML();
         } catch (_e) { /* page sans panneau info */ }
+
+        } catch (postBuildErr) {
+            console.warn('⚠️ COPC post-build (non critique):', postBuildErr.message);
+        }
     }
 
     /** Affiche un bandeau "Toit LiDAR HD" discret pendant 6 s. */
@@ -4939,6 +4961,23 @@ class Calpinage3DViewer {
         this.scene.add(mesh);
         this.buildings.push(mesh);
         this._lidarRoofMeshes.push(mesh);  // pour mise à jour satellite asynchrone
+
+        // ── Diagnostic : bounding box du mesh pour debug position ─────────
+        {
+            let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity, zMin = Infinity, zMax = -Infinity;
+            for (let k = 0; k < clipPositions.length; k += 3) {
+                const vx = clipPositions[k], vy = clipPositions[k+1], vz = clipPositions[k+2];
+                if (vx < xMin) xMin = vx; if (vx > xMax) xMax = vx;
+                if (vy < yMin) yMin = vy; if (vy > yMax) yMax = vy;
+                if (vz < zMin) zMin = vz; if (vz > zMax) zMax = vz;
+            }
+            console.log(`[GRID-ROOF] 📐 BBox mesh: X=[${xMin.toFixed(1)},${xMax.toFixed(1)}] Y=[${yMin.toFixed(1)},${yMax.toFixed(1)}] Z=[${zMin.toFixed(1)},${zMax.toFixed(1)}]`);
+            console.log(`[GRID-ROOF] 📐 terrainH=${terrainH.toFixed(2)}, bh=${bh.toFixed(2)}, bldgOffset=(${bldgOffsetX.toFixed(1)},${bldgOffsetZ.toFixed(1)}), buildings.length=${this.buildings.length}`);
+            if (this.camera) {
+                const cp = this.camera.position;
+                console.log(`[GRID-ROOF] 📐 Camera pos=(${cp.x.toFixed(1)},${cp.y.toFixed(1)},${cp.z.toFixed(1)})`);
+            }
+        }
 
         // ── 5. Murs verticaux le long du périmètre du footprint ─────────────
         // Murs complets du sol (terrainH) au sommet (terrainH + bh).
