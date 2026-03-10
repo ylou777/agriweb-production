@@ -52,6 +52,10 @@ class Calpinage3DViewer {
         // Callback appelé quand COPC+RANSAC ont mis à jour roofPanelsInfo
         // (utile pour re-appliquer les pentes auto aux zones 2D depuis la page HTML)
         this.onRoofUpdated = null;
+
+        // Accidents de toiture détectés automatiquement à l'arrivée de la grille COPC
+        this._detectedObstacles   = [];
+        this._roofObstacleMarkers = [];
         
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
@@ -4221,6 +4225,12 @@ class Calpinage3DViewer {
             this.addModules3D(this._lastZones);
         }
 
+        // Détecter les accidents de toiture (repose sur la grille COPC + plans RANSAC)
+        this._detectedObstacles = this.detectRoofObstacles();
+        if (this._detectedObstacles.length > 0) {
+            this.showRoofObstacles(this._detectedObstacles);
+        }
+
         // Notifier la page HTML que roofPanelsInfo a été mis à jour avec les données RANSAC
         // → l'interface 2D pourra re-appliquer les pentes auto aux sliders des zones
         if (typeof this.onRoofUpdated === 'function') {
@@ -6836,6 +6846,273 @@ class Calpinage3DViewer {
         return closestH;
     }
     
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DÉTECTION DES ACCIDENTS DE TOITURE
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Détecte les accidents de toiture (cheminées, CVC, exutoires, fenêtres de toit...)
+     * en comparant la grille COPC brute avec la surface théorique des plans RANSAC.
+     *
+     * Algorithme :
+     *   1. Pour chaque cellule LiDAR, résidu = mnh_lidar − mnh_plan_théorique
+     *   2. Cellules résidu > seuil = saillies (obstacles au-dessus du plan de toit)
+     *   3. Clustering BFS 4-connexe pour regrouper les cellules adjacentes
+     *   4. Filtrage (taille, allongement pour éliminer les acrotères)
+     *   5. Classification par hauteur max + surface
+     *
+     * @param {Object} [opts]
+     * @param {number} [opts.protrusion=0.22]  Seuil minimal de saillie (m) au-dessus du plan théorique
+     * @param {number} [opts.minCells=2]        Nombre minimal de cellules par cluster
+     * @returns {Array} obstacles [{type, icon, colorHex, color3js, surfm2, hMax, wm, dm, worldX, worldZ, baseY, lat, lon}]
+     */
+    detectRoofObstacles(opts = {}) {
+        const cg = this.lidarData?.building_hd?.copc_grid;
+        if (!cg || !cg.grid) return [];
+
+        const threshold = opts.protrusion ?? 0.22;
+        const minCells  = opts.minCells  ?? 2;
+
+        const { grid, x0, y0, nx, ny, step, z_baseline_rel } = cg;
+        const bc       = this.lidarData.building_hd.building_center;
+        const bh       = this._mainBldgBh      ?? 6;
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const LNG_TO_M = this.LAT_TO_M * Math.cos(bc.lat * Math.PI / 180);
+        const bldgOX   = (bc.lon - this.centerLon) * LNG_TO_M;
+        const bldgOZ   = -(bc.lat - this.centerLat) * this.LAT_TO_M;
+
+        // Plans RANSAC disponibles (avec équation mnh_a/b/c)
+        const panels = (this.roofPanelsInfo?.panels || []).filter(p => p.mnh_a !== undefined);
+
+        // Niveau de référence « toit plat » = percentile 40 des MNH valides
+        // (robuste aux obstacles : même si 40% de la surface est obstruée, la médiane reste correcte)
+        const allMnh = [];
+        for (let j = 0; j < ny; j++)
+            for (let i = 0; i < nx; i++) {
+                const v = grid[j]?.[i];
+                if (v != null) allMnh.push(Math.max(bh, v - z_baseline_rel + bh));
+            }
+        allMnh.sort((a, b) => a - b);
+        const flatLevel = allMnh.length > 0 ? allMnh[Math.floor(allMnh.length * 0.40)] : bh;
+
+        // ── Calcul des résiduels par cellule ──────────────────────────────────────
+        // Pour chaque cellule, la référence est :
+        //  • Sans RANSAC : flatLevel (médiane de la grille = plan de toit plat)
+        //  • Avec RANSAC : le plan le plus élevé qui reste <= mnh_actual
+        //    (= le plan « sous les pieds » de la cellule → obstacles = excès au-dessus)
+        const residual = new Float32Array(nx * ny);
+        for (let j = 0; j < ny; j++) {
+            for (let i = 0; i < nx; i++) {
+                const v     = grid[j]?.[i];
+                const mnh_a = (v != null) ? Math.max(bh, v - z_baseline_rel + bh) : bh;
+                let ref = flatLevel;
+                if (panels.length > 0) {
+                    const cellBX = x0 + i * step;
+                    const cellBY = y0 + j * step;
+                    let bestRef = -Infinity;
+                    for (const p of panels) {
+                        const pmnh = p.mnh_a * cellBX + p.mnh_b * cellBY + p.mnh_c;
+                        if (pmnh >= bh && pmnh <= mnh_a && pmnh > bestRef) bestRef = pmnh;
+                    }
+                    if (bestRef > -Infinity) ref = bestRef;
+                }
+                residual[j * nx + i] = mnh_a - ref;
+            }
+        }
+
+        // ── Clustering BFS 4-connexe ─────────────────────────────────────────────
+        const label    = new Int16Array(nx * ny).fill(-1);
+        const queue    = [];
+        const clusters = [];
+        let nClusters  = 0;
+
+        for (let j0 = 0; j0 < ny; j0++) {
+            for (let i0 = 0; i0 < nx; i0++) {
+                const idx0 = j0 * nx + i0;
+                if (residual[idx0] < threshold || label[idx0] >= 0) continue;
+
+                const cid = nClusters++;
+                const cl  = { cells: 0, iMin: i0, iMax: i0, jMin: j0, jMax: j0, rMax: 0 };
+                clusters.push(cl);
+                queue.length = 0;
+                queue.push(i0, j0);
+                label[idx0] = cid;
+                let qi = 0;
+
+                while (qi < queue.length) {
+                    const ci = queue[qi++], cj = queue[qi++];
+                    const r  = residual[cj * nx + ci];
+                    cl.cells++;
+                    if (r > cl.rMax) cl.rMax = r;
+                    if (ci < cl.iMin) cl.iMin = ci;
+                    if (ci > cl.iMax) cl.iMax = ci;
+                    if (cj < cl.jMin) cl.jMin = cj;
+                    if (cj > cl.jMax) cl.jMax = cj;
+                    for (const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                        const ni = ci + di, nj = cj + dj;
+                        if (ni < 0 || ni >= nx || nj < 0 || nj >= ny) continue;
+                        const ni2 = nj * nx + ni;
+                        if (residual[ni2] < threshold || label[ni2] >= 0) continue;
+                        label[ni2] = cid;
+                        queue.push(ni, nj);
+                    }
+                }
+            }
+        }
+
+        // ── Filtrage et classification ──────────────────────────────────────────────
+        const obstacles = [];
+        for (const cl of clusters) {
+            if (cl.cells < minCells) continue;
+
+            const surfm2 = cl.cells * step * step;
+            const wm     = (cl.iMax - cl.iMin + 1) * step;
+            const dm     = (cl.jMax - cl.jMin + 1) * step;
+            const aspect = wm > dm ? wm / dm : dm / wm;
+            const hMax   = cl.rMax;
+
+            // Filtres : acrotères linéaires (aspect > 6) et bords de grille (artefacts)
+            if (aspect > 6) continue;
+            if (cl.iMin === 0 || cl.iMax === nx-1 || cl.jMin === 0 || cl.jMax === ny-1) continue;
+
+            // Position du centroïde (coords bâtiment-relatif)
+            const ciMid = (cl.iMin + cl.iMax) / 2;
+            const cjMid = (cl.jMin + cl.jMax) / 2;
+            const clBX  = x0 + ciMid * step;
+            const clBY  = y0 + cjMid * step;
+
+            // Hauteur LiDAR réelle au centroïde (base de la boîte 3D)
+            const iMid  = Math.round(ciMid), jMid = Math.round(cjMid);
+            const zCell = grid[Math.max(0,Math.min(ny-1,jMid))]?.[Math.max(0,Math.min(nx-1,iMid))]
+                          ?? z_baseline_rel;
+            const mnhBase = Math.max(bh, zCell - z_baseline_rel + bh);
+            const baseY   = terrainH + mnhBase;
+
+            // Coordonnées world Three.js
+            const worldX = bldgOX + clBX;
+            const worldZ = bldgOZ - clBY;
+
+            // Coordonnées GPS approx.
+            const lat = bc.lat + clBY / this.LAT_TO_M;
+            const lon = bc.lon + clBX / LNG_TO_M;
+
+            // Classification par hauteur + surface
+            let type, icon, colorHex, color3js;
+            if (hMax > 1.5) {
+                type = 'Cheminée';         icon = '🏭'; colorHex = '#cc3300'; color3js = 0xcc3300;
+            } else if (hMax > 0.3 && surfm2 >= 4) {
+                type = 'CVC / Groupe froid'; icon = '❄️';  colorHex = '#0066cc'; color3js = 0x0066cc;
+            } else if (hMax > 0.3 && surfm2 < 4 && wm > 0.5 && dm > 0.5) {
+                type = 'Exutoire / Trappe';  icon = '🗗';  colorHex = '#ff8800'; color3js = 0xff8800;
+            } else {
+                type = 'Fenêtre de toit';   icon = '🔲';  colorHex = '#22aa66'; color3js = 0x22aa66;
+            }
+
+            obstacles.push({ type, icon, colorHex, color3js, surfm2, hMax, wm, dm, aspect, worldX, worldZ, baseY, lat, lon });
+        }
+
+        console.log(`🔍 Détection accidents de toiture : ${obstacles.length} obstacle(s) trouvé(s) sur ${nClusters} cluster(s)`);
+        return obstacles;
+    }
+
+    /**
+     * Affiche les accidents de toiture détectés en 3D (boîtes colorées + sprites).
+     * @param {Array} obstacles - résultat de detectRoofObstacles()
+     */
+    showRoofObstacles(obstacles) {
+        this._clearRoofObstacleMarkers();
+        if (!obstacles?.length) return;
+
+        obstacles.forEach(obs => {
+            const geo = new THREE.BoxGeometry(obs.wm, obs.hMax, obs.dm);
+
+            // Face semi-transparente
+            const solidMat = new THREE.MeshPhongMaterial({
+                color: obs.color3js, transparent: true, opacity: 0.40,
+                depthWrite: false, side: THREE.DoubleSide,
+            });
+            // Wireframe pour bien voir les contours
+            const wireMat  = new THREE.MeshBasicMaterial({
+                color: obs.color3js, wireframe: true, transparent: true, opacity: 0.90,
+            });
+
+            const Y = obs.baseY + obs.hMax / 2;  // centre vertical de la boîte
+            const solid = new THREE.Mesh(geo,        solidMat);
+            const wire  = new THREE.Mesh(geo.clone(), wireMat);
+            [solid, wire].forEach(m => {
+                m.position.set(obs.worldX, Y, obs.worldZ);
+                m.renderOrder = 25;
+                this.scene.add(m);
+            });
+
+            // Sprite étiquette
+            const lbl = this._makeObstacleLabel(`${obs.icon} ${obs.type}`);
+            lbl.position.set(obs.worldX, obs.baseY + obs.hMax + 1.5, obs.worldZ);
+            this.scene.add(lbl);
+
+            this._roofObstacleMarkers.push(solid, wire, lbl);
+        });
+    }
+
+    /** Étiquette sprite 3D pour les obstacles. */
+    _makeObstacleLabel(text) {
+        const W = 320, H = 58;
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        // Fond arrondi
+        ctx.fillStyle = 'rgba(8,12,24,0.82)';
+        ctx.beginPath();
+        const r = 10;
+        ctx.moveTo(r, 0); ctx.lineTo(W-r, 0); ctx.quadraticCurveTo(W, 0, W, r);
+        ctx.lineTo(W, H-r); ctx.quadraticCurveTo(W, H, W-r, H);
+        ctx.lineTo(r, H);   ctx.quadraticCurveTo(0, H, 0, H-r);
+        ctx.lineTo(0, r);   ctx.quadraticCurveTo(0, 0, r, 0);
+        ctx.closePath(); ctx.fill();
+        // Texte
+        ctx.font = 'bold 22px system-ui, sans-serif';
+        ctx.fillStyle = '#f0f4ff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, W / 2, H / 2);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+        const sp  = new THREE.Sprite(mat);
+        sp.scale.set((W / H) * 2.8, 2.8, 1);
+        sp.renderOrder = 100;
+        return sp;
+    }
+
+    /** Supprime tous les marqueurs d'obstacles de la scène. */
+    _clearRoofObstacleMarkers() {
+        if (!this._roofObstacleMarkers) { this._roofObstacleMarkers = []; return; }
+        this._roofObstacleMarkers.forEach(m => {
+            this.scene.remove(m);
+            m.geometry?.dispose();
+            if (m.material) {
+                m.material.map?.dispose();
+                m.material.dispose();
+            }
+        });
+        this._roofObstacleMarkers = [];
+    }
+
+    /**
+     * Affiche ou masque les marqueurs d'obstacles en 3D.
+     * @param {boolean} show
+     */
+    toggleRoofObstacles(show) {
+        if (show) {
+            if (this._detectedObstacles?.length)
+                this.showRoofObstacles(this._detectedObstacles);
+        } else {
+            this._clearRoofObstacleMarkers();
+        }
+    }
+
     /**
      * Distance entre 2 points géo en mètres
      */
