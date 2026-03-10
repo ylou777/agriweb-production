@@ -3995,6 +3995,11 @@ def register_crm_routes(app):
             # Enrichir prospect avec rapport_commune pour contraintes urbanisme
             if rapport_commune:
                 prospect['data_json'] = data_json
+
+            # Injecter screenshot_3d depuis la requête (priorité) ou depuis la DB
+            screenshot_3d_req = data.get('screenshot_3d', '')
+            screenshot_3d_db  = calpinage.get('screenshot_3d', '')
+            calpinage['screenshot_3d'] = screenshot_3d_req or screenshot_3d_db
             
             # Générer la proposition professionnelle
             try:

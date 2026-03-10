@@ -6682,6 +6682,18 @@
                 // Ancien format (rétrocompatibilité)
                 data.screenshot_map = captureData;
             }
+
+            // Capturer le screenshot 3D si le viewer est actif
+            if (viewer3D?.isActive && viewer3D?.renderer) {
+                try {
+                    // Forcer un rendu avant la capture
+                    viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
+                    data.screenshot_3d = viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.90);
+                    console.log('🏗️ Screenshot 3D capturé et sauvegardé');
+                } catch(e) {
+                    console.warn('⚠️ Impossible de capturer le screenshot 3D:', e);
+                }
+            }
             
             console.log('Données à sauvegarder:', data);
             
@@ -11964,6 +11976,17 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     prix_kwc                 : parseFloat(document.getElementById('propoPrixKwc').value) || 850,
                     tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || 0.1276,
                 };
+
+                // Capturer l'image 3D si le viewer est actif au moment de la génération
+                if (viewer3D?.isActive && viewer3D?.renderer) {
+                    try {
+                        viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
+                        body.screenshot_3d = viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.90);
+                        console.log('🏗️ Screenshot 3D joint à la proposition');
+                    } catch(e) {
+                        console.warn('⚠️ Impossible de capturer le screenshot 3D:', e);
+                    }
+                }
 
                 const resp = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
                     method : 'POST',

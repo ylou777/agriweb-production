@@ -367,6 +367,22 @@ class PropositionProfessionnelle:
         # Bande blanche centrale
         band_y = self.height * 0.3
         band_h = self.height * 0.45
+        band_top = band_y + band_h  # y = 75 % de la hauteur de page
+
+        # Image 3D en fond de la zone haute (au-dessus de la bande blanche)
+        screenshot_3d = self.calpinage.get('screenshot_3d', '')
+        if screenshot_3d:
+            img_3d = self._decode_base64_image(screenshot_3d)
+            if img_3d:
+                zone_h = self.height - band_top          # 25 % de la page
+                c.drawImage(img_3d, 0, band_top,
+                            width=self.width, height=zone_h,
+                            preserveAspectRatio=False, mask='auto')
+                # Overlay vert semi-transparent pour lisibilité du texte AGRIWEB
+                overlay = colors.Color(0, 0.18, 0.08, alpha=0.48)
+                c.setFillColor(overlay)
+                c.rect(0, band_top, self.width, zone_h, fill=1, stroke=0)
+
         c.setFillColor(self.COLOR_WHITE)
         c.rect(0, band_y, self.width, band_h, fill=1, stroke=0)
 
