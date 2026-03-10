@@ -4481,7 +4481,7 @@ class Calpinage3DViewer {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
-        geo.setIndex(faceIdx);
+        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(faceIdx), 1));
         geo.computeVertexNormals();
 
         const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
@@ -4887,7 +4887,7 @@ class Calpinage3DViewer {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(clipPositions, 3));
         geo.setAttribute('uv',       new THREE.Float32BufferAttribute(clipUVs, 2));
-        geo.setIndex(clipFaces);
+        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(clipFaces), 1));
         geo.computeVertexNormals();
 
         // Texture : satellite si disponible (bords du toit calés pixel-parfait),
