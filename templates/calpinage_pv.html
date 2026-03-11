@@ -2933,12 +2933,9 @@
                     ne: layer.getBounds().getNorthEast()
                 };
                 
-                // Recalculer les dimensions
-                const bounds = layer.getBounds();
-                const ne = bounds.getNorthEast();
-                const sw = bounds.getSouthWest();
-                zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                // Ne PAS recalculer largeurMetres/longueurMetres depuis l'AABB Leaflet :
+                // pour les zones tournées, l'AABB est plus grande que la zone réelle.
+                // Ces valeurs sont maintenues correctement par les poignées de redimensionnement.
                 zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
                 
                 // Redessiner les modules avec les nouvelles dimensions
@@ -4044,10 +4041,9 @@
                         const zone = zones.find(function(z) { return z.id === layer._leaflet_id; });
                         if (zone) {
                             const bounds = layer.getBounds();
-                            const ne = bounds.getNorthEast();
-                            const sw = bounds.getSouthWest();
-                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                            // Ne PAS recalculer largeurMetres/longueurMetres depuis l'AABB Leaflet :
+                            // pour les zones tournées, l'AABB est plus grande que la zone réelle
+                            // et écraserait les dimensions correctes maintenues par les poignées.
                             zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
                             zone.originalBounds = { sw: bounds.getSouthWest(), ne: bounds.getNorthEast() };
                             recalculerZone(zone);
