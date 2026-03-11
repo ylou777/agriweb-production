@@ -7233,4 +7233,306 @@ class Calpinage3DViewer {
             this._fluxMesh = null;
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OMBRIÈRE 3D — Rendu paramétrique pour parking photovoltaïque
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Construit une structure 3D paramétrique d'ombrière de parking.
+     * Appelé à la place du chemin LiDAR quand typeInstallation === 'ombriere'.
+     *
+     * Géométrie construite :
+     *   - Dalle sol (parking)
+     *   - Piliers ronds (tubulaires acier)
+     *   - Pannes longitudinales (IPN)
+     *   - Fermes transversales avec inclinaison (mono ou bi-pente)
+     *   - Couverture (toiture translucide)
+     *
+     * Après appel, this.roofPanelsInfo est peuplé synthétiquement
+     * pour que addModules3D() pose les panneaux correctement.
+     *
+     * @param {Array}  zones   - Zones PV (avec .layer Leaflet et .modulesPositions)
+     * @param {Object} params  - Paramètres ombrière lus depuis le formulaire
+     */
+    buildOmbriere3D(zones, params) {
+        if (!zones || zones.length === 0) return;
+
+        // ── Paramètres structurels ──────────────────────────────────────────
+        const h       = params.hauteur          || 4.5;   // hauteur libre sous panne (m)
+        const hf      = params.hauteurFerme     || 0.8;   // flèche de la ferme / pente (m)
+        const ep      = params.espacementPiliers || 2.25; // entre-axe longi. piliers (m)
+        const ea      = params.entraxePiliers    || 1.70; // entre-axe transversal fichiers (m)
+        const dp      = (params.diametrePilier_cm || 15)  / 100; // Ø pilier (m)
+        const sp      = (params.sectionPanne_cm  || 10)   / 100; // section panne (m)
+        const sf      = (params.sectionFerme_cm  || 8)    / 100; // section ferme (m)
+        const modele  = params.modele || 'custom';
+        const isBipente = (modele === 'O3D') || /bi.?pente/i.test(modele);
+
+        // ── Matériaux ───────────────────────────────────────────────────────
+        const matSteel = new THREE.MeshPhongMaterial({
+            color: 0x546e7a, shininess: 100
+        });
+        const matPillar = new THREE.MeshPhongMaterial({
+            color: 0x607d8b, shininess: 140
+        });
+        const matAsphalt = new THREE.MeshPhongMaterial({
+            color: 0x37474f
+        });
+        const matMarkings = new THREE.MeshPhongMaterial({
+            color: 0xffffff, transparent: true, opacity: 0.7
+        });
+        const matRoof = new THREE.MeshPhongMaterial({
+            color: 0x78909c, transparent: true, opacity: 0.25,
+            side: THREE.DoubleSide
+        });
+        const matBase = new THREE.MeshPhongMaterial({
+            color: 0x455a64
+        });
+
+        // ── Supprimer l'ancienne scène ombrière si elle existe ──────────────
+        if (this._ombriereGroup) {
+            this.scene.remove(this._ombriereGroup);
+            this._disposeGroup(this._ombriereGroup);
+        }
+
+        const canopyGroup = new THREE.Group();
+        this._ombriereGroup = canopyGroup;
+
+        // ── Initialiser la conversion géo (indispensable avant _geoToLocal) ─
+        // Déjà fait par l'appelant (toggle3DView met centerLat/Lon en place)
+
+        // ── Calculer la bbox globale de toutes les zones ────────────────────
+        let xMin = Infinity, xMax = -Infinity;
+        let zMin = Infinity, zMax = -Infinity;
+
+        zones.forEach(zone => {
+            if (!zone.layer) return;
+            const bounds = zone.layer.getBounds();
+            const sw = this._geoToLocal(bounds.getSouthWest().lat, bounds.getSouthWest().lng);
+            const ne = this._geoToLocal(bounds.getNorthEast().lat, bounds.getNorthEast().lng);
+            if (sw.x < xMin) xMin = sw.x;
+            if (ne.x > xMax) xMax = ne.x;
+            if (sw.z < zMin) zMin = sw.z;
+            if (ne.z > zMax) zMax = ne.z;
+        });
+
+        if (!isFinite(xMin)) {
+            console.warn('buildOmbriere3D: aucune zone avec layer valide');
+            return;
+        }
+
+        // ── Dalle sol ───────────────────────────────────────────────────────
+        const PAD = 8; // marges autour de la zone (m)
+        const gw  = (xMax - xMin) + PAD * 2;
+        const gd  = Math.abs(zMax - zMin) + PAD * 2;
+        const cx  = (xMin + xMax) / 2;
+        const cz  = (zMin + zMax) / 2;
+
+        const groundGeo = new THREE.PlaneGeometry(gw, gd, 1, 1);
+        groundGeo.rotateX(-Math.PI / 2);
+        const ground = new THREE.Mesh(groundGeo, matAsphalt);
+        ground.position.set(cx, -0.02, cz);
+        ground.receiveShadow = true;
+        canopyGroup.add(ground);
+
+        // ── Structure de chaque zone ────────────────────────────────────────
+        zones.forEach(zone => {
+            if (!zone.layer) return;
+
+            const bounds = zone.layer.getBounds();
+            const sw = this._geoToLocal(bounds.getSouthWest().lat, bounds.getSouthWest().lng);
+            const ne = this._geoToLocal(bounds.getNorthEast().lat, bounds.getNorthEast().lng);
+
+            const zxMin = Math.min(sw.x, ne.x);
+            const zxMax = Math.max(sw.x, ne.x);
+            const zzMin = Math.min(sw.z, ne.z);
+            const zzMax = Math.max(sw.z, ne.z);
+
+            const zW    = zxMax - zxMin;   // largeur transversale (X)
+            const zL    = zzMax - zzMin;   // longueur longitudinale (Z)
+            const zCX   = (zxMin + zxMax) / 2;
+            const zCZ   = (zzMin + zzMax) / 2;
+
+            // Nombre de files de piliers selon entraxes
+            const nFilesT = Math.max(2, Math.round(zW / ea) + 1); // transversal
+            const nFilesL = Math.max(2, Math.round(zL / ep) + 1); // longitudinal
+
+            // ── Piliers + semelles ────────────────────────────────────────
+            for (let fi = 0; fi < nFilesT; fi++) {
+                const px = zxMin + (nFilesT > 1 ? fi / (nFilesT - 1) : 0.5) * zW;
+                for (let fj = 0; fj < nFilesL; fj++) {
+                    const pz = zzMin + (nFilesL > 1 ? fj / (nFilesL - 1) : 0.5) * zL;
+
+                    // Hauteur locale du pilier (mono-pente : côté bas vs haut)
+                    // Pour bi-pente le centre est à h + hf, les bords à h.
+                    // Les piliers sont à hauteur h (hauteur libre constante).
+                    const pillarH = h;
+                    const pillarGeo = new THREE.CylinderGeometry(dp / 2, dp / 2 * 1.05, pillarH, 10);
+                    const pillar = new THREE.Mesh(pillarGeo, matPillar);
+                    pillar.position.set(px, pillarH / 2, pz);
+                    pillar.castShadow = true;
+                    canopyGroup.add(pillar);
+
+                    // Platine de pied (béton)
+                    const baseGeo = new THREE.BoxGeometry(0.30, 0.06, 0.30);
+                    const base = new THREE.Mesh(baseGeo, matBase);
+                    base.position.set(px, 0.03, pz);
+                    canopyGroup.add(base);
+                }
+            }
+
+            // ── Pannes longitudinales (le long de Z, une par file T) ──────
+            for (let fi = 0; fi < nFilesT; fi++) {
+                const px = zxMin + (nFilesT > 1 ? fi / (nFilesT - 1) : 0.5) * zW;
+                const panneGeo = new THREE.BoxGeometry(sp, sp, zL);
+                const panne = new THREE.Mesh(panneGeo, matSteel);
+                panne.position.set(px, h, zCZ);
+                panne.castShadow = true;
+                canopyGroup.add(panne);
+            }
+
+            // ── Fermes transversales (le long de X, une par file L) ───────
+            for (let fj = 0; fj < nFilesL; fj++) {
+                const pz = zzMin + (nFilesL > 1 ? fj / (nFilesL - 1) : 0.5) * zL;
+
+                if (isBipente) {
+                    // Bi-pente : deux demi-fermes inclinées avec faîtage au centre
+                    // Demi-ferme gauche
+                    const halfW = zW / 2;
+                    const fermeLen = Math.sqrt(halfW * halfW + hf * hf);
+                    const angle    = Math.atan2(hf, halfW);
+
+                    const fermeGeoL = new THREE.BoxGeometry(sf, sf, fermeLen);
+                    const fermeL = new THREE.Mesh(fermeGeoL, matSteel);
+                    fermeL.position.set(zCX - halfW / 2, h + hf / 2, pz);
+                    fermeL.rotation.z = angle;
+                    fermeL.castShadow = true;
+                    canopyGroup.add(fermeL);
+
+                    const fermeGeoR = new THREE.BoxGeometry(sf, sf, fermeLen);
+                    const fermeR = new THREE.Mesh(fermeGeoR, matSteel);
+                    fermeR.position.set(zCX + halfW / 2, h + hf / 2, pz);
+                    fermeR.rotation.z = -angle;
+                    fermeR.castShadow = true;
+                    canopyGroup.add(fermeR);
+
+                    // Pointe de faîtage
+                    const faitageGeo = new THREE.CylinderGeometry(sf / 3, sf / 3, 0.12, 6);
+                    const faitage = new THREE.Mesh(faitageGeo, matSteel);
+                    faitage.position.set(zCX, h + hf + 0.06, pz);
+                    canopyGroup.add(faitage);
+                } else {
+                    // Mono-pente : une seule ferme inclinée (bord bas → bord haut)
+                    const fermeGeo = new THREE.BoxGeometry(sf, sf, zW * 1.02);
+                    const ferme = new THREE.Mesh(fermeGeo, matSteel);
+                    ferme.position.set(zCX, h + hf / 2, pz);
+                    ferme.rotation.z = Math.atan2(hf, zW);
+                    ferme.castShadow = true;
+                    canopyGroup.add(ferme);
+                }
+            }
+
+            // ── Couverture (surface translucide) ─────────────────────────
+            if (isBipente) {
+                // Deux pans inclinés
+                const halfW  = zW / 2;
+                const panLen  = Math.sqrt(halfW * halfW + hf * hf) * 1.01;
+                const angle   = Math.atan2(hf, halfW);
+
+                for (const side of [-1, 1]) {
+                    const roofGeo = new THREE.PlaneGeometry(panLen, zL * 1.01);
+                    const roofMesh = new THREE.Mesh(roofGeo, matRoof);
+                    roofMesh.position.set(zCX + side * halfW / 2, h + hf / 2, zCZ);
+                    roofMesh.rotation.z = -side * angle;
+                    roofMesh.rotation.y = Math.PI / 2;
+                    canopyGroup.add(roofMesh);
+                }
+            } else {
+                // Mono-pente : un seul plan
+                const panLen = Math.sqrt(zW * zW + hf * hf) * 1.01;
+                const roofGeo = new THREE.PlaneGeometry(panLen, zL * 1.01);
+                const roofMesh = new THREE.Mesh(roofGeo, matRoof);
+                roofMesh.position.set(zCX, h + hf / 2, zCZ);
+                roofMesh.rotation.z = Math.atan2(hf, zW);
+                roofMesh.rotation.y = Math.PI / 2;
+                canopyGroup.add(roofMesh);
+            }
+
+            // ── Marquage au sol (places de parking) ───────────────────────
+            const lp    = params.largeurPlace    || 2.5;  // largeur place
+            const pp    = params.profondeurPlace || 5.0;  // profondeur
+            const nPlT  = Math.max(1, Math.floor(zW / lp));
+            const nPlL  = Math.max(1, Math.floor(zL / pp));
+            const mW    = 0.08;  // largeur de la ligne blanche
+
+            for (let i = 0; i <= nPlT; i++) {
+                const lx = zxMin + i * (zW / nPlT);
+                const lineGeo = new THREE.BoxGeometry(mW, 0.01, zL);
+                const line = new THREE.Mesh(lineGeo, matMarkings);
+                line.position.set(lx, 0.005, zCZ);
+                canopyGroup.add(line);
+            }
+            for (let j = 0; j <= nPlL; j++) {
+                const lz = zzMin + j * (zL / nPlL);
+                const lineGeo = new THREE.BoxGeometry(zW, 0.01, mW);
+                const line = new THREE.Mesh(lineGeo, matMarkings);
+                line.position.set(zCX, 0.005, lz);
+                canopyGroup.add(line);
+            }
+        });
+
+        this.scene.add(canopyGroup);
+
+        // ── Peuplage synthétique de roofPanelsInfo ──────────────────────────
+        // → addModules3D() chemin OBB fallback : terrainH=0, wallH = hauteur surface modules
+        const penteDeg = Math.atan2(hf, 5.0) * 180 / Math.PI;
+        const zoneAz   = zones.find(z => z.orientation || z.azimut)?.orientation
+                      || zones.find(z => z.orientation || z.azimut)?.azimut
+                      || 180;
+        this.roofPanelsInfo = {
+            type:              'flat',          // OBB path
+            buildingTerrainH:  0,
+            buildingWallH:     h + hf * 0.5,   // centre géométrique du toit
+            panels: [{
+                name:              'Ombrière PV',
+                pente_deg:         penteDeg,
+                orientation_deg:   zoneAz,
+                orientation_label: 'Auto',
+                surface:           0
+            }],
+            buildingCenterGeo: { lat: this.centerLat, lng: this.centerLon },
+            buildingOBB:       null,
+            _source:           'ombriere'
+        };
+
+        // ── Ajuster la caméra ─────────────────────────────────────────────
+        const rangeX = xMax - xMin;
+        const rangeZ = Math.abs(zMax - zMin);
+        const range  = Math.max(rangeX, rangeZ, 20);
+        const viewCx = (xMin + xMax) / 2;
+        const viewCz = (zMin + zMax) / 2;
+
+        this.camera.position.set(viewCx + range * 0.9, h + range * 0.6, viewCz + range * 0.9);
+        this.camera.lookAt(viewCx, h * 0.5, viewCz);
+
+        if (this.controls) {
+            this.controls.target.set(viewCx, h * 0.4, viewCz);
+            this.controls.update();
+        }
+
+        console.log(`✅ Ombrière 3D : ${zones.length} zone(s) — h=${h}m hf=${hf}m ep=${ep}m ea=${ea}m — ${isBipente ? 'bi-pente' : 'mono-pente'}`);
+    }
+
+    /** Dispose récursif d'un Group Three.js */
+    _disposeGroup(group) {
+        if (!group) return;
+        group.traverse(obj => {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                else obj.material.dispose();
+            }
+        });
+    }
 }

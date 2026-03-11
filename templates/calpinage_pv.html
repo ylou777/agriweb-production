@@ -1935,7 +1935,7 @@
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=106"></script>
+    <script src="/static/js/calpinage_3d.js?v=107"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
@@ -6158,6 +6158,31 @@
                 moduleGroup.addLayer(label);
             }
             
+            // ── Overlay piliers en mode ombrière ─────────────────────────────────────
+            const _typeInstall2D = document.getElementById('typeInstallation')?.value;
+            if (_typeInstall2D === 'ombriere') {
+                const _ep2D = parseFloat(document.getElementById('ombriereEspacementPiliers')?.value) || 2.25;
+                const _ea2D = parseFloat(document.getElementById('ombriereEntraxePiliers')?.value) || 1.70;
+                const _zW2D = zone.largeurMetres;
+                const _zL2D = zone.longueurMetres;
+                const nFilesT2D = Math.max(2, Math.round(_zW2D / _ea2D) + 1);
+                const nFilesL2D = Math.max(2, Math.round(_zL2D / _ep2D) + 1);
+                for (let fi = 0; fi < nFilesT2D; fi++) {
+                    const px2D = -_zW2D / 2 + (nFilesT2D > 1 ? fi / (nFilesT2D - 1) : 0.5) * _zW2D;
+                    for (let fj = 0; fj < nFilesL2D; fj++) {
+                        const py2D = -_zL2D / 2 + (nFilesL2D > 1 ? fj / (nFilesL2D - 1) : 0.5) * _zL2D;
+                        const pillerLL = metersToLatLng({x: px2D, y: py2D}, true);
+                        const pillerMk = L.circleMarker(pillerLL, {
+                            radius: 4, color: '#f59e0b', weight: 2,
+                            fillColor: '#fbbf24', fillOpacity: 0.9,
+                            interactive: false
+                        });
+                        pillerMk._isZoneOutline = true; // exclure de l'extraction 3D
+                        moduleGroup.addLayer(pillerMk);
+                    }
+                }
+            }
+
             moduleGroup.addTo(map);
             zone.moduleGroup = moduleGroup;
         }
@@ -7743,6 +7768,69 @@
                 container3D.style.display = 'block';
                 mapCard.style.display = 'none';
                 viewer3D.toggle();
+
+                const _typeInstall3D = document.getElementById('typeInstallation')?.value || 'toiture';
+
+                // ══════════════════════════════════════════════════════════════════════
+                // BRANCHE OMBRIÈRE — rendu paramétrique (piliers + fermes + couverture)
+                // Pas de LiDAR : la géométrie est 100 % calculée depuis les paramètres
+                // ══════════════════════════════════════════════════════════════════════
+                if (_typeInstall3D === 'ombriere') {
+                    // Calculer le centre depuis la bbox des zones
+                    let centerLat3D = prospectLat, centerLon3D = prospectLon;
+                    if (zones && zones.length > 0) {
+                        let minLat = Infinity, maxLat = -Infinity;
+                        let minLon = Infinity, maxLon = -Infinity;
+                        let hasZones = false;
+                        zones.forEach(zone => {
+                            if (zone.layer) {
+                                const bounds = zone.layer.getBounds();
+                                minLat = Math.min(minLat, bounds.getSouthWest().lat);
+                                maxLat = Math.max(maxLat, bounds.getNorthEast().lat);
+                                minLon = Math.min(minLon, bounds.getSouthWest().lng);
+                                maxLon = Math.max(maxLon, bounds.getNorthEast().lng);
+                                hasZones = true;
+                            }
+                        });
+                        if (hasZones && isFinite(minLat)) {
+                            centerLat3D = (minLat + maxLat) / 2;
+                            centerLon3D = (minLon + maxLon) / 2;
+                        }
+                    }
+
+                    // Initialiser la conversion géo du viewer (indispensable avant _geoToLocal)
+                    viewer3D.centerLat = centerLat3D;
+                    viewer3D.centerLon = centerLon3D;
+                    viewer3D.LNG_TO_M  = viewer3D.LAT_TO_M * Math.cos(centerLat3D * Math.PI / 180);
+
+                    // Extraire les positions de modules depuis les layers Leaflet
+                    zones.forEach(zone => {
+                        zone.modulesPositions = [];
+                        if (zone.moduleGroup) {
+                            zone.moduleGroup.eachLayer(layer => {
+                                if (layer instanceof L.Polygon && !layer._isZoneOutline) {
+                                    const latlngs = layer.getLatLngs()[0];
+                                    if (latlngs && latlngs.length >= 4) {
+                                        const cLat = (latlngs[0].lat + latlngs[2].lat) / 2;
+                                        const cLng = (latlngs[0].lng + latlngs[2].lng) / 2;
+                                        zone.modulesPositions.push({
+                                            lat: cLat, lng: cLng,
+                                            corners: latlngs.map(ll => ({lat: ll.lat, lng: ll.lng}))
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                    // Construire la structure 3D paramétrique puis poser les modules
+                    viewer3D.buildOmbriere3D(zones, getOmbriereParams3D());
+                    viewer3D.addModules3D(zones);
+
+                // ══════════════════════════════════════════════════════════════════════
+                // BRANCHE TOITURE / SOL — chemin LiDAR existant (inchangé)
+                // ══════════════════════════════════════════════════════════════════════
+                } else {
                 
                 // Calculer le centre et rayon depuis la bbox des modules PV
                 let centerLat3D = prospectLat;
@@ -7809,7 +7897,30 @@
                         supprimerModulesExclus3D(excluded);
                     };
                 });
+                } // fin branche toiture/sol
             }
+        }
+
+        /**
+         * Lit les paramètres Ombrière depuis le formulaire UI.
+         * Renvoyés à buildOmbriere3D() pour piloter la géométrie 3D.
+         */
+        function getOmbriereParams3D() {
+            const modele = document.getElementById('ombriereModele')?.value || 'custom';
+            const hauteur        = parseFloat(document.getElementById('ombriereHauteur')?.value)          || 4.5;
+            const hauteurFerme   = parseFloat(document.getElementById('ombriereHauteurFerme')?.value)     || 0.8;
+            const largeurPlace   = parseFloat(document.getElementById('ombriereLargeurPlace')?.value)     || 2.5;
+            const profondeurPlace= parseFloat(document.getElementById('ombriereProfondeurPlace')?.value)  || 5.0;
+            const espacementPiliers = parseFloat(document.getElementById('ombriereEspacementPiliers')?.value) || 2.25;
+            const entraxePiliers    = parseFloat(document.getElementById('ombriereEntraxePiliers')?.value)    || 1.70;
+            const diametrePilier_cm = parseFloat(document.getElementById('ombriereDiametrePilier')?.value)   || 15;
+            const sectionPanne_cm   = parseFloat(document.getElementById('ombriereSectionPanne')?.value)      || 10;
+            const sectionFerme_cm   = parseFloat(document.getElementById('ombriereSectionFerme')?.value)      || 8;
+            return {
+                modele, hauteur, hauteurFerme, largeurPlace, profondeurPlace,
+                espacementPiliers, entraxePiliers,
+                diametrePilier_cm, sectionPanne_cm, sectionFerme_cm
+            };
         }
         
         /**
