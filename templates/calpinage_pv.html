@@ -1935,7 +1935,7 @@
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=108"></script>
+    <script src="/static/js/calpinage_3d.js?v=109"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
@@ -5931,6 +5931,31 @@
                 );
             }
             
+            // ── Overlay piliers (dessiné AVANT les modules pour rester sous eux) ──────────
+            const _typeInstall2D = document.getElementById('typeInstallation')?.value;
+            if (_typeInstall2D === 'ombriere') {
+                const _ep2D = parseFloat(document.getElementById('ombriereEspacementPiliers')?.value) || 2.25;
+                const _ea2D = parseFloat(document.getElementById('ombriereEntraxePiliers')?.value) || 1.70;
+                const _zW2D = zone.largeurMetres;
+                const _zL2D = zone.longueurMetres;
+                const nFilesT2D = Math.max(2, Math.round(_zW2D / _ea2D) + 1);
+                const nFilesL2D = Math.max(2, Math.round(_zL2D / _ep2D) + 1);
+                for (let fi = 0; fi < nFilesT2D; fi++) {
+                    const px2D = -_zW2D / 2 + (nFilesT2D > 1 ? fi / (nFilesT2D - 1) : 0.5) * _zW2D;
+                    for (let fj = 0; fj < nFilesL2D; fj++) {
+                        const py2D = -_zL2D / 2 + (nFilesL2D > 1 ? fj / (nFilesL2D - 1) : 0.5) * _zL2D;
+                        const pillerLL = metersToLatLng({x: px2D, y: py2D}, true);
+                        const pillerMk = L.circleMarker(pillerLL, {
+                            radius: 4, color: '#f59e0b', weight: 2,
+                            fillColor: '#fbbf24', fillOpacity: 0.9,
+                            interactive: false
+                        });
+                        pillerMk._isZoneOutline = true; // exclure de l'extraction 3D
+                        moduleGroup.addLayer(pillerMk);
+                    }
+                }
+            }
+
             // Dessiner les modules (avec filtre exclusion couleur + filtre irradiation)
             const _irrMin    = parseFloat(document.getElementById('fluxIrrMin')?.value) || 0;
             const _irrMaxRaw = document.getElementById('fluxIrrMax')?.value;
@@ -6158,31 +6183,6 @@
                 moduleGroup.addLayer(label);
             }
             
-            // ── Overlay piliers en mode ombrière ─────────────────────────────────────
-            const _typeInstall2D = document.getElementById('typeInstallation')?.value;
-            if (_typeInstall2D === 'ombriere') {
-                const _ep2D = parseFloat(document.getElementById('ombriereEspacementPiliers')?.value) || 2.25;
-                const _ea2D = parseFloat(document.getElementById('ombriereEntraxePiliers')?.value) || 1.70;
-                const _zW2D = zone.largeurMetres;
-                const _zL2D = zone.longueurMetres;
-                const nFilesT2D = Math.max(2, Math.round(_zW2D / _ea2D) + 1);
-                const nFilesL2D = Math.max(2, Math.round(_zL2D / _ep2D) + 1);
-                for (let fi = 0; fi < nFilesT2D; fi++) {
-                    const px2D = -_zW2D / 2 + (nFilesT2D > 1 ? fi / (nFilesT2D - 1) : 0.5) * _zW2D;
-                    for (let fj = 0; fj < nFilesL2D; fj++) {
-                        const py2D = -_zL2D / 2 + (nFilesL2D > 1 ? fj / (nFilesL2D - 1) : 0.5) * _zL2D;
-                        const pillerLL = metersToLatLng({x: px2D, y: py2D}, true);
-                        const pillerMk = L.circleMarker(pillerLL, {
-                            radius: 4, color: '#f59e0b', weight: 2,
-                            fillColor: '#fbbf24', fillOpacity: 0.9,
-                            interactive: false
-                        });
-                        pillerMk._isZoneOutline = true; // exclure de l'extraction 3D
-                        moduleGroup.addLayer(pillerMk);
-                    }
-                }
-            }
-
             moduleGroup.addTo(map);
             zone.moduleGroup = moduleGroup;
         }

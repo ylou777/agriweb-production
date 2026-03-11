@@ -7474,14 +7474,15 @@ class Calpinage3DViewer {
         this.scene.add(canopyGroup);
 
         // ── roofPanelsInfo synthétique pour addModules3D() ──────────────────
-        const penteDeg = Math.atan2(hf, 5.0) * 180 / Math.PI;
+        const effectiveW = isBipente ? (xMax - xMin) / 2 : (xMax - xMin);
+        const penteDeg = Math.atan2(hf, Math.max(0.5, effectiveW)) * 180 / Math.PI;
         const zoneAz   = zones.find(z => z.orientation || z.azimut)?.orientation
                       || zones.find(z => z.orientation || z.azimut)?.azimut
                       || 180;
         this.roofPanelsInfo = {
             type:              'flat',
             buildingTerrainH:  terrainY,
-            buildingWallH:     h + hf * 0.5,
+            buildingWallH:     h + hf + 0.10,  // au-dessus du sommet de la structure
             panels: [{
                 name:              'Ombrière PV',
                 pente_deg:         penteDeg,
