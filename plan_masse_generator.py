@@ -333,58 +333,47 @@ class PlanMasseGenerator:
         }
         
         if lat and lon:
-            # ­ƒöÑ PRIORIT├ë 1: Utiliser le screenshot de la carte si disponible
-            screenshot_data = None  # Force désactivation screenshot (éviter doublon modules)
-            
-            if False:  # Screenshot désactivé
+            # PRIORITE 1: Utiliser le screenshot Leaflet comme fond de carte
+            # → mêmes tiles ESRI que le calpinage → pas de décalage possible
+            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
+
+            if screenshot_data:
                 try:
-                    # Le screenshot est en base64 data URL: "data:image/png;base64,..."
-                    import base64
-                    import re
-                    
-                    # Extraire les donn├®es base64
-                    base64_match = re.search(r'base64,(.+)', screenshot_data)
-                    if base64_match:
-                        base64_str = base64_match.group(1)
-                        img_data = base64.b64decode(base64_str)
-                        img_buffer = io.BytesIO(img_data)
-                        
-                        print(f"[PLAN] ­ƒô© Utilisation du screenshot de la carte ({len(img_data)} bytes)")
-                        
-                        # R├®cup├®rer les m├®tadonn├®es de la carte pour calibrer GPSÔåÆPDF
-                        map_metadata = self.calpinage.get('map_metadata', {})
-                        if map_metadata and 'bounds' in map_metadata:
-                            bounds = map_metadata['bounds']
-                            dimensions = map_metadata.get('dimensions', {})
-                            
-# ­ƒöÑ Comme on dessine avec preserveAspectRatio=False,
-                            # l'image remplit TOUT le cadre, donc pas besoin de calculer actual_image_bbox
-                            # Les bounds GPS correspondent au cadre PDF complet
-                            
-                            self.gps_bounds = {
-                                'min_lat': bounds['south'],
-                                'max_lat': bounds['north'],
-                                'min_lon': bounds['west'],
-                                'max_lon': bounds['east']
-                            }
-                            print(f"[PLAN] ­ƒù║´©Å Bounds GPS screenshot (cadre complet): lat[{bounds['south']:.6f}, {bounds['north']:.6f}] lon[{bounds['west']:.6f}, {bounds['east']:.6f}]")
-                        
-                        # Dessiner le screenshot - REMPLIR TOUT LE CADRE
-                        c.drawImage(ImageReader(img_buffer), 
-                                  plan_x, plan_y, 
-                                  width=plan_width, height=plan_height,
-                                  preserveAspectRatio=False, mask='auto')  # False = remplit tout
-                        
-                        self.screenshot_used = True
+                    import base64 as _b64
+                    raw = screenshot_data.split(',', 1)[1] if ',' in screenshot_data else screenshot_data
+                    img_data = _b64.b64decode(raw)
+                    img_buffer = io.BytesIO(img_data)
+
+                    print(f"[PLAN] Utilisation du screenshot Leaflet ({len(img_data)} bytes) — fond ESRI identique au calpinage")
+
+                    # Recalibrer gps_bounds sur les bounds réels de Leaflet
+                    map_metadata = self.calpinage.get('map_metadata', {})
+                    if map_metadata and 'bounds' in map_metadata:
+                        b = map_metadata['bounds']
+                        self.gps_bounds = {
+                            'min_lat': b['south'],
+                            'max_lat': b['north'],
+                            'min_lon': b['west'],
+                            'max_lon': b['east']
+                        }
+                        print(f"[PLAN] gps_bounds recalibres depuis map_metadata: lat[{b['south']:.6f},{b['north']:.6f}] lon[{b['west']:.6f},{b['east']:.6f}]")
                     else:
-                        self.screenshot_used = False
+                        print("[PLAN] map_metadata absent — gps_bounds calcule restent actifs")
+
+                    # Fond = screenshot Leaflet (tiles ESRI + zones PV déjà dessinées)
+                    c.drawImage(ImageReader(img_buffer),
+                                plan_x, plan_y,
+                                width=plan_width, height=plan_height,
+                                preserveAspectRatio=False, mask='auto')
+
+                    self.screenshot_used = True
                 except Exception as e:
-                    print(f"[PLAN] ÔÜá´©Å Erreur lecture screenshot: {e}")
+                    print(f"[PLAN] Erreur lecture screenshot_map: {e}")
                     self.screenshot_used = False
             else:
                 self.screenshot_used = False
-            
-            # 🔑 FALLBACK: Image satellite si pas de screenshot
+
+            # FALLBACK: Image satellite téléchargée si pas de screenshot
             if not self.screenshot_used:
                 print(f"[PLAN] 🔙 Tentative téléchargement image satellite...")
                 print(f"[PLAN]   GPS: lat={lat}, lon={lon}")
@@ -439,13 +428,13 @@ class PlanMasseGenerator:
         # 2. B├éTIMENT (├á la position GPS) - D├ëSACTIV├ë pour plan de masse simple
         # self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
-        # 3. MODULES PV - TOUJOURS dessiner avec coordonn├®es GPS pr├®cises
-        # ­ƒöÑ CORRECTION: Le screenshot contient les modules MAL PLAC├ëS (ancienne position)
-        # On dessine TOUJOURS avec Python qui a les coordonn├®es GPS CORRIG├ëES
-        if self.calpinage:
+        # 3. MODULES PV
+        # Si screenshot_map utilisé : zones déjà dessinées dans le fond — on ne redessine pas
+        # (le screenshot Leaflet = référence exacte ; redessiner créerait un doublon décalé
+        #  si map_metadata.bounds est absent et que gps_bounds n'est pas recalibré)
+        # Si fallback satellite : on dessine avec GPS précis depuis le calpinage
+        if self.calpinage and not self.screenshot_used:
             self._draw_modules_pv_from_gps(c)
-            if self.screenshot_used:
-                print("[PLAN] ÔÜá´©Å Screenshot utilis├® mais modules redessin├®s avec GPS corrig├®s (├®crasent l'ancienne position)")
         
         # 4. COTATIONS - Dessiner les cotations sur les zones PV
         if self.calpinage and 'zones' in self.calpinage:
