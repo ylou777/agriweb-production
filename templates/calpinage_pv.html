@@ -6672,7 +6672,35 @@
                 await new Promise(r => setTimeout(r, 250)); // laisser le DOM re-peindre
             }
 
+            // ── Forcer le fond ESRI pour la capture ────────────────────────────────────
+            // ESRI WorldImagery est la source de référence pour le calpinage (cadastre aligné
+            // WGS84). Si l'utilisateur a manuellement basculé sur Google Satellite, on revient
+            // sur ESRI le temps de la capture → zones PV toujours alignées dans la proposition.
+            const wasOnGoogle = (typeof map !== 'undefined' && map &&
+                                 typeof tileLayerGoogle !== 'undefined' && tileLayerGoogle &&
+                                 map.hasLayer(tileLayerGoogle));
+            // Masquer temporairement l'overlay heatmap (source Google Solar → autre fond)
+            const heatmapVisible = !!(_flux2DOverlay && typeof map !== 'undefined' && map &&
+                                      map.hasLayer(_flux2DOverlay));
+            if (wasOnGoogle) {
+                map.removeLayer(tileLayerGoogle);
+                if (tileLayerSatellite) tileLayerSatellite.addTo(map);
+                // Masquer la heatmap pour que le fond ESRI soit propre
+                if (heatmapVisible) map.removeLayer(_flux2DOverlay);
+                // Laisser les tuiles ESRI se charger
+                await new Promise(r => setTimeout(r, 800));
+                console.log('📸 [Capture] Fond basculé ESRI (cadastre aligné) pour cohérence screenshot');
+            }
+
             const captureData = await captureMapScreenshot();
+
+            // ── Restaurer l'état précédent ─────────────────────────────────────────────
+            if (wasOnGoogle) {
+                if (tileLayerSatellite) map.removeLayer(tileLayerSatellite);
+                tileLayerGoogle.addTo(map);
+                if (heatmapVisible) _flux2DOverlay.addTo(map);
+                console.log('📸 [Capture] Fond Google restauré après screenshot');
+            }
 
             if (wasIn3D) {
                 // Restaurer la vue 3D
@@ -9022,23 +9050,25 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _tileBeforeHeatmap = null;
 
         /**
-         * Bascule le fond de carte vers Google ou ESRI selon l'état de la heatmap.
-         * Google Solar est capturé depuis les tuiles Google → alignement parfait avec Google.
-         * Les données cadastrales françaises (WGS84) s'alignent mieux sur ESRI/IGN.
-         * → On utilise Google uniquement quand la heatmap est visible.
+         * Restaure le fond ESRI quand la heatmap est désactivée.
+         *
+         * ⚠️ IMPORTANT — Source unique de référence : ESRI WorldImagery
+         * Les zones PV sont dessinées visuellement sur le fond ESRI (cadastre WGS84 aligné).
+         * ESRI et Google Satellite ont des orthorectifications différentes : à la même lat/lng,
+         * le bâtiment apparaît à des positions pixel différentes selon la source.
+         * → Garder ESRI tout le long de la session évite tout décalage visuel dans la
+         *   proposition commerciale et le CERFA DP.
+         * → La heatmap Google Solar est un L.imageOverlay positionné par bounds lat/lng :
+         *   il s'affiche correctement sur ESRI sans qu'on ait besoin de tuiles Google.
          */
         function _switchTileForHeatmap(activateGoogle) {
             if (!map || !tileLayerGoogle || !tileLayerSatellite) return;
             if (activateGoogle) {
-                if (!map.hasLayer(tileLayerGoogle)) {
-                    // Mémoriser le fond actuel
-                    _tileBeforeHeatmap = map.hasLayer(tileLayerSatellite) ? 'esri'
-                        : map.hasLayer(tileLayerOSM) ? 'osm' : 'google';
-                    map.removeLayer(tileLayerSatellite);
-                    map.removeLayer(tileLayerOSM);
-                    tileLayerGoogle.addTo(map);
-                    console.log('🛰️ [Heatmap ON] → Tuiles Google (alignées Google Solar)');
-                }
+                // Volontairement désactivé : on garde ESRI pour cohérence avec les zones PV.
+                // (La heatmap L.imageOverlay est positionnée par bounds GPS → pas besoin de Google.)
+                _tileBeforeHeatmap = map.hasLayer(tileLayerSatellite) ? 'esri'
+                    : map.hasLayer(tileLayerOSM) ? 'osm' : 'google';
+                console.log('🛰️ [Heatmap ON] Fond ESRI maintenu (décalage ESRI/Google évité)');
             } else {
                 if (map.hasLayer(tileLayerGoogle) && _tileBeforeHeatmap !== 'google') {
                     map.removeLayer(tileLayerGoogle);
@@ -9200,7 +9230,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _ci.src = imgSrc;
             })();
             if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                _switchTileForHeatmap(true);
+                // ⚠️ Ne PAS basculer sur les tuiles Google ici.
+                // La heatmap est un L.imageOverlay positionné par bounds lat/lng → aligné
+                // correctement sur ESRI. Basculer sur Google décale visuellement les zones PV
+                // par rapport au fond satellite (ESRI vs Google ont des orthorectifications
+                // différentes). On garde ESRI pour toute la session de calpinage.
+                // _switchTileForHeatmap(true);  ← désactivé intentionnellement
                 _flux2DOverlay = L.imageOverlay(
                     imgSrc, [[b.south, b.west], [b.north, b.east]],
                     { opacity: 0.85, interactive: false, zIndex: 201 }
