@@ -7321,17 +7321,6 @@ class Calpinage3DViewer {
         // Utilise le MNT LiDAR si disponible, 0 sinon
         const terrainY = this._getTerrainHeight(cx, cz);
 
-        // ── Dalle asphaltée (overlay sur la texture satellite) ───────────────
-        const PAD = 5;
-        const gw  = (xMax - xMin) + PAD * 2;
-        const gd  = Math.abs(zMax - zMin) + PAD * 2;
-        const groundGeo = new THREE.PlaneGeometry(gw, gd, 1, 1);
-        groundGeo.rotateX(-Math.PI / 2);
-        const ground = new THREE.Mesh(groundGeo, matAsphalt);
-        ground.position.set(cx, terrainY + 0.01, cz);
-        ground.receiveShadow = true;
-        canopyGroup.add(ground);
-
         // ── Helper : panneau de toit incliné avec sommets exacts ──────────────
         const _makeRoofPanel = (x1, y1, x2, y2, zFrom, zTo) => {
             const pos = new Float32Array([
@@ -7344,33 +7333,51 @@ class Calpinage3DViewer {
             return geo;
         };
 
-        // ── Structure de chaque zone ────────────────────────────────────────
+        // ── Structure de chaque zone (repère LOCAL centré sur la zone) ──────
         zones.forEach(zone => {
             if (!zone.layer) return;
 
+            const boundsC = zone.layer.getBounds().getCenter();
+            const zCenter = this._geoToLocal(boundsC.lat, boundsC.lng);
+            const zCX = zCenter.x;
+            const zCZ = zCenter.z;
+            const yBase = this._getTerrainHeight(zCX, zCZ);
+
+            // Dimensions réelles de la zone (ou repli sur AABB)
             const bounds = zone.layer.getBounds();
             const sw = this._geoToLocal(bounds.getSouthWest().lat, bounds.getSouthWest().lng);
             const ne = this._geoToLocal(bounds.getNorthEast().lat, bounds.getNorthEast().lng);
+            const aabbW = Math.abs(ne.x - sw.x);
+            const aabbL = Math.abs(ne.z - sw.z);
+            const zW  = zone.largeurMetres  || aabbW  || 10;  // transversal (X local)
+            const zL  = zone.longueurMetres || aabbL  || 20;  // longitudinal (Z local)
 
-            const zxMin = Math.min(sw.x, ne.x);
-            const zxMax = Math.max(sw.x, ne.x);
-            const zzMin = Math.min(sw.z, ne.z);
-            const zzMax = Math.max(sw.z, ne.z);
+            // Orientation → rotation Three.js autour de Y (rad)
+            const zoneOrientation = zone.orientation || zone.azimut || 180;
+            const rotAngle = (180 - zoneOrientation) * Math.PI / 180;
 
-            const zW  = zxMax - zxMin;   // largeur transversale (axe X)
-            const zL  = zzMax - zzMin;   // longueur longitudinale (axe Z)
-            const zCX = (zxMin + zxMax) / 2;
-            const zCZ = (zzMin + zzMax) / 2;
-            const yBase = this._getTerrainHeight(zCX, zCZ);
+            // Groupe local : position = centre de zone, rotation = orientation
+            const zoneGroup = new THREE.Group();
+            zoneGroup.position.set(zCX, yBase, zCZ);
+            zoneGroup.rotation.y = -rotAngle;
+            canopyGroup.add(zoneGroup);
 
-            // Altitude du bord supérieur de la structure en fonction de l'abscisse X
-            const roofY = (px) => {
+            // Dalle asphaltée locale (sous la structure)
+            const slabGeo = new THREE.PlaneGeometry(zW + 2, zL + 2, 1, 1);
+            slabGeo.rotateX(-Math.PI / 2);
+            const slab = new THREE.Mesh(slabGeo, matAsphalt);
+            slab.position.set(0, 0.01, 0);
+            slab.receiveShadow = true;
+            zoneGroup.add(slab);
+
+            // Hauteur RELATIVE du bord de toit en fonction de l'abscisse locale pxLocal ∈ [-zW/2, +zW/2]
+            const roofY = (pxLocal) => {
                 if (isBipente) {
-                    const t = Math.abs(px - zCX) / Math.max(0.01, zW / 2); // 0 au centre, 1 aux bords
-                    return yBase + h + hf * (1 - Math.min(1, t));
+                    const t = Math.abs(pxLocal) / Math.max(0.01, zW / 2); // 0 au centre, 1 aux bords
+                    return h + hf * (1 - Math.min(1, t));
                 } else {
-                    const t = (px - zxMin) / Math.max(0.01, zW);           // 0 côté bas, 1 côté haut
-                    return yBase + h + hf * Math.min(1, Math.max(0, t));
+                    const t = (pxLocal + zW / 2) / Math.max(0.01, zW);    // 0 bord gauche, 1 bord droit
+                    return h + hf * Math.min(1, Math.max(0, t));
                 }
             };
 
@@ -7379,85 +7386,78 @@ class Calpinage3DViewer {
             const nFermes = Math.max(2, Math.round(zL / ep) + 1);
             const nPannes = Math.max(2, Math.round(zW / ea) + 1);
 
-            // ── Piliers : seulement aux 2 bords transversaux (X=zxMin et X=zxMax) ──
-            // Un pilier par ferme (le long de Z) — du sol jusqu'au sommet de la structure
+            // ── Piliers : seulement aux 2 bords transversaux (pxLocal = ±zW/2) ────
             for (let fj = 0; fj < nFermes; fj++) {
-                const pz = zzMin + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * zL;
-                for (const pxEdge of [zxMin, zxMax]) {
-                    const terrY   = this._getTerrainHeight(pxEdge, pz);
-                    const pillarH = Math.max(0.1, roofY(pxEdge) - terrY);
+                const pzLocal = -zL / 2 + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * zL;
+                for (const pxLocal of [-zW / 2, zW / 2]) {
+                    const pillarH = Math.max(0.1, roofY(pxLocal));
                     const pillarGeo = new THREE.CylinderGeometry(dp / 2, dp / 2 * 1.05, pillarH, 10);
                     const pillar    = new THREE.Mesh(pillarGeo, matPillar);
-                    pillar.position.set(pxEdge, terrY + pillarH / 2, pz);
+                    pillar.position.set(pxLocal, pillarH / 2, pzLocal);
                     pillar.castShadow = true;
-                    canopyGroup.add(pillar);
+                    zoneGroup.add(pillar);
                     const baseGeo = new THREE.BoxGeometry(0.30, 0.06, 0.30);
                     const base    = new THREE.Mesh(baseGeo, matBase);
-                    base.position.set(pxEdge, terrY + 0.03, pz);
-                    canopyGroup.add(base);
+                    base.position.set(pxLocal, 0.03, pzLocal);
+                    zoneGroup.add(base);
                 }
             }
 
-            // ── Fermes transversales : frames le long de X, une par position Z ────
+            // ── Fermes transversales : spanning X = [−zW/2, +zW/2] ────────────
             for (let fj = 0; fj < nFermes; fj++) {
-                const pz = zzMin + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * zL;
+                const pzLocal = -zL / 2 + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * zL;
                 if (isBipente) {
                     const halfW    = zW / 2;
                     const fermeLen = Math.sqrt(halfW * halfW + hf * hf);
                     const angle    = Math.atan2(hf, halfW);
-                    // Bras gauche : (zxMin, h) → (zCX, h+hf)
                     const fermeGeoL = new THREE.BoxGeometry(fermeLen, sf, sf);
                     const fermeL    = new THREE.Mesh(fermeGeoL, matSteel);
-                    fermeL.position.set((zxMin + zCX) / 2, yBase + h + hf / 2, pz);
+                    fermeL.position.set(-halfW / 2, h + hf / 2, pzLocal);
                     fermeL.rotation.z = angle;
                     fermeL.castShadow = true;
-                    canopyGroup.add(fermeL);
-                    // Bras droit : (zCX, h+hf) → (zxMax, h)
+                    zoneGroup.add(fermeL);
                     const fermeGeoR = new THREE.BoxGeometry(fermeLen, sf, sf);
                     const fermeR    = new THREE.Mesh(fermeGeoR, matSteel);
-                    fermeR.position.set((zCX + zxMax) / 2, yBase + h + hf / 2, pz);
+                    fermeR.position.set(halfW / 2, h + hf / 2, pzLocal);
                     fermeR.rotation.z = -angle;
                     fermeR.castShadow = true;
-                    canopyGroup.add(fermeR);
-                    // Nœud de faîte
+                    zoneGroup.add(fermeR);
                     const faitageGeo = new THREE.CylinderGeometry(sf / 3, sf / 3, sf * 2, 6);
                     const faitage    = new THREE.Mesh(faitageGeo, matSteel);
-                    faitage.position.set(zCX, yBase + h + hf, pz);
-                    canopyGroup.add(faitage);
+                    faitage.position.set(0, h + hf, pzLocal);
+                    zoneGroup.add(faitage);
                 } else {
-                    // Mono-pente : poutre inclinée de (zxMin, h) à (zxMax, h+hf)
                     const fermeLen = Math.sqrt(zW * zW + hf * hf);
                     const angle    = Math.atan2(hf, zW);
                     const fermeGeo = new THREE.BoxGeometry(fermeLen, sf, sf);
                     const ferme    = new THREE.Mesh(fermeGeo, matSteel);
-                    ferme.position.set(zCX, yBase + h + hf / 2, pz);
+                    ferme.position.set(0, h + hf / 2, pzLocal);
                     ferme.rotation.z = angle;
                     ferme.castShadow = true;
-                    canopyGroup.add(ferme);
+                    zoneGroup.add(ferme);
                 }
             }
 
-            // ── Pannes longitudinales : purlins le long de Z, perpendiculaires aux fermes
-            // Chaque panne est à abscisse X fixe ; sa hauteur suit la pente
+            // ── Pannes longitudinales : spanning Z = [−zL/2, +zL/2] ───────────
             for (let fi = 0; fi < nPannes; fi++) {
-                const px = zxMin + (nPannes > 1 ? fi / (nPannes - 1) : 0.5) * zW;
+                const pxLocal = -zW / 2 + (nPannes > 1 ? fi / (nPannes - 1) : 0.5) * zW;
                 const panneGeo = new THREE.BoxGeometry(sp, sp, zL);
                 const panne    = new THREE.Mesh(panneGeo, matSteel);
-                panne.position.set(px, roofY(px), zCZ);
+                panne.position.set(pxLocal, roofY(pxLocal), 0);
                 panne.castShadow = true;
-                canopyGroup.add(panne);
+                zoneGroup.add(panne);
             }
 
-            // ── Couverture translucide (surface à sommets exacts) ────────────
+            // ── Couverture translucide (sommets exacts dans reprère local) ─────
             if (isBipente) {
-                for (const [x1, x2] of [[zxMin, zCX], [zCX, zxMax]]) {
-                    canopyGroup.add(new THREE.Mesh(
-                        _makeRoofPanel(x1, roofY(x1), x2, roofY(x2), zzMin, zzMax), matRoof
+                for (const [x1, x2] of [[-zW / 2, 0], [0, zW / 2]]) {
+                    zoneGroup.add(new THREE.Mesh(
+                        _makeRoofPanel(x1, roofY(x1), x2, roofY(x2), -zL / 2, zL / 2), matRoof
                     ));
                 }
             } else {
-                canopyGroup.add(new THREE.Mesh(
-                    _makeRoofPanel(zxMin, roofY(zxMin), zxMax, roofY(zxMax), zzMin, zzMax), matRoof
+                zoneGroup.add(new THREE.Mesh(
+                    _makeRoofPanel(-zW / 2, roofY(-zW / 2), zW / 2, roofY(zW / 2), -zL / 2, zL / 2), matRoof
                 ));
             }
 
@@ -7469,25 +7469,26 @@ class Calpinage3DViewer {
             const mW   = 0.08;
 
             for (let i = 0; i <= nPlT; i++) {
-                const lx = zxMin + i * (zW / nPlT);
+                const lx = -zW / 2 + i * (zW / nPlT);
                 const lineGeo = new THREE.BoxGeometry(mW, 0.01, zL);
                 const line = new THREE.Mesh(lineGeo, matMarkings);
-                line.position.set(lx, yBase + 0.02, zCZ);
-                canopyGroup.add(line);
+                line.position.set(lx, 0.02, 0);
+                zoneGroup.add(line);
             }
             for (let j = 0; j <= nPlL; j++) {
-                const lz = zzMin + j * (zL / nPlL);
+                const lz = -zL / 2 + j * (zL / nPlL);
                 const lineGeo = new THREE.BoxGeometry(zW, 0.01, mW);
                 const line = new THREE.Mesh(lineGeo, matMarkings);
-                line.position.set(zCX, yBase + 0.02, lz);
-                canopyGroup.add(line);
+                line.position.set(0, 0.02, lz);
+                zoneGroup.add(line);
             }
         });
 
         this.scene.add(canopyGroup);
 
         // ── roofPanelsInfo synthétique pour addModules3D() ──────────────────
-        const effectiveW = isBipente ? (xMax - xMin) / 2 : (xMax - xMin);
+        const zW0 = zones[0]?.largeurMetres || (xMax - xMin);
+        const effectiveW = isBipente ? zW0 / 2 : zW0;
         const penteDeg = Math.atan2(hf, Math.max(0.5, effectiveW)) * 180 / Math.PI;
         const zoneAz   = zones.find(z => z.orientation || z.azimut)?.orientation
                       || zones.find(z => z.orientation || z.azimut)?.azimut
