@@ -97,7 +97,9 @@ class Calpinage3DViewer {
         this.camera.lookAt(0, 0, 0);
         
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // preserveDrawingBuffer OBLIGATOIRE pour que toDataURL() retourne l'image réelle
+        // (sans ce flag, WebGL efface le framebuffer après chaque frame → capture vide)
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;

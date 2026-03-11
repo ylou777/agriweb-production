@@ -6713,11 +6713,13 @@
         /**
          * Capture le rendu Three.js courant (peu importe si visible ou non).
          * Retourne une data-URL JPEG ou null si le viewer n'est pas prêt.
+         * Nécessite preserveDrawingBuffer:true sur le renderer (sinon image vide).
          */
         function captureScreenshot3D() {
             if (!viewer3D?.renderer || !viewer3D?.scene || !viewer3D?.camera) return null;
-            // Ne capturer que si des données LiDAR ont été chargées (scène non vide)
-            if (!viewer3D.lidarData) return null;
+            // La capture fonctionne avec ou sans LiDAR grâce à preserveDrawingBuffer:true
+            // Si la scène est vide (pas encore de zones), on retourne null
+            if (viewer3D.scene.children.length < 3) return null;
             try {
                 viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
                 return viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.90);
@@ -6734,7 +6736,8 @@
          */
         function capture3DViews() {
             if (!viewer3D?.renderer || !viewer3D?.scene || !viewer3D?.camera) return null;
-            if (!viewer3D.lidarData) return null;
+            // Capture possible même sans LiDAR (preserveDrawingBuffer:true) si scène a du contenu
+            if (viewer3D.scene.children.length < 3) return null;
 
             // Sauvegarder l'état caméra courant
             const savedPos    = viewer3D.camera.position.clone();
@@ -7540,6 +7543,29 @@
                 btnDP.disabled = true;
                 
                 try {
+                    // ── -1. Auto-initialiser la vue 3D si elle n'a jamais été activée ─
+                    // (le viewer3D.renderer est null tant que l'utilisateur n'a pas cliqué
+                    // le bouton 3D — on le charge automatiquement ici pour les captures CERFA)
+                    let _dpAutoInit3D = false;
+                    if (viewer3D && !viewer3D.isActive) {
+                        btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Chargement modèle 3D (CERFA)...';
+                        try {
+                            viewer3D.toggle(); // → init() : crée le renderer + scène
+                            // Charger le LiDAR depuis la position du prospect
+                            await viewer3D.loadLidarData(prospectLat, prospectLon, 80);
+                            // Ajouter les zones PV à la scène 3D
+                            if (typeof update3DFromZones === 'function') update3DFromZones();
+                            // Laisser la scène se rendre
+                            await new Promise(r => setTimeout(r, 2000));
+                            _dpAutoInit3D = true;
+                            console.log('🏗️ [DP] Vue 3D auto-initialisée pour les captures CERFA');
+                        } catch(e) {
+                            console.warn('⚠️ [DP] Impossible de charger la vue 3D:', e);
+                            // Remettre l'état correct si l'init a partiellement réussi
+                            if (viewer3D?.isActive) viewer3D.toggle();
+                        }
+                    }
+
                     // ── 0. Capture screenshots (2D + 3D vues latérales) ──────────────
                     btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Capture des vues...';
 

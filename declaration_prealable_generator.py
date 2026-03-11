@@ -1197,28 +1197,54 @@ class DeclarationPrealableGenerator:
                                           avec_panneaux=True,
                                           titre="Coupe transversale - État projeté")
         else:
-            # ── Mode vectoriel classique ─────────────────────────────────────────
-            if self.data.get('latitude') and self.data.get('longitude'):
-                self._draw_plan_masse_satellite(c, x=1.5*cm, y=self.height - 8*cm,
-                                                width=8*cm, height=6*cm,
-                                                avec_panneaux=True,
-                                                titre="Plan de masse - Vue aérienne avec panneaux PV")
+            # Mode 2D : screenshot_map comme plan principal
+            # screenshot_map = capture Leaflet avec les zones PV dessinees en bleu
+            img_calp = self._decode_base64_image(self.calpinage.get('screenshot_map'))
+            if img_calp:
+                c.setFont("Helvetica-Bold", 10)
+                c.setFillColor(colors.HexColor('#222222'))
+                c.drawString(1.5*cm, self.height - 2.7*cm,
+                             "PLAN DE CALPINAGE - ETAT PROJETE (vue aerienne 2D)")
+                c.setFont("Helvetica", 8)
+                c.setFillColor(colors.HexColor('#555555'))
+                c.drawString(1.5*cm, self.height - 3.2*cm,
+                             "Source : capture du calpinage PV - fond satellite ESRI WorldImagery")
+                c.setStrokeColor(colors.black)
+                c.setLineWidth(1)
+                c.rect(1.5*cm, self.height - 16.5*cm, self.width - 3*cm, 13*cm)
+                c.drawImage(img_calp, 1.5*cm, self.height - 16.5*cm,
+                            width=self.width - 3*cm, height=13*cm,
+                            preserveAspectRatio=True, mask='auto')
+                c.setFont("Helvetica-Oblique", 7)
+                c.setFillColor(colors.HexColor('#0055AA'))
+                c.drawString(1.5*cm, self.height - 17.0*cm,
+                             "Panneaux PV en bleu fonce - position et surface calculees par le logiciel de calpinage")
+                self._draw_coupe_transversale(c, x=1.5*cm, y=self.height - 25*cm,
+                                              width=17*cm, height=5.5*cm,
+                                              avec_panneaux=True,
+                                              titre="Coupe transversale - Etat projete (avec panneaux PV)")
+            else:
+                # Dernier recours : schemas vectoriels
+                if self.data.get('latitude') and self.data.get('longitude'):
+                    self._draw_plan_masse_satellite(c, x=1.5*cm, y=self.height - 8*cm,
+                                                    width=8*cm, height=6*cm,
+                                                    avec_panneaux=True,
+                                                    titre="Plan de masse - Vue aerienne avec panneaux PV")
 
-            self._draw_facade_batiment_realiste(c, x=1.5*cm, y=self.height - 16*cm,
-                                                width=8*cm, height=6*cm,
-                                                avec_panneaux=True,
-                                                titre="Vue de face - État projeté (avec panneaux PV)")
+                self._draw_facade_batiment_realiste(c, x=1.5*cm, y=self.height - 16*cm,
+                                                    width=8*cm, height=6*cm,
+                                                    avec_panneaux=True,
+                                                    titre="Vue de face - Etat projete (avec panneaux PV)")
 
-            self._draw_toiture_batiment_realiste(c, x=10.5*cm, y=self.height - 16*cm,
-                                                 width=8*cm, height=6*cm,
-                                                 avec_panneaux=True,
-                                                 titre="Vue toiture - État projeté (avec panneaux PV)")
+                self._draw_toiture_batiment_realiste(c, x=10.5*cm, y=self.height - 16*cm,
+                                                     width=8*cm, height=6*cm,
+                                                     avec_panneaux=True,
+                                                     titre="Vue toiture - Etat projete (avec panneaux PV)")
 
-            self._draw_coupe_transversale(c, x=1.5*cm, y=self.height - 24*cm,
-                                          width=17*cm, height=5*cm,
-                                          avec_panneaux=True,
-                                          titre="Coupe transversale - État projeté (avec panneaux PV)")
-
+                self._draw_coupe_transversale(c, x=1.5*cm, y=self.height - 24*cm,
+                                              width=17*cm, height=5*cm,
+                                              avec_panneaux=True,
+                                              titre="Coupe transversale - Etat projete (avec panneaux PV)")
         # Légende enrichie et tableau conformité (toujours présents)
         self._draw_legende_panneaux_enrichie(c, x=1.5*cm, y=3.5*cm)
         self._draw_tableau_conformite(c, x=11*cm, y=3.5*cm)
@@ -2029,6 +2055,27 @@ class DeclarationPrealableGenerator:
                 c.drawString(2*cm, apres_y_img - 1.2*cm, "Vue du dessus (plan de toiture modélisé) :")
                 c.drawImage(img_3d_dessus, 1.5*cm, apres_y_img - 7*cm,
                             width=8*cm, height=5*cm, preserveAspectRatio=True, mask='auto')
+
+        elif self.calpinage.get('screenshot_map'):
+            # ── APRÈS : screenshot 2D plan de calpinage (bien meilleur que photomontage) ─
+            img_calp_dp6 = self._decode_base64_image(self.calpinage['screenshot_map'])
+            if img_calp_dp6:
+                c.setFont("Helvetica-Bold", 11)
+                c.setFillColor(colors.black)
+                apres_t6 = (self.height - 15.5*cm) if avant_drawn else (self.height - 3*cm)
+                apres_i6 = (self.height - 26*cm)   if avant_drawn else (self.height - 14*cm)
+                c.drawString(2*cm, apres_t6,
+                             "ÉTAT PROJETÉ — Plan de calpinage PV (vue aérienne)")
+                c.setStrokeColor(colors.black)
+                c.setLineWidth(1)
+                c.rect(1.5*cm, apres_i6, 18*cm, 9*cm)
+                c.drawImage(img_calp_dp6, 1.5*cm, apres_i6,
+                            width=18*cm, height=9*cm, preserveAspectRatio=True, mask='auto')
+                c.setFont("Helvetica-Oblique", 8)
+                c.setFillColor(colors.HexColor('#0066CC'))
+                c.drawString(2*cm, apres_i6 - 0.4*cm,
+                             "Plan de calpinage 2D — fond satellite ESRI WorldImagery — panneaux en bleu")
+
         elif photo_buffer:
             # ── APRÈS : photo-montage vectoriel classique ─────────────────────────
             photo_montage = self._create_photomontage(photo_buffer)
