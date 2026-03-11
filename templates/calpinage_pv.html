@@ -1935,7 +1935,7 @@
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=107"></script>
+    <script src="/static/js/calpinage_3d.js?v=108"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
@@ -7772,12 +7772,13 @@
                 const _typeInstall3D = document.getElementById('typeInstallation')?.value || 'toiture';
 
                 // ══════════════════════════════════════════════════════════════════════
-                // BRANCHE OMBRIÈRE — rendu paramétrique (piliers + fermes + couverture)
-                // Pas de LiDAR : la géométrie est 100 % calculée depuis les paramètres
+                // BRANCHE OMBRIÈRE — LiDAR pour satellite + bâtiments périphériques
+                // Structure 3D paramétrique (piliers/fermes) au lieu du toit LiDAR
                 // ══════════════════════════════════════════════════════════════════════
                 if (_typeInstall3D === 'ombriere') {
-                    // Calculer le centre depuis la bbox des zones
+                    // Calculer le centre et le rayon depuis la bbox des zones
                     let centerLat3D = prospectLat, centerLon3D = prospectLon;
+                    let radius3D = 80;
                     if (zones && zones.length > 0) {
                         let minLat = Infinity, maxLat = -Infinity;
                         let minLon = Infinity, maxLon = -Infinity;
@@ -7795,15 +7796,18 @@
                         if (hasZones && isFinite(minLat)) {
                             centerLat3D = (minLat + maxLat) / 2;
                             centerLon3D = (minLon + maxLon) / 2;
+                            const dLat = (maxLat - minLat) * 111320;
+                            const dLon = (maxLon - minLon) * 111320 * Math.cos(centerLat3D * Math.PI / 180);
+                            const halfDiag = Math.sqrt(dLat * dLat + dLon * dLon) / 2;
+                            radius3D = Math.min(250, Math.max(80, Math.ceil(halfDiag + 50)));
                         }
                     }
 
-                    // Initialiser la conversion géo du viewer (indispensable avant _geoToLocal)
-                    viewer3D.centerLat = centerLat3D;
-                    viewer3D.centerLon = centerLon3D;
-                    viewer3D.LNG_TO_M  = viewer3D.LAT_TO_M * Math.cos(centerLat3D * Math.PI / 180);
+                    // Bloquer la détection pvBuildingCoords pour éviter que _buildBuildings
+                    // ne tente une reconstruction COPC du "toit PV" (il n'y a pas de bâtiment PV)
+                    viewer3D.pvBuildingCoords = [];
 
-                    // Extraire les positions de modules depuis les layers Leaflet
+                    // Extraire les positions de modules depuis les layers Leaflet (avant loadLidarData)
                     zones.forEach(zone => {
                         zone.modulesPositions = [];
                         if (zone.moduleGroup) {
@@ -7823,9 +7827,15 @@
                         }
                     });
 
-                    // Construire la structure 3D paramétrique puis poser les modules
-                    viewer3D.buildOmbriere3D(zones, getOmbriereParams3D());
-                    viewer3D.addModules3D(zones);
+                    console.log(`🅿️ Ombrière 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
+
+                    // Charger LiDAR pour la texture satellite + bâtiments périphériques
+                    viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {
+                        // Construire la structure paramétrique (remplace le toit LiDAR)
+                        viewer3D.buildOmbriere3D(zones, getOmbriereParams3D());
+                        // Poser les modules PV sur la structure
+                        viewer3D.addModules3D(zones);
+                    });
 
                 // ══════════════════════════════════════════════════════════════════════
                 // BRANCHE TOITURE / SOL — chemin LiDAR existant (inchangé)
