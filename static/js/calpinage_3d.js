@@ -7383,12 +7383,18 @@ class Calpinage3DViewer {
 
             // nFermes = trames transversales espacées de ep le long de Z
             // nPannes = pannes longitudinales espacées de ea le long de X
-            const nFermes = Math.max(2, Math.round(zL / ep) + 1);
+            // Retrait 1/3 profondeur place aux 2 extrémités longitudinales
+            // → premier pilier ≥ pp/3 depuis l'entrée (dégagement manœuvre créneau)
+            const ppSetback = (params.profondeurPlace || 5.0) / 3;
+            const pzStart   = -zL / 2 + Math.min(ppSetback, zL / 4);
+            const pzEnd     =  zL / 2 - Math.min(ppSetback, zL / 4);
+            const pzRange   = pzEnd - pzStart;
+            const nFermes = Math.max(2, Math.round(pzRange / ep) + 1);
             const nPannes = Math.max(2, Math.round(zW / ea) + 1);
 
             // ── Piliers : seulement aux 2 bords transversaux (pxLocal = ±zW/2) ────
             for (let fj = 0; fj < nFermes; fj++) {
-                const pzLocal = -zL / 2 + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * zL;
+                const pzLocal = pzStart + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * pzRange;
                 for (const pxLocal of [-zW / 2, zW / 2]) {
                     const pillarH = Math.max(0.1, roofY(pxLocal));
                     const pillarGeo = new THREE.CylinderGeometry(dp / 2, dp / 2 * 1.05, pillarH, 10);
@@ -7405,7 +7411,7 @@ class Calpinage3DViewer {
 
             // ── Fermes transversales : spanning X = [−zW/2, +zW/2] ────────────
             for (let fj = 0; fj < nFermes; fj++) {
-                const pzLocal = -zL / 2 + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * zL;
+                const pzLocal = pzStart + (nFermes > 1 ? fj / (nFermes - 1) : 0.5) * pzRange;
                 if (isBipente) {
                     const halfW    = zW / 2;
                     const fermeLen = Math.sqrt(halfW * halfW + hf * hf);
