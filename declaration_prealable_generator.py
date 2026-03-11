@@ -54,6 +54,18 @@ class DeclarationPrealableGenerator:
         # Intégrer les données du calpinage si disponibles
         self.calpinage = calpinage_data or {}
         self._extract_calpinage_info()
+
+    def _decode_base64_image(self, b64_str):
+        """Décode une image base64 (avec ou sans header data:...) en ImageReader."""
+        try:
+            if not b64_str:
+                return None
+            if ',' in b64_str:
+                b64_str = b64_str.split(',', 1)[1]
+            img_bytes = base64.b64decode(b64_str)
+            return ImageReader(io.BytesIO(img_bytes))
+        except Exception:
+            return None
         
     def generate_complete_dossier(self):
         """Génère le dossier DP complet (formulaire + tous les plans DP1 à DP8)"""
@@ -1018,111 +1030,203 @@ class DeclarationPrealableGenerator:
         return buffer
     
     # ========== PLANS DP4 / DP5 ==========
-    
+
+    def _draw_3d_view_block(self, c, x, y, width, height, img, titre, label_note=""):
+        """Dessine un bloc image 3D avec titre et cadre."""
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(x, y + height + 0.3*cm, titre)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(1)
+        c.rect(x, y, width, height)
+        c.drawImage(img, x, y, width=width, height=height,
+                    preserveAspectRatio=True, mask='auto')
+        if label_note:
+            c.setFont("Helvetica-Oblique", 7)
+            c.setFillColor(colors.HexColor('#555555'))
+            c.drawString(x, y - 0.35*cm, label_note)
+            c.setFillColor(colors.black)
+
     def generate_plan_facades_actuel(self):
         """Génère le plan DP4 : Façades et toitures - État actuel"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
-        
+
         # Cartouche plan
         self._draw_cartouche_plan(c, "DP4 - FACADES ET TOITURES - ÉTAT ACTUEL")
-        
-        # Plan de masse avec vue satellite (si coordonnées GPS disponibles)
-        if self.data.get('latitude') and self.data.get('longitude'):
-            self._draw_plan_masse_satellite(c, 
-                                            x=1.5*cm, 
-                                            y=self.height - 8*cm,
-                                            width=8*cm,
-                                            height=6*cm,
-                                            avec_panneaux=False,
-                                            titre="Plan de masse - Vue aérienne")
-        
-        # Vue de face (façade sud ou principale)
-        self._draw_facade_batiment_realiste(c, 
-                                   x=1.5*cm, 
-                                   y=self.height - 16*cm, 
-                                   width=8*cm, 
-                                   height=6*cm,
-                                   avec_panneaux=False,
-                                   titre="Vue de face - État actuel")
-        
-        # Vue toiture (perspective axonométrique réaliste)
-        self._draw_toiture_batiment_realiste(c,
-                                    x=10.5*cm,
-                                    y=self.height - 16*cm,
-                                    width=8*cm,
-                                    height=6*cm,
-                                    avec_panneaux=False,
-                                    titre="Vue toiture - État actuel")
-        
-        # Coupe transversale
-        self._draw_coupe_transversale(c,
-                                     x=1.5*cm,
-                                     y=self.height - 24*cm,
-                                     width=17*cm,
-                                     height=5*cm,
-                                     avec_panneaux=False,
-                                     titre="Coupe transversale - État actuel")
-        
+
+        # Récupérer les vues 3D si disponibles (capturées depuis le viewer Three.js)
+        img_facade   = self._decode_base64_image(self.calpinage.get('screenshot_vue_facade'))
+        img_laterale = self._decode_base64_image(self.calpinage.get('screenshot_vue_laterale'))
+        img_dessus   = self._decode_base64_image(self.calpinage.get('screenshot_vue_dessus'))
+        img_3d       = self._decode_base64_image(self.calpinage.get('screenshot_3d'))
+
+        has_3d = any([img_facade, img_laterale, img_dessus, img_3d])
+
+        if has_3d:
+            # ── Mode 3D : afficher les rendus réels depuis le viewer ───────────────
+            # Ligne 1 : façade et latérale côte à côte
+            img_f = img_facade or img_3d
+            img_l = img_laterale or img_3d
+            img_d = img_dessus or img_3d
+
+            if img_f:
+                self._draw_3d_view_block(c, x=1.5*cm, y=self.height - 15.5*cm,
+                                         width=8*cm, height=6*cm, img=img_f,
+                                         titre="Vue de face (façade principale) - État actuel",
+                                         label_note="Rendu 3D LiDAR/BIM")
+            else:
+                self._draw_facade_batiment_realiste(c, x=1.5*cm, y=self.height - 15.5*cm,
+                                                    width=8*cm, height=6*cm,
+                                                    avec_panneaux=False,
+                                                    titre="Vue de face - État actuel")
+
+            if img_l:
+                self._draw_3d_view_block(c, x=10.5*cm, y=self.height - 15.5*cm,
+                                         width=8*cm, height=6*cm, img=img_l,
+                                         titre="Vue latérale - État actuel",
+                                         label_note="Rendu 3D LiDAR/BIM")
+            else:
+                self._draw_toiture_batiment_realiste(c, x=10.5*cm, y=self.height - 15.5*cm,
+                                                     width=8*cm, height=6*cm,
+                                                     avec_panneaux=False,
+                                                     titre="Vue toiture - État actuel")
+
+            # Ligne 2 : vue du dessus + coupe
+            if img_d:
+                self._draw_3d_view_block(c, x=1.5*cm, y=self.height - 23.5*cm,
+                                         width=8*cm, height=6*cm, img=img_d,
+                                         titre="Vue toiture (dessus) - État actuel",
+                                         label_note="Rendu 3D LiDAR/BIM")
+            # Coupe vectorielle à droite
+            self._draw_coupe_transversale(c, x=10.5*cm, y=self.height - 23.5*cm,
+                                          width=8*cm, height=5*cm,
+                                          avec_panneaux=False,
+                                          titre="Coupe transversale - État actuel")
+
+            # Note explicative vue satellite en haut si coords disponibles
+            if self.data.get('latitude') and self.data.get('longitude'):
+                self._draw_plan_masse_satellite(c, x=1.5*cm, y=self.height - 8*cm,
+                                                width=8*cm, height=6*cm,
+                                                avec_panneaux=False,
+                                                titre="Plan de masse - Vue aérienne")
+        else:
+            # ── Mode vectoriel classique (pas de données 3D) ─────────────────────
+            if self.data.get('latitude') and self.data.get('longitude'):
+                self._draw_plan_masse_satellite(c, x=1.5*cm, y=self.height - 8*cm,
+                                                width=8*cm, height=6*cm,
+                                                avec_panneaux=False,
+                                                titre="Plan de masse - Vue aérienne")
+
+            self._draw_facade_batiment_realiste(c, x=1.5*cm, y=self.height - 16*cm,
+                                                width=8*cm, height=6*cm,
+                                                avec_panneaux=False,
+                                                titre="Vue de face - État actuel")
+
+            self._draw_toiture_batiment_realiste(c, x=10.5*cm, y=self.height - 16*cm,
+                                                 width=8*cm, height=6*cm,
+                                                 avec_panneaux=False,
+                                                 titre="Vue toiture - État actuel")
+
+            self._draw_coupe_transversale(c, x=1.5*cm, y=self.height - 24*cm,
+                                          width=17*cm, height=5*cm,
+                                          avec_panneaux=False,
+                                          titre="Coupe transversale - État actuel")
+
         c.save()
         buffer.seek(0)
         return buffer
-    
+
     def generate_plan_facades_projet(self):
         """Génère le plan DP5 : Façades et toitures - État projeté (avec panneaux)"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
-        
+
         # Cartouche plan
         self._draw_cartouche_plan(c, "DP5 - FACADES ET TOITURES - ÉTAT PROJETÉ")
-        
-        # Plan de masse avec vue satellite et panneaux
-        if self.data.get('latitude') and self.data.get('longitude'):
-            self._draw_plan_masse_satellite(c, 
-                                            x=1.5*cm, 
-                                            y=self.height - 8*cm,
-                                            width=8*cm,
-                                            height=6*cm,
-                                            avec_panneaux=True,
-                                            titre="Plan de masse - Vue aérienne avec panneaux PV")
-        
-        # Vue de face avec panneaux
-        self._draw_facade_batiment_realiste(c, 
-                                   x=1.5*cm, 
-                                   y=self.height - 16*cm, 
-                                   width=8*cm, 
-                                   height=6*cm,
-                                   avec_panneaux=True,
-                                   titre="Vue de face - État projeté (avec panneaux PV)")
-        
-        # Vue toiture avec panneaux
-        self._draw_toiture_batiment_realiste(c,
-                                    x=10.5*cm,
-                                    y=self.height - 16*cm,
-                                    width=8*cm,
-                                    height=6*cm,
-                                    avec_panneaux=True,
-                                    titre="Vue toiture - État projeté (avec panneaux PV)")
-        
-        # Coupe transversale avec panneaux
-        self._draw_coupe_transversale(c,
-                                     x=1.5*cm,
-                                     y=self.height - 24*cm,
-                                     width=17*cm,
-                                     height=5*cm,
-                                     avec_panneaux=True,
-                                     titre="Coupe transversale - État projeté (avec panneaux PV)")
-        
-        # Légende enrichie
+
+        # Récupérer les vues 3D avec panneaux
+        img_facade   = self._decode_base64_image(self.calpinage.get('screenshot_vue_facade'))
+        img_laterale = self._decode_base64_image(self.calpinage.get('screenshot_vue_laterale'))
+        img_dessus   = self._decode_base64_image(self.calpinage.get('screenshot_vue_dessus'))
+        img_3d       = self._decode_base64_image(self.calpinage.get('screenshot_3d'))
+
+        has_3d = any([img_facade, img_laterale, img_dessus, img_3d])
+
+        if has_3d:
+            # ── Mode 3D : rendus Three.js avec panneaux posés ────────────────────
+            img_f = img_facade or img_3d
+            img_l = img_laterale or img_3d
+            img_d = img_dessus or img_3d
+
+            if self.data.get('latitude') and self.data.get('longitude'):
+                self._draw_plan_masse_satellite(c, x=1.5*cm, y=self.height - 8*cm,
+                                                width=8*cm, height=6*cm,
+                                                avec_panneaux=True,
+                                                titre="Plan de masse - Vue aérienne avec panneaux PV")
+
+            if img_f:
+                self._draw_3d_view_block(c, x=1.5*cm, y=self.height - 15.5*cm,
+                                         width=8*cm, height=6*cm, img=img_f,
+                                         titre="Vue de face avec panneaux PV - État projeté",
+                                         label_note="Rendu 3D réel — modules calculés par l'outil de calpinage")
+            else:
+                self._draw_facade_batiment_realiste(c, x=1.5*cm, y=self.height - 15.5*cm,
+                                                    width=8*cm, height=6*cm,
+                                                    avec_panneaux=True,
+                                                    titre="Vue de face - État projeté (avec panneaux PV)")
+
+            if img_l:
+                self._draw_3d_view_block(c, x=10.5*cm, y=self.height - 15.5*cm,
+                                         width=8*cm, height=6*cm, img=img_l,
+                                         titre="Vue latérale avec panneaux PV - État projeté",
+                                         label_note="Rendu 3D réel")
+            else:
+                self._draw_toiture_batiment_realiste(c, x=10.5*cm, y=self.height - 15.5*cm,
+                                                     width=8*cm, height=6*cm,
+                                                     avec_panneaux=True,
+                                                     titre="Vue toiture - État projeté (avec panneaux PV)")
+
+            if img_d:
+                self._draw_3d_view_block(c, x=1.5*cm, y=self.height - 23.5*cm,
+                                         width=8*cm, height=6*cm, img=img_d,
+                                         titre="Vue du dessus avec panneaux PV - État projeté",
+                                         label_note="Rendu 3D réel")
+
+            self._draw_coupe_transversale(c, x=10.5*cm, y=self.height - 23.5*cm,
+                                          width=8*cm, height=5*cm,
+                                          avec_panneaux=True,
+                                          titre="Coupe transversale - État projeté")
+        else:
+            # ── Mode vectoriel classique ─────────────────────────────────────────
+            if self.data.get('latitude') and self.data.get('longitude'):
+                self._draw_plan_masse_satellite(c, x=1.5*cm, y=self.height - 8*cm,
+                                                width=8*cm, height=6*cm,
+                                                avec_panneaux=True,
+                                                titre="Plan de masse - Vue aérienne avec panneaux PV")
+
+            self._draw_facade_batiment_realiste(c, x=1.5*cm, y=self.height - 16*cm,
+                                                width=8*cm, height=6*cm,
+                                                avec_panneaux=True,
+                                                titre="Vue de face - État projeté (avec panneaux PV)")
+
+            self._draw_toiture_batiment_realiste(c, x=10.5*cm, y=self.height - 16*cm,
+                                                 width=8*cm, height=6*cm,
+                                                 avec_panneaux=True,
+                                                 titre="Vue toiture - État projeté (avec panneaux PV)")
+
+            self._draw_coupe_transversale(c, x=1.5*cm, y=self.height - 24*cm,
+                                          width=17*cm, height=5*cm,
+                                          avec_panneaux=True,
+                                          titre="Coupe transversale - État projeté (avec panneaux PV)")
+
+        # Légende enrichie et tableau conformité (toujours présents)
         self._draw_legende_panneaux_enrichie(c, x=1.5*cm, y=3.5*cm)
-        
-        # Tableau surfaces et conformité
         self._draw_tableau_conformite(c, x=11*cm, y=3.5*cm)
-        
+
         c.save()
         buffer.seek(0)
         return buffer
-    
+
     
     def _draw_plan_masse_satellite(self, c, x, y, width, height, avec_panneaux=False, titre=""):
         """Dessine un plan de masse avec vue satellite stylisée"""
@@ -1878,47 +1982,76 @@ class DeclarationPrealableGenerator:
         """Génère le plan DP6 : Document graphique - Insertion paysagère (photo-montage)"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
-        
+
         # Cartouche
         self._draw_cartouche_plan(c, "DP6 - INSERTION PAYSAGÈRE - PHOTO-MONTAGE")
-        
+
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
-        
-        # Photo satellite haute résolution
+
+        # Vue 3D isométrique capturée dans le viewer (prioritaire pour l'APRÈS)
+        img_3d_apres = self._decode_base64_image(self.calpinage.get('screenshot_3d'))
+        img_3d_dessus = self._decode_base64_image(self.calpinage.get('screenshot_vue_dessus'))
+
+        # Photo satellite haute résolution (pour l'AVANT)
+        photo_buffer = None
         if lat and lon:
             photo_buffer = self._fetch_satellite_image(lat, lon, zoom=19, width=1000, height=700)
-            
-            if photo_buffer:
-                # Superposer panneaux PV sur la photo
-                photo_montage = self._create_photomontage(photo_buffer)
-                
-                # Image AVANT
-                c.setFont("Helvetica-Bold", 11)
-                c.drawString(2*cm, self.height - 3*cm, "ÉTAT ACTUEL (sans panneaux photovoltaïques)")
-                
-                img_avant = ImageReader(photo_buffer)
-                c.drawImage(img_avant, 1.5*cm, self.height - 14*cm, width=18*cm, height=9*cm, preserveAspectRatio=True)
-                
-                # Image APRÈS
-                c.setFont("Helvetica-Bold", 11)
-                c.drawString(2*cm, self.height - 15.5*cm, "ÉTAT PROJETÉ (avec panneaux photovoltaïques)")
-                
-                img_apres = ImageReader(photo_montage)
-                c.drawImage(img_apres, 1.5*cm, self.height - 26*cm, width=18*cm, height=9*cm, preserveAspectRatio=True)
-                
-                # Annotations
-                c.setFont("Helvetica", 8)
-                c.setFillColor(colors.HexColor('#0066CC'))
-                c.drawString(2*cm, self.height - 27*cm, "Note : Les panneaux sont représentés en bleu foncé sur la toiture")
+
+        avant_drawn = False
+        if photo_buffer:
+            c.setFont("Helvetica-Bold", 11)
+            c.setFillColor(colors.black)
+            c.drawString(2*cm, self.height - 3*cm, "ÉTAT ACTUEL (sans panneaux photovoltaïques)")
+            img_avant = ImageReader(photo_buffer)
+            c.drawImage(img_avant, 1.5*cm, self.height - 14*cm,
+                        width=18*cm, height=9*cm, preserveAspectRatio=True)
+            avant_drawn = True
+
+        if img_3d_apres:
+            # ── APRÈS : rendu 3D réel du viewer ──────────────────────────────────
+            c.setFont("Helvetica-Bold", 11)
+            c.setFillColor(colors.black)
+            apres_y_title = (self.height - 15.5*cm) if avant_drawn else (self.height - 3*cm)
+            apres_y_img   = (self.height - 26*cm)   if avant_drawn else (self.height - 14*cm)
+            c.drawString(2*cm, apres_y_title, "ÉTAT PROJETÉ — Vue 3D modélisée (avec panneaux photovoltaïques)")
+            c.drawImage(img_3d_apres, 1.5*cm, apres_y_img,
+                        width=18*cm, height=9*cm, preserveAspectRatio=True, mask='auto')
+            c.setFont("Helvetica-Oblique", 8)
+            c.setFillColor(colors.HexColor('#0066CC'))
+            c.drawString(2*cm, apres_y_img - 0.4*cm,
+                         "Rendu isométrique 3D — Simulation générée par l'outil de calpinage LiDAR/BIM")
+
+            # Vue du dessus en petit si disponible
+            if img_3d_dessus and avant_drawn:
+                c.setFont("Helvetica-Bold", 9)
+                c.setFillColor(colors.black)
+                c.drawString(2*cm, apres_y_img - 1.2*cm, "Vue du dessus (plan de toiture modélisé) :")
+                c.drawImage(img_3d_dessus, 1.5*cm, apres_y_img - 7*cm,
+                            width=8*cm, height=5*cm, preserveAspectRatio=True, mask='auto')
+        elif photo_buffer:
+            # ── APRÈS : photo-montage vectoriel classique ─────────────────────────
+            photo_montage = self._create_photomontage(photo_buffer)
+            c.setFont("Helvetica-Bold", 11)
+            c.setFillColor(colors.black)
+            c.drawString(2*cm, self.height - 15.5*cm, "ÉTAT PROJETÉ (avec panneaux photovoltaïques)")
+            img_apres = ImageReader(photo_montage)
+            c.drawImage(img_apres, 1.5*cm, self.height - 26*cm,
+                        width=18*cm, height=9*cm, preserveAspectRatio=True)
+            c.setFont("Helvetica", 8)
+            c.setFillColor(colors.HexColor('#0066CC'))
+            c.drawString(2*cm, self.height - 27*cm,
+                         "Note : Les panneaux sont représentés en bleu foncé sur la toiture")
         else:
-            # Message si pas de coordonnées
+            # ── Aucune donnée image disponible ────────────────────────────────────
             c.setFont("Helvetica-Bold", 14)
             c.setFillColor(colors.HexColor('#666666'))
             c.drawCentredString(self.width/2, self.height - 10*cm, "INSERTION PAYSAGÈRE")
             c.setFont("Helvetica", 10)
-            c.drawCentredString(self.width/2, self.height - 11*cm, "Photo-montage à réaliser avec vue réelle du bâtiment")
-            c.drawCentredString(self.width/2, self.height - 12*cm, "avant et après installation des panneaux photovoltaïques")
+            c.drawCentredString(self.width/2, self.height - 11*cm,
+                                "Photo-montage à réaliser avec vue réelle du bâtiment")
+            c.drawCentredString(self.width/2, self.height - 12*cm,
+                                "avant et après installation des panneaux photovoltaïques")
         
         # Caractéristiques visuelles
         c.setFont("Helvetica-Bold", 10)
