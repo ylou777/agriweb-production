@@ -724,10 +724,22 @@
                         <span id="solarStatus"></span>
                         <span id="dsmSolarStatus"></span>
                     </div>
+                </div><!-- /type-installation -->
 
                 <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
                 <div class="module-selector" id="ombriereParams" style="display: none;">
                     <h5>🅿️ Paramètres Ombrière de Parking</h5>
+
+                    <!-- Type de structure -->
+                    <div class="row mb-2">
+                        <div class="col-md-5">
+                            <label class="form-label"><strong>🏗️ Type de structure</strong></label>
+                            <select class="form-select" id="ombriereTypeStructure" onchange="updateAllZones()">
+                                <option value="monopente" selected>Mono-pente (un versant)</option>
+                                <option value="bipente">Bi-pente (faîtage central)</option>
+                            </select>
+                        </div>
+                    </div>
 
                     <!-- Catalogue de modèles ombrières -->
                     <div class="row mb-3">
@@ -1935,7 +1947,7 @@
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=109"></script>
+    <script src="/static/js/calpinage_3d.js?v=110"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
@@ -6361,6 +6373,10 @@
             document.getElementById('ombriereEspacementPiliers').value = modele.espacementPiliers;
             document.getElementById('ombriereEntraxePiliers').value = modele.entraxePiliers;
 
+            // Synchroniser le type de structure (mono/bi-pente depuis le catalogue)
+            const _typeStructSel = document.getElementById('ombriereTypeStructure');
+            if (_typeStructSel) _typeStructSel.value = modele.type && /bi.?pente/i.test(modele.type) ? 'bipente' : 'monopente';
+
             // Info texte
             infoText.textContent = `${modele.fabricant} ${modele.ref} — ${modele.gamme}`;
 
@@ -7926,10 +7942,12 @@
             const diametrePilier_cm = parseFloat(document.getElementById('ombriereDiametrePilier')?.value)   || 15;
             const sectionPanne_cm   = parseFloat(document.getElementById('ombriereSectionPanne')?.value)      || 10;
             const sectionFerme_cm   = parseFloat(document.getElementById('ombriereSectionFerme')?.value)      || 8;
+            const typeStructure = document.getElementById('ombriereTypeStructure')?.value || 'monopente';
             return {
                 modele, hauteur, hauteurFerme, largeurPlace, profondeurPlace,
                 espacementPiliers, entraxePiliers,
-                diametrePilier_cm, sectionPanne_cm, sectionFerme_cm
+                diametrePilier_cm, sectionPanne_cm, sectionFerme_cm,
+                typeStructure
             };
         }
         
