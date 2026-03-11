@@ -724,22 +724,10 @@
                         <span id="solarStatus"></span>
                         <span id="dsmSolarStatus"></span>
                     </div>
-                </div><!-- /type-installation -->
 
                 <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
                 <div class="module-selector" id="ombriereParams" style="display: none;">
                     <h5>🅿️ Paramètres Ombrière de Parking</h5>
-
-                    <!-- Type de structure -->
-                    <div class="row mb-2">
-                        <div class="col-md-5">
-                            <label class="form-label"><strong>🏗️ Type de structure</strong></label>
-                            <select class="form-select" id="ombriereTypeStructure" onchange="updateAllZones()">
-                                <option value="monopente" selected>Mono-pente (un versant)</option>
-                                <option value="bipente">Bi-pente (faîtage central)</option>
-                            </select>
-                        </div>
-                    </div>
 
                     <!-- Catalogue de modèles ombrières -->
                     <div class="row mb-3">
@@ -1947,7 +1935,7 @@
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=113"></script>
+    <script src="/static/js/calpinage_3d.js?v=109"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
@@ -5620,30 +5608,7 @@
                 
                 // Redessiner les modules avec la nouvelle rotation (vraies coordonnées)
                 dessinerModulesDansZone(zone);
-
-                // Si 3D actif en mode ombrière — reconstruire la structure avec la nouvelle orientation
-                if (viewer3D && viewer3D.isActive && document.getElementById('typeInstallation')?.value === 'ombriere') {
-                    zones.forEach(z => {
-                        z.modulesPositions = [];
-                        if (z.moduleGroup) {
-                            z.moduleGroup.eachLayer(layer => {
-                                if (layer instanceof L.Polygon && !layer._isZoneOutline) {
-                                    const ll = layer.getLatLngs()[0];
-                                    if (ll && ll.length >= 4) {
-                                        z.modulesPositions.push({
-                                            lat: (ll[0].lat + ll[2].lat) / 2,
-                                            lng: (ll[0].lng + ll[2].lng) / 2,
-                                            corners: ll.map(c => ({lat: c.lat, lng: c.lng}))
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    });
-                    viewer3D.buildOmbriere3D(zones, getOmbriereParams3D());
-                    viewer3D.addModules3D(zones);
-                }
-
+                
                 // Mettre à jour la position de la poignée de rotation
                 if (rotationHandles[zoneId]) {
                     updateHandlePosition(zone, rotationHandles[zoneId]);
@@ -6395,10 +6360,6 @@
             document.getElementById('ombriereSectionFerme').value = modele.sectionFerme;
             document.getElementById('ombriereEspacementPiliers').value = modele.espacementPiliers;
             document.getElementById('ombriereEntraxePiliers').value = modele.entraxePiliers;
-
-            // Synchroniser le type de structure (mono/bi-pente depuis le catalogue)
-            const _typeStructSel = document.getElementById('ombriereTypeStructure');
-            if (_typeStructSel) _typeStructSel.value = modele.type && /bi.?pente/i.test(modele.type) ? 'bipente' : 'monopente';
 
             // Info texte
             infoText.textContent = `${modele.fabricant} ${modele.ref} — ${modele.gamme}`;
@@ -7965,12 +7926,10 @@
             const diametrePilier_cm = parseFloat(document.getElementById('ombriereDiametrePilier')?.value)   || 15;
             const sectionPanne_cm   = parseFloat(document.getElementById('ombriereSectionPanne')?.value)      || 10;
             const sectionFerme_cm   = parseFloat(document.getElementById('ombriereSectionFerme')?.value)      || 8;
-            const typeStructure = document.getElementById('ombriereTypeStructure')?.value || 'monopente';
             return {
                 modele, hauteur, hauteurFerme, largeurPlace, profondeurPlace,
                 espacementPiliers, entraxePiliers,
-                diametrePilier_cm, sectionPanne_cm, sectionFerme_cm,
-                typeStructure
+                diametrePilier_cm, sectionPanne_cm, sectionFerme_cm
             };
         }
         
