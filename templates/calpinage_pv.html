@@ -6717,8 +6717,6 @@
          */
         function captureScreenshot3D() {
             if (!viewer3D?.renderer || !viewer3D?.scene || !viewer3D?.camera) return null;
-            // La capture fonctionne avec ou sans LiDAR grâce à preserveDrawingBuffer:true
-            // Si la scène est vide (pas encore de zones), on retourne null
             if (viewer3D.scene.children.length < 3) return null;
             try {
                 viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
@@ -6730,13 +6728,28 @@
         }
 
         /**
+         * Calcule le centre et la distance caméra optimale depuis la bounding box
+         * de la scène Three.js (bâtiment + panneaux PV).
+         * Retourne { center, dist } où dist garantit que toute la scène est dans le champ.
+         */
+        function _sceneBoundingFit(fovDeg = 45, margin = 1.5) {
+            const box = new THREE.Box3().setFromObject(viewer3D.scene);
+            if (box.isEmpty()) return { center: new THREE.Vector3(0, 0, 0), dist: 60 };
+            const center = box.getCenter(new THREE.Vector3());
+            const sphere = box.getBoundingSphere(new THREE.Sphere());
+            const fovRad = (fovDeg / 2) * (Math.PI / 180);
+            const dist   = (sphere.radius / Math.tan(fovRad)) * margin;
+            return { center, dist };
+        }
+
+        /**
          * Capture 3 vues 3D (façade, latérale, dessus) depuis Three.js
          * en repositionnant temporairement la caméra.
+         * La distance est calculée automatiquement depuis la bounding box de la scène.
          * Retourne { facade, laterale, dessus } ou null si viewer non disponible.
          */
         function capture3DViews() {
             if (!viewer3D?.renderer || !viewer3D?.scene || !viewer3D?.camera) return null;
-            // Capture possible même sans LiDAR (preserveDrawingBuffer:true) si scène a du contenu
             if (viewer3D.scene.children.length < 3) return null;
 
             // Sauvegarder l'état caméra courant
@@ -6745,12 +6758,13 @@
             const savedFov    = viewer3D.camera.fov;
             if (viewer3D.controls) viewer3D.controls.enabled = false;
 
-            // Estimer la distance d'encadrement depuis la scène
-            const dist = 60;
+            // Bounding box → centre réel + distance auto-fit
+            const { center: sc, dist } = _sceneBoundingFit(viewer3D.camera.fov || 45, 1.5);
+            const cx = sc.x, cy = sc.y, cz = sc.z;
 
-            const _snap = (px, py, pz, tx, ty, tz) => {
+            const _snap = (px, py, pz) => {
                 viewer3D.camera.position.set(px, py, pz);
-                viewer3D.camera.lookAt(tx, ty, tz);
+                viewer3D.camera.lookAt(cx, cy, cz);
                 viewer3D.camera.updateProjectionMatrix();
                 viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
                 return viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.88);
@@ -6759,9 +6773,12 @@
             let views = null;
             try {
                 views = {
-                    facade:   _snap(0,        dist * 0.25, dist,       0, dist * 0.10, 0),
-                    laterale: _snap(dist,      dist * 0.25, 0,          0, dist * 0.10, 0),
-                    dessus:   _snap(dist * 0.6, dist * 0.9, dist * 0.6, 0, 0,           0),
+                    // Vue façade : face sud (Z+), légèrement au-dessus du centre
+                    facade:   _snap(cx,            cy + dist * 0.15, cz + dist),
+                    // Vue latérale : côté est (X+), même hauteur
+                    laterale: _snap(cx + dist,      cy + dist * 0.15, cz),
+                    // Vue plongeante isométrique : angle 45° NE
+                    dessus:   _snap(cx + dist * 0.6, cy + dist * 0.85, cz + dist * 0.6),
                 };
             } catch(e) {
                 console.warn('⚠️ Erreur capture vues 3D:', e);
