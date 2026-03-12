@@ -6518,6 +6518,13 @@ class Calpinage3DViewer {
                 _obstBBoxes.some(b => c.x >= b.xMin && c.x <= b.xMax && c.z >= b.zMin && c.z <= b.zMax)
             );
 
+        // ── Matching par module : pré-conversion des polygon_2d RANSAC en {x,y} ──
+        // Utilisé dans le chemin RANSAC pour chercher le bon pan par position de module
+        // (évite les hauteurs extrapolées quand un module est hors du polygon_2d du pan matchédde zone).
+        const _ransacPanelsList = (this.roofPanelsInfo?.panels || [])
+            .filter(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)
+            .map(p => ({ panel: p, poly2d: p.polygon_2d.map(pt => ({ x: pt[0], y: pt[1] })) }));
+
         let totalModules = 0;
 
         zones.forEach(zone => {
@@ -6598,16 +6605,33 @@ class Calpinage3DViewer {
                     // Hauteur exacte via équation du plan RANSAC
                     const sPx = modLocal.x - _bOXadd;
                     const sPy = -(modLocal.z - _bOZadd);
-                    const mnh = matchedPanel.mnh_a * sPx + matchedPanel.mnh_b * sPy + matchedPanel.mnh_c;
-                    const modY = terrainH + Math.max(_bWHadd, mnh) + 0.08;
+
+                    // Matching par module : si ce module est hors du polygon_2d du pan de zone,
+                    // chercher le pan qui le contient → évite hauteurs extrapolées (bandes discontinues).
+                    let _modPanel = matchedPanel;
+                    for (const _rpe of _ransacPanelsList) {
+                        if (_rpe.panel !== matchedPanel &&
+                            this._pointInPolygon2D(sPx, sPy, _rpe.poly2d)) {
+                            _modPanel = _rpe.panel;
+                            break;
+                        }
+                    }
+                    // Clearance perpendiculaire (cohérent avec autoFillRoofPanels : 0.06 × normLen)
+                    const _normLen = Math.sqrt(
+                        _modPanel.mnh_a * _modPanel.mnh_a +
+                        _modPanel.mnh_b * _modPanel.mnh_b + 1);
+                    const mnh = _modPanel.mnh_a * sPx + _modPanel.mnh_b * sPy + _modPanel.mnh_c;
+                    const modY = terrainH + Math.max(_bWHadd, mnh) + 0.06 * _normLen;
+                    const _modPente  = (_modPanel.pente_deg  || 0) * Math.PI / 180;
+                    const _modAzimut = (_modPanel.orientation_deg || 180) * Math.PI / 180;
 
                     const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
                     // Position en world space (panGroup à l'origine)
                     panel.position.set(modLocal.x, modY, modLocal.z);
                     // Rotation identique à autoFillRoofPanels : YXZ, y=π-az, x=pente
                     panel.rotation.order = 'YXZ';
-                    panel.rotation.y = Math.PI - azimut;
-                    panel.rotation.x = pente;
+                    panel.rotation.y = Math.PI - _modAzimut;
+                    panel.rotation.x = _modPente;
                     panel.castShadow    = true;
                     panel.receiveShadow = true;
                     panel.renderOrder   = 10;
