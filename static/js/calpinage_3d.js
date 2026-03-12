@@ -2196,19 +2196,13 @@ class Calpinage3DViewer {
         // Calculer l'orientation et les dimensions orientées du bâtiment
         let obb = this._computeBuildingOrientation(localCoords);
         
-        // Échantillonner la hauteur du terrain à plusieurs points (centre + coins)
-        // pour éviter que les bâtiments s'enfoncent sous le relief
-        const terrainSamples = [this._getTerrainHeight(obb.cx, obb.cz)];
-        const cosObb = Math.cos(obb.angle);
-        const sinObb = Math.sin(obb.angle);
-        const hlObb = obb.longDim / 2;
-        const hsObb = obb.shortDim / 2;
-        for (const [rl, rs] of [[-hlObb,-hsObb],[hlObb,-hsObb],[hlObb,hsObb],[-hlObb,hsObb]]) {
-            const cx2 = obb.cx + rl * cosObb - rs * sinObb;
-            const cz2 = obb.cz + rl * sinObb + rs * cosObb;
-            terrainSamples.push(this._getTerrainHeight(cx2, cz2));
-        }
-        const terrainH = Math.max(...terrainSamples);
+        // Utiliser uniquement le centre de l'OBB pour terrainH.
+        // Ancien code : Math.max(centre + 4 coins) → les coins peuvent tomber sur
+        // le relief environnant (collines, dévers) et faire flotter TOUT le bâtiment.
+        // Le bâtiment PV est presque toujours sur une plateforme de niveau ; le centre
+        // est le point de référence le plus stable. Les murs sont étendus sous le sol
+        // pour absorber tout écart résiduel (voir _buildRoofFromGrid).
+        const terrainH = this._getTerrainHeight(obb.cx, obb.cz);
         
         const bh = Math.max(height, 2);
         const wallType = this._getWallType(buildingData);
@@ -4910,8 +4904,11 @@ class Calpinage3DViewer {
                         }
                     }
 
+                    // Base du mur : 1m sous le terrain local pour éliminer
+                    // tout jour entre sol et bâtiment (terrain non plat ou
+                    // petit décalage de référence).
                     wallPos.push(
-                        bldgOffsetX + wx, terrainH,        bldgOffsetZ - wy,
+                        bldgOffsetX + wx, terrainH - 1.0,  bldgOffsetZ - wy,
                         bldgOffsetX + wx, terrainH + hTop, bldgOffsetZ - wy,
                     );
                 }
