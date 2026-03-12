@@ -2933,9 +2933,12 @@
                     ne: layer.getBounds().getNorthEast()
                 };
                 
-                // Ne PAS recalculer largeurMetres/longueurMetres depuis l'AABB Leaflet :
-                // pour les zones tournées, l'AABB est plus grande que la zone réelle.
-                // Ces valeurs sont maintenues correctement par les poignées de redimensionnement.
+                // Recalculer les dimensions
+                const bounds = layer.getBounds();
+                const ne = bounds.getNorthEast();
+                const sw = bounds.getSouthWest();
+                zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
                 zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
                 
                 // Redessiner les modules avec les nouvelles dimensions
@@ -4041,9 +4044,10 @@
                         const zone = zones.find(function(z) { return z.id === layer._leaflet_id; });
                         if (zone) {
                             const bounds = layer.getBounds();
-                            // Ne PAS recalculer largeurMetres/longueurMetres depuis l'AABB Leaflet :
-                            // pour les zones tournées, l'AABB est plus grande que la zone réelle
-                            // et écraserait les dimensions correctes maintenues par les poignées.
+                            const ne = bounds.getNorthEast();
+                            const sw = bounds.getSouthWest();
+                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
                             zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
                             zone.originalBounds = { sw: bounds.getSouthWest(), ne: bounds.getNorthEast() };
                             recalculerZone(zone);
@@ -6656,156 +6660,15 @@
             }
         });
 
-        /**
-         * Capture un screenshot de la vue 2D Leaflet.
-         * Si la vue 3D est active (carte cachée), la bascule temporairement en 2D.
-         */
-        async function captureScreenshot2D() {
-            const container3D = document.getElementById('viewer3DContainer');
-            const mapCard = document.getElementById('mapCard');
-            const wasIn3D = viewer3D?.isActive;
-
-            if (wasIn3D) {
-                // Masquer la 3D, afficher la carte Leaflet pour html2canvas
-                container3D.style.display = 'none';
-                mapCard.style.display = 'block';
-                await new Promise(r => setTimeout(r, 250)); // laisser le DOM re-peindre
-            }
-
-            // ── Forcer le fond ESRI pour la capture ────────────────────────────────────
-            // ESRI WorldImagery est la source de référence pour le calpinage (cadastre aligné
-            // WGS84). Si l'utilisateur a manuellement basculé sur Google Satellite, on revient
-            // sur ESRI le temps de la capture → zones PV toujours alignées dans la proposition.
-            const wasOnGoogle = (typeof map !== 'undefined' && map &&
-                                 typeof tileLayerGoogle !== 'undefined' && tileLayerGoogle &&
-                                 map.hasLayer(tileLayerGoogle));
-            // Masquer temporairement l'overlay heatmap (source Google Solar → autre fond)
-            const heatmapVisible = !!(_flux2DOverlay && typeof map !== 'undefined' && map &&
-                                      map.hasLayer(_flux2DOverlay));
-            if (wasOnGoogle) {
-                map.removeLayer(tileLayerGoogle);
-                if (tileLayerSatellite) tileLayerSatellite.addTo(map);
-                // Masquer la heatmap pour que le fond ESRI soit propre
-                if (heatmapVisible) map.removeLayer(_flux2DOverlay);
-                // Laisser les tuiles ESRI se charger
-                await new Promise(r => setTimeout(r, 800));
-                console.log('📸 [Capture] Fond basculé ESRI (cadastre aligné) pour cohérence screenshot');
-            }
-
-            const captureData = await captureMapScreenshot();
-
-            // ── Restaurer l'état précédent ─────────────────────────────────────────────
-            if (wasOnGoogle) {
-                if (tileLayerSatellite) map.removeLayer(tileLayerSatellite);
-                tileLayerGoogle.addTo(map);
-                if (heatmapVisible) _flux2DOverlay.addTo(map);
-                console.log('📸 [Capture] Fond Google restauré après screenshot');
-            }
-
-            if (wasIn3D) {
-                // Restaurer la vue 3D
-                container3D.style.display = 'block';
-                mapCard.style.display = 'none';
-            }
-            return captureData;
-        }
-
-        /**
-         * Capture le rendu Three.js courant (peu importe si visible ou non).
-         * Retourne une data-URL JPEG ou null si le viewer n'est pas prêt.
-         * Nécessite preserveDrawingBuffer:true sur le renderer (sinon image vide).
-         */
-        function captureScreenshot3D() {
-            if (!viewer3D?.renderer || !viewer3D?.scene || !viewer3D?.camera) return null;
-            if (viewer3D.scene.children.length < 3) return null;
-            try {
-                viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
-                return viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.90);
-            } catch(e) {
-                console.warn('⚠️ Impossible de capturer le screenshot 3D:', e);
-                return null;
-            }
-        }
-
-        /**
-         * Calcule le centre et la distance caméra optimale depuis la bounding box
-         * de la scène Three.js (bâtiment + panneaux PV).
-         * Retourne { center, dist } où dist garantit que toute la scène est dans le champ.
-         */
-        function _sceneBoundingFit(fovDeg = 45, margin = 1.5) {
-            const box = new THREE.Box3().setFromObject(viewer3D.scene);
-            if (box.isEmpty()) return { center: new THREE.Vector3(0, 0, 0), dist: 60 };
-            const center = box.getCenter(new THREE.Vector3());
-            const sphere = box.getBoundingSphere(new THREE.Sphere());
-            const fovRad = (fovDeg / 2) * (Math.PI / 180);
-            const dist   = (sphere.radius / Math.tan(fovRad)) * margin;
-            return { center, dist };
-        }
-
-        /**
-         * Capture 3 vues 3D (façade, latérale, dessus) depuis Three.js
-         * en repositionnant temporairement la caméra.
-         * La distance est calculée automatiquement depuis la bounding box de la scène.
-         * Retourne { facade, laterale, dessus } ou null si viewer non disponible.
-         */
-        function capture3DViews() {
-            if (!viewer3D?.renderer || !viewer3D?.scene || !viewer3D?.camera) return null;
-            if (viewer3D.scene.children.length < 3) return null;
-
-            // Sauvegarder l'état caméra courant
-            const savedPos    = viewer3D.camera.position.clone();
-            const savedTarget = viewer3D.controls?.target?.clone() || new THREE.Vector3(0, 5, 0);
-            const savedFov    = viewer3D.camera.fov;
-            if (viewer3D.controls) viewer3D.controls.enabled = false;
-
-            // Bounding box → centre réel + distance auto-fit
-            const { center: sc, dist } = _sceneBoundingFit(viewer3D.camera.fov || 45, 1.5);
-            const cx = sc.x, cy = sc.y, cz = sc.z;
-
-            const _snap = (px, py, pz) => {
-                viewer3D.camera.position.set(px, py, pz);
-                viewer3D.camera.lookAt(cx, cy, cz);
-                viewer3D.camera.updateProjectionMatrix();
-                viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
-                return viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.88);
-            };
-
-            let views = null;
-            try {
-                views = {
-                    // Vue façade : face sud (Z+), légèrement au-dessus du centre
-                    facade:   _snap(cx,            cy + dist * 0.15, cz + dist),
-                    // Vue latérale : côté est (X+), même hauteur
-                    laterale: _snap(cx + dist,      cy + dist * 0.15, cz),
-                    // Vue plongeante isométrique : angle 45° NE
-                    dessus:   _snap(cx + dist * 0.6, cy + dist * 0.85, cz + dist * 0.6),
-                };
-            } catch(e) {
-                console.warn('⚠️ Erreur capture vues 3D:', e);
-            }
-
-            // Restaurer la caméra
-            viewer3D.camera.position.copy(savedPos);
-            viewer3D.camera.fov = savedFov;
-            if (viewer3D.controls) {
-                viewer3D.controls.target.copy(savedTarget);
-                viewer3D.controls.update();
-                viewer3D.controls.enabled = true;
-            } else {
-                viewer3D.camera.lookAt(savedTarget);
-            }
-            viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
-
-            return views;
-        }
-
         // Sauvegarder le calpinage
         document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
             const data = prepareCalepinageData();
-
-            // ── 1. Capture 2D (bascule temporaire si en vue 3D) ──────────────────
-            console.log('📸 Capture screenshot 2D...');
-            const captureData = await captureScreenshot2D();
+            
+            // Capturer screenshot avec la fonction centralisée
+            console.log('📸 Capture screenshot de la carte...');
+            const captureData = await captureMapScreenshot();
+            
+            // 🔥 NOUVEAU: Sauvegarder le screenshot ET les métadonnées de la carte
             if (typeof captureData === 'object' && captureData.screenshot) {
                 data.screenshot_map = captureData.screenshot;
                 data.map_metadata = {
@@ -6814,15 +6677,10 @@
                     zoom: captureData.zoom,
                     dimensions: captureData.dimensions
                 };
+                console.log('📍 Métadonnées carte sauvegardées:', data.map_metadata);
             } else {
+                // Ancien format (rétrocompatibilité)
                 data.screenshot_map = captureData;
-            }
-
-            // ── 2. Capture 3D (si le viewer a des données, même si vue 2D active) ─
-            const shot3d = captureScreenshot3D();
-            if (shot3d) {
-                data.screenshot_3d = shot3d;
-                console.log('🏗️ Screenshot 3D capturé');
             }
             
             console.log('Données à sauvegarder:', data);
@@ -7556,67 +7414,10 @@
                 
                 // Préparer les données du calpinage
                 const calData = prepareCalepinageData();
-
-                btnDP.disabled = true;
                 
                 try {
-                    // ── -1. Auto-initialiser la vue 3D si elle n'a jamais été activée ─
-                    // (le viewer3D.renderer est null tant que l'utilisateur n'a pas cliqué
-                    // le bouton 3D — on le charge automatiquement ici pour les captures CERFA)
-                    let _dpAutoInit3D = false;
-                    if (viewer3D && !viewer3D.isActive) {
-                        btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Chargement modèle 3D (CERFA)...';
-                        try {
-                            viewer3D.toggle(); // → init() : crée le renderer + scène
-                            // Charger le LiDAR depuis la position du prospect
-                            await viewer3D.loadLidarData(prospectLat, prospectLon, 80);
-                            // Ajouter les zones PV à la scène 3D
-                            if (typeof update3DFromZones === 'function') update3DFromZones();
-                            // Laisser la scène se rendre
-                            await new Promise(r => setTimeout(r, 2000));
-                            _dpAutoInit3D = true;
-                            console.log('🏗️ [DP] Vue 3D auto-initialisée pour les captures CERFA');
-                        } catch(e) {
-                            console.warn('⚠️ [DP] Impossible de charger la vue 3D:', e);
-                            // Remettre l'état correct si l'init a partiellement réussi
-                            if (viewer3D?.isActive) viewer3D.toggle();
-                        }
-                    }
-
-                    // ── 0. Capture screenshots (2D + 3D vues latérales) ──────────────
-                    btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Capture des vues...';
-
-                    // Screenshot 2D (basculement temporaire si en vue 3D)
-                    const captureData = await captureScreenshot2D();
-                    if (typeof captureData === 'object' && captureData.screenshot) {
-                        calData.screenshot_map = captureData.screenshot;
-                        calData.map_metadata = {
-                            bounds: captureData.bounds,
-                            center: captureData.center,
-                            zoom: captureData.zoom,
-                            dimensions: captureData.dimensions
-                        };
-                    } else {
-                        calData.screenshot_map = captureData;
-                    }
-
-                    // Screenshot 3D vue isométrique principale
-                    const shot3d = captureScreenshot3D();
-                    if (shot3d) {
-                        calData.screenshot_3d = shot3d;
-                        console.log('🏗️ Screenshot 3D isométrique capturé pour DP');
-                    }
-
-                    // Vues latérales 3D pour les plans de façades DP4/DP5/DP6
-                    const views3D = capture3DViews();
-                    if (views3D) {
-                        calData.screenshot_vue_facade   = views3D.facade;
-                        calData.screenshot_vue_laterale = views3D.laterale;
-                        calData.screenshot_vue_dessus   = views3D.dessus;
-                        console.log('📐 Vues latérales 3D capturées pour plans DP4/DP5/DP6');
-                    }
-
-                    // 1. Sauvegarder d'abord le calpinage (avec tous les screenshots)
+                    // 1. Sauvegarder d'abord le calpinage
+                    btnDP.disabled = true;
                     btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Sauvegarde du calpinage...';
                     
                     const saveResponse = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
@@ -7632,7 +7433,7 @@
                         return;
                     }
                     
-                    console.log('✅ Calpinage sauvegardé avec vues 3D');
+                    console.log('✅ Calpinage sauvegardé');
                     
                     // Attendre le commit DB
                     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -9093,25 +8894,23 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _tileBeforeHeatmap = null;
 
         /**
-         * Restaure le fond ESRI quand la heatmap est désactivée.
-         *
-         * ⚠️ IMPORTANT — Source unique de référence : ESRI WorldImagery
-         * Les zones PV sont dessinées visuellement sur le fond ESRI (cadastre WGS84 aligné).
-         * ESRI et Google Satellite ont des orthorectifications différentes : à la même lat/lng,
-         * le bâtiment apparaît à des positions pixel différentes selon la source.
-         * → Garder ESRI tout le long de la session évite tout décalage visuel dans la
-         *   proposition commerciale et le CERFA DP.
-         * → La heatmap Google Solar est un L.imageOverlay positionné par bounds lat/lng :
-         *   il s'affiche correctement sur ESRI sans qu'on ait besoin de tuiles Google.
+         * Bascule le fond de carte vers Google ou ESRI selon l'état de la heatmap.
+         * Google Solar est capturé depuis les tuiles Google → alignement parfait avec Google.
+         * Les données cadastrales françaises (WGS84) s'alignent mieux sur ESRI/IGN.
+         * → On utilise Google uniquement quand la heatmap est visible.
          */
         function _switchTileForHeatmap(activateGoogle) {
             if (!map || !tileLayerGoogle || !tileLayerSatellite) return;
             if (activateGoogle) {
-                // Volontairement désactivé : on garde ESRI pour cohérence avec les zones PV.
-                // (La heatmap L.imageOverlay est positionnée par bounds GPS → pas besoin de Google.)
-                _tileBeforeHeatmap = map.hasLayer(tileLayerSatellite) ? 'esri'
-                    : map.hasLayer(tileLayerOSM) ? 'osm' : 'google';
-                console.log('🛰️ [Heatmap ON] Fond ESRI maintenu (décalage ESRI/Google évité)');
+                if (!map.hasLayer(tileLayerGoogle)) {
+                    // Mémoriser le fond actuel
+                    _tileBeforeHeatmap = map.hasLayer(tileLayerSatellite) ? 'esri'
+                        : map.hasLayer(tileLayerOSM) ? 'osm' : 'google';
+                    map.removeLayer(tileLayerSatellite);
+                    map.removeLayer(tileLayerOSM);
+                    tileLayerGoogle.addTo(map);
+                    console.log('🛰️ [Heatmap ON] → Tuiles Google (alignées Google Solar)');
+                }
             } else {
                 if (map.hasLayer(tileLayerGoogle) && _tileBeforeHeatmap !== 'google') {
                     map.removeLayer(tileLayerGoogle);
@@ -9273,12 +9072,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _ci.src = imgSrc;
             })();
             if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                // ⚠️ Ne PAS basculer sur les tuiles Google ici.
-                // La heatmap est un L.imageOverlay positionné par bounds lat/lng → aligné
-                // correctement sur ESRI. Basculer sur Google décale visuellement les zones PV
-                // par rapport au fond satellite (ESRI vs Google ont des orthorectifications
-                // différentes). On garde ESRI pour toute la session de calpinage.
-                // _switchTileForHeatmap(true);  ← désactivé intentionnellement
+                _switchTileForHeatmap(true);
                 _flux2DOverlay = L.imageOverlay(
                     imgSrc, [[b.south, b.west], [b.north, b.east]],
                     { opacity: 0.85, interactive: false, zIndex: 201 }
@@ -12170,17 +11964,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     prix_kwc                 : parseFloat(document.getElementById('propoPrixKwc').value) || 850,
                     tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || 0.1276,
                 };
-
-                // Capturer l'image 3D si le viewer est actif au moment de la génération
-                if (viewer3D?.isActive && viewer3D?.renderer) {
-                    try {
-                        viewer3D.renderer.render(viewer3D.scene, viewer3D.camera);
-                        body.screenshot_3d = viewer3D.renderer.domElement.toDataURL('image/jpeg', 0.90);
-                        console.log('🏗️ Screenshot 3D joint à la proposition');
-                    } catch(e) {
-                        console.warn('⚠️ Impossible de capturer le screenshot 3D:', e);
-                    }
-                }
 
                 const resp = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
                     method : 'POST',

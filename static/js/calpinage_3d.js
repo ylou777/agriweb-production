@@ -97,9 +97,7 @@ class Calpinage3DViewer {
         this.camera.lookAt(0, 0, 0);
         
         // Renderer
-        // preserveDrawingBuffer OBLIGATOIRE pour que toDataURL() retourne l'image réelle
-        // (sans ce flag, WebGL efface le framebuffer après chaque frame → capture vide)
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
@@ -6422,13 +6420,6 @@ class Calpinage3DViewer {
             this.scene.remove(m);
             if (m.children && m.children.length > 0) {
                 m.children.forEach(child => {
-                    // Dispose sous-enfants : ex. LineSegments (EdgesGeometry) ajoutés aux panels
-                    if (child.children?.length > 0) {
-                        child.children.forEach(gc => {
-                            if (gc.geometry) gc.geometry.dispose();
-                            if (gc.material && !gc.material._sharedEdgeMat) gc.material.dispose();
-                        });
-                    }
                     if (child.geometry) child.geometry.dispose();
                     if (child.material) child.material.dispose();
                 });
@@ -6531,9 +6522,6 @@ class Calpinage3DViewer {
             );
 
         let totalModules = 0;
-        // Matériau partagé pour les contours de modules (bordures noires visibles quelle que soit la distance caméra)
-        const _edgesMat = new THREE.LineBasicMaterial({ color: 0x050a2e, linewidth: 1, transparent: true, opacity: 0.55 });
-        _edgesMat._sharedEdgeMat = true; // ne pas dispose() individuellement (partagé par tous les panels)
 
         zones.forEach(zone => {
             if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
@@ -6626,7 +6614,6 @@ class Calpinage3DViewer {
                     panel.castShadow    = true;
                     panel.receiveShadow = true;
                     panel.renderOrder   = 10;
-                    panel.add(new THREE.LineSegments(new THREE.EdgesGeometry(panel.geometry), _edgesMat));
                     panGroup.add(panel);
                     totalModules++;
                 });
@@ -6686,7 +6673,6 @@ class Calpinage3DViewer {
                     panel.castShadow    = true;
                     panel.receiveShadow = true;
                     panel.renderOrder   = 10;
-                    panel.add(new THREE.LineSegments(new THREE.EdgesGeometry(panel.geometry), _edgesMat));
                     panGroup.add(panel);
                     totalModules++;
                 });
@@ -6961,12 +6947,7 @@ class Calpinage3DViewer {
         const dist = radiusM * 1.5;
         this.camera.position.set(dist * 0.7, dist * 0.9, dist * 0.7);
         if (this.controls) {
-            // Cibler la hauteur de toit approximative (h=bh ou ~8m) au lieu du sol (Y=3)
-            // pour que les modules PV soient bien centrés dans la vue initiale.
-            const _roofTargetY = this.roofPanelsInfo?.buildingWallH
-                ? Math.min(this.roofPanelsInfo.buildingWallH, 12)
-                : 8;
-            this.controls.target.set(0, _roofTargetY, 0);
+            this.controls.target.set(0, 3, 0);
             this.controls.update();
         }
     }
