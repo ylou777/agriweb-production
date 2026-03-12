@@ -6447,6 +6447,13 @@ class Calpinage3DViewer {
         const _bOZadd  = -(_bCGadd.lat - this.centerLat) * this.LAT_TO_M;
         const _bWHadd  = this.roofPanelsInfo?.buildingWallH || 6;
 
+        // ── Pré-conversion des polygon_2d RANSAC ──
+        // Déclaré ici (avant le pré-scan obstacles) pour que le pré-scan puisse
+        // faire lui aussi un matching par module et non par zone.
+        const _ransacPanelsList = (this.roofPanelsInfo?.panels || [])
+            .filter(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)
+            .map(p => ({ panel: p, poly2d: p.polygon_2d.map(pt => ({ x: pt[0], y: pt[1] })) }));
+
         // ── Pré-scan obstacles : modules dont la hauteur COPC > plan RANSAC + 25 cm ────────────
         // Stratégie :
         //  1. Modules qui «touchent» un obstacle → calculer leur empreinte 2D réelle (corners)
@@ -6470,7 +6477,16 @@ class Calpinage3DViewer {
                     const copcY = this._sampleCopcHeight(ml.x, ml.z);
                     if (copcY === null) return;
                     const px  = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
-                    const mnh = _mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c;
+                    // Matching par module : trouver le meilleur plan RANSAC pour cette position
+                    // (correction des faux positifs quand _mp extrapole au-dessus d'un obstacle réel)
+                    let _scanPanel = _mp;
+                    for (const _rpe of _ransacPanelsList) {
+                        if (this._pointInPolygon2D(px, py, _rpe.poly2d)) {
+                            _scanPanel = _rpe.panel;
+                            break;
+                        }
+                    }
+                    const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
                     if (copcY <= _tHGlobal + Math.max(_bWHadd, mnh) + 0.25) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
@@ -6517,13 +6533,6 @@ class Calpinage3DViewer {
             _obstBBoxes.length > 0 && [c0, c1, c2, c3].some(c =>
                 _obstBBoxes.some(b => c.x >= b.xMin && c.x <= b.xMax && c.z >= b.zMin && c.z <= b.zMax)
             );
-
-        // ── Matching par module : pré-conversion des polygon_2d RANSAC en {x,y} ──
-        // Utilisé dans le chemin RANSAC pour chercher le bon pan par position de module
-        // (évite les hauteurs extrapolées quand un module est hors du polygon_2d du pan matchédde zone).
-        const _ransacPanelsList = (this.roofPanelsInfo?.panels || [])
-            .filter(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)
-            .map(p => ({ panel: p, poly2d: p.polygon_2d.map(pt => ({ x: pt[0], y: pt[1] })) }));
 
         let totalModules = 0;
 
@@ -6606,12 +6615,12 @@ class Calpinage3DViewer {
                     const sPx = modLocal.x - _bOXadd;
                     const sPy = -(modLocal.z - _bOZadd);
 
-                    // Matching par module : si ce module est hors du polygon_2d du pan de zone,
-                    // chercher le pan qui le contient → évite hauteurs extrapolées (bandes discontinues).
+                    // Matching par module : parcourir TOUS les pans (y compris matchedPanel)
+                    // → le premier polygon_2d qui contient ce module est utilisé.
+                    // Si aucun, on garde matchedPanel (extrapolation minimale).
                     let _modPanel = matchedPanel;
                     for (const _rpe of _ransacPanelsList) {
-                        if (_rpe.panel !== matchedPanel &&
-                            this._pointInPolygon2D(sPx, sPy, _rpe.poly2d)) {
+                        if (this._pointInPolygon2D(sPx, sPy, _rpe.poly2d)) {
                             _modPanel = _rpe.panel;
                             break;
                         }
@@ -6875,11 +6884,17 @@ class Calpinage3DViewer {
         const { grid, x0, y0, nx, ny, step, z_baseline_rel } = cg;
         const fi = (bx - x0) / step;
         const fj = (by - y0) / step;
-        if (fi < 0 || fi >= nx - 1 || fj < 0 || fj >= ny - 1) return null;
+        // Serrage aux bords de la grille : au lieu de retourner null pour un module
+        // légèrement hors limites, on utilise la valeur de bord la plus proche.
+        // Évite les sauts brutaux de hauteur (bandes) dans le chemin OBB.
+        const fic = Math.max(0, Math.min(nx - 1.001, fi));
+        const fjc = Math.max(0, Math.min(ny - 1.001, fj));
+        // Retourner null uniquement si le point est franchement hors de la zone couverte (> 1 pas)
+        if (fi < -1 || fi >= nx || fj < -1 || fj >= ny) return null;
         // Bilinéaire
-        const i0 = Math.floor(fi), i1 = i0 + 1;
-        const j0 = Math.floor(fj), j1 = j0 + 1;
-        const ti = fi - i0, tj = fj - j0;
+        const i0 = Math.floor(fic), i1 = i0 + 1;
+        const j0 = Math.floor(fjc), j1 = j0 + 1;
+        const ti = fic - i0, tj = fjc - j0;
         const v = (iy, ix) => { const v = grid[iy]?.[ix]; return v ?? z_baseline_rel; };
         const z_rel = v(j0,i0)*(1-ti)*(1-tj) + v(j0,i1)*ti*(1-tj)
                     + v(j1,i0)*(1-ti)*tj     + v(j1,i1)*ti*tj;
