@@ -1556,34 +1556,81 @@ class SchemaUnifilaire:
         c.setLineWidth(2.5)
         
         if self.type_raccordement in ('autoconso_injection', 'autoconso_sans_injection'):
-            # ── CAS AUTOCONSOMMATION : Onduleur → TGBT → Réseau (bidirectionnel) ──
-            # Le TGBT est le nœud central : il alimente les charges ET reçoit la production PV
+            # ── CAS AUTOCONSOMMATION : Onduleur → TGBT → PDL → Réseau ──
+            # Conforme C15-712 §5.3 / §14.6 (2025)
+            # Disposition : TGBT bâtiment → câble → PDL (DB + compteur Linky) → Réseau
+            #
+            # Le PDL (Point De Livraison) se compose de :
+            #   - Disjoncteur de Branchement (DB) calibré par Enedis — côté réseau
+            #   - Compteur Linky bidirectionnel (mesure soutirage + injection)
+            # C'est la frontière responsabilité Enedis / installation privée.
             
-            # Ligne TGBT → Réseau (câble de soutirage / injection)
-            c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, injection_y + 0.65*cm)
-            
-            # Annotation câble TGBT → réseau
             mid_inj_y = (prot_ac_y + injection_y) / 2
+            
+            # Annotations câble TGBT → PDL à gauche
             c.setFont("Helvetica", 6)
             c.setFillColor(colors.HexColor('#28a745'))
-            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y + 0.5*cm, "▼ Injection surplus")
+            c.drawString(prot_ac_x - 3.8*cm, mid_inj_y + 0.5*cm, "▼ Injection surplus")
             c.setFillColor(colors.HexColor('#ffc107'))
-            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 0.5*cm, "▲ Soutirage réseau")
+            c.drawString(prot_ac_x - 3.8*cm, mid_inj_y - 0.5*cm, "▲ Soutirage réseau")
             c.setFillColor(colors.black)
-            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y,
+            c.drawString(prot_ac_x - 3.8*cm, mid_inj_y,
                          f"L={self.longueur_ac_tgbt_injection:.1f}m")
+            if self.type_raccordement == 'autoconso_sans_injection':
+                c.setFont("Helvetica-Bold", 6)
+                c.setFillColor(colors.HexColor('#dc3545'))
+                c.drawString(prot_ac_x - 3.8*cm, mid_inj_y - 1.0*cm, "(Sans injection réseau)")
+                c.setFillColor(colors.black)
             
-            # Symbole compteur bidirectionnel
+            # ── PDL : Disjoncteur de Branchement (DB) ──
+            # Placé au-dessus du compteur — appartient à Enedis
+            db_y = injection_y + 1.8*cm
+            c.setLineWidth(2.5)
+            c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, db_y + 8*mm)
+            SymbolesElectriques.disjoncteur(c, injection_x, db_y, orientation='vertical')
+            
+            # Étiquette DB à droite
+            c.setFont("Helvetica-Bold", 6)
+            c.setFillColor(colors.HexColor('#0d6efd'))
+            c.drawString(injection_x + 1*cm, db_y + 3*mm, "DB - Disjoncteur de Branchement")
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(colors.HexColor('#666666'))
+            c.drawString(injection_x + 1*cm, db_y - 2*mm, "Calibré par Enedis (matériel Enedis)")
+            c.setFillColor(colors.black)
+            
+            # Ligne DB → compteur
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(2.5)
+            c.line(injection_x, db_y - 8*mm, injection_x, injection_y + 0.65*cm)
+            
+            # ── PDL : Compteur Linky bidirectionnel ──
             SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
             c.setFont("Helvetica-Bold", 7)
             c.drawString(injection_x + 1*cm, injection_y + 0.3*cm, self.type_reseau)
             c.setFont("Helvetica", 6)
-            c.drawString(injection_x + 1*cm, injection_y - 0.2*cm, "Compteur Linky bidirectionnel")
-            c.setFont("Helvetica", 6)
-            c.drawString(injection_x + 1*cm, injection_y - 0.6*cm, "RÉSEAU PUBLIC (BT)")
+            c.drawString(injection_x + 1*cm, injection_y - 0.15*cm, "Compteur Linky bidirectionnel")
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(colors.HexColor('#666666'))
+            c.drawString(injection_x + 1*cm, injection_y - 0.5*cm, "RÉSEAU PUBLIC BT (Enedis)")
+            c.setFillColor(colors.black)
             
-            # Flèche réseau → départ vers charges (vers le bas)
-            charges_y = injection_y - 1.5*cm
+            # ── Encadré PDL ──
+            pdl_box_y = injection_y - 0.5*cm
+            pdl_box_h = db_y + 1.2*cm - pdl_box_y
+            c.setStrokeColor(colors.HexColor('#0d6efd'))
+            c.setLineWidth(0.8)
+            c.setDash(4, 2)
+            c.rect(injection_x - 1.5*cm, pdl_box_y, 8.5*cm, pdl_box_h)
+            c.setDash()
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(colors.HexColor('#0d6efd'))
+            c.drawString(injection_x - 1.4*cm, pdl_box_y + pdl_box_h - 0.4*cm,
+                         "PDL — Point De Livraison (Enedis)")
+            c.setFillColor(colors.black)
+            c.setStrokeColor(colors.black)
+            
+            # Flèche sortie réseau (en bas du compteur) vers charges bâtiment
+            charges_y = injection_y - 1.8*cm
             c.setLineWidth(1.5)
             c.setDash(4, 3)
             c.line(injection_x, injection_y - 0.65*cm, injection_x, charges_y)
@@ -1592,46 +1639,79 @@ class SchemaUnifilaire:
             c.setFillColor(colors.HexColor('#6c757d'))
             c.drawCentredString(injection_x, charges_y - 0.3*cm, "Vers charges bâtiment")
             c.setFillColor(colors.black)
-            
-            if self.type_raccordement == 'autoconso_sans_injection':
-                # Surcharge textuelle : pas d'injection
-                c.setFont("Helvetica-Bold", 6)
-                c.setFillColor(colors.HexColor('#dc3545'))
-                c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 1*cm, "(Sans injection réseau)")
-                c.setFillColor(colors.black)
         
         else:
-            # ── CAS INJECTION TOTALE : Onduleur → Compteur → Poste de transformation ──
-            # Pas de TGBT habitant : raccordement direct au poste livraison réseau.
-            # Le TGBT représente ici le PDL (Point De Livraison) ou coffret de comptage.
+            # ── CAS INJECTION TOTALE : Onduleur → PDL (DB + Compteur prod.) → Poste transfo ──
+            # Conforme C15-712 §5.5 (centrale de production)
+            # Pas de TGBT habitant : l'énergie va directement au réseau.
+            # Le PDL comprend :
+            #   - Disjoncteur de Branchement (DB) / AGCP côté réseau
+            #   - Compteur de production (unidirectionnel)
+            # puis raccordement au poste de transformation Enedis.
             
-            # Ligne TGBT/PDL → compteur
-            c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, injection_y + 0.65*cm)
-            
-            # Annotation câble production → réseau
             mid_inj_y = (prot_ac_y + injection_y) / 2
+            
+            # Annotations câble → PDL
             c.setFont("Helvetica", 6)
             c.setFillColor(colors.HexColor('#28a745'))
-            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y + 0.2*cm, "▼ Injection totale")
+            c.drawString(prot_ac_x - 3.8*cm, mid_inj_y + 0.2*cm, "▼ Injection totale")
             c.setFillColor(colors.HexColor('#0d6efd'))
-            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 0.3*cm, "(Vente totale production)")
+            c.drawString(prot_ac_x - 3.8*cm, mid_inj_y - 0.3*cm, "(Vente totale production)")
             c.setFillColor(colors.black)
-            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 0.7*cm,
+            c.drawString(prot_ac_x - 3.8*cm, mid_inj_y - 0.7*cm,
                          f"L={self.longueur_ac_tgbt_injection:.1f}m")
             
-            # Symbole compteur de production
+            # ── PDL : Disjoncteur de Branchement (DB) ──
+            db_y = injection_y + 1.8*cm
+            c.setLineWidth(2.5)
+            c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, db_y + 8*mm)
+            SymbolesElectriques.disjoncteur(c, injection_x, db_y, orientation='vertical')
+            
+            c.setFont("Helvetica-Bold", 6)
+            c.setFillColor(colors.HexColor('#0d6efd'))
+            c.drawString(injection_x + 1*cm, db_y + 3*mm, "DB - Disjoncteur de Branchement")
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(colors.HexColor('#666666'))
+            c.drawString(injection_x + 1*cm, db_y - 2*mm, "Calibré par Enedis")
+            c.setFillColor(colors.black)
+            
+            # Ligne DB → compteur production
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(2.5)
+            c.line(injection_x, db_y - 8*mm, injection_x, injection_y + 0.65*cm)
+            
+            # ── PDL : Compteur de production ──
             SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
             c.setFont("Helvetica-Bold", 7)
             c.drawString(injection_x + 1*cm, injection_y + 0.3*cm, self.type_reseau)
             c.setFont("Helvetica", 6)
-            c.drawString(injection_x + 1*cm, injection_y - 0.2*cm, "Compteur production")
+            c.drawString(injection_x + 1*cm, injection_y - 0.15*cm, "Compteur production")
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(colors.HexColor('#666666'))
+            c.drawString(injection_x + 1*cm, injection_y - 0.5*cm, "Enedis — unidirectionnel")
+            c.setFillColor(colors.black)
             
-            # Ligne vers poste de transformation (en bas)
-            poste_y = injection_y - 2*cm
+            # ── Encadré PDL ──
+            pdl_box_y = injection_y - 0.5*cm
+            pdl_box_h = db_y + 1.2*cm - pdl_box_y
+            c.setStrokeColor(colors.HexColor('#0d6efd'))
+            c.setLineWidth(0.8)
+            c.setDash(4, 2)
+            c.rect(injection_x - 1.5*cm, pdl_box_y, 8.5*cm, pdl_box_h)
+            c.setDash()
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(colors.HexColor('#0d6efd'))
+            c.drawString(injection_x - 1.4*cm, pdl_box_y + pdl_box_h - 0.4*cm,
+                         "PDL — Point De Livraison (Enedis)")
+            c.setFillColor(colors.black)
+            c.setStrokeColor(colors.black)
+            
+            # Ligne compteur → poste de transformation
+            poste_y = injection_y - 2.2*cm
             c.setLineWidth(2.5)
             c.line(injection_x, injection_y - 0.65*cm, injection_x, poste_y + 0.5*cm)
             
-            # Symbole poste de transformation (rectangle + T)
+            # Symbole poste de transformation
             c.setLineWidth(1.5)
             c.rect(injection_x - 1.2*cm, poste_y - 0.8*cm, 2.4*cm, 1.3*cm)
             c.setFont("Helvetica-Bold", 6)
@@ -1639,12 +1719,11 @@ class SchemaUnifilaire:
             c.setFont("Helvetica", 5)
             poste_nom = self.prospect.get('poste_bt_nom', '') or self.prospect.get('poste_hta_nom', '')
             poste_dist = self.prospect.get('poste_bt_distance_m') or self.prospect.get('poste_hta_distance_m', '')
-            info_poste = poste_nom[:20] if poste_nom else 'ERDF / Enedis'
+            info_poste = poste_nom[:20] if poste_nom else 'Enedis'
             if poste_dist:
                 info_poste += f"  ({int(poste_dist)}m)"
-            c.drawCentredString(injection_x, poste_y - 0.4*cm, info_poste)
-            c.setFont("Helvetica", 5)
-            c.drawCentredString(injection_x, poste_y - 0.7*cm, "RÉSEAU PUBLIC (BT/HTA)")
+            c.drawCentredString(injection_x, poste_y - 0.35*cm, info_poste)
+            c.drawCentredString(injection_x, poste_y - 0.65*cm, "RÉSEAU PUBLIC (BT/HTA)")
         
         # === LÉGENDE (en bas du schéma) ===
         
