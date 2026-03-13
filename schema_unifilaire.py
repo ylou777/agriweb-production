@@ -1139,90 +1139,98 @@ class SchemaUnifilaire:
         c.setFillColor(colors.HexColor('#333333'))
         c.drawString(titre_x, prot_ac_y + 1.5*cm, "PROTECTION AC")
         
+        # Section réseau : libellé différencié selon le type de raccordement
+        if self.type_raccordement in ('autoconso_injection', 'autoconso_sans_injection'):
+            reseau_label = "TGBT / AUTOCONSOMMATION"
+        else:
+            reseau_label = "RÉSEAU / INJECTION TOTALE"
         c.setFillColor(colors.HexColor('#333333'))
-        c.drawString(titre_x, injection_y + 0.3*cm, "RESEAU")
+        c.drawString(titre_x, injection_y + 0.3*cm, reseau_label)
         
         c.setFillColor(colors.black)
         
-        # === 1. CHAMP PHOTOVOLTAÏQUE (STRINGS EN PARALLÈLE) ===
+        # === 1. CHAMP PHOTOVOLTAÏQUE — GROUPES DE STRINGS SIMILAIRES ===
+        # Conformément à la pratique de schéma unifilaire, on regroupe les strings
+        # ayant le même nombre de modules et on indique le compteur symbolique (×N)
         
         nb_strings_total = len(self.configuration_strings)
         puissance_totale_strings = sum(s['puissance_wc'] for s in self.configuration_strings) / 1000
         
-        # Dessiner tous les strings (max 10 pour lisibilité)
-        nb_strings_affichés = min(10, nb_strings_total)
+        # --- Grouper les strings par nombre de modules ---
+        from collections import Counter
+        groupes_compteur = Counter(s['nb_modules'] for s in self.configuration_strings)
+        # groupes = liste de (nb_modules, count) triée par nb_modules décroissant
+        groupes = sorted(groupes_compteur.items(), key=lambda x: -x[0])
+        nb_groupes = len(groupes)
         
-        # Espacement dynamique selon le nombre de strings
-        largeur_disponible = schema_width - 8*cm  # Laisser de la place pour les textes à droite
-        if nb_strings_affichés > 1:
-            espacement_strings = min(2.5*cm, largeur_disponible / (nb_strings_affichés - 1))
+        # Espacement dynamique selon nombre de groupes distincts
+        largeur_disponible = schema_width - 8*cm
+        if nb_groupes > 1:
+            espacement_strings = min(3*cm, largeur_disponible / (nb_groupes - 1))
         else:
-            espacement_strings = 2.5*cm
+            espacement_strings = 3*cm
         
-        # Position de départ (centrer les strings affichés)
-        start_x = strings_x - ((nb_strings_affichés - 1) * espacement_strings / 2)
-        
-        # Position des textes d'info : après le dernier string dessiné
-        last_string_x = start_x + (nb_strings_affichés - 1) * espacement_strings
+        start_x = strings_x - ((nb_groupes - 1) * espacement_strings / 2)
+        last_string_x = start_x + (nb_groupes - 1) * espacement_strings
         texte_info_x = max(strings_x + 3*cm, last_string_x + 1.5*cm)
         
+        # Résumé global à droite
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(texte_info_x, strings_y + 0.8*cm, 
-                    f"{nb_strings_total} String{'s' if nb_strings_total > 1 else ''} en parallèle")
+        c.drawString(texte_info_x, strings_y + 0.8*cm,
+                    f"{nb_strings_total} Strings en parallèle")
         c.setFont("Helvetica", 6)
-        c.drawString(texte_info_x, strings_y + 0.3*cm, 
+        c.drawString(texte_info_x, strings_y + 0.3*cm,
                     f"{self.nb_modules_total}×{int(self.module_puissance)}Wc = {puissance_totale_strings:.2f}kWc")
-        
         if self.configuration_strings:
             v_mpp_moy = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
             i_sc_total = sum(s['i_sc'] for s in self.configuration_strings)
-            c.drawString(texte_info_x, strings_y - 0.2*cm, 
-                        f"Vmpp:{v_mpp_moy:.1f}V")
-            c.drawString(texte_info_x, strings_y - 0.7*cm, 
-                        f"Isc:{i_sc_total:.1f}A")
+            c.drawString(texte_info_x, strings_y - 0.2*cm, f"Vmpp:{v_mpp_moy:.1f}V")
+            c.drawString(texte_info_x, strings_y - 0.7*cm, f"Isc:{i_sc_total:.1f}A")
         
-        # Dessiner chaque string avec son fusible
+        # Dessiner un symbole représentatif par groupe de strings similaires
         strings_y_bottom = []
-        for i in range(nb_strings_affichés):
-            string_x = start_x + i * espacement_strings
+        for gi, (nb_mod, nb_count) in enumerate(groupes):
+            string_x = start_x + gi * espacement_strings
             
             # Symbole string (module PV)
-            SymbolesElectriques.string_pv(c, string_x, strings_y, 
-                                         nb_modules=self.configuration_strings[i]['nb_modules'], 
-                                         compact=True)
+            SymbolesElectriques.string_pv(c, string_x, strings_y,
+                                          nb_modules=nb_mod,
+                                          compact=True)
             
-            # Annotation nombre de modules au-dessus
-            c.setFont("Helvetica", 5)
-            c.drawString(string_x - 0.3*cm, strings_y + 1.2*cm, 
-                        f"×{self.configuration_strings[i]['nb_modules']}")
+            # ×N modules au-dessus (italic petit)
+            c.setFont("Helvetica-Bold", 6)
+            c.setFillColor(colors.HexColor('#333333'))
+            c.drawCentredString(string_x, strings_y + 1.5*cm, f"×{nb_mod}")
+            c.setFillColor(colors.black)
             
-            # Fusible sous chaque string (si requis)
+            # Compteur de strings similaires en dessous du symbole (encadré)
+            if nb_count > 1:
+                badge_x = string_x - 0.35*cm
+                badge_y = strings_y - 0.6*cm
+                c.setFillColor(colors.HexColor('#1a1a2e'))
+                c.roundRect(badge_x, badge_y, 0.7*cm, 0.35*cm, 2*mm, fill=1, stroke=0)
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 5.5)
+                c.drawCentredString(string_x, badge_y + 0.1*cm, f"×{nb_count} str.")
+                c.setFillColor(colors.black)
+            
+            # Fusible sous chaque groupe (si requis)
             if 'Non requis' not in self.fusibles_strings:
                 fusible_y = strings_y - 1.8*cm
                 SymbolesElectriques.fusible(c, string_x, fusible_y, orientation='vertical')
-                
-                # Annotation fusible
                 calibre_fusible = self.fusibles_strings.split('A')[0].strip()
                 c.setFont("Helvetica", 5)
                 c.drawString(string_x + 5*mm, fusible_y, f"{calibre_fusible}A")
-                
-                # Ligne string → fusible
                 c.setStrokeColor(colors.red)
                 c.setLineWidth(1.5)
                 c.line(string_x, strings_y - 0.8*cm, string_x, fusible_y + 6*mm)
                 c.line(string_x, fusible_y - 8*mm, string_x, fusible_y - 1.2*cm)
-                
                 strings_y_bottom.append((string_x, fusible_y - 1.2*cm))
             else:
                 c.setStrokeColor(colors.red)
                 c.setLineWidth(1.5)
                 c.line(string_x, strings_y - 0.8*cm, string_x, strings_y - 2*cm)
                 strings_y_bottom.append((string_x, strings_y - 2*cm))
-        
-        # Points de suspension si plus de strings que ce qui est affiché
-        if nb_strings_total > nb_strings_affichés:
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(last_string_x + 0.8*cm, strings_y - 1*cm, "...")
         
         # Regroupement des strings vers la boîte DC (collecteur horizontal)
         c.setStrokeColor(colors.red)
@@ -1324,26 +1332,80 @@ class SchemaUnifilaire:
                            f"ΔU={self.chute_tension_dc_pct:.2f}%")
         c.setFillColor(colors.black)
         
-        # === 4. ONDULEUR ===
+        # === 4. ONDULEURS (un par zone/pan de toiture) ===
+        # Conformément à la réalité terrain : si plusieurs zones, plusieurs onduleurs
+        # Le schéma indique chaque onduleur avec ses caractéristiques propres
         
-        SymbolesElectriques.onduleur(c, onduleur_x, onduleur_y, width=2*cm, height=2*cm)
+        zones_actives = [z for z in self.zones if z.get('nbModules', 0) > 0]
+        nb_onduleurs = max(1, len(zones_actives))
         
-        # Infos onduleur (à droite du symbole)
-        c.setFont("Helvetica-Bold", 7)
-        c.drawString(onduleur_x + 2*cm, onduleur_y + 0.8*cm, 
-                           f"{self.onduleur['marque']} {self.onduleur['modele']}")
-        c.setFont("Helvetica", 6)
-        c.drawString(onduleur_x + 2*cm, onduleur_y + 0.3*cm, 
-                           f"P AC: {self.onduleur['p_ac']/1000:.1f}kW | P DC max: {self.onduleur['p_dc_max']/1000:.1f}kW")
-        c.drawString(onduleur_x + 2*cm, onduleur_y - 0.2*cm, 
-                           f"{self.onduleur['mppt']} MPPT | η={self.onduleur.get('rendement_max', 97)}% | {self.ip_onduleur}")
+        # Si un seul onduleur → position centrale classique
+        # Si plusieurs → répartis horizontalement autour du centre
+        ond_espacement = min(3*cm, (schema_width - 8*cm) / max(nb_onduleurs, 1))
+        ond_start_x = onduleur_x - ((nb_onduleurs - 1) * ond_espacement / 2)
+        
+        # Liste des positions d'onduleurs et de leurs sorties AC (pour convergence)
+        ond_positions = []
+        
+        for oi in range(nb_onduleurs):
+            ox = ond_start_x + oi * ond_espacement
+            oy = onduleur_y
+            
+            SymbolesElectriques.onduleur(c, ox, oy, width=2*cm, height=2*cm)
+            ond_positions.append((ox, oy))
+            
+            # Numérotation si plusieurs onduleurs
+            if nb_onduleurs > 1:
+                c.setFont("Helvetica-Bold", 6)
+                c.setFillColor(colors.HexColor('#1a1a2e'))
+                c.drawCentredString(ox, oy + 1.3*cm, f"ONd {oi+1}")
+                c.setFillColor(colors.black)
+                # Zone associée
+                if oi < len(zones_actives):
+                    z = zones_actives[oi]
+                    c.setFont("Helvetica", 5)
+                    orient = z.get('orientation', 180)
+                    incl = z.get('inclinaison', 30)
+                    c.drawCentredString(ox, oy - 1.4*cm, f"Pan {oi+1} ({orient}° / {incl}°)")
+            
+            # Infos techniques (sur le premier onduleur ou si seul)
+            if oi == 0:
+                info_x = ox + 2.2*cm if nb_onduleurs == 1 else ox + 1.2*cm
+                c.setFont("Helvetica-Bold", 7 if nb_onduleurs == 1 else 6)
+                c.drawString(info_x, oy + 0.8*cm,
+                             f"{self.onduleur['marque']} {self.onduleur['modele']}")
+                c.setFont("Helvetica", 6 if nb_onduleurs == 1 else 5)
+                c.drawString(info_x, oy + 0.3*cm,
+                             f"P AC: {self.onduleur['p_ac']/1000:.1f}kW | P DC: {self.onduleur['p_dc_max']/1000:.1f}kW")
+                c.drawString(info_x, oy - 0.2*cm,
+                             f"{self.onduleur['mppt']} MPPT | η={self.onduleur.get('rendement_max', 97)}% | {self.ip_onduleur}")
+        
+        # Câble AC de sortie des onduleurs : convergence vers un collecteur AC horizontal
+        # puis descente vers sectionneur AC
+        ond_sortie_y = onduleur_y - 1.1*cm
+        
+        if nb_onduleurs > 1:
+            # Collecteur AC horizontal sous les onduleurs
+            collecteur_ac_y = onduleur_y - 2.2*cm
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(1.5)
+            min_ox = ond_start_x
+            max_ox = ond_start_x + (nb_onduleurs - 1) * ond_espacement
+            c.line(min_ox, collecteur_ac_y, max_ox, collecteur_ac_y)
+            for ox, oy in ond_positions:
+                c.line(ox, oy - 1*cm, ox, collecteur_ac_y)
+            # Câble principal AC depuis centre du collecteur
+            collecteur_center_x = (min_ox + max_ox) / 2
+            c.setLineWidth(2.5)
+            c.line(collecteur_center_x, collecteur_ac_y, onduleur_x, onduleur_y - 3*cm)
+            # Décaler le point de sortie AC pour la suite du schéma
+            ond_sortie_y = onduleur_y - 3*cm
         
         # === 4.bis BATTERIE DE STOCKAGE (si présente - NF C 15-712-2) ===
         
         if self.avec_batterie:
             batterie_x = onduleur_x + 5*cm
             batterie_y = onduleur_y
-            
             # Symbole batterie
             c.setLineWidth(1.5)
             c.rect(batterie_x - 0.8*cm, batterie_y - 0.8*cm, 1.6*cm, 1.6*cm)
@@ -1394,16 +1456,16 @@ class SchemaUnifilaire:
             terre_bat_y = para_bat_y - 15*mm
             SymbolesElectriques.terre(c, batterie_x, terre_bat_y)
         
-        # === 5. CÂBLE AC ONDULEUR → PROTECTIONS ===
+        # === 5. CÂBLE AC ONDULEUR(S) → PROTECTIONS ===
         
         nb_phases = 3 if '400V' in self.type_reseau else 1
         
-        # Ligne verticale onduleur → sectionneur AC (sortie onduleur bas vers sectionneur haut)
+        # Ligne verticale onduleur → sectionneur AC
         c.setStrokeColor(colors.black)
         c.setLineWidth(2.5)
         sect_ac_x = onduleur_x
         sect_ac_y = prot_ac_y + 3.5*cm
-        c.line(onduleur_x, onduleur_y - 1*cm, sect_ac_x, sect_ac_y + 8*mm)
+        c.line(onduleur_x, ond_sortie_y, sect_ac_x, sect_ac_y + 8*mm)
         
         # Sectionneur AC (entre onduleur et AGCP)
         SymbolesElectriques.sectionneur(c, sect_ac_x, sect_ac_y, orientation='vertical')
@@ -1453,11 +1515,18 @@ class SchemaUnifilaire:
         # Ligne verticale disjoncteur → TGBT
         c.line(prot_ac_x, disj_y - 8*mm, prot_ac_x, prot_ac_y + 1.25*cm)
         
-        # Boîte TGBT (rectangle compact)
+        # Boîte TGBT (rectangle compact) — libellé selon type raccordement
         c.setLineWidth(1.5)
         c.rect(prot_ac_x - 0.75*cm, prot_ac_y - 0.75*cm, 1.5*cm, 1.5*cm)
         c.setFont("Helvetica-Bold", 6)
-        c.drawCentredString(prot_ac_x, prot_ac_y, "TGBT")
+        if self.type_raccordement in ('autoconso_injection', 'autoconso_sans_injection'):
+            c.drawCentredString(prot_ac_x, prot_ac_y + 1*mm, "TGBT")
+            c.setFont("Helvetica", 4.5)
+            c.drawCentredString(prot_ac_x, prot_ac_y - 3*mm, "Tableau bâtiment")
+        else:
+            c.drawCentredString(prot_ac_x, prot_ac_y + 1*mm, "PDL")
+            c.setFont("Helvetica", 4.5)
+            c.drawCentredString(prot_ac_x, prot_ac_y - 3*mm, "Pt livraison")
         
         # Parafoudre AC (en dessous TGBT)
         para_ac_y = prot_ac_y - 2.5*cm
@@ -1475,51 +1544,107 @@ class SchemaUnifilaire:
         c.setFont("Helvetica", 5)
         c.drawCentredString(prot_ac_x - 0.3*cm, terre_y - 18*mm, f"PE: {self.section_terre_principal}")
         
-        # === 7. POINT D'INJECTION RÉSEAU ===
+        # === 7. POINT D'INJECTION / RACCORDEMENT RÉSEAU ===
+        # Conformément à C15-712 Complémentaire Jan.2025 §14.6 :
+        # - Autoconsommation (avec ou sans vente surplus) → schéma passe par le TGBT
+        #   Le TGBT est déjà l'élément central du tableau électrique existant.
+        #   L'onduleur s'y raccorde via un disjoncteur dédié (AGCP).
+        # - Injection totale (vente totale) → raccordement direct au poste de transformation
+        #   ou au point de livraison réseau, sans passer par le TGBT habitant.
         
-        # Ligne verticale TGBT → réseau (sortie TGBT bas vers compteur haut)
         c.setStrokeColor(colors.black)
         c.setLineWidth(2.5)
-        c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, injection_y + 0.65*cm)
         
-        # Flèche sens injection selon type raccordement - à gauche du câble
-        mid_inj_y = (prot_ac_y + injection_y) / 2
-        c.setFont("Helvetica", 6)
+        if self.type_raccordement in ('autoconso_injection', 'autoconso_sans_injection'):
+            # ── CAS AUTOCONSOMMATION : Onduleur → TGBT → Réseau (bidirectionnel) ──
+            # Le TGBT est le nœud central : il alimente les charges ET reçoit la production PV
+            
+            # Ligne TGBT → Réseau (câble de soutirage / injection)
+            c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, injection_y + 0.65*cm)
+            
+            # Annotation câble TGBT → réseau
+            mid_inj_y = (prot_ac_y + injection_y) / 2
+            c.setFont("Helvetica", 6)
+            c.setFillColor(colors.HexColor('#28a745'))
+            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y + 0.5*cm, "▼ Injection surplus")
+            c.setFillColor(colors.HexColor('#ffc107'))
+            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 0.5*cm, "▲ Soutirage réseau")
+            c.setFillColor(colors.black)
+            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y,
+                         f"L={self.longueur_ac_tgbt_injection:.1f}m")
+            
+            # Symbole compteur bidirectionnel
+            SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(injection_x + 1*cm, injection_y + 0.3*cm, self.type_reseau)
+            c.setFont("Helvetica", 6)
+            c.drawString(injection_x + 1*cm, injection_y - 0.2*cm, "Compteur Linky bidirectionnel")
+            c.setFont("Helvetica", 6)
+            c.drawString(injection_x + 1*cm, injection_y - 0.6*cm, "RÉSEAU PUBLIC (BT)")
+            
+            # Flèche réseau → départ vers charges (vers le bas)
+            charges_y = injection_y - 1.5*cm
+            c.setLineWidth(1.5)
+            c.setDash(4, 3)
+            c.line(injection_x, injection_y - 0.65*cm, injection_x, charges_y)
+            c.setDash()
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(colors.HexColor('#6c757d'))
+            c.drawCentredString(injection_x, charges_y - 0.3*cm, "Vers charges bâtiment")
+            c.setFillColor(colors.black)
+            
+            if self.type_raccordement == 'autoconso_sans_injection':
+                # Surcharge textuelle : pas d'injection
+                c.setFont("Helvetica-Bold", 6)
+                c.setFillColor(colors.HexColor('#dc3545'))
+                c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 1*cm, "(Sans injection réseau)")
+                c.setFillColor(colors.black)
         
-        if self.type_raccordement == 'autoconso_injection':
-            # Autoconsommation + injection (bidirectionnel)
+        else:
+            # ── CAS INJECTION TOTALE : Onduleur → Compteur → Poste de transformation ──
+            # Pas de TGBT habitant : raccordement direct au poste livraison réseau.
+            # Le TGBT représente ici le PDL (Point De Livraison) ou coffret de comptage.
+            
+            # Ligne TGBT/PDL → compteur
+            c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, injection_y + 0.65*cm)
+            
+            # Annotation câble production → réseau
+            mid_inj_y = (prot_ac_y + injection_y) / 2
+            c.setFont("Helvetica", 6)
             c.setFillColor(colors.HexColor('#28a745'))
-            c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.5*cm, "▼ Production")
-            c.setFillColor(colors.HexColor('#ffc107'))
-            c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.5*cm, "▲ Soutirage")
-        elif self.type_raccordement == 'autoconso_sans_injection':
-            # Autoconsommation sans injection (unidirectionnel - soutirage uniquement)
-            c.setFillColor(colors.HexColor('#ffc107'))
-            c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.2*cm, "▲ Soutirage uniquement")
-            c.setFillColor(colors.HexColor('#dc3545'))
-            c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.3*cm, "(Sans injection réseau)")
-        elif self.type_raccordement == 'injection_totale':
-            # Injection totale (production uniquement vers réseau)
-            c.setFillColor(colors.HexColor('#28a745'))
-            c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.2*cm, "▼ Injection totale")
+            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y + 0.2*cm, "▼ Injection totale")
             c.setFillColor(colors.HexColor('#0d6efd'))
-            c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.3*cm, "(Vente totale)")
-        
-        c.setFillColor(colors.black)
-        
-        # Annotation distance injection (à gauche)
-        c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x - 3*cm, mid_inj_y, 
-                           f"L={self.longueur_ac_tgbt_injection:.1f}m")
-        
-        # Symbole compteur
-        SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
-        
-        # Label réseau (à droite)
-        c.setFont("Helvetica-Bold", 7)
-        c.drawString(injection_x + 1*cm, injection_y + 0.3*cm, self.type_reseau)
-        c.setFont("Helvetica", 6)
-        c.drawString(injection_x + 1*cm, injection_y - 0.3*cm, "RÉSEAU PUBLIC")
+            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 0.3*cm, "(Vente totale production)")
+            c.setFillColor(colors.black)
+            c.drawString(prot_ac_x - 3.5*cm, mid_inj_y - 0.7*cm,
+                         f"L={self.longueur_ac_tgbt_injection:.1f}m")
+            
+            # Symbole compteur de production
+            SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(injection_x + 1*cm, injection_y + 0.3*cm, self.type_reseau)
+            c.setFont("Helvetica", 6)
+            c.drawString(injection_x + 1*cm, injection_y - 0.2*cm, "Compteur production")
+            
+            # Ligne vers poste de transformation (en bas)
+            poste_y = injection_y - 2*cm
+            c.setLineWidth(2.5)
+            c.line(injection_x, injection_y - 0.65*cm, injection_x, poste_y + 0.5*cm)
+            
+            # Symbole poste de transformation (rectangle + T)
+            c.setLineWidth(1.5)
+            c.rect(injection_x - 1.2*cm, poste_y - 0.8*cm, 2.4*cm, 1.3*cm)
+            c.setFont("Helvetica-Bold", 6)
+            c.drawCentredString(injection_x, poste_y + 0.1*cm, "POSTE DE TRANSFO")
+            c.setFont("Helvetica", 5)
+            poste_nom = self.prospect.get('poste_bt_nom', '') or self.prospect.get('poste_hta_nom', '')
+            poste_dist = self.prospect.get('poste_bt_distance_m') or self.prospect.get('poste_hta_distance_m', '')
+            info_poste = poste_nom[:20] if poste_nom else 'ERDF / Enedis'
+            if poste_dist:
+                info_poste += f"  ({int(poste_dist)}m)"
+            c.drawCentredString(injection_x, poste_y - 0.4*cm, info_poste)
+            c.setFont("Helvetica", 5)
+            c.drawCentredString(injection_x, poste_y - 0.7*cm, "RÉSEAU PUBLIC (BT/HTA)")
         
         # === LÉGENDE (en bas du schéma) ===
         
@@ -1616,6 +1741,11 @@ class SchemaUnifilaire:
             ['Onduleur', f"{self.onduleur['marque']} {self.onduleur['modele']}", ''],
             ['Puissance onduleur AC', f"{self.onduleur['p_ac']/1000:.1f} kW", ''],
             ['Ratio DC/AC', f"{(self.puissance_totale_kwc * 1000 / self.onduleur['p_ac']):.2f}", 'Optimal : 1.2 - 1.3'],
+            ['Type raccordement',
+             'Autoconsommation (TGBT)' if self.type_raccordement in ('autoconso_injection','autoconso_sans_injection')
+             else 'Injection totale (Poste transfo)',
+             'C15-712 Compl. 2025 §14.6'],
+            ['Nombre de pans / onduleurs', f"{max(1, len([z for z in self.zones if z.get('nbModules',0)>0]))}", ''],
         ]
         
         table = Table(table_data, colWidths=[7.5*cm, 5.5*cm, 5.5*cm])
