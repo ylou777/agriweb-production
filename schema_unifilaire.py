@@ -16,6 +16,32 @@ from datetime import datetime
 from equipements_database import MODULES_PV_DATABASE, ONDULEURS_DATABASE, get_onduleur_optimal
 from symboles_electriques import SymbolesElectriques
 
+# ─── Zones kérauniques France — Ng (densité foudroiement, coups/km²/an) ──────
+# Source : Météo-France / IEC 62305-2 / NF C 15-712 art. 7.12.3.4
+# A : Ng < 1.5  →  SPD Type 2 suffisant
+# B : 1.5 ≤ Ng < 2.5  →  SPD Type 2 suffisant
+# C : Ng ≥ 2.5  →  SPD Type 1+2 recommandé (obligatoire si paratonnerre)
+ZONES_KERAUNIQUES = {
+    # Zone A — Ng faible (façade atlantique, Nord, Alsace, Île-de-France)
+    '02':'A','08':'A','10':'A','14':'A','22':'A','27':'A','28':'A','29':'A',
+    '35':'A','50':'A','51':'A','53':'A','56':'A','59':'A','60':'A','61':'A',
+    '62':'A','67':'A','68':'A','72':'A','75':'A','76':'A','77':'A','78':'A',
+    '80':'A','85':'A','86':'A','89':'A','91':'A','92':'A','93':'A','94':'A','95':'A',
+    # Zone B — Ng moyen (centre, est, sud-ouest, façade méditerranéenne)
+    '01':'B','04':'B','05':'B','06':'B','07':'B','11':'B','13':'B','16':'B',
+    '17':'B','20':'B','21':'B','24':'B','25':'B','26':'B','30':'B','31':'B',
+    '32':'B','33':'B','34':'B','37':'B','38':'B','39':'B','40':'B','41':'B',
+    '42':'B','44':'B','45':'B','47':'B','49':'B','52':'B','54':'B','55':'B',
+    '57':'B','58':'B','64':'B','65':'B','66':'B','69':'B','70':'B','71':'B',
+    '73':'B','74':'B','79':'B','81':'B','82':'B','83':'B','84':'B','88':'B',
+    '90':'B',
+    # Zone C — Ng élevé (Massif Central, Pyrénées, DOM-TOM)  → SPD Type 1+2
+    '03':'C','09':'C','12':'C','15':'C','18':'C','19':'C','23':'C','36':'C',
+    '43':'C','46':'C','48':'C','63':'C','87':'C',
+    # Outre-mer
+    '971':'C','972':'C','973':'C','974':'C','976':'C',
+}
+
 class SchemaUnifilaire:
     """Générateur de schéma unifilaire conforme NF C 15-712-1"""
     
@@ -159,7 +185,15 @@ class SchemaUnifilaire:
         self.calibre_sectionneur_dc = saved_config.get('sectionneur_dc') or '63A'
         self.tension_sectionneur_dc = '1000V DC'
         self.fusibles_strings = saved_config.get('fusibles_strings', 'Non requis')
-        self.parafoudre_dc = saved_config.get('parafoudre_dc') or 'Type 2 - 1000V DC - 20A'
+        # Zone kéraunique — recalculée même en mode restauration (dép. peut avoir changé)
+        dept_r = str(self.prospect.get('departement', '') or '').strip()
+        zone_k_r = ZONES_KERAUNIQUES.get(dept_r.zfill(2) if dept_r and len(dept_r) == 1 else dept_r, 'B') if dept_r else 'B'
+        para_r = bool(self.prospect.get('paratonnerre') or
+                      self.calpinage.get('equipments', {}).get('paratonnerre', False))
+        self.zone_keraunique = zone_k_r
+        self.spd_type1_requis = para_r or (zone_k_r == 'C')
+        spd_pfx = 'Type 1+2' if self.spd_type1_requis else 'Type 2'
+        self.parafoudre_dc = saved_config.get('parafoudre_dc') or f'{spd_pfx} - 1000V DC - 20A'
         
         # Restaurer les protections AC
         agcp_saved = saved_config.get('agcp')
@@ -511,8 +545,15 @@ class SchemaUnifilaire:
             self.sensibilite_differentiel = 30
             self.calibre_sectionneur_dc = 25
             self.tension_sectionneur_dc = '1000V DC'
-            self.parafoudre_dc = 'Type 2 - 1000V DC - 25A'
-            self.parafoudre_ac = 'Type 2 - 275V AC - 20kA'
+            dept = str(self.prospect.get('departement', '') or '').strip()
+            zone_k = ZONES_KERAUNIQUES.get(dept.zfill(2) if dept and len(dept) == 1 else dept, 'B') if dept else 'B'
+            paratonnerre = bool(self.prospect.get('paratonnerre') or
+                                self.calpinage.get('equipments', {}).get('paratonnerre', False))
+            spd_prefix = 'Type 1+2' if (paratonnerre or zone_k == 'C') else 'Type 2'
+            self.zone_keraunique = zone_k
+            self.spd_type1_requis = paratonnerre or (zone_k == 'C')
+            self.parafoudre_dc = f'{spd_prefix} - 1000V DC - 25A'
+            self.parafoudre_ac = f'{spd_prefix} - 275V AC - 20kA'
             self.fusibles_strings = 'Non requis'
             self.resistance_terre_max = '100Ω'
             return
@@ -571,10 +612,21 @@ class SchemaUnifilaire:
         v_oc_max = max(s['v_oc'] * 1.25 for s in self.configuration_strings)  # Facteur température
         self.tension_sectionneur_dc = '1000V DC' if v_oc_max < 900 else '1500V DC'
         
-        # 3. PARAFOUDRES (obligatoires selon NF C 15-712 art. 7.12.3.4)
-        # Type 2 minimum (Type 1+2 si paratonnerre)
-        self.parafoudre_dc = f'Type 2 - {self.tension_sectionneur_dc} - {int(isc_total * 1.5)}A'
-        self.parafoudre_ac = 'Type 2 - 275V AC - 20kA'
+        # 3. PARAFOUDRES (NF C 15-712 art. 7.12.3.4 + IEC 62305-2)
+        # Type 1+2 si : paratonnerre sur le bâtiment OU zone kéraunique C (Ng ≥ 2.5)
+        # Type 2 dans tous les autres cas
+        dept = str(self.prospect.get('departement', '') or '').strip().lstrip('0') or None
+        zone_k = ZONES_KERAUNIQUES.get(dept.zfill(2) if dept and len(dept) == 1 else dept, 'B') if dept else 'B'
+        paratonnerre = bool(self.prospect.get('paratonnerre') or
+                            self.calpinage.get('equipments', {}).get('paratonnerre', False))
+        spd_type1_requis = paratonnerre or (zone_k == 'C')
+        spd_prefix = 'Type 1+2' if spd_type1_requis else 'Type 2'
+        spd_reason = ('paratonnerre' if paratonnerre else f'zone kéraunique {zone_k} (Ng≥2.5)') if spd_type1_requis else f'zone kéraunique {zone_k}'
+        self.zone_keraunique = zone_k
+        self.spd_type1_requis = spd_type1_requis
+        self.parafoudre_dc = f'{spd_prefix} - {self.tension_sectionneur_dc} - {int(isc_total * 1.5)}A'
+        self.parafoudre_ac = f'{spd_prefix} - 275V AC - 20kA'
+        print(f"⚡ Parafoudres: {spd_prefix} (dept={dept}, zone={zone_k}, paratonnerre={paratonnerre})")
         
         # 4. FUSIBLES PAR STRING (NF C 15-712 art. 7.12.2.2.1)
         # Fusibles obligatoires si >= 3 strings par entrée MPPT
@@ -1914,6 +1966,11 @@ class SchemaUnifilaire:
             ['AGCP', f"{self.calibre_agcp}A courbe {self.courbe_agcp} - PdC {self.pouvoir_coupure_agcp}", 'NF C 15-712'],
             ['Disj. differentiel AC', f"{self.calibre_disjoncteur_ac}A courbe C - {self.type_differentiel}", 'NF C 15-100'],
             ['Parafoudre AC', self.parafoudre_ac, 'NF C 15-712 art. 7.12.3.4'],
+            ['Zone kéraunique',
+             (f'Zone {getattr(self, "zone_keraunique", "B")} (Ng \u2265 2.5 coups/km\u00b2/an) — SPD Type 1+2 requis'
+              if getattr(self, 'spd_type1_requis', False)
+              else f'Zone {getattr(self, "zone_keraunique", "B")} (Ng < 2.5 coups/km\u00b2/an) — SPD Type 2 suffisant'),
+             'Météo-France / IEC 62305-2'],
             ['Conducteur PE DC', f"{self.section_pe_dc} mm2 Cu", 'NF C 15-100 art. 543.1'],
             ['Conducteur PE AC', f"{self.section_pe_ac} mm2 Cu", 'NF C 15-100 art. 543.1'],
             ['Mise a la terre', f"R < {self.resistance_terre_max} - LEP {self.section_terre_principal}", 'NF C 15-712 art. 7.13'],
