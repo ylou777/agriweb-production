@@ -1622,10 +1622,12 @@ class SchemaUnifilaire:
             c.setDash(4, 2)
             c.rect(injection_x - 1.5*cm, pdl_box_y, 8.5*cm, pdl_box_h)
             c.setDash()
+            # Titre encadré + numéro PDL si disponible
+            num_pdl = self.prospect.get('pdl', '').strip()
+            pdl_label = f"PDL — Point De Livraison (Enedis)  N° {num_pdl}" if num_pdl else "PDL — Point De Livraison (Enedis)  N° : À compléter"
             c.setFont("Helvetica-Bold", 7)
             c.setFillColor(colors.HexColor('#0d6efd'))
-            c.drawString(injection_x - 1.4*cm, pdl_box_y + pdl_box_h - 0.4*cm,
-                         "PDL — Point De Livraison (Enedis)")
+            c.drawString(injection_x - 1.4*cm, pdl_box_y + pdl_box_h - 0.4*cm, pdl_label)
             c.setFillColor(colors.black)
             c.setStrokeColor(colors.black)
             
@@ -1699,10 +1701,12 @@ class SchemaUnifilaire:
             c.setDash(4, 2)
             c.rect(injection_x - 1.5*cm, pdl_box_y, 8.5*cm, pdl_box_h)
             c.setDash()
+            # Titre encadré + numéro PDL si disponible
+            num_pdl = self.prospect.get('pdl', '').strip()
+            pdl_label = f"PDL — Point De Livraison (Enedis)  N° {num_pdl}" if num_pdl else "PDL — Point De Livraison (Enedis)  N° : À compléter"
             c.setFont("Helvetica-Bold", 7)
             c.setFillColor(colors.HexColor('#0d6efd'))
-            c.drawString(injection_x - 1.4*cm, pdl_box_y + pdl_box_h - 0.4*cm,
-                         "PDL — Point De Livraison (Enedis)")
+            c.drawString(injection_x - 1.4*cm, pdl_box_y + pdl_box_h - 0.4*cm, pdl_label)
             c.setFillColor(colors.black)
             c.setStrokeColor(colors.black)
             

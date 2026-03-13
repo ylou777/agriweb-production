@@ -3618,6 +3618,8 @@ def register_crm_routes(app):
                 'code_postal': '',  # Pas dans la DB, sera extrait de commune si besoin
                 'commune': prospect.get('commune', ''),
                 'references_cadastrales': prospect.get('parcelles_cadastrales', ''),
+                # Numéro PDL (Point De Livraison) — obligatoire Consuel / NF C 15-712
+                'pdl': prospect.get('pdl', '') or data_json.get('autoconsommation', {}).get('pdl', ''),
                 # Poste de raccordement BT (pour injection < 1MWc)
                 'poste_bt_nom': prospect.get('poste_bt_nom', ''),
                 'poste_bt_distance_m': prospect.get('poste_bt_distance_m', None),
