@@ -4019,6 +4019,12 @@
         function setActiveTool(tool) {
             const previousTool = currentTool;
             currentTool = tool;
+
+            // Désactiver le mode édition modules si un autre outil est activé.
+            // Évite que les deux modes (édition zone + édition modules) soient actifs
+            // en même temps, ce qui laissait le bouton « Modifier modules » allumé
+            // après un changement d'outil.
+            if (_moduleEditMode) toggleModuleEditMode();
             
             // Désactiver les handlers d'édition et suppression si actifs
             if (previousTool === 'edit' && tool !== 'edit') {
@@ -4040,18 +4046,22 @@
                             dashArray: null
                         });
 
-                        // Recalculer la zone
+                        // Ne PAS recalculer largeurMetres/longueurMetres depuis getBounds() :
+                        // getBounds() retourne l'AABB du rectangle pivoté (plus grand que la zone réelle).
+                        // Ces valeurs sont déjà maintenutenues correctement par les handlers de
+                        // redimensionnement (drag). Les recalculer ici écrase les bonnes valeurs
+                        // et provoque un redessin en « formes aléatoires » pour les zones pivotées.
+                        // On recalcule uniquement la zone qui était active en édition.
                         const zone = zones.find(function(z) { return z.id === layer._leaflet_id; });
                         if (zone) {
-                            const bounds = layer.getBounds();
-                            const ne = bounds.getNorthEast();
-                            const sw = bounds.getSouthWest();
-                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
-                            zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
-                            zone.originalBounds = { sw: bounds.getSouthWest(), ne: bounds.getNorthEast() };
-                            recalculerZone(zone);
-                            dessinerModulesDansZone(zone);
+                            const wasEditing = (_lockedZoneId === null || zone.id === _lockedZoneId);
+                            if (wasEditing) {
+                                zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                                const bounds = layer.getBounds();
+                                zone.originalBounds = { sw: bounds.getSouthWest(), ne: bounds.getNorthEast() };
+                                recalculerZone(zone);
+                                dessinerModulesDansZone(zone);
+                            }
                         }
                     }
                 });
@@ -5490,6 +5500,11 @@
 
         // Dupliquer une zone
         function dupliquerZone(zoneId) {
+            // Sortir proprement du mode édition avant de dupliquer :
+            // si on ne le fait pas, currentTool reste 'edit', le bouton « Modifier »
+            // reste grisé/actif, et le prochain clic sur « Modifier » déclenche
+            // un toggle-off qui recalcule toutes les zones depuis getBounds().
+            if (currentTool === 'edit') setActiveTool('rectangle');
             const zoneSource = zones.find(z => z.id === zoneId);
             if (!zoneSource) return;
             saveUndoState();
