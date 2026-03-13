@@ -6477,13 +6477,19 @@ class Calpinage3DViewer {
                     const copcY = this._sampleCopcHeight(ml.x, ml.z);
                     if (copcY === null) return;
                     const px  = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
-                    // Matching par module : trouver le meilleur plan RANSAC pour cette position
-                    // (correction des faux positifs quand _mp extrapole au-dessus d'un obstacle réel)
+                    // Matching par module : choisir le pan avec le mnh le plus haut
+                    // (évite les faux positifs obstacle quand un pan voisin extrapolé plus bas)
                     let _scanPanel = _mp;
+                    let _scanPanelMnh = _mp
+                        ? (_mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c)
+                        : -Infinity;
                     for (const _rpe of _ransacPanelsList) {
                         if (this._pointInPolygon2D(px, py, _rpe.poly2d)) {
-                            _scanPanel = _rpe.panel;
-                            break;
+                            const _cMnh = _rpe.panel.mnh_a * px + _rpe.panel.mnh_b * py + _rpe.panel.mnh_c;
+                            if (_cMnh > _scanPanelMnh) {
+                                _scanPanel = _rpe.panel;
+                                _scanPanelMnh = _cMnh;
+                            }
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
@@ -6615,14 +6621,21 @@ class Calpinage3DViewer {
                     const sPx = modLocal.x - _bOXadd;
                     const sPy = -(modLocal.z - _bOZadd);
 
-                    // Matching par module : parcourir TOUS les pans (y compris matchedPanel)
-                    // → le premier polygon_2d qui contient ce module est utilisé.
-                    // Si aucun, on garde matchedPanel (extrapolation minimale).
+                    // Matching par module : parcourir TOUS les pans RANSAC et choisir
+                    // celui avec le mnh LE PLUS ÉLEVÉ au point du module.
+                    // → le module se pose toujours SUR la surface du toit visible,
+                    //   et ne s'enfonce pas dans un pan adjacent plus haut.
                     let _modPanel = matchedPanel;
+                    let _modPanelMnh = matchedPanel
+                        ? (matchedPanel.mnh_a * sPx + matchedPanel.mnh_b * sPy + matchedPanel.mnh_c)
+                        : -Infinity;
                     for (const _rpe of _ransacPanelsList) {
                         if (this._pointInPolygon2D(sPx, sPy, _rpe.poly2d)) {
-                            _modPanel = _rpe.panel;
-                            break;
+                            const _cMnh = _rpe.panel.mnh_a * sPx + _rpe.panel.mnh_b * sPy + _rpe.panel.mnh_c;
+                            if (_cMnh > _modPanelMnh) {
+                                _modPanel = _rpe.panel;
+                                _modPanelMnh = _cMnh;
+                            }
                         }
                     }
                     // Clearance perpendiculaire (cohérent avec autoFillRoofPanels : 0.06 × normLen)
@@ -6884,17 +6897,11 @@ class Calpinage3DViewer {
         const { grid, x0, y0, nx, ny, step, z_baseline_rel } = cg;
         const fi = (bx - x0) / step;
         const fj = (by - y0) / step;
-        // Serrage aux bords de la grille : au lieu de retourner null pour un module
-        // légèrement hors limites, on utilise la valeur de bord la plus proche.
-        // Évite les sauts brutaux de hauteur (bandes) dans le chemin OBB.
-        const fic = Math.max(0, Math.min(nx - 1.001, fi));
-        const fjc = Math.max(0, Math.min(ny - 1.001, fj));
-        // Retourner null uniquement si le point est franchement hors de la zone couverte (> 1 pas)
-        if (fi < -1 || fi >= nx || fj < -1 || fj >= ny) return null;
+        if (fi < 0 || fi >= nx - 1 || fj < 0 || fj >= ny - 1) return null;
         // Bilinéaire
-        const i0 = Math.floor(fic), i1 = i0 + 1;
-        const j0 = Math.floor(fjc), j1 = j0 + 1;
-        const ti = fic - i0, tj = fjc - j0;
+        const i0 = Math.floor(fi), i1 = i0 + 1;
+        const j0 = Math.floor(fj), j1 = j0 + 1;
+        const ti = fi - i0, tj = fj - j0;
         const v = (iy, ix) => { const v = grid[iy]?.[ix]; return v ?? z_baseline_rel; };
         const z_rel = v(j0,i0)*(1-ti)*(1-tj) + v(j0,i1)*ti*(1-tj)
                     + v(j1,i0)*(1-ti)*tj     + v(j1,i1)*ti*tj;
