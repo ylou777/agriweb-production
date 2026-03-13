@@ -138,11 +138,11 @@ class SchemaUnifilaire:
         injection_saved = equipments.get('injection', {})
         self.type_reseau = injection_saved.get('type_reseau', '230V Monophasé')
         
-        # Restaurer les distances
+        # Restaurer les distances (or N = fallback si valeur 0 ou absente)
         distances = calpinage_data.get('distances', {})
-        self.longueur_dc = distances.get('dc_strings', 25)
-        self.longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt', 15)
-        self.longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection', 10)
+        self.longueur_dc = distances.get('dc_strings') or 25
+        self.longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt') or 15
+        self.longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection') or 10
         
         # Calculer courant max AC depuis l'onduleur
         puissance_ac = self.onduleur.get('p_ac', self.puissance_totale_kwc * 1000)
@@ -396,10 +396,10 @@ class SchemaUnifilaire:
         # 1. RÉCUPÉRER LES DISTANCES RÉELLES depuis le calepinage
         distances = self.calpinage.get('distances', {})
         
-        # Distances DC, AC onduleur-TGBT, AC TGBT-injection
-        longueur_dc_strings = distances.get('dc_strings', 25)  # Défaut 25m si non renseigné
-        longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt', 15)  # Défaut 15m
-        longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection', 10)  # Défaut 10m
+        # Distances DC, AC onduleur-TGBT, AC TGBT-injection (or N = fallback si 0 ou absent)
+        longueur_dc_strings = distances.get('dc_strings') or 25
+        longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt') or 15
+        longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection') or 10
         
         print(f"📏 Distances câbles (calepinage réel):")
         print(f"   DC strings → onduleur: {longueur_dc_strings:.1f} m")
