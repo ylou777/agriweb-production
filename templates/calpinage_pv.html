@@ -5919,12 +5919,13 @@
                 }
             }
             
-            // Coins du champ en mètres
+            // Coins du champ en mètres — utiliser effLarg/effLong (zone - reculs),
+            // PAS zone.largeurMetres/longueurMetres (qui déborderait de reculGauche/reculBas)
             const fieldCornersMeters = [
-                {x: fieldStartX, y: fieldStartY},
-                {x: fieldStartX + zone.largeurMetres, y: fieldStartY},
-                {x: fieldStartX + zone.largeurMetres, y: fieldStartY + zone.longueurMetres},
-                {x: fieldStartX, y: fieldStartY + zone.longueurMetres}
+                {x: fieldStartX,           y: fieldStartY},
+                {x: fieldStartX + effLarg, y: fieldStartY},
+                {x: fieldStartX + effLarg, y: fieldStartY + effLong},
+                {x: fieldStartX,           y: fieldStartY + effLong}
             ];
             
             // Fonction pour appliquer rotation et convertir en lat/lng
