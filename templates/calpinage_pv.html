@@ -5295,7 +5295,14 @@
                 
                 <div class="row g-2">
                     <div class="col-12">
-                        <label class="form-label"><small>Orientation : <span id="orientation-value-${zone.id}">${_orientationLabel(zone.orientation)}</span></small></label>
+                        <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                            <small>Orientation : <span id="orientation-value-${zone.id}">${_orientationLabel(zone.orientation)}</span></small>
+                            <button type="button" onclick="flipZoneOrientation(${zone.id})"
+                                    title="Pan opposé (+180°) \u2014 utile pour un toit double pente"
+                                    style="font-size:0.72rem;padding:1px 6px;border:1px solid #6c757d;border-radius:4px;background:#2c2c2c;color:#ccc;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                                &#8596; pan opposé
+                            </button>
+                        </label>
                         <input type="range" class="form-range" min="0" max="360" step="1" value="${zone.orientation || 180}" 
                                id="orientation-slider-${zone.id}"
                                oninput="updateZoneOrientationSlider(${zone.id}, this.value)">
@@ -5636,6 +5643,18 @@
                 calculerProductibleZone(zoneId);
                 calculerTotaux();
             }
+        }
+
+        // Retourner l'orientation d'un pan de 180° (pan opposé d'un toit double-pente)
+        function flipZoneOrientation(zoneId) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (!zone) return;
+            saveUndoState();
+            const newOrientation = ((zone.orientation || 180) + 180) % 360;
+            // Mettre à jour slider + label + zone.rotationAngle
+            const slider = document.getElementById(`orientation-slider-${zoneId}`);
+            if (slider) slider.value = newOrientation;
+            updateZoneOrientationSlider(zoneId, newOrientation);
         }
 
         // Mettre à jour inclinaison avec slider
