@@ -5295,14 +5295,7 @@
                 
                 <div class="row g-2">
                     <div class="col-12">
-                        <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-                            <small>Orientation : <span id="orientation-value-${zone.id}">${_orientationLabel(zone.orientation)}</span></small>
-                            <button type="button" onclick="flipZoneOrientation(${zone.id})"
-                                    title="Pan opposé (+180°) \u2014 utile pour un toit double pente"
-                                    style="font-size:0.72rem;padding:1px 6px;border:1px solid #6c757d;border-radius:4px;background:#2c2c2c;color:#ccc;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-                                &#8596; pan opposé
-                            </button>
-                        </label>
+                        <label class="form-label"><small>Orientation : <span id="orientation-value-${zone.id}">${_orientationLabel(zone.orientation)}</span></small></label>
                         <input type="range" class="form-range" min="0" max="360" step="1" value="${zone.orientation || 180}" 
                                id="orientation-slider-${zone.id}"
                                oninput="updateZoneOrientationSlider(${zone.id}, this.value)">
@@ -5643,18 +5636,6 @@
                 calculerProductibleZone(zoneId);
                 calculerTotaux();
             }
-        }
-
-        // Retourner l'orientation d'un pan de 180° (pan opposé d'un toit double-pente)
-        function flipZoneOrientation(zoneId) {
-            const zone = zones.find(z => z.id === zoneId);
-            if (!zone) return;
-            saveUndoState();
-            const newOrientation = ((zone.orientation || 180) + 180) % 360;
-            // Mettre à jour slider + label + zone.rotationAngle
-            const slider = document.getElementById(`orientation-slider-${zoneId}`);
-            if (slider) slider.value = newOrientation;
-            updateZoneOrientationSlider(zoneId, newOrientation);
         }
 
         // Mettre à jour inclinaison avec slider
@@ -7737,16 +7718,30 @@
                 if (!zone) return;
                 
                 const oldInclinaison = zone.inclinaison;
+                const oldOrientation = zone.orientation;
                 
-                // === PENTE : auto-détectée depuis la toiture 3D ===
+                // === PENTE : auto-détectée depuis le pan de toiture ===
                 zone.inclinaison = adj.inclinaison;
+                
+                // === ORIENTATION : auto-détectée depuis le pan de toiture ===
+                if (adj.orientation != null) {
+                    zone.orientation = adj.orientation;
+                    zone.rotationAngle = 180 - adj.orientation;
+                    if (zone.rotationAngle > 180) zone.rotationAngle -= 360;
+                    if (zone.rotationAngle < -180) zone.rotationAngle += 360;
+                    // Mettre à jour le slider + label orientation
+                    const orientSlider = document.getElementById(`orientation-slider-${zone.id}`);
+                    const orientValue  = document.getElementById(`orientation-value-${zone.id}`);
+                    if (orientSlider) orientSlider.value = adj.orientation;
+                    if (orientValue)  orientValue.textContent = _orientationLabel(adj.orientation);
+                    // Redessiner les modules avec le nouvel angle
+                    dessinerModulesDansZone(zone);
+                    if (rotationHandles[zone.id]) updateHandlePosition(zone, rotationHandles[zone.id]);
+                }
                 
                 // Marquer la zone comme ajustée par la 3D
                 zone.ajuste3D = true;
                 zone.panToiture = adj.panelName;
-                
-                // === ORIENTATION : conservée telle que dessinée en 2D ===
-                // (l'utilisateur voit la photo satellite et oriente correctement)
                 
                 // Mettre à jour le slider d'inclinaison
                 const inclinSlider = document.getElementById(`inclinaison-slider-${zone.id}`);
@@ -7754,13 +7749,17 @@
                 if (inclinSlider) inclinSlider.value = adj.inclinaison;
                 if (inclinValue) inclinValue.textContent = `${adj.inclinaison}`;
                 
-                // Recalculer le productible avec la vraie pente
+                // Recalculer le productible avec pente + orientation réelles
                 calculerProductibleZone(zone.id);
                 
                 adjustedCount++;
                 const inclinChanged = Math.abs(oldInclinaison - adj.inclinaison) > 1;
-                if (inclinChanged) {
-                    messages.push(`Zone ${zone.numero} → ${adj.panelName} : pente ${adj.inclinaison}° (était ${oldInclinaison}°)`);
+                const orientChanged = adj.orientation != null && Math.abs(oldOrientation - adj.orientation) > 2;
+                if (inclinChanged || orientChanged) {
+                    const parts = [];
+                    if (orientChanged) parts.push(`orientation ${adj.orientation}° (${adj.orientationLabel || ''})`);
+                    if (inclinChanged) parts.push(`pente ${adj.inclinaison}°`);
+                    messages.push(`Zone ${zone.numero} → ${adj.panelName} : ${parts.join(', ')}`);
                 }
             });
             
@@ -7779,7 +7778,7 @@
                 toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
                 toast.innerHTML = `<i class="fas fa-mountain me-2"></i><strong>🏠 Pente de toiture détectée :</strong><br>` + 
                     messages.map(m => `• ${m}`).join('<br>') +
-                    '<br><small class="text-muted">L\'orientation est conservée depuis votre dessin 2D</small>';
+                    '<br><small class="text-muted">Orientation et pente auto-détectées depuis la toiture 3D</small>';
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 6000);
                 
