@@ -1512,6 +1512,10 @@
                             <div class="stats-value" id="productibleTotal" style="color:var(--c-green);">0 MWh</div>
                         </div>
                     </div>
+                    <div id="productible-opt-total-block" style="display:none;" class="text-center mt-1">
+                        <small style="color:#6ee7b7;">☀️ Optimisé heatmap :</small>
+                        <span class="stats-value" id="productibleOptimiseTotal" style="color:#6ee7b7;font-size:1em;"></span>
+                    </div>
                     <small id="productibleDetails" class="d-block text-center mt-2" style="color:var(--c-text-3);"></small>
                 </div>
 
@@ -5324,8 +5328,12 @@
                 </div>
                 
                 <div class="mt-2">
-                    <small class="text-muted">Productible estimé</small>
+                    <small class="text-muted">Productible estimé (PVGIS)</small>
                     <div><strong class="text-success" id="productible-${zone.id}">-</strong></div>
+                </div>
+                <div class="mt-1" id="productible-opt-block-${zone.id}" style="display:none;">
+                    <small style="color:#6ee7b7;">☀️ Optimisé (filtrage heatmap)</small>
+                    <div><strong style="color:#6ee7b7;" id="productible-optimise-${zone.id}">-</strong></div>
                 </div>
                 
                 <div class="mt-2">
@@ -6144,6 +6152,42 @@
                 calculerTotaux();
             }
 
+            // ── Facteur d'irradiation optimisé ─────────────────────────────────────
+            // Si la heatmap Solar est disponible : comparer l'irradiation moyenne
+            // des modules RETENUS vs TOUS les modules de la zone.
+            // facteurIrrOptimise > 1.0 si le filtrage a éliminé les zones peu exposées.
+            if (_fluxCanvas && _fluxBbox) {
+                let irrSumAll = 0, countAll = 0, irrSumKept = 0, countKept = 0;
+                allModuleCorners.forEach((cornersM, midx) => {
+                    if (cornersM._cx === undefined) return;
+                    const cLL = metersToLatLng({x: cornersM._cx, y: cornersM._cy});
+                    const px  = _sampleCanvas(_fluxCanvas, _fluxBbox, cLL.lat, cLL.lng);
+                    if (!px || px[3] < 10) return;
+                    const irr = _colorToIrr(px[0], px[1], px[2]);
+                    if (irr <= 0) return;
+                    irrSumAll += irr; countAll++;
+                    const isExcluded = zone._deletedModuleIndices.has(midx) ||
+                                       zone._irrExcludedIndices.has(midx);
+                    if (!isExcluded) { irrSumKept += irr; countKept++; }
+                });
+                if (countAll > 0 && countKept > 0) {
+                    const meanAll  = irrSumAll  / countAll;
+                    const meanKept = irrSumKept / countKept;
+                    zone.facteurIrrOptimise  = meanKept / meanAll;
+                    zone.irrMoyenneOptimise  = Math.round(meanKept);
+                    zone.irrMoyenneZone      = Math.round(meanAll);
+                } else {
+                    zone.facteurIrrOptimise = 1.0;
+                    zone.irrMoyenneOptimise = null;
+                    zone.irrMoyenneZone     = null;
+                }
+            } else {
+                // Pas de heatmap : pas de correction possible
+                zone.facteurIrrOptimise = 1.0;
+                zone.irrMoyenneOptimise = null;
+                zone.irrMoyenneZone     = null;
+            }
+
             // Dessiner le contour du champ
             const fieldCorners = fieldCornersMeters.map(pt => metersToLatLng(pt, rotationAngle !== 0));
             const zoneOutline = L.polygon(fieldCorners, {
@@ -6496,11 +6540,33 @@
                     // Utiliser les données PVGIS
                     zone.productible = data.productible_mwh;
                     zone.monthly_data = data.monthly_values; // Sauvegarder pour le PDF
-                    
+
+                    // ── Productible optimisé (corrigé par facteur irradiation heatmap) ──
+                    const facteur = zone.facteurIrrOptimise || 1.0;
+                    zone.productibleOptimise = data.productible_mwh * facteur;
+
                     const elem = document.getElementById(`productible-${zoneId}`);
                     if (elem) {
                         elem.textContent = `${data.productible_mwh.toFixed(2)} MWh/an`;
                         elem.title = `Source: ${data.source}\nRatio: ${data.ratio_kwh_kwc} kWh/kWc/an\nProductible: ${data.productible_kwh.toFixed(0)} kWh/an`;
+                    }
+
+                    // Affichage du productible optimisé si facteur significatif
+                    const elemOpt = document.getElementById(`productible-optimise-${zoneId}`);
+                    const blockOpt = document.getElementById(`productible-opt-block-${zoneId}`);
+                    if (elemOpt && blockOpt) {
+                        if (facteur > 1.001 || (zone.irrMoyenneOptimise && zone.irrMoyenneZone)) {
+                            const gainPct = ((facteur - 1) * 100).toFixed(1);
+                            const gainSign = facteur >= 1 ? '+' : '';
+                            let irrLabel = '';
+                            if (zone.irrMoyenneOptimise && zone.irrMoyenneZone) {
+                                irrLabel = ` <small style="opacity:.7;">(${zone.irrMoyenneOptimise} vs ${zone.irrMoyenneZone} kWh/m²)</small>`;
+                            }
+                            elemOpt.innerHTML = `${zone.productibleOptimise.toFixed(2)} MWh/an <small style="color:#6ee7b7;">${gainSign}${gainPct}%</small>${irrLabel}`;
+                            blockOpt.style.display = '';
+                        } else {
+                            blockOpt.style.display = 'none';
+                        }
                     }
                     
                     calculerTotaux();
@@ -6620,6 +6686,24 @@
             
             document.getElementById('puissanceTotale').textContent = `${puissanceTotale.toFixed(2)} kWc`;
             document.getElementById('productibleTotal').textContent = `${productibleTotal.toFixed(2)} MWh/an`;
+
+            // ── Productible optimisé (heatmap) ──────────────────────────────────────
+            const hasOptimise = zones.some(z => z.facteurIrrOptimise && z.facteurIrrOptimise > 1.001);
+            const productibleOptimiseTotal = zones.reduce(
+                (sum, z) => sum + (z.productibleOptimise !== undefined ? z.productibleOptimise : z.productible), 0
+            );
+            const elemOptTotal = document.getElementById('productibleOptimiseTotal');
+            const blockOptTotal = document.getElementById('productible-opt-total-block');
+            if (elemOptTotal && blockOptTotal) {
+                if (hasOptimise && productibleOptimiseTotal > 0) {
+                    const gainPct = ((productibleOptimiseTotal / productibleTotal - 1) * 100).toFixed(1);
+                    const gainSign = productibleOptimiseTotal >= productibleTotal ? '+' : '';
+                    elemOptTotal.innerHTML = `${productibleOptimiseTotal.toFixed(2)} MWh/an <small style="color:#6ee7b7;font-size:.75em;">${gainSign}${gainPct}%</small>`;
+                    blockOptTotal.style.display = '';
+                } else {
+                    blockOptTotal.style.display = 'none';
+                }
+            }
             
             if (puissanceTotale > 0) {
                 const ratio = (productibleTotal / puissanceTotale * 1000).toFixed(0);
