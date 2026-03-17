@@ -2291,15 +2291,18 @@ class PropositionProfessionnelle:
 
         # Sismicité
         sismo = georisques.get('sismicite', {}) or {}
+        if isinstance(sismo, list): sismo = sismo[0] if sismo else {}
         sismo_zone = str(sismo.get('zone', sismo.get('niveau', '—')))
         sismo_desc = sismo.get('description', '')
 
         # Argile
         argile = georisques.get('argile', {}) or {}
+        if isinstance(argile, list): argile = argile[0] if argile else {}
         argile_risque = str(argile.get('risque', argile.get('classe', '—')))
 
         # Radon
         radon = georisques.get('radon', {}) or {}
+        if isinstance(radon, list): radon = radon[0] if radon else {}
         radon_cls = str(radon.get('classe', radon.get('potentiel', '—')))
 
         # PPRI
