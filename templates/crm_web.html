@@ -2483,9 +2483,19 @@
                 
                 if (project.data_json) {
                     try {
-                        const rapport = typeof project.data_json === 'string' ? JSON.parse(project.data_json) : project.data_json;
-                        console.log('[LOAD_PROJECT] Rapport parsé:', rapport);
-                        displayModalRapport(rapport);
+                        const parsed = typeof project.data_json === 'string' ? JSON.parse(project.data_json) : project.data_json;
+                        // Le rapport est stocké sous la clé .rapport dans data_json
+                        const rapport = parsed.rapport || (parsed.api_details ? parsed : null);
+                        if (rapport) {
+                            console.log('[LOAD_PROJECT] Rapport parsé:', rapport);
+                            displayModalRapport(rapport);
+                        } else if (project.prospect_id) {
+                            console.log('[LOAD_PROJECT] data_json sans rapport, récupération depuis prospect...');
+                            await loadRapportFromProspect(project.prospect_id);
+                        } else {
+                            document.getElementById('modalRapportContent').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Aucun rapport disponible.</div>';
+                            document.getElementById('modalRapportBadge').style.display = 'none';
+                        }
                     } catch (e) {
                         console.error('[LOAD_PROJECT] Erreur parsing rapport:', e);
                         document.getElementById('modalRapportContent').innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Erreur de chargement du rapport.</div>';
@@ -2518,16 +2528,28 @@
                 
                 if (data.success && data.prospect && data.prospect.data_json) {
                     console.log('[LOAD_RAPPORT] Rapport trouvé dans prospect');
-                    const rapport = typeof data.prospect.data_json === 'string' 
+                    const parsed = typeof data.prospect.data_json === 'string' 
                         ? JSON.parse(data.prospect.data_json) 
                         : data.prospect.data_json;
+                    // Le rapport est stocké sous la clé .rapport dans data_json
+                    const rapport = parsed.rapport || (parsed.api_details ? parsed : null);
                     
-                    displayModalRapport(rapport);
-                    
-                    // Optionnel: Sauvegarder le rapport dans le projet pour la prochaine fois
-                    if (currentProjectData && currentProjectData.id) {
-                        console.log('[LOAD_RAPPORT] Sauvegarde du rapport dans le projet...');
-                        await syncRapportToProject(currentProjectData.id, data.prospect.data_json);
+                    if (rapport) {
+                        displayModalRapport(rapport);
+                        // Optionnel: Sauvegarder le rapport dans le projet pour la prochaine fois
+                        if (currentProjectData && currentProjectData.id) {
+                            console.log('[LOAD_RAPPORT] Sauvegarde du rapport dans le projet...');
+                            await syncRapportToProject(currentProjectData.id, data.prospect.data_json);
+                        }
+                    } else {
+                        console.warn('[LOAD_RAPPORT] data_json présent mais sans rapport');
+                        document.getElementById('modalRapportContent').innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Aucun rapport trouvé pour ce projet.
+                                <br><small>Exportez un "Rapport adresse" depuis la carte pour enrichir ce prospect.</small>
+                            </div>
+                        `;
+                        document.getElementById('modalRapportBadge').style.display = 'none';
                     }
                 } else {
                     console.warn('[LOAD_RAPPORT] Pas de rapport dans le prospect');
