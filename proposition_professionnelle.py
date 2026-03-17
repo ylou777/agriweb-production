@@ -130,11 +130,14 @@ class PropositionProfessionnelle:
         if prospect.get('data_json'):
             if isinstance(prospect['data_json'], str):
                 try:
-                    self.data_json = json.loads(prospect['data_json'])
+                    parsed = json.loads(prospect['data_json'])
+                    # S'assurer que c'est bien un dict (pas une liste — ancien format)
+                    self.data_json = parsed if isinstance(parsed, dict) else {}
                 except:
                     self.data_json = {}
             elif isinstance(prospect['data_json'], dict):
                 self.data_json = prospect['data_json']
+            # Si c'est déjà une liste, on ignore (format non supporté)
 
         self.visite_technique = self.data_json.get('visite_technique', {})
         self.rapport_commune = self.data_json.get('rapport_commune', {})
