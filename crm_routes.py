@@ -3973,6 +3973,9 @@ def register_crm_routes(app):
             # Préparer les paramètres pour la proposition
             # Charger les résultats autoconsommation sauvegardés si disponibles
             autoconso_results = calpinage.get('autoconso_results', {})
+            # autoconso_results peut être une liste dans les anciens formats — normaliser en dict
+            if not isinstance(autoconso_results, dict):
+                autoconso_results = {}
 
             # Dériver les paramètres financiers depuis les résultats autoconso si présents
             eco_saved = autoconso_results.get('economics', {})

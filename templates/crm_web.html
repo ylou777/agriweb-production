@@ -3426,31 +3426,13 @@ Cordialement,`
             proposalModal.show();
         }
 
-        function calculateProposal() {
-            const puissance = parseFloat(document.getElementById('proposal-puissance').value) || 0;
-            const prixKwc = parseFloat(document.getElementById('proposal-prix-kwc').value) || 0;
-            const production = parseFloat(document.getElementById('proposal-production').value) || 0;
-            const tarif = parseFloat(document.getElementById('proposal-tarif').value) || 0;
-            
-            const investissement = puissance * prixKwc;
-            const productionAnnuelle = puissance * production;
-            const revenusAnnuels = productionAnnuelle * tarif;
-            const rentabilite = (revenusAnnuels / investissement) * 100;
-            const roi = investissement / revenusAnnuels;
-            
-            document.getElementById('calc-investissement').textContent = investissement.toLocaleString('fr-FR');
-            document.getElementById('calc-production').textContent = productionAnnuelle.toLocaleString('fr-FR');
-            document.getElementById('calc-revenus').textContent = revenusAnnuels.toLocaleString('fr-FR', {minimumFractionDigits: 2});
-            document.getElementById('calc-rentabilite').textContent = rentabilite.toFixed(2);
-            document.getElementById('calc-roi').textContent = roi.toFixed(1);
-        }
-
         // Recalculer automatiquement quand on change les valeurs
         document.addEventListener('DOMContentLoaded', function() {
-            const proposalInputs = ['proposal-puissance', 'proposal-prix-kwc', 'proposal-production', 'proposal-tarif'];
+            const proposalInputs = ['proposal-puissance', 'proposal-prix-kwc', 'proposal-consommation',
+                                    'proposal-taux-autoconso', 'proposal-tarif-achat', 'proposal-tarif-revente'];
             proposalInputs.forEach(id => {
                 const elem = document.getElementById(id);
-                if (elem) elem.addEventListener('input', calculateProposal);
+                if (elem) elem.addEventListener('input', updateProposalCalculation);
             });
         });
 
