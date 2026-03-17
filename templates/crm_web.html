@@ -2485,7 +2485,10 @@
                     try {
                         const parsed = typeof project.data_json === 'string' ? JSON.parse(project.data_json) : project.data_json;
                         // Le rapport est stocké sous la clé .rapport dans data_json
-                        const rapport = parsed.rapport || (parsed.api_details ? parsed : null);
+                        // Fallback: utiliser parsed directement seulement si api_details contient de vraies données
+                        const hasRealApiDetails = parsed.api_details &&
+                            (parsed.api_details.cadastre?.success || parsed.api_details.gpu?.success);
+                        const rapport = parsed.rapport || (hasRealApiDetails ? parsed : null);
                         if (rapport) {
                             console.log('[LOAD_PROJECT] Rapport parsé:', rapport);
                             displayModalRapport(rapport);
@@ -2532,7 +2535,9 @@
                         ? JSON.parse(data.prospect.data_json) 
                         : data.prospect.data_json;
                     // Le rapport est stocké sous la clé .rapport dans data_json
-                    const rapport = parsed.rapport || (parsed.api_details ? parsed : null);
+                    const hasRealApiDetails = parsed.api_details &&
+                        (parsed.api_details.cadastre?.success || parsed.api_details.gpu?.success);
+                    const rapport = parsed.rapport || (hasRealApiDetails ? parsed : null);
                     
                     if (rapport) {
                         displayModalRapport(rapport);
