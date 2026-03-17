@@ -6890,7 +6890,7 @@
         
         // 📸 CAPTURE SCREENSHOT avec html2canvas - VERSION SIMPLIFIÉE
         async function captureMapScreenshot() {
-            console.log('📸 Capture screenshot SIMPLE...');
+            console.log('📸 Capture screenshot carte...');
             
             const mapContainer = document.getElementById('map');
             
@@ -6898,15 +6898,21 @@
             const controls = document.querySelectorAll('.leaflet-control');
             controls.forEach(ctrl => ctrl.style.display = 'none');
             
-            // Attendre le rendu
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // Attendre le rendu complet (tiles + SVG)
+            await new Promise(resolve => setTimeout(resolve, 400));
             
             try {
-                // Capture SIMPLE - laisser html2canvas gérer tout seul
+                // 🔥 FIX DÉCALAGE MODULES : compenser le scroll de la page et fixer
+                // les dimensions à celles du conteneur carte pour que Leaflet
+                // SVG/Canvas soit capturé depuis la bonne origine.
                 const canvas = await html2canvas(mapContainer, {
                     useCORS: true,
                     allowTaint: true,
-                    logging: true,  // Activer logs pour debug
+                    backgroundColor: '#1a1a2e',
+                    scrollX: 0,
+                    scrollY: -window.scrollY,   // Compenser le scroll page
+                    windowWidth: mapContainer.offsetWidth,
+                    windowHeight: mapContainer.offsetHeight,
                     scale: 1
                 });
                 

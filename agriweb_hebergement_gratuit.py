@@ -15464,6 +15464,7 @@ def rapport_map_point():
                         "code_insee": cadastre_props.get('code_insee', 'N/A'),
                         "departement": cadastre_props.get('code_dep', 'N/A'),
                         "contenance": f"{cadastre_props.get('contenance', 0)} m²" if cadastre_props.get('contenance') else 'N/A',
+                        "contenance_m2": cadastre_props.get('contenance', ''),
                         "idu": cadastre_props.get('idu', 'N/A')
                     }
                     
@@ -22491,9 +22492,11 @@ def api_crm_export():
                 poste_bt = toiture.get('poste_bt_proche', {})
                 poste_hta = toiture.get('poste_hta_proche', {})
                 
-                # Construire data_json complet
+                # Construire data_json complet (rapport_point intégral pour la proposition PDF)
                 prospect_json = json.dumps({
                     'source': 'rapport_point',
+                    # Rapport par point complet : PLU, ZAER, PVGIS, géorisques, cadastre, etc.
+                    'rapport': toiture.get('rapport', {}),
                     'parcelles': parcelles_data,
                     'poste_bt': poste_bt,
                     'poste_hta': poste_hta,

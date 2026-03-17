@@ -34,15 +34,18 @@ import requests
 class PropositionProfessionnelle:
     """Génère une proposition commerciale professionnelle complète en PDF"""
 
-    # Couleurs de la charte graphique
-    COLOR_PRIMARY = colors.HexColor('#1B5E20')      # Vert foncé
-    COLOR_SECONDARY = colors.HexColor('#4CAF50')     # Vert
-    COLOR_ACCENT = colors.HexColor('#FF9800')         # Orange
-    COLOR_DARK = colors.HexColor('#212121')            # Noir doux
-    COLOR_LIGHT_BG = colors.HexColor('#F5F5F5')       # Gris clair
-    COLOR_HEADER_BG = colors.HexColor('#E8F5E9')      # Vert très clair
-    COLOR_BLUE = colors.HexColor('#1565C0')            # Bleu pour liens/highlights
-    COLOR_WHITE = colors.white
+    # ── Charte graphique moderne ─────────────────────────────────────────────
+    COLOR_PRIMARY    = colors.HexColor('#0f1b2d')   # Bleu marine profond (brand)
+    COLOR_SECONDARY  = colors.HexColor('#10b981')   # Vert émeraude (app accent)
+    COLOR_ACCENT     = colors.HexColor('#f59e0b')   # Ambre/Orange (app accent)
+    COLOR_BLUE       = colors.HexColor('#3b82f6')   # Bleu vif (app)
+    COLOR_DARK       = colors.HexColor('#1e293b')   # Texte principal
+    COLOR_LIGHT_BG   = colors.HexColor('#F8FAFC')   # Fond page très clair
+    COLOR_HEADER_BG  = colors.HexColor('#ECFDF5')   # Fond card vert
+    COLOR_CARD_BG    = colors.HexColor('#EFF6FF')   # Fond card bleu
+    COLOR_WHITE      = colors.white
+    COLOR_GREY       = colors.HexColor('#94A3B8')   # Gris neutre
+    COLOR_SEPARATOR  = colors.HexColor('#E2E8F0')   # Ligne de séparation
 
     def __init__(self, prospect, calpinage, parametres):
         """
@@ -253,55 +256,92 @@ class PropositionProfessionnelle:
     # =========================================================================
 
     def _draw_page_header(self, c, title):
-        """En-tête de page standard"""
-        y = self.height - 1.5 * cm
+        """En-tête de page — design moderne marine/vert émeraude"""
+        hdr_h = 1.5 * cm
 
-        # Bande verte en haut
+        # Fond marine pleine largeur
         c.setFillColor(self.COLOR_PRIMARY)
-        c.rect(0, self.height - 1.2 * cm, self.width, 1.2 * cm, fill=1)
+        c.rect(0, self.height - hdr_h, self.width, hdr_h, fill=1, stroke=0)
+
+        # Barre accent verte à l'extrémité gauche
+        c.setFillColor(self.COLOR_SECONDARY)
+        c.rect(0, self.height - hdr_h, 0.45 * cm, hdr_h, fill=1, stroke=0)
+
+        # Titre de section (blanc, gras)
         c.setFillColor(self.COLOR_WHITE)
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(1.5 * cm, self.height - 0.8 * cm, "AGRIWEB | Proposition Commerciale")
-        c.drawRightString(self.width - 1.5 * cm, self.height - 0.8 * cm, f"Réf: PROP-{self.prospect.get('id', 'XXX')}")
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(0.85 * cm, self.height - 0.95 * cm, title)
 
-        # Titre de section
-        y = self.height - 2.5 * cm
-        c.setFillColor(self.COLOR_PRIMARY)
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(1.5 * cm, y, title)
+        # Référence entreprise (gris clair, droite)
+        c.setFont("Helvetica", 7)
+        c.setFillColor(colors.HexColor('#94A3B8'))
+        c.drawRightString(self.width - 0.6 * cm, self.height - 0.6 * cm,
+                          "AGRIWEB  ·  Solutions Photovoltaïques")
+        c.drawRightString(self.width - 0.6 * cm, self.height - 1.15 * cm,
+                          f"Réf: PROP-{self.prospect.get('id', 'XXX')}")
 
-        # Ligne de séparation
-        y -= 0.3 * cm
+        # Ligne fine séparatrice vert émeraude
+        sep_y = self.height - hdr_h - 0.05 * cm
         c.setStrokeColor(self.COLOR_SECONDARY)
-        c.setLineWidth(2)
-        c.line(1.5 * cm, y, self.width - 1.5 * cm, y)
+        c.setLineWidth(1.5)
+        c.line(0, sep_y, self.width, sep_y)
+        c.setLineWidth(1)
 
         # Pied de page
         self._draw_page_footer(c)
 
-        return y - 0.5 * cm
+        return sep_y - 0.6 * cm
 
     def _draw_page_footer(self, c):
-        """Pied de page standard"""
-        c.setFillColor(colors.grey)
-        c.setFont("Helvetica", 7)
+        """Pied de page moderne avec fond et badge page"""
+        footer_h = 0.9 * cm
+        # Fond gris très clair
+        c.setFillColor(self.COLOR_LIGHT_BG)
+        c.rect(0, 0, self.width, footer_h, fill=1, stroke=0)
+        # Ligne accent verte en haut du footer
+        c.setStrokeColor(self.COLOR_SECONDARY)
+        c.setLineWidth(1)
+        c.line(0, footer_h, self.width, footer_h)
+        # Texte gauche
         commune = self.prospect.get('commune', '')
-        c.drawString(1.5 * cm, 1 * cm, f"Proposition Commerciale - {commune} - {self.date_now.strftime('%d/%m/%Y')}")
-        c.drawRightString(self.width - 1.5 * cm, 1 * cm, f"Page {self.page_number + 1}")
-        c.setStrokeColor(colors.grey)
-        c.setLineWidth(0.5)
-        c.line(1.5 * cm, 1.3 * cm, self.width - 1.5 * cm, 1.3 * cm)
+        c.setFont("Helvetica", 6.5)
+        c.setFillColor(self.COLOR_GREY)
+        c.drawString(0.8 * cm, 0.28 * cm,
+                     f"Proposition Commerciale  ·  {commune}  ·  {self.date_now.strftime('%d/%m/%Y')}  ·  Confidentiel")
+        # Badge numéro de page (cercle marine)
+        pg_x = self.width - 0.9 * cm
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.circle(pg_x, 0.44 * cm, 0.32 * cm, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_WHITE)
+        c.setFont("Helvetica-Bold", 7)
+        c.drawCentredString(pg_x, 0.37 * cm, str(self.page_number + 1))
 
     def _draw_section_title(self, c, y, title, number=None):
-        """Titre de sous-section"""
-        c.setFillColor(self.COLOR_HEADER_BG)
-        c.rect(1.5 * cm, y - 0.2 * cm, self.width - 3 * cm, 0.8 * cm, fill=1, stroke=0)
+        """Titre de sous-section — barre latérale accent + fond léger"""
+        h = 0.78 * cm
+        # Fond très léger
+        c.setFillColor(self.COLOR_LIGHT_BG)
+        c.rect(1.5 * cm, y - h + 0.18 * cm, self.width - 3 * cm, h, fill=1, stroke=0)
+        # Barre gauche vert émeraude
+        c.setFillColor(self.COLOR_SECONDARY)
+        c.rect(1.5 * cm, y - h + 0.18 * cm, 0.28 * cm, h, fill=1, stroke=0)
+        if number:
+            # Badge circulaire marine avec numéro
+            badge_cx = 2.5 * cm
+            badge_cy = y - h / 2 + 0.18 * cm
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.circle(badge_cx, badge_cy, 0.29 * cm, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_WHITE)
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(badge_cx, badge_cy - 0.08 * cm, str(number))
+            text_x = 3.1 * cm
+        else:
+            text_x = 2.1 * cm
         c.setFillColor(self.COLOR_PRIMARY)
-        c.setFont("Helvetica-Bold", 11)
-        prefix = f"{number}. " if number else ""
-        c.drawString(2 * cm, y, f"{prefix}{title}")
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(text_x, y - 0.02 * cm, title)
         c.setFillColor(self.COLOR_DARK)
-        return y - 1 * cm
+        return y - h - 0.45 * cm
 
     def _draw_kv_line(self, c, y, label, value, x_label=2 * cm, x_value=9 * cm, bold_value=False):
         """Ligne clé-valeur"""
@@ -315,25 +355,39 @@ class PropositionProfessionnelle:
         return y - 0.5 * cm
 
     def _draw_highlight_box(self, c, x, y, w, h, title, value, subtitle=""):
-        """Boîte mise en avant (KPI)"""
-        # Fond
-        c.setFillColor(self.COLOR_HEADER_BG)
-        c.roundRect(x, y, w, h, 4, fill=1, stroke=0)
-        # Bordure gauche colorée
+        """Carte KPI moderne — bande marine + valeur centrale"""
+        radius = 4
+        # Ombre simulée (rectangle décalé, gris)
+        c.setFillColor(self.COLOR_SEPARATOR)
+        c.roundRect(x + 1.5, y - 1.5, w, h, radius, fill=1, stroke=0)
+        # Fond blanc pré-carte
+        c.setFillColor(self.COLOR_WHITE)
+        c.roundRect(x, y, w, h, radius, fill=1, stroke=0)
+        # Bordure légère
+        c.setStrokeColor(self.COLOR_SEPARATOR)
+        c.setLineWidth(0.5)
+        c.roundRect(x, y, w, h, radius, fill=0, stroke=1)
+        c.setLineWidth(1)
+        # Bande supérieure marine (header de la carte)
+        band_h = 0.5 * cm
         c.setFillColor(self.COLOR_PRIMARY)
-        c.rect(x, y, 4, h, fill=1, stroke=0)
-        # Titre
+        c.roundRect(x, y + h - band_h, w, band_h + radius, radius, fill=1, stroke=0)
+        c.rect(x, y + h - band_h, w, band_h * 0.6, fill=1, stroke=0)  # partie basse droite
+        # Titre dans la bande
+        c.setFillColor(self.COLOR_WHITE)
+        c.setFont("Helvetica-Bold", 7)
+        c.drawCentredString(x + w / 2, y + h - 0.35 * cm, title)
+        # Valeur principale
         c.setFillColor(self.COLOR_PRIMARY)
-        c.setFont("Helvetica", 8)
-        c.drawString(x + 0.5 * cm, y + h - 0.5 * cm, title)
-        # Valeur
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(x + 0.5 * cm, y + h - 1.3 * cm, str(value))
+        val_str = str(value)
+        fs = 13 if len(val_str) <= 12 else 10
+        c.setFont("Helvetica-Bold", fs)
+        c.drawCentredString(x + w / 2, y + h - 1.15 * cm, val_str)
         # Sous-titre
         if subtitle:
-            c.setFillColor(colors.grey)
+            c.setFillColor(self.COLOR_GREY)
             c.setFont("Helvetica", 7)
-            c.drawString(x + 0.5 * cm, y + 0.2 * cm, subtitle)
+            c.drawCentredString(x + w / 2, y + 0.22 * cm, subtitle)
         c.setFillColor(self.COLOR_DARK)
 
     def _format_euros(self, val):
@@ -359,152 +413,272 @@ class PropositionProfessionnelle:
     # =========================================================================
 
     def _draw_cover(self, c):
-        """Page 1 : Couverture"""
-        # Fond vert foncé pleine page
+        """Page de couverture moderne \u2014 marine / vert \u00e9meraude / blanc"""
+        w, h = self.width, self.height
+
+        # \u2500\u2500 Fond pleine page marine \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         c.setFillColor(self.COLOR_PRIMARY)
-        c.rect(0, 0, self.width, self.height, fill=1)
+        c.rect(0, 0, w, h, fill=1, stroke=0)
 
-        # Bande blanche centrale
-        band_y = self.height * 0.3
-        band_h = self.height * 0.45
-        band_top = band_y + band_h  # y = 75 % de la hauteur de page
+        # \u2500\u2500 Bande diagonale verte (accent d\u00e9coratif) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        p_diag = c.beginPath()
+        p_diag.moveTo(0, h * 0.54)
+        p_diag.lineTo(w * 0.62, h * 0.54)
+        p_diag.lineTo(w * 0.48, h * 0.52)
+        p_diag.lineTo(0, h * 0.52)
+        p_diag.close()
+        c.setFillColor(self.COLOR_SECONDARY)
+        c.drawPath(p_diag, fill=1, stroke=0)
 
-        # Image 3D en fond de la zone haute (au-dessus de la bande blanche)
+        # Mince lign verte traversante
+        c.setStrokeColor(self.COLOR_SECONDARY)
+        c.setLineWidth(1)
+        c.line(0, h * 0.52, w, h * 0.52)
+
+        # \u2500\u2500 Zone image 3D (partie haute) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        hero_top    = h * 0.52
+        hero_bottom = h * 0.28
+        hero_h      = hero_top - hero_bottom
+
         screenshot_3d = self.calpinage.get('screenshot_3d', '')
         if screenshot_3d:
             img_3d = self._decode_base64_image(screenshot_3d)
             if img_3d:
-                zone_h = self.height - band_top          # 25 % de la page
-                c.drawImage(img_3d, 0, band_top,
-                            width=self.width, height=zone_h,
+                c.drawImage(img_3d, 0, hero_bottom, width=w, height=hero_h,
                             preserveAspectRatio=False, mask='auto')
-                # Overlay vert semi-transparent pour lisibilité du texte AGRIWEB
-                overlay = colors.Color(0, 0.18, 0.08, alpha=0.48)
-                c.setFillColor(overlay)
-                c.rect(0, band_top, self.width, zone_h, fill=1, stroke=0)
+                # Overlay fonc\u00e9 pour lisibilit\u00e9
+                c.setFillColor(colors.Color(0.06, 0.11, 0.18, alpha=0.55))
+                c.rect(0, hero_bottom, w, hero_h, fill=1, stroke=0)
+        else:
+            # Motif g\u00e9om\u00e9trique de substitution (grille de points)
+            c.setFillColor(colors.Color(0.16, 0.31, 0.56, alpha=0.25))
+            c.rect(0, hero_bottom, w, hero_h, fill=1, stroke=0)
+            c.setStrokeColor(colors.Color(0.26, 0.5, 0.96, alpha=0.1))
+            c.setLineWidth(0.3)
+            for ix in range(0, int(w / cm) + 2):
+                c.line(ix * cm, hero_bottom, ix * cm, hero_top)
+            for iy in range(int(hero_bottom / cm), int(hero_top / cm) + 2):
+                c.line(0, iy * cm, w, iy * cm)
 
-        c.setFillColor(self.COLOR_WHITE)
-        c.rect(0, band_y, self.width, band_h, fill=1, stroke=0)
-
-        # Logo / Nom entreprise
-        y = self.height - 3 * cm
-        c.setFillColor(self.COLOR_WHITE)
-        c.setFont("Helvetica-Bold", 28)
-        c.drawCentredString(self.width / 2, y, "AGRIWEB")
-        y -= 1 * cm
-        c.setFont("Helvetica", 12)
-        c.drawCentredString(self.width / 2, y, "Solutions Photovoltaïques Professionnelles")
-
-        # Titre principal
-        y = band_y + band_h - 2.5 * cm
+        # \u2500\u2500 Logo / Nom entreprise (zone sup\u00e9rieure) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        # Pill verte avec texte AGRIWEB
+        pill_y = h - 3.2 * cm
+        pill_w = 7 * cm
+        pill_h = 1.1 * cm
+        pill_x = (w - pill_w) / 2
+        c.setFillColor(self.COLOR_SECONDARY)
+        c.roundRect(pill_x, pill_y, pill_w, pill_h, pill_h / 2, fill=1, stroke=0)
         c.setFillColor(self.COLOR_PRIMARY)
-        c.setFont("Helvetica-Bold", 24)
-        c.drawCentredString(self.width / 2, y, "PROPOSITION COMMERCIALE")
-
-        # Sous-titre
-        y -= 1.2 * cm
-        c.setFont("Helvetica", 14)
-        type_label = "Autoconsommation avec revente du surplus" if self.type_projet == 'autoconsommation' else "Vente totale"
-        c.drawCentredString(self.width / 2, y, type_label)
-
-        # Infos projet
-        y -= 2 * cm
         c.setFont("Helvetica-Bold", 16)
-        nom_prospect = self.prospect.get('nom_prospect', '') or self.prospect.get('contact_nom', '') or 'Client'
-        c.drawCentredString(self.width / 2, y, nom_prospect)
+        c.drawCentredString(w / 2, pill_y + 0.28 * cm, "AGRIWEB")
 
-        y -= 0.8 * cm
-        c.setFont("Helvetica", 12)
-        commune = self.prospect.get('commune', 'N/A')
-        c.drawCentredString(self.width / 2, y, f"📍 {commune}")
-
-        y -= 1.2 * cm
-        c.setFont("Helvetica-Bold", 18)
-        c.setFillColor(self.COLOR_ACCENT)
-        c.drawCentredString(self.width / 2, y, f"{self.puissance_kwc:.0f} kWc")
-
-        y -= 0.8 * cm
-        c.setFillColor(self.COLOR_PRIMARY)
-        c.setFont("Helvetica", 11)
-        c.drawCentredString(self.width / 2, y, f"Installation {self.nb_modules} modules × {self.puissance_module} Wc")
-
-        # Date et référence en bas
-        y = band_y + 0.8 * cm
-        c.setFillColor(colors.grey)
-        c.setFont("Helvetica", 9)
-        c.drawCentredString(self.width / 2, y, f"Émise le {self.date_now.strftime('%d/%m/%Y')} — Valable 30 jours")
-
-        # Bandeau bas
+        # Tagline
         c.setFillColor(self.COLOR_WHITE)
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(self.width / 2, 2 * cm, "Certifié RGE QualiPV • N° SIRET: À compléter • Assurance décennale")
-        c.drawCentredString(self.width / 2, 1.3 * cm, f"Réf: PROP-{self.prospect.get('id', 'XXX')}-{self.date_now.strftime('%Y%m%d')}")
+        c.setFont("Helvetica", 10)
+        c.drawCentredString(w / 2, h - 4.5 * cm, "Solutions Photovolta\u00efques Professionnelles")
+
+        # Ligne s\u00e9paratrice courte
+        c.setStrokeColor(colors.Color(1, 1, 1, alpha=0.2))
+        c.setLineWidth(0.5)
+        c.line(w * 0.3, h - 4.9 * cm, w * 0.7, h - 4.9 * cm)
+
+        # \u2500\u2500 Titre grand format au-dessus de la zone image \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        c.setFillColor(self.COLOR_WHITE)
+        c.setFont("Helvetica-Bold", 22)
+        c.drawCentredString(w / 2, h - 6.2 * cm, "PROPOSITION COMMERCIALE")
+        type_label = ("Autoconsommation avec revente du surplus"
+                      if self.type_projet == 'autoconsommation' else "Injection totale sur le r\u00e9seau")
+        c.setFillColor(self.COLOR_SECONDARY)
+        c.setFont("Helvetica", 11)
+        c.drawCentredString(w / 2, h - 7.2 * cm, type_label)
+
+        # \u2500\u2500 Carte blanche projet (partie basse) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        card_x = 1.5 * cm
+        card_y = 2.8 * cm
+        card_w = w - 3 * cm
+        card_h = h * 0.28 - 0.5 * cm   # ~8.3cm
+        radius = 6
+
+        # Ombre
+        c.setFillColor(colors.Color(0, 0, 0, alpha=0.25))
+        c.roundRect(card_x + 3, card_y - 3, card_w, card_h, radius, fill=1, stroke=0)
+        # Carte blanche
+        c.setFillColor(self.COLOR_WHITE)
+        c.roundRect(card_x, card_y, card_w, card_h, radius, fill=1, stroke=0)
+
+        # Bande sup\u00e9rieure de la carte (marine)
+        top_band_h = 1.1 * cm
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.roundRect(card_x, card_y + card_h - top_band_h, card_w, top_band_h + radius,
+                    radius, fill=1, stroke=0)
+        c.rect(card_x, card_y + card_h - top_band_h,
+               card_w, top_band_h / 2, fill=1, stroke=0)
+        # Titre dans la bande
+        c.setFillColor(self.COLOR_WHITE)
+        c.setFont("Helvetica-Bold", 9)
+        nom_prospect = (self.prospect.get('nom_prospect', '') or
+                        self.prospect.get('contact_nom', '') or 'Client')
+        commune = self.prospect.get('commune', 'N/A')
+        c.drawCentredString(card_x + card_w / 2,
+                            card_y + card_h - 0.78 * cm,
+                            f"Projet pour :  {nom_prospect}  \u2014  {commune}")
+
+        # Contenu de la carte
+        inner_x = card_x + 1 * cm
+        inner_y = card_y + card_h - top_band_h - 1.0 * cm
+
+        # Puissance kWc \u2014 valeur phare center
+        c.setFillColor(self.COLOR_ACCENT)
+        c.setFont("Helvetica-Bold", 36)
+        c.drawCentredString(card_x + card_w / 2, inner_y - 1.3 * cm,
+                            f"{self.puissance_kwc:.0f} kWc")
+        c.setFillColor(self.COLOR_GREY)
+        c.setFont("Helvetica", 10)
+        c.drawCentredString(card_x + card_w / 2, inner_y - 2.1 * cm,
+                            f"Installation {self.nb_modules} modules \u00d7 {self.puissance_module} Wc")
+
+        # Ligne s\u00e9paratrice interne
+        sep_inner_y = inner_y - 2.55 * cm
+        c.setStrokeColor(self.COLOR_SEPARATOR)
+        c.setLineWidth(0.5)
+        c.line(card_x + 1 * cm, sep_inner_y, card_x + card_w - 1 * cm, sep_inner_y)
+
+        # 3 KPI en bas de la carte
+        kpi_y = sep_inner_y - 0.5 * cm
+        kpi_items = [
+            ("Investissement", self._format_euros(self.investissement)),
+            ("Production est.", self._format_kwh(self.production_annuelle) + "/an"),
+            ("ROI estim\u00e9", f"{self.roi_annees:.1f} ans"),
+        ]
+        kpi_w = card_w / 3
+        for ki, (klbl, kval) in enumerate(kpi_items):
+            kx = card_x + ki * kpi_w
+            # S\u00e9parateur vertical entre KPIs
+            if ki > 0:
+                c.setStrokeColor(self.COLOR_SEPARATOR)
+                c.setLineWidth(0.5)
+                c.line(kx, kpi_y - 1.0 * cm, kx, sep_inner_y)
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica-Bold", 11)
+            c.drawCentredString(kx + kpi_w / 2, kpi_y - 0.55 * cm, kval)
+            c.setFillColor(self.COLOR_GREY)
+            c.setFont("Helvetica", 7.5)
+            c.drawCentredString(kx + kpi_w / 2, kpi_y - 1.0 * cm, klbl)
+
+        # \u2500\u2500 Bande bas de page (r\u00e9f\u00e9rence, certifs) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        c.setFillColor(colors.Color(0, 0, 0, alpha=0.3))
+        c.rect(0, 0, w, 2.6 * cm, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_SECONDARY)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(w / 2, 1.8 * cm, "Certifi\u00e9 RGE QualiPV  \u00b7  Assurance d\u00e9cennale  \u00b7  NF C 15-100")
+        c.setFillColor(self.COLOR_GREY)
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(w / 2, 1.2 * cm,
+                            f"\u00c9mise le {self.date_now.strftime('%d/%m/%Y')}  \u00b7  Valable 30 jours  \u00b7  Confidentiel")
+        c.drawCentredString(w / 2, 0.65 * cm,
+                            f"R\u00e9f: PROP-{self.prospect.get('id', 'XXX')}-{self.date_now.strftime('%Y%m%d')}")
 
     def _draw_sommaire(self, c):
-        """Page 2 : Sommaire"""
+        """Page 2 : Sommaire \u2014 design moderne"""
         y = self._draw_page_header(c, "SOMMAIRE")
 
         sommaire = [
-            ("1", "Présentation de l'entreprise", "Certifications, références, expertise"),
-            ("2", "Analyse du site", "Localisation, contraintes urbanisme, ensoleillement"),
-            ("3", "Solution technique", "Modules, onduleurs, structure, câblage"),
-            ("4", "Étude de productible", "Production estimée PVGIS, profil mensuel"),
-            ("5", "Étude financière", "Investissement, TRI, VAN, retour sur investissement"),
-            ("6", "Devis détaillé", "Fourniture, pose, raccordement, démarches"),
-            ("7", "Planning de réalisation", "Déclaration préalable, travaux, mise en service"),
-            ("8", "Garanties et maintenance", "Garanties matériel, maintenance préventive"),
-            ("9", "Aspects réglementaires & CGV", "Normes, assurances, conditions générales"),
+            ("1", "Pr\u00e9sentation de l'entreprise",   "Certifications, r\u00e9f\u00e9rences, expertise"),
+            ("2", "Analyse du site",                  "Localisation, contraintes urbanisme, ensoleillement"),
+            ("3", "Solution technique",               "Modules, onduleurs, structure, c\u00e2blage"),
+            ("4", "\u00c9tude de productible",              "Production estim\u00e9e PVGIS, profil mensuel"),
+            ("5", "\u00c9tude financi\u00e8re",                  "Investissement, TRI, VAN, retour sur investissement"),
+            ("6", "Devis d\u00e9taill\u00e9",                    "Fourniture, pose, raccordement, d\u00e9marches"),
+            ("7", "Planning de r\u00e9alisation",          "D\u00e9claration pr\u00e9alable, travaux, mise en service"),
+            ("8", "Garanties et maintenance",          "Garanties mat\u00e9riel, maintenance pr\u00e9ventive"),
+            ("9", "Aspects r\u00e9glementaires & CGV",     "Normes, assurances, conditions g\u00e9n\u00e9rales"),
         ]
 
-        y -= 1 * cm
-        for num, title, desc in sommaire:
-            # Numéro
+        y -= 0.6 * cm
+        row_h = 1.55 * cm
+        for idx, (num, title, desc) in enumerate(sommaire):
+            # Fond alternatif l\u00e9ger
+            if idx % 2 == 0:
+                c.setFillColor(self.COLOR_LIGHT_BG)
+                c.rect(1.5 * cm, y - row_h + 0.15 * cm, self.width - 3 * cm, row_h, fill=1, stroke=0)
+
+            # Cercle num\u00e9ro marine
+            cx = 2.3 * cm
+            cy = y - row_h / 2
             c.setFillColor(self.COLOR_PRIMARY)
-            c.setFont("Helvetica-Bold", 14)
-            c.drawString(2 * cm, y, num)
-            # Titre
-            c.setFont("Helvetica-Bold", 11)
-            c.drawString(3.2 * cm, y, title)
-            # Description
-            c.setFillColor(colors.grey)
-            c.setFont("Helvetica", 9)
-            c.drawString(3.2 * cm, y - 0.5 * cm, desc)
-            # Ligne pointillée
-            c.setStrokeColor(colors.HexColor('#CCCCCC'))
-            c.setDash(2, 2)
-            c.line(3.2 * cm, y - 0.7 * cm, self.width - 2 * cm, y - 0.7 * cm)
+            c.circle(cx, cy, 0.38 * cm, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_WHITE)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawCentredString(cx, cy - 0.1 * cm, num)
+
+            # Titre + description
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(3.1 * cm, y - 0.55 * cm, title)
+            c.setFillColor(self.COLOR_GREY)
+            c.setFont("Helvetica", 8)
+            c.drawString(3.1 * cm, y - 1.0 * cm, desc)
+
+            # Ligne pointill\u00e9e de s\u00e9paration
+            c.setStrokeColor(self.COLOR_SEPARATOR)
+            c.setLineWidth(0.3)
+            c.setDash(2, 3)
+            c.line(3.1 * cm, y - row_h + 0.25 * cm, self.width - 2 * cm, y - row_h + 0.25 * cm)
             c.setDash()
+            c.setLineWidth(1)
 
-            y -= 1.6 * cm
+            y -= row_h
 
-        # Résumé express
-        y -= 0.5 * cm
+        # \u2500\u2500 Carte r\u00e9sum\u00e9 \u00e0 la fin du sommaire \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        y -= 0.4 * cm
+        card_h = 5.2 * cm
+        # Ombre
+        c.setFillColor(self.COLOR_SEPARATOR)
+        c.roundRect(1.7 * cm, y - card_h - 0.05 * cm, self.width - 3.4 * cm, card_h, 5, fill=1, stroke=0)
+        # Fond blanc
+        c.setFillColor(self.COLOR_WHITE)
+        c.roundRect(1.5 * cm, y - card_h, self.width - 3 * cm, card_h, 5, fill=1, stroke=0)
+        # Bande marine
         c.setFillColor(self.COLOR_PRIMARY)
-        c.rect(1.5 * cm, y - 4 * cm, self.width - 3 * cm, 4 * cm, fill=0, stroke=1)
+        c.roundRect(1.5 * cm, y - 0.85 * cm, self.width - 3 * cm, 0.85 * cm + 5, 5, fill=1, stroke=0)
+        c.rect(1.5 * cm, y - 0.85 * cm, self.width - 3 * cm, 0.85 * cm / 2, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_WHITE)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawCentredString(self.width / 2, y - 0.6 * cm, "R\u00c9SUM\u00c9 DE L'OFFRE")
 
-        y -= 0.5 * cm
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(2 * cm, y, "Résumé de l'offre")
-
-        y -= 0.7 * cm
-        c.setFont("Helvetica", 10)
-        c.setFillColor(self.COLOR_DARK)
+        # 5 lignes KPI en \u00e9ventail
         resume_lines = [
-            f"Puissance : {self.puissance_kwc:.0f} kWc ({self.nb_modules} modules)",
-            f"Production estimée : {self._format_kwh(self.production_annuelle)}/an",
-            f"Investissement : {self._format_euros(self.investissement)} HT",
-            f"Gain annuel estimé : {self._format_euros(self.gain_annuel)}",
-            f"Retour sur investissement : {self.roi_annees:.1f} ans",
+            ("Puissance",           f"{self.puissance_kwc:.0f} kWc  ({self.nb_modules} modules)"),
+            ("Production estim\u00e9e",  f"{self._format_kwh(self.production_annuelle)}/an"),
+            ("Investissement",      f"{self._format_euros(self.investissement)} HT"),
+            ("Gain annuel estim\u00e9",  f"{self._format_euros(self.gain_annuel)}"),
+            ("Retour sur invest.",  f"{self.roi_annees:.1f} ans"),
         ]
-        for line in resume_lines:
-            c.drawString(2.5 * cm, y, f"• {line}")
-            y -= 0.55 * cm
+        ry = y - 1.35 * cm
+        half_n = len(resume_lines)
+        col_w2 = (self.width - 4 * cm) / 2
+        for i, (lbl, val) in enumerate(resume_lines):
+            col = 0 if i < 3 else 1
+            row = i if i < 3 else i - 3
+            rx = 2.2 * cm + col * (col_w2 + 0.5 * cm)
+            ry_cur = ry - row * 0.72 * cm
+            # Puce verte
+            c.setFillColor(self.COLOR_SECONDARY)
+            c.circle(rx + 0.12 * cm, ry_cur + 0.08 * cm, 0.12 * cm, fill=1, stroke=0)
+            # Label
+            c.setFillColor(self.COLOR_GREY)
+            c.setFont("Helvetica", 8)
+            c.drawString(rx + 0.38 * cm, ry_cur, lbl + " :")
+            # Valeur
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(rx + 4.5 * cm, ry_cur, val)
 
     def _draw_presentation_entreprise(self, c):
-        """Page 3 : Présentation entreprise"""
+        """Page 3 : Présentation entreprise — design moderne"""
         y = self._draw_page_header(c, "1. PRÉSENTATION DE L'ENTREPRISE")
 
-        y -= 0.5 * cm
+        y -= 0.4 * cm
         y = self._draw_section_title(c, y, "Notre expertise")
 
         c.setFont("Helvetica", 9)
@@ -522,58 +696,73 @@ class PropositionProfessionnelle:
             c.drawString(2 * cm, y, t)
             y -= 0.45 * cm
 
-        y -= 0.5 * cm
+        y -= 0.3 * cm
         y = self._draw_section_title(c, y, "Certifications & Qualifications")
 
         certifs = [
-            ("RGE QualiPV", "Qualification RGE (Reconnu Garant de l'Environnement) pour les installations PV"),
-            ("QualiPV Électricité", "Module Électricité – Installations raccordées au réseau"),
-            ("QualiPV Bâtiment", "Module Bâtiment – Intégration au bâti et surimposition"),
-            ("Assurance Décennale", "Couverture décennale pour tous les chantiers réalisés"),
-            ("NF C 15-100 / 15-752-1", "Conformité aux normes électriques en vigueur"),
+            ("RGE  QualiPV",         "Qualification RGE (Reconnu Garant de l'Environnement)",         self.COLOR_SECONDARY),
+            ("QualiPV Électricité",  "Module Électricité – Installations raccordées au réseau",        self.COLOR_BLUE),
+            ("QualiPV Bâtiment",     "Module Bâtiment – Intégration au bâti et surimposition",         self.COLOR_BLUE),
+            ("Assurance Décennale",  "Couverture décennale pour tous les chantiers réalisés",           self.COLOR_ACCENT),
+            ("NF C 15-100/752-1",   "Conformité aux normes électriques en vigueur",                     self.COLOR_GREY),
         ]
+        for titre, desc, badge_col in certifs:
+            # Pill badge
+            pill_w = 4.2 * cm
+            pill_h = 0.55 * cm
+            c.setFillColor(badge_col)
+            c.roundRect(2 * cm, y - 0.38 * cm, pill_w, pill_h, pill_h / 2, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_WHITE)
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(2 * cm + pill_w / 2, y - 0.1 * cm, titre)
+            # Description
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica", 8.5)
+            c.drawString(6.8 * cm, y - 0.1 * cm, desc)
+            y -= 0.72 * cm
 
-        for titre, desc in certifs:
-            c.setFont("Helvetica-Bold", 9)
-            c.setFillColor(self.COLOR_PRIMARY)
-            c.drawString(2 * cm, y, f"✓ {titre}")
-            c.setFont("Helvetica", 8)
-            c.setFillColor(colors.grey)
-            c.drawString(7 * cm, y, desc)
-            y -= 0.6 * cm
-
-        y -= 0.5 * cm
+        y -= 0.3 * cm
         y = self._draw_section_title(c, y, "Nos partenaires techniques")
 
         partenaires = [
-            ("JA Solar", "Modules photovoltaïques Tier 1 – Garantie 30 ans"),
-            ("Huawei", "Onduleurs string intelligents – Monitoring intégré"),
-            ("K2 Systems", "Systèmes de fixation – Toiture et sol"),
-            ("Enedis", "Raccordement réseau et mise en service"),
+            ("JA Solar",  "Modules photovoltaïques Tier 1 – Garantie 30 ans"),
+            ("Huawei",    "Onduleurs string intelligents – Monitoring intégré"),
+            ("K2 Systems","Systèmes de fixation – Toiture et sol"),
+            ("Enedis",    "Raccordement réseau et mise en service"),
         ]
-
-        for nom, desc in partenaires:
+        # 2 colonnes
+        col_w3 = (self.width - 3 * cm) / 2
+        for i, (nom, desc) in enumerate(partenaires):
+            px = 2 * cm + (i % 2) * col_w3
+            if i % 2 == 0 and i > 0:
+                y -= 0.7 * cm
+            c.setFillColor(self.COLOR_PRIMARY)
             c.setFont("Helvetica-Bold", 9)
-            c.setFillColor(self.COLOR_DARK)
-            c.drawString(2 * cm, y, f"• {nom}")
+            c.drawString(px, y, f"\u25b8  {nom}")
+            c.setFillColor(self.COLOR_GREY)
             c.setFont("Helvetica", 8)
-            c.setFillColor(colors.grey)
-            c.drawString(6 * cm, y, desc)
-            y -= 0.6 * cm
+            c.drawString(px, y - 0.42 * cm, desc)
+            if i % 2 == 1:
+                y -= 0.75 * cm
+        y -= 0.75 * cm
 
-        y -= 1 * cm
+        y -= 0.3 * cm
         y = self._draw_section_title(c, y, "Références")
 
         c.setFont("Helvetica", 9)
         c.setFillColor(self.COLOR_DARK)
         refs = [
-            "• Plus de 400 projets photovoltaïques réalisés",
-            "• Puissance cumulée installée > 50 MWc",
-            "• Taux de satisfaction clients : 98%",
-            "• Interventions dans toute la France métropolitaine",
+            "Plus de 400 projets photovoltaïques réalisés",
+            "Puissance cumulée installée > 50 MWc",
+            "Taux de satisfaction clients : 98%",
+            "Interventions dans toute la France métropolitaine",
         ]
         for r in refs:
-            c.drawString(2 * cm, y, r)
+            c.setFillColor(self.COLOR_SECONDARY)
+            c.circle(2.12 * cm, y + 0.1 * cm, 0.1 * cm, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica", 9)
+            c.drawString(2.35 * cm, y, r)
             y -= 0.5 * cm
 
     def _draw_analyse_site(self, c):
@@ -762,7 +951,15 @@ class PropositionProfessionnelle:
 
         # Fond du graphique
         c.setFillColor(self.COLOR_LIGHT_BG)
-        c.rect(graph_x - 0.3 * cm, y - graph_h - 0.5 * cm, graph_w + 0.6 * cm, graph_h + 1 * cm, fill=1, stroke=0)
+        c.roundRect(graph_x - 0.3 * cm, y - graph_h - 0.5 * cm,
+                    graph_w + 0.6 * cm, graph_h + 1 * cm, 3, fill=1, stroke=0)
+        # Grille horizontale légère
+        for pct_g in [0.25, 0.5, 0.75, 1.0]:
+            gy = (y - graph_h) + pct_g * (graph_h - 1 * cm)
+            c.setStrokeColor(self.COLOR_SEPARATOR)
+            c.setLineWidth(0.3)
+            c.line(graph_x - 0.15 * cm, gy, graph_x + graph_w + 0.15 * cm, gy)
+        c.setLineWidth(1)
 
         for i, (m, p) in enumerate(zip(mois, pct_mois)):
             bx = graph_x + i * (bar_w + gap)
@@ -770,7 +967,7 @@ class PropositionProfessionnelle:
             by = y - graph_h
 
             # Barre
-            c.setFillColor(self.COLOR_SECONDARY)
+            c.setFillColor(self.COLOR_BLUE)
             c.rect(bx, by, bar_w, bh, fill=1, stroke=0)
 
             # Valeur au-dessus
@@ -854,9 +1051,9 @@ class PropositionProfessionnelle:
         cumul_gains = 0
         annees_affichees = [1, 5, 10, 15, 20, 25]
 
-        # En-tête tableau
+        # En-tête tableau finances
         c.setFillColor(self.COLOR_PRIMARY)
-        c.rect(1.5 * cm, y - 0.2 * cm, self.width - 3 * cm, 0.6 * cm, fill=1, stroke=0)
+        c.roundRect(1.5 * cm, y - 0.2 * cm, self.width - 3 * cm, 0.65 * cm, 3, fill=1, stroke=0)
         c.setFillColor(self.COLOR_WHITE)
         c.setFont("Helvetica-Bold", 8)
         cols = [2 * cm, 5 * cm, 8 * cm, 11 * cm, 14 * cm]
@@ -882,6 +1079,8 @@ class PropositionProfessionnelle:
             cumul_gains += gain
 
             if annee in annees_affichees:
+                c.setFillColor(self.COLOR_LIGHT_BG if annee % 2 == 0 else self.COLOR_WHITE)
+                c.rect(1.5 * cm, y - 0.1 * cm, self.width - 3 * cm, 0.5 * cm, fill=1, stroke=0)
                 c.setFont("Helvetica", 8)
                 bilan = cumul_gains - self.investissement
                 c.setFillColor(self.COLOR_DARK)
@@ -1153,9 +1352,9 @@ class PropositionProfessionnelle:
         row_h  = 0.52 * cm
         tbl_w  = self.width - 3 * cm
 
-        # En-tête
+        # En-tête tableau mensuel
         c.setFillColor(self.COLOR_PRIMARY)
-        c.rect(1.5 * cm, y - row_h + 0.15*cm, tbl_w, row_h, fill=1, stroke=0)
+        c.roundRect(1.5 * cm, y - row_h + 0.15*cm, tbl_w, row_h, 3, fill=1, stroke=0)
         c.setFillColor(self.COLOR_WHITE)
         c.setFont("Helvetica-Bold", 7.5)
         for j, hdr in enumerate(hdrs):
@@ -1175,9 +1374,8 @@ class PropositionProfessionnelle:
             total_auto  += auto
             total_surp  += surp
 
-            # Fond alterné
             if i % 2 == 0:
-                c.setFillColor(colors.HexColor('#F1F8E9'))
+                c.setFillColor(colors.HexColor('#F0FDF4'))
             else:
                 c.setFillColor(colors.white)
             c.rect(1.5*cm, y - row_h + 0.15*cm, tbl_w, row_h, fill=1, stroke=0)
@@ -1201,8 +1399,8 @@ class PropositionProfessionnelle:
             c.drawRightString((col_x[6] + col_w[6] - 0.2)*cm, y - row_h + 0.3*cm, f"{tas:.0f}%")
             y -= row_h
 
-        # Ligne total
-        c.setFillColor(colors.HexColor('#E8F5E9'))
+        # Ligne total mensuel
+        c.setFillColor(colors.HexColor('#ECFDF5'))
         c.rect(1.5*cm, y - row_h + 0.15*cm, tbl_w, row_h, fill=1, stroke=0)
         c.setFillColor(self.COLOR_DARK)
         c.setFont("Helvetica-Bold", 7.5)
@@ -1552,18 +1750,27 @@ class PropositionProfessionnelle:
             c.drawString(bx + 3.8 * cm, ky, str(val))
             ky -= 0.6 * cm
 
-        # ─ PVGIS / Ensoleillement ────────────────────────────────────────────
+        # ─ Production calpinage ──────────────────────────────────────────────
+        # Productible précis issu de la simulation calpinage (tilt/azimuth réels)
+        # Priorité : calpinage simulation > rapport PVGIS (approximation 30° plein sud)
+        if self.production_annuelle > 0 and self.puissance_kwc > 0:
+            kwh_kwc = self.production_annuelle / self.puissance_kwc
+        else:
+            kwh_kwc = rapport.get('kwh_per_kwc', '')
+        # Irradiation (kWh/m²) — valeur solaire uniquement, depuis rapport si disponible
         pvgis = rapport.get('pvgis_data', {})
         irradiation = ''
         if isinstance(pvgis, dict):
             irr = pvgis.get('yearly_irradiation') or pvgis.get('H(i)_m') or pvgis.get('irradiation')
             if irr:
                 irradiation = f"{irr:.0f} kWh/m²/an"
+        # Source label
+        prod_source = "simulation calpinage" if (self.production_annuelle > 0 and self.puissance_kwc > 0) else "PVGIS"
         c.setFillColor(self.COLOR_ACCENT)
         c.rect(bx, y - 7.5 * cm, bw, 1.7 * cm, fill=1, stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(bx + 0.3 * cm, y - 6.1 * cm, "ENSOLEILLEMENT PVGIS")
+        c.drawString(bx + 0.3 * cm, y - 6.1 * cm, f"PRODUCTIBLE SOLAIRE ({prod_source.upper()})")
         c.setFont("Helvetica", 8)
         c.drawString(bx + 0.3 * cm, y - 6.65 * cm, f"Productible : {kwh_kwc:.0f} kWh/kWc/an" if kwh_kwc else "Productible : —")
         c.drawString(bx + 0.3 * cm, y - 7.15 * cm, f"Irradiation : {irradiation}" if irradiation else "Irradiation : —")
@@ -1811,8 +2018,9 @@ class PropositionProfessionnelle:
             col_xs  = [1.5*cm, 2.4*cm, 4.3*cm, 6.0*cm, 7.8*cm, 11.5*cm, 14.2*cm]
             col_ws  = [0.8*cm, 1.8*cm, 1.6*cm, 1.7*cm, 3.6*cm, 2.6*cm, None]
 
+            # En-tête colonnes Google Solar
             c.setFillColor(self.COLOR_PRIMARY)
-            c.rect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, fill=1, stroke=0)
+            c.roundRect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, 3, fill=1, stroke=0)
             c.setFillColor(colors.white)
             c.setFont('Helvetica-Bold', 7.5)
             for xi, h in zip(col_xs, headers):
@@ -1932,13 +2140,16 @@ class PropositionProfessionnelle:
         bw_box = (self.width - 3 * cm) / len(boxes)
         for i, (ttl, val) in enumerate(boxes):
             bx2 = 1.5 * cm + i * bw_box
-            c.setFillColor(self.COLOR_PRIMARY if i % 2 == 0 else self.COLOR_SECONDARY)
-            c.roundRect(bx2 + 0.1 * cm, y - 1.3 * cm, bw_box - 0.2 * cm, 1.3 * cm, 4, fill=1, stroke=0)
+            # Ombre
+            c.setFillColor(self.COLOR_SEPARATOR)
+            c.roundRect(bx2 + 0.2 * cm, y - 1.35 * cm, bw_box - 0.2 * cm, 1.3 * cm, 4, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_PRIMARY if i % 2 == 0 else self.COLOR_BLUE)
+            c.roundRect(bx2 + 0.1 * cm, y - 1.25 * cm, bw_box - 0.2 * cm, 1.3 * cm, 4, fill=1, stroke=0)
             c.setFillColor(colors.white)
-            c.setFont("Helvetica-Bold", 8)
-            c.drawCentredString(bx2 + bw_box / 2, y - 0.45 * cm, ttl)
-            c.setFont("Helvetica-Bold", 11)
-            c.drawCentredString(bx2 + bw_box / 2, y - 1.05 * cm, val)
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(bx2 + bw_box / 2, y - 0.42 * cm, ttl)
+            c.setFont("Helvetica-Bold", 12)
+            c.drawCentredString(bx2 + bw_box / 2, y - 1.02 * cm, val)
         y -= 1.6 * cm
 
         # ─ Image du calpinage ────────────────────────────────────────────────
@@ -1965,11 +2176,9 @@ class PropositionProfessionnelle:
             c.setFont("Helvetica-Bold", 9)
             c.drawString(1.5 * cm, y, "DÉTAIL DES ZONES DE POSE")
             y -= 0.5 * cm
-            # En-têtes
-            cols  = [1.5 * cm, 4.5 * cm, 8.5 * cm, 12.5 * cm, 16.0 * cm]
-            hdrs  = ["Zone", "Modules", "Puissance (kWc)", "Surface (m²)", "Orientation"]
+            # En-tête colonnes plan calpinage zones
             c.setFillColor(self.COLOR_PRIMARY)
-            c.rect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, fill=1, stroke=0)
+            c.roundRect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, 3, fill=1, stroke=0)
             c.setFillColor(colors.white)
             c.setFont("Helvetica-Bold", 8)
             for xi, h in zip(cols, hdrs):

@@ -2268,6 +2268,8 @@
                     {% if report.api_details and report.api_details.cadastre.success and report.api_details.cadastre.details.proprietaires %}
                     amenity: {{ (report.api_details.cadastre.details.proprietaires[0].denomination[:50] if report.api_details.cadastre.details.proprietaires else "")|tojson }},
                     {% endif %}
+                    // Rapport complet (PLU, ZAER, PVGIS, géorisques, cadastre, etc.)
+                    rapport: {{ report | tojson | safe }},
                 };
                 
                 // Déterminer le type de prospect (toiture par défaut pour rapport point)
