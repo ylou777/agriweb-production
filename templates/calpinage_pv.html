@@ -1886,7 +1886,7 @@
                 </div>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                    <div>
+                    <div style="grid-column:1/-1">
                         <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Type de projet</label>
                         <select id="propoTypeProjet" class="form-select form-select-sm"
                             style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;font-size:0.82rem;">
@@ -1905,6 +1905,24 @@
                         <input type="number" id="propoPrixKwc" class="form-control form-control-sm"
                             style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
                             value="850" step="10">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Consommation annuelle (kWh/an)</label>
+                        <input type="number" id="propoConsommation" class="form-control form-control-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
+                            value="0" step="100">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Taux autoconsommation (%)</label>
+                        <input type="number" id="propoTauxAutoconso" class="form-control form-control-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
+                            value="70" step="1" min="0" max="100">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif achat élec. (€/kWh)</label>
+                        <input type="number" id="propoTarifAchat" class="form-control form-control-sm"
+                            style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
+                            value="0.2516" step="0.001">
                     </div>
                     <div>
                         <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente surplus (€/kWh)</label>
@@ -12044,22 +12062,47 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
         // ── Proposition commerciale ────────────────────────────────────────────
         function _acOuvrirModalPropo() {
-            // Pré-remplir la puissance depuis les zones
+            // ── Puissance depuis le calpinage ────────────────────────────────
             const puiss = zones ? zones.reduce((s, z) => s + (z.puissanceKw || 0), 0) : 0;
             if (puiss > 0) {
                 const el = document.getElementById('propoPuissance');
                 if (el) el.value = puiss.toFixed(1);
             }
-            // Pré-remplir tarif revente depuis le champ autoconso
-            const tr = document.getElementById('acTarifRevente');
-            if (tr) {
+
+            // ── Données depuis la simulation autoconsommation ─────────────
+            // Résultats sauvegardés dans _acLastData (variable globale de l'autoconso)
+            const acRes = (typeof _acLastData !== 'undefined') ? _acLastData : null;
+            if (acRes) {
+                const kpis = acRes.kpis || {};
+                const eco  = acRes.economics || {};
+
+                const elConso = document.getElementById('propoConsommation');
+                if (elConso && kpis.consommation_annuelle_kwh)
+                    elConso.value = Math.round(kpis.consommation_annuelle_kwh);
+
+                const elTac = document.getElementById('propoTauxAutoconso');
+                if (elTac && kpis.taux_autoconsommation)
+                    elTac.value = parseFloat(kpis.taux_autoconsommation).toFixed(1);
+
+                const elTA = document.getElementById('propoTarifAchat');
+                if (elTA && eco.tarif_achat)
+                    elTA.value = parseFloat(eco.tarif_achat).toFixed(4);
+
                 const elTR = document.getElementById('propoTarifRevente');
-                if (elTR) elTR.value = tr.value;
+                if (elTR && eco.tarif_revente)
+                    elTR.value = parseFloat(eco.tarif_revente).toFixed(4);
+            } else {
+                // Fallback : lire les champs du formulaire autoconso si présents
+                const tr = document.getElementById('acTarifRevente');
+                if (tr) {
+                    const elTR = document.getElementById('propoTarifRevente');
+                    if (elTR) elTR.value = tr.value;
+                }
             }
-            // Afficher le modal
+
+            // ── Afficher le modal ────────────────────────────────────────────
             const m = document.getElementById('modalPropoAutoconso');
             if (m) { m.style.display = 'flex'; }
-            // Basculer vers onglet économique pour montrer les résultats
             acSwitchTab('economique');
         }
 
@@ -12077,6 +12120,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     type_projet              : document.getElementById('propoTypeProjet').value,
                     puissance_kwc            : parseFloat(document.getElementById('propoPuissance').value) || 100,
                     prix_kwc                 : parseFloat(document.getElementById('propoPrixKwc').value) || 850,
+                    consommation_annuelle_kwh: parseFloat(document.getElementById('propoConsommation').value) || 0,
+                    taux_autoconso           : parseFloat(document.getElementById('propoTauxAutoconso').value) || 70,
+                    tarif_achat_kwh          : parseFloat(document.getElementById('propoTarifAchat').value) || 0.2516,
                     tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || 0.1276,
                 };
 

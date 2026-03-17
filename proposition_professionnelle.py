@@ -2176,6 +2176,8 @@ class PropositionProfessionnelle:
             c.setFont("Helvetica-Bold", 9)
             c.drawString(1.5 * cm, y, "DÉTAIL DES ZONES DE POSE")
             y -= 0.5 * cm
+            hdrs = ["Zone", "Modules", "Puissance (kWc)", "Surface (m²)", "Orientation"]
+            cols = [1.5 * cm, 4.5 * cm, 7.5 * cm, 11.5 * cm, 15 * cm]
             # En-tête colonnes plan calpinage zones
             c.setFillColor(self.COLOR_PRIMARY)
             c.roundRect(1.5 * cm, y - 0.15 * cm, self.width - 3 * cm, 0.55 * cm, 3, fill=1, stroke=0)
