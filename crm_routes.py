@@ -4067,11 +4067,9 @@ def register_crm_routes(app):
             
         except Exception as e:
             import traceback
-            traceback.print_exc()
-            return jsonify({'error': str(e)}), 500
-
-    # ============================================================================
-    # ROUTE ADMIN - NETTOYAGE COMPLET PROSPECTS
+            tb = traceback.format_exc()
+            print(f"❌ [PROPOSITION] ERREUR COMPLETE:\n{tb}")
+            return jsonify({'error': str(e), 'traceback': tb}), 500
     # ============================================================================
     @app.route('/api/crm/admin/cleanup-all', methods=['POST'])
     def cleanup_all_prospects():

@@ -3645,7 +3645,8 @@ Cordialement,`
                     proposalModal.hide();
                 } else {
                     const error = await response.json();
-                    showError('❌ Erreur: ' + (error.error || 'Erreur lors de la génération'));
+                    const detail = error.traceback ? '\n\n' + error.traceback : '';
+                    alert('❌ Erreur: ' + (error.error || 'Erreur lors de la génération') + detail);
                 }
             } catch (error) {
                 console.error('Erreur:', error);
