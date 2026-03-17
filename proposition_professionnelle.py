@@ -305,7 +305,8 @@ class PropositionProfessionnelle:
         c.setStrokeColor(self.COLOR_SECONDARY)
         c.setLineWidth(1)
         c.line(0, footer_h, self.width, footer_h)
-        # Texte gauche
+        # Texte gauche — forcer stroke=none pour éviter le rendu doublé PPrrooppoossiittiioonn
+        c.setLineWidth(0)
         commune = self.prospect.get('commune', '')
         c.setFont("Helvetica", 6.5)
         c.setFillColor(self.COLOR_GREY)
@@ -519,8 +520,10 @@ class PropositionProfessionnelle:
         # Titre dans la bande
         c.setFillColor(self.COLOR_WHITE)
         c.setFont("Helvetica-Bold", 9)
-        nom_prospect = (self.prospect.get('nom_prospect', '') or
-                        self.prospect.get('contact_nom', '') or 'Client')
+        nom_prospect = (self.prospect.get('nom', '') or
+                        self.prospect.get('nom_prospect', '') or
+                        self.prospect.get('contact_nom', '') or
+                        self.prospect.get('lien_annuaire', '') or 'Client')
         commune = self.prospect.get('commune', 'N/A')
         c.drawCentredString(card_x + card_w / 2,
                             card_y + card_h - 0.78 * cm,
@@ -835,7 +838,8 @@ class PropositionProfessionnelle:
             zone = "Zone H3 (Sud) – Irradiation ~1 400-1 700 kWh/m²/an"
 
         y = self._draw_kv_line(c, y, "Zone climatique :", zone)
-        y = self._draw_kv_line(c, y, "Productible estimé :", f"{1100} kWh/kWc/an (moyenne)")
+        _prod_spec = int(self.production_annuelle / self.puissance_kwc) if self.puissance_kwc > 0 else 1100
+        y = self._draw_kv_line(c, y, "Productible estimé :", f"{_prod_spec} kWh/kWc/an")
 
         y -= 0.5 * cm
         y = self._draw_section_title(c, y, "Raccordement réseau")
@@ -932,7 +936,8 @@ class PropositionProfessionnelle:
 
         y = self._draw_kv_line(c, y, "Source des données :", "PVGIS (European Commission)")
         y = self._draw_kv_line(c, y, "Puissance installée :", f"{self.puissance_kwc:.1f} kWc")
-        y = self._draw_kv_line(c, y, "Productible spécifique :", "1 100 kWh/kWc/an (estimation)")
+        _prod_spec_5 = int(self.production_annuelle / self.puissance_kwc) if self.puissance_kwc > 0 else 1100
+        y = self._draw_kv_line(c, y, "Productible spécifique :", f"{_prod_spec_5} kWh/kWc/an")
         y = self._draw_kv_line(c, y, "Production annuelle :", f"{self._format_kwh(self.production_annuelle)}/an", bold_value=True)
         y = self._draw_kv_line(c, y, "Pertes système :", "~14% (câblage, température, salissure, onduleur)")
         y = self._draw_kv_line(c, y, "Dégradation annuelle :", "0.4% par an (garanti constructeur)")
@@ -2289,21 +2294,29 @@ class PropositionProfessionnelle:
         if not isinstance(georisques, dict):
             georisques = {}
 
-        # Sismicité
-        sismo = georisques.get('sismicite', {}) or {}
-        if isinstance(sismo, list): sismo = sismo[0] if sismo else {}
-        sismo_zone = str(sismo.get('zone', sismo.get('niveau', '—')))
-        sismo_desc = sismo.get('description', '')
+        # Sismicité — clé réelle : 'sismique' (liste)
+        sismo_list = georisques.get('sismique', [])
+        if not isinstance(sismo_list, list):
+            sismo_list = [sismo_list] if sismo_list else []
+        sismo = sismo_list[0] if sismo_list else {}
+        sismo_zone = str(sismo.get('niv_zone', sismo.get('zone', sismo.get('niveau', '—'))))
+        sismo_desc = sismo.get('codtxt', sismo.get('description', ''))
 
-        # Argile
-        argile = georisques.get('argile', {}) or {}
-        if isinstance(argile, list): argile = argile[0] if argile else {}
-        argile_risque = str(argile.get('risque', argile.get('classe', '—')))
+        # Argile — clé réelle : 'argiles' (liste de risques gaspar)
+        argile_list = georisques.get('argiles', [])
+        if not isinstance(argile_list, list):
+            argile_list = [argile_list] if argile_list else []
+        argile = argile_list[0] if argile_list else {}
+        argile_risque = str(argile.get('libelle_risque_long', argile.get('risque', argile.get('classe', '—'))))
+        if len(argile_risque) > 30:
+            argile_risque = argile_risque[:28] + '…'
 
-        # Radon
-        radon = georisques.get('radon', {}) or {}
-        if isinstance(radon, list): radon = radon[0] if radon else {}
-        radon_cls = str(radon.get('classe', radon.get('potentiel', '—')))
+        # Radon — clé réelle : 'radon' (liste)
+        radon_list = georisques.get('radon', [])
+        if not isinstance(radon_list, list):
+            radon_list = [radon_list] if radon_list else []
+        radon = radon_list[0] if radon_list else {}
+        radon_cls = str(radon.get('classePotentiel', radon.get('classe', radon.get('potentiel', '—'))))
 
         # PPRI
         ppri = rapport.get('ppri', {})
@@ -2409,13 +2422,16 @@ class PropositionProfessionnelle:
         ky3 = y - 0.75 * cm
         for lbl, key in [("Nom :", 'nom'), ("Distance :", 'distance_m'), ("Puissance :", 'puissance'), ("État :", 'etat')]:
             val = poste_hta.get(key, '—')
+            if val is None: val = '—'
             if key == 'distance_m' and val != '—':
                 try:
                     val = f"{int(float(val))} m"
                 except:
                     pass
-            if key == 'puissance' and val != '—':
+            if key == 'puissance' and val not in ('—', None, 'None', ''):
                 val = f"{val} kVA"
+            elif key == 'puissance':
+                val = '—'
             c.setFont("Helvetica-Bold", 7.5)
             c.setFillColor(colors.HexColor('#555555'))
             c.drawString(hta_x + 0.2 * cm, ky3, lbl)
@@ -2525,9 +2541,9 @@ class PropositionProfessionnelle:
         total_postes = (prix_modules + prix_onduleurs + prix_structure + prix_cablage
                         + prix_protection + prix_pose + prix_raccordement
                         + prix_etudes + prix_demarches + prix_monitoring + prix_consuel)
-        # Ajuster le poste "pose" pour que le total colle
+        # Ajuster le poste "pose" pour que le total colle — clampé à 0 minimum
         ecart = self.investissement - total_postes
-        prix_pose += ecart
+        prix_pose = max(0.0, prix_pose + ecart)
 
         postes = [
             ("FOURNITURE", None, None, None, True),

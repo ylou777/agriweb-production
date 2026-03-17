@@ -3981,9 +3981,17 @@ def register_crm_routes(app):
             eco_saved = autoconso_results.get('economics', {})
             kpis_saved = autoconso_results.get('kpis', {})
 
+            # Puissance : priorité calpinage réel > formulaire > défaut 100 kWc
+            puissance_from_calpinage = safe_float(
+                calpinage.get('totaux', {}).get('puissanceTotale')
+                or calpinage.get('totaux', {}).get('puissance_totale'), 0.0)
+            puissance_from_form = safe_float(data.get('puissance_kwc'), 0.0)
+            puissance_finale = puissance_from_calpinage or puissance_from_form or 100.0
+            print(f"📐 Puissance: calpinage={puissance_from_calpinage} kWc / form={puissance_from_form} kWc → finale={puissance_finale} kWc")
+
             parametres = {
                 'type_projet': data.get('type_projet', 'autoconsommation'),
-                'puissance_kwc': safe_float(data.get('puissance_kwc'), 100.0),
+                'puissance_kwc': puissance_finale,
                 'prix_kwc': safe_float(data.get('prix_kwc'), 850.0),
                 'consommation_annuelle_kwh': safe_float(
                     data.get('consommation_annuelle_kwh')

@@ -3399,10 +3399,21 @@ Cordialement,`
             
             document.getElementById('proposal-prospect-id').value = id;
             
-            // Calcul automatique de la puissance basé sur la surface
-            const surface = currentProspect.surface_m2 || (currentProspect.surface_ha * 10000) || 0;
-            const puissanceEstimee = Math.round(surface * 0.15); // 150 Wc/m²
-            document.getElementById('proposal-puissance').value = puissanceEstimee;
+            // Puissance : priorité calpinage réel > surface estimée
+            let puissanceEstimee = 0;
+            try {
+                const dj0 = typeof currentProspect.data_json === 'string'
+                    ? JSON.parse(currentProspect.data_json || '{}')
+                    : (currentProspect.data_json || {});
+                const calp0 = dj0?.calpinage || {};
+                const totaux0 = calp0?.totaux || {};
+                puissanceEstimee = parseFloat(totaux0.puissanceTotale || totaux0.puissance_totale || 0);
+            } catch(e) {}
+            if (!puissanceEstimee) {
+                const surface = currentProspect.surface_m2 || (currentProspect.surface_ha * 10000) || 0;
+                puissanceEstimee = Math.round(surface * 0.15); // fallback 150 Wc/m²
+            }
+            document.getElementById('proposal-puissance').value = puissanceEstimee || 100;
 
             // Pré-remplissage depuis les résultats de simulation autoconsommation sauvegardés
             try {
