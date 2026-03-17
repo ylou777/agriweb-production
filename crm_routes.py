@@ -3922,7 +3922,13 @@ def register_crm_routes(app):
             # Parser data_json pour récupérer toutes les données
             try:
                 data_json = json.loads(prospect['data_json']) if prospect.get('data_json') else {}
+                # data_json peut être une liste dans les anciens formats — normaliser en dict
+                if isinstance(data_json, list):
+                    data_json = {}
                 calpinage = data_json.get('calpinage', {})
+                # calpinage peut être une liste de zones (ancien format) — normaliser en dict
+                if isinstance(calpinage, list):
+                    calpinage = {'zones': calpinage, 'totaux': {}}
                 visite_technique = data_json.get('visite_technique', {})
                 rapport_commune = data_json.get('rapport_commune', {})
                 
