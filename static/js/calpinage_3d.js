@@ -630,7 +630,15 @@ class Calpinage3DViewer {
         const ridgeExtra = info.hauteurFaitageRelatif || 0;
 
         // Offsets bâtiment → monde pour conversion des coordonnées plans Solar
-        const _bCenterGeo = info.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
+        // Priorité : building_hd.building_center (origine exacte des polygon_2d RANSAC/Solar DSM/COPC).
+        // Si COPC a remplacé le toit après le premier chargement DSM, son bldgCenter (centroïde L93→WGS84)
+        // diffère légèrement du point cliqué → sans cette priorité, les modules sont décalés de quelques
+        // mètres par rapport au maillage toit 3D (qui, lui, utilise bien data.center).
+        // Logique identique à addModules3D pour garantir la cohérence 2D/3D.
+        const _hdCenterGeoFill = this.lidarData?.building_hd?.building_center;
+        const _bCenterGeo = _hdCenterGeoFill
+            ? { lat: _hdCenterGeoFill.lat, lng: _hdCenterGeoFill.lon }
+            : (info.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon });
         const _lngToM = this.LAT_TO_M * Math.cos(_bCenterGeo.lat * Math.PI / 180);
         const _bldgOffX = (_bCenterGeo.lng - this.centerLon) * _lngToM;
         const _bldgOffZ = -(_bCenterGeo.lat - this.centerLat) * this.LAT_TO_M;
