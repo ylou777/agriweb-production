@@ -7572,7 +7572,9 @@
                     if (typeof html2canvas !== 'undefined') {
                         const bounds = map.getBounds();
                         const mapSize = map.getSize();
-                        calData.map_metadata = {
+                        // Stocker sous plan_masse_metadata (clé séparée) pour ne pas
+                        // écraser map_metadata du calpinage (utilisé pour calibrer les modules)
+                        calData.plan_masse_metadata = {
                             bounds: { north: bounds.getNorth(), south: bounds.getSouth(), east: bounds.getEast(), west: bounds.getWest() },
                             center: { lat: map.getCenter().lat, lng: map.getCenter().lng },
                             zoom: map.getZoom(),

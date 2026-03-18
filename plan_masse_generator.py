@@ -350,7 +350,9 @@ class PlanMasseGenerator:
                     print(f"[PLAN] Utilisation du screenshot Leaflet ({len(img_data)} bytes) — fond ESRI identique au calpinage")
 
                     # Recalibrer gps_bounds sur les bounds réels de Leaflet
-                    map_metadata = self.calpinage.get('map_metadata', {})
+                    # Priorité : plan_masse_metadata (bounds vue cadastrale) > map_metadata (bounds vue calpinage)
+                    map_metadata = (self.calpinage.get('plan_masse_metadata') or
+                                    self.calpinage.get('map_metadata', {}))
                     if map_metadata and 'bounds' in map_metadata:
                         b = map_metadata['bounds']
                         self.gps_bounds = {
