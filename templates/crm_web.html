@@ -3493,12 +3493,24 @@ Cordialement,`
                 const _hasZones = Array.isArray(_calp.zones) && _calp.zones.length > 0;
                 const _puisKwc  = parseFloat(_totaux.puissanceTotale || 0);
 
+                // Rapport par adresse : stocké dans data_json.rapport ou data_json directement (legacy)
+                const _rapport = _dj.rapport || (_dj.api_details ? _dj : null);
+                const _hasRapportCadastre = !!_rapport?.api_details?.cadastre?.success;
+                const _hasRapportGpu      = !!_rapport?.api_details?.gpu?.success;
+                const _hasRapportNature   = !!_rapport?.api_details?.nature;
+                const _hasRapport         = !!(_hasRapportCadastre || _hasRapportGpu);
+                const _rapportDetails = [
+                    _hasRapportCadastre ? 'Cadastre ✓' : null,
+                    _hasRapportGpu      ? `GPU/PLU (${_rapport.api_details.gpu.features_count || 0} contraintes) ✓` : null,
+                    _hasRapportNature   ? `Nature (${_rapport.api_details.nature.count || 0} zones) ✓` : null,
+                ].filter(Boolean).join(' · ') || 'Données urbanisme/PPRI absentes';
+
                 const checks = [
                     {
-                        label: 'Rapport HeliaPV',
-                        ok: true,
-                        doc: 'Vue aérienne + contexte',
-                        icon: 'bi-file-earmark-bar-graph'
+                        label: 'Rapport par adresse',
+                        ok: _hasRapport,
+                        doc: _hasRapport ? _rapportDetails : 'Lancer le rapport depuis la fiche prospect',
+                        icon: 'bi-geo-alt-fill'
                     },
                     {
                         label: 'Visite technique',
