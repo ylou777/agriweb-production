@@ -119,20 +119,21 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             project_id = result['id']
             print(f"✅ [AUTO PROJECT] Fiche projet {project_id} créée")
             
-            # Créer les 11 étapes du workflow
+            # Créer les 12 étapes du workflow
             # L'étape 1 (Rapport) est marquée comme terminée car l'export provient d'un rapport
             etapes_autoconso = [
                 ('Rapport de recherche HeliaPV', 1),
                 ('Visite technique', 2),
                 ('Calepinage', 3),
-                ('Étude d\'autoconsommation', 4),
-                ('Devis commercial', 5),
-                ('Signature & Facture', 6),
-                ('Déclaration Préalable de Travaux (DP)', 7),
-                ('Déclaration de Raccordement (DDR)', 8),
-                ('Installation & DOE', 9),
-                ('Consuel', 10),
-                ('Mise en service & Maintenance', 11)
+                ('Plan de masse', 4),
+                ('Étude d\'autoconsommation', 5),
+                ('Devis commercial', 6),
+                ('Signature & Facture', 7),
+                ('Déclaration Préalable de Travaux (DP)', 8),
+                ('Déclaration de Raccordement (DDR)', 9),
+                ('Installation & DOE', 10),
+                ('Consuel', 11),
+                ('Mise en service & Maintenance', 12)
             ]
             
             for nom_etape, ordre in etapes_autoconso:
@@ -144,7 +145,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
                     ) VALUES (%s, %s, %s, %s, CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days')
                 ''', (project_id, nom_etape, ordre, statut))
             
-            print(f"✅ [AUTO PROJECT] 11 étapes créées pour projet {project_id} (étape 1 Rapport = terminée)")
+            print(f"✅ [AUTO PROJECT] 12 étapes créées pour projet {project_id} (étape 1 Rapport = terminée)")
             return project_id
         else:
             print(f"❌ [AUTO PROJECT] Échec de création du projet pour prospect {prospect_id}")
@@ -1186,14 +1187,15 @@ def register_crm_routes(app):
                             ('Rapport de recherche HeliaPV', 1),
                             ('Visite technique', 2),
                             ('Calepinage', 3),
-                            ('Étude d\'autoconsommation', 4),
-                            ('Devis commercial', 5),
-                            ('Signature & Facture', 6),
-                            ('Déclaration Préalable de Travaux (DP)', 7),
-                            ('Déclaration de Raccordement (DDR)', 8),
-                            ('Installation & DOE', 9),
-                            ('Consuel', 10),
-                            ('Mise en service & Maintenance', 11)
+                            ('Plan de masse', 4),
+                            ('Étude d\'autoconsommation', 5),
+                            ('Devis commercial', 6),
+                            ('Signature & Facture', 7),
+                            ('Déclaration Préalable de Travaux (DP)', 8),
+                            ('Déclaration de Raccordement (DDR)', 9),
+                            ('Installation & DOE', 10),
+                            ('Consuel', 11),
+                            ('Mise en service & Maintenance', 12)
                         ]
                         
                         for etape_nom, ordre in etapes_autoconso:
@@ -1205,7 +1207,7 @@ def register_crm_routes(app):
                                 VALUES (%s, %s, %s, %s, {date_fin})
                             ''', (project_id, etape_nom, ordre, statut))
                         
-                        print(f"✅ [ETAPES CREATE] 11 étapes créées pour projet {project_id}, étape 1 terminée")
+                        print(f"✅ [ETAPES CREATE] 12 étapes créées pour projet {project_id}, étape 1 terminée")
                     else:
                         print(f"⚠️ [PROJECT CREATE] Échec de création du projet - résultat vide")
                     
@@ -1568,14 +1570,15 @@ def register_crm_routes(app):
                 ('Rapport de recherche HeliaPV', 1),
                 ('Visite technique', 2),
                 ('Calepinage', 3),
-                ('Étude d\'autoconsommation', 4),
-                ('Devis commercial', 5),
-                ('Signature & Facture', 6),
-                ('Déclaration Préalable de Travaux (DP)', 7),
-                ('Déclaration de Raccordement (DDR)', 8),
-                ('Installation & DOE', 9),
-                ('Consuel', 10),
-                ('Mise en service & Maintenance', 11)
+                ('Plan de masse', 4),
+                ('Étude d\'autoconsommation', 5),
+                ('Devis commercial', 6),
+                ('Signature & Facture', 7),
+                ('Déclaration Préalable de Travaux (DP)', 8),
+                ('Déclaration de Raccordement (DDR)', 9),
+                ('Installation & DOE', 10),
+                ('Consuel', 11),
+                ('Mise en service & Maintenance', 12)
             ]
             
             print(f"[CREATE_PROJECT] Création de {len(etapes_autoconso)} étapes...")
@@ -3046,14 +3049,15 @@ def register_crm_routes(app):
                         ('Rapport de recherche HeliaPV', 1),
                         ('Visite technique', 2),
                         ('Calepinage', 3),
-                        ('Étude d\'autoconsommation', 4),
-                        ('Devis commercial', 5),
-                        ('Signature & Facture', 6),
-                        ('Déclaration Préalable de Travaux (DP)', 7),
-                        ('Déclaration de Raccordement (DDR)', 8),
-                        ('Installation & DOE', 9),
-                        ('Consuel', 10),
-                        ('Mise en service & Maintenance', 11)
+                        ('Plan de masse', 4),
+                        ('Étude d\'autoconsommation', 5),
+                        ('Devis commercial', 6),
+                        ('Signature & Facture', 7),
+                        ('Déclaration Préalable de Travaux (DP)', 8),
+                        ('Déclaration de Raccordement (DDR)', 9),
+                        ('Installation & DOE', 10),
+                        ('Consuel', 11),
+                        ('Mise en service & Maintenance', 12)
                     ]
                     
                     for etape_nom, ordre in etapes_autoconso:
@@ -3065,7 +3069,7 @@ def register_crm_routes(app):
                             VALUES (%s, %s, %s, %s, {date_fin})
                         ''', (project_id, etape_nom, ordre, statut))
                     
-                    print(f"✅ [ETAPES CREATE] 11 étapes créées, étape 2 (Visite technique) terminée")
+                    print(f"✅ [ETAPES CREATE] 12 étapes créées, étape 2 (Visite technique) terminée")
             else:
                 # Marquer l'étape "Visite technique" (ordre 2) comme terminée
                 execute_query('''
@@ -3238,25 +3242,28 @@ def register_crm_routes(app):
                             ('Rapport de recherche HeliaPV', 1),
                             ('Visite technique', 2),
                             ('Calepinage', 3),
-                            ('Étude d\'autoconsommation', 4),
-                            ('Devis commercial', 5),
-                            ('Signature & Facture', 6),
-                            ('Déclaration Préalable de Travaux (DP)', 7),
-                            ('Déclaration de Raccordement (DDR)', 8),
-                            ('Installation & DOE', 9),
-                            ('Consuel', 10),
-                            ('Mise en service & Maintenance', 11)
+                            ('Plan de masse', 4),
+                            ('Étude d\'autoconsommation', 5),
+                            ('Devis commercial', 6),
+                            ('Signature & Facture', 7),
+                            ('Déclaration Préalable de Travaux (DP)', 8),
+                            ('Déclaration de Raccordement (DDR)', 9),
+                            ('Installation & DOE', 10),
+                            ('Consuel', 11),
+                            ('Mise en service & Maintenance', 12)
                         ]
                         
+                        _has_pdm = bool(data.get('screenshot_plan_masse'))
                         for etape_nom, ordre in etapes_autoconso:
-                            statut = 'termine' if ordre == 3 else 'a_faire'
+                            statut = 'termine' if ordre == 3 or (ordre == 4 and _has_pdm) else 'a_faire'
+                            _done = (ordre == 3 or (ordre == 4 and _has_pdm))
                             execute_query('''
                                 INSERT INTO project_etapes (project_id, nom_etape, ordre, statut, date_fin_reelle)
                                 VALUES (%s, %s, %s, %s, {})
-                            '''.format('CURRENT_DATE' if ordre == 3 else 'NULL'),
+                            '''.format('CURRENT_DATE' if _done else 'NULL'),
                             (project_id_fiche, etape_nom, ordre, statut))
                         
-                        print(f"✅ [ETAPES CREATE] 11 étapes créées pour projet {project_id_fiche}")
+                        print(f"✅ [ETAPES CREATE] 12 étapes créées pour projet {project_id_fiche}")
                         project = {'id': project_id_fiche}
                 
                 if project:
@@ -3296,6 +3303,28 @@ def register_crm_routes(app):
                         AND ordre = 3
                         AND statut != 'termine'
                     ''', (project['id'],))
+                    
+                    # Insérer l'étape "Plan de masse" si elle n'existe pas encore
+                    execute_query('''
+                        INSERT INTO project_etapes (project_id, nom_etape, ordre, statut, date_fin_reelle)
+                        SELECT %s, 'Plan de masse', 4, 'a_faire', NULL
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM project_etapes
+                            WHERE project_id = %s AND nom_etape = 'Plan de masse'
+                        )
+                    ''', (project['id'], project['id']))
+                    
+                    # Marquer "Plan de masse" terminé si screenshot_plan_masse disponible
+                    if data.get('screenshot_plan_masse'):
+                        execute_query('''
+                            UPDATE project_etapes 
+                            SET statut = 'termine', 
+                                date_fin_reelle = CURRENT_DATE
+                            WHERE project_id = %s 
+                            AND nom_etape = 'Plan de masse'
+                            AND statut != 'termine'
+                        ''', (project['id'],))
+                        print(f"✅ [PROJECT SYNC] Étape 'Plan de masse' marquée terminée pour projet {project['id']}")
                     
                     print(f"✅ [PROJECT SYNC] Fiche projet {project['id']} mise à jour: {puissance_kwc} kWc, {nb_panneaux} panneaux")
                     
