@@ -9,7 +9,7 @@ Génère un PDF complet avec:
 - Solution technique (modules JA Solar, onduleurs Huawei)
 - Étude productible PVGIS
 - Étude financière (TRI, VAN, ROI)
-- Devis détaillé NF C 15-752-1 avec taxes IFER
+- Devis détaillé UTE C 15-712-1 avec taxes IFER
 - Planning réalisation (DP, DDR, Consuel)
 - Garanties et maintenance
 - Aspects réglementaires
@@ -67,9 +67,30 @@ class PropositionProfessionnelle:
         self.investissement = self.puissance_kwc * self.prix_kwc
         self.consommation = self._sf(parametres.get('consommation_annuelle_kwh'), 0.0)
         self.tarif_achat = self._sf(parametres.get('tarif_achat_kwh'), 0.20)
-        self.tarif_revente = self._sf(parametres.get('tarif_revente_kwh'), 0.13)
-        self.taux_autoconso = self._sf(parametres.get('taux_autoconso'), 70.0) / 100.0
         self.type_projet = parametres.get('type_projet', 'autoconsommation')
+        self.taux_autoconso = self._sf(parametres.get('taux_autoconso'), 70.0) / 100.0
+        # ── Tarif revente — arrêté S21 (6 oct. 2021, mod. 26 mars 2025) ─────────
+        # Source : CRE / photovoltaique.info — Q1 2026 (01/01 au 31/03/2026)
+        # Vente du surplus (autoconsommation individuelle) :
+        #   4,00 c€/kWh  pour P+Q ≤  9 kWc
+        #   5,36 c€/kWh  pour P+Q de 9 à 100 kWc
+        # Vente en totalité (injection totale) — estimation Q1-2026 :
+        #   12,61 c€/kWh (≤3 kWc)  | 11,89 c€/kWh (3-9 kWc)
+        #    9,47 c€/kWh (9-36 kWc) |  8,36 c€/kWh (36-100 kWc)
+        # ⚠  Mettre à jour via parametres['tarif_revente_kwh'] chaque trimestre
+        _p = self.puissance_kwc
+        if self.type_projet == 'autoconsommation':
+            _tr_default = 0.0400 if _p <= 9 else 0.0536   # surplus OA S21 Q1-2026
+        elif self.type_projet == 'sans_injection':
+            _tr_default = 0.0                              # aucune injection réseau
+        elif self.type_projet == 'autoconsommation_collective':
+            _tr_default = 0.0400 if _p <= 9 else 0.0536   # surplus OAC — mêmes tarifs
+        else:  # vente totale (injection en totalité)
+            if _p <= 3:    _tr_default = 0.1261
+            elif _p <= 9:  _tr_default = 0.1189
+            elif _p <= 36: _tr_default = 0.0947
+            else:          _tr_default = 0.0836            # 36-100 kWc
+        self.tarif_revente = self._sf(parametres.get('tarif_revente_kwh'), _tr_default)
 
         # Calculs techniques
         totaux = calpinage.get('totaux', {})
@@ -112,7 +133,15 @@ class PropositionProfessionnelle:
                 self.economie_autoconso = self.energie_autoconsommee * self.tarif_achat
                 self.revenu_revente     = self.energie_revendue * self.tarif_revente
                 self.gain_annuel        = self.economie_autoconso + self.revenu_revente
-            else:
+            elif self.type_projet == 'sans_injection':
+                # Autoconsommation totale : 0 injection, économie = prod autoconsommée × tarif achat
+                self.energie_autoconsommee = (min(self.production_annuelle, self.consommation)
+                                              if self.consommation > 0 else self.production_annuelle)
+                self.energie_revendue      = 0.0
+                self.economie_autoconso    = self.energie_autoconsommee * self.tarif_achat
+                self.revenu_revente        = 0.0
+                self.gain_annuel           = self.economie_autoconso
+            else:  # vente totale / injection totale
                 self.energie_autoconsommee = 0
                 self.energie_revendue      = self.production_annuelle
                 self.economie_autoconso    = 0
@@ -412,6 +441,134 @@ class PropositionProfessionnelle:
         else:
             return f"{val:.0f} kWh"
 
+    def _get_raccordement_profile(self):
+        """
+        Retourne le profil complet de raccordement réseau selon la puissance
+        installée et le type de projet (CARD S06 Enedis / CARD S01 RTE).
+
+        Seuils CARD S06 Enedis (puissance AC nominale onduleur, ≈ kWc) :
+          S06-a :        P ≤   3 kVA  → injection au PDL monophasé
+          S06-b :  3 < P ≤  36 kVA   → injection au TGBT triphasé
+          S06-c : 36 < P ≤ 250 kVA   → coffret de coupure BT réseau
+          S06-d :      P >  250 kVA   → poste de livraison HTA 20 kV
+          HTB   :      P > 12 000 kVA → raccordement direct RTE (CARD S01)
+
+        Types de projets pris en charge :
+          'autoconsommation'            → CACSI + revente surplus OA
+          'sans_injection'              → autoconsommation totale, 0 injection
+          'autoconsommation_collective' → OAC, Art. L315-2, TURPE réduit
+          tout autre                    → vente totale, obligation d'achat
+        """
+        p = self.puissance_kwc
+        t = self.type_projet
+
+        # ── Autoconsommation Collective ───────────────────────────────────────
+        if t == 'autoconsommation_collective':
+            return {
+                'type':         'Autoconsommation Collective (OAC)',
+                'tension':      'BT 400 V — périmètre d\'un même poste HTA/BT',
+                'point_inj':    'PDL de chaque participant via réseau BT commun',
+                'carte':        'CARD S06 Enedis + UTE C 15-712-3',
+                'contrat':      'Convention OAC — Art. L315-2 Code énergie',
+                'compteur':     'Linky bidirectionnel par participant (Enedis)',
+                'pmo':          'PMO (Personne Morale Organisatrice) obligatoire',
+                'turpe_reduit': True,
+                'oa_requis':    False,
+            }
+
+        # ── Autoconsommation totale sans injection ────────────────────────────
+        if t == 'sans_injection':
+            return {
+                'type':         'Autoconsommation totale — SANS injection réseau',
+                'tension':      'Raccordement interne uniquement (côté production)',
+                'point_inj':    'Aucun — limiteur de production ou découplage auto.',
+                'carte':        'UTE C 15-712-1 (pas de CARD Enedis côté production)',
+                'contrat':      'Aucun contrat OA — CONSUEL + déclaration CCAS',
+                'compteur':     'Compteur de production interne (monitoring FusionSolar)',
+                'pmo':          '',
+                'turpe_reduit': False,
+                'oa_requis':    False,
+            }
+
+        # ── Vente totale OU autoconsommation individuelle + surplus ───────────
+        is_ac = (t == 'autoconsommation')
+
+        # Seuil éligibilité arrêté S21 (6 oct. 2021, mod. 26 mars 2025) :
+        #   P+Q ≤ 100 kWc → obligation d'achat EDF OA  (depuis 22/09/2025)
+        #   P+Q > 100 kWc → appel d'offres CRE obligatoire
+        # Tarifs OA surplus Q1-2026 : 4,00 c€/kWh (≤9 kWc) | 5,36 c€/kWh (9-100 kWc)
+        in_s21    = (p <= 100)
+        tarif_sup = '4,00 c\u20ac/kWh' if p <= 9 else '5,36 c\u20ac/kWh'
+
+        if p <= 3:
+            return {
+                'type':         'BT individuel \u2014 CARD S06-a Enedis',
+                'tension':      'BT 230 V monophas\u00e9',
+                'point_inj':    'PDL client \u2014 compteur Linky remis en bidirectionnel',
+                'carte':        'CARD S06-a Enedis',
+                'contrat':      ('CACSI + prime IAP \u2014 surplus OA ' + tarif_sup + ' (S21)'
+                                 if is_ac else 'OA monophas\u00e9 S21 \u2014 Art. L314-1 Code \u00e9nergie'),
+                'compteur':     'Linky bidirectionnel existant (remplacement gratuit Enedis)',
+                'pmo':          '',
+                'turpe_reduit': False,
+                'oa_requis':    True,
+            }
+        elif p <= 36:
+            return {
+                'type':         'BT au TGBT \u2014 CARD S06-b Enedis',
+                'tension':      'BT 400 V triphas\u00e9',
+                'point_inj':    'TGBT (Tableau G\u00e9n\u00e9ral BT) \u2014 en aval du compteur Enedis',
+                'carte':        'CARD S06-b Enedis',
+                'contrat':      ('CACSI + prime IAP \u2014 surplus OA ' + tarif_sup + ' (S21, P+Q \u2264 100 kWc)'
+                                 if is_ac else 'OA triphas\u00e9 S21 \u2014 Art. L314-1 (P+Q \u2264 100 kWc)'),
+                'compteur':     'Linky bidirectionnel ou 2\u1d49 compteur de production Enedis',
+                'pmo':          '',
+                'turpe_reduit': False,
+                'oa_requis':    True,
+            }
+        elif p <= 250:
+            if is_ac:
+                _ctr = ('CACSI + prime IAP \u2014 surplus OA ' + tarif_sup + ' (S21, P+Q \u2264 100 kWc)'
+                        if in_s21 else 'Appel d\'offres CRE \u2014 P+Q > 100 kWc (hors S21)')
+            else:
+                _ctr = ('OA injection totale S21 \u2014 P+Q \u2264 100 kWc'
+                        if in_s21 else 'Appel d\'offres CRE \u2014 P+Q > 100 kWc (hors S21)')
+            return {
+                'type':         'BT r\u00e9seau \u2014 CARD S06-c Enedis',
+                'tension':      'BT 400 V triphas\u00e9',
+                'point_inj':    'Coffret de coupure BT au poste HTA/BT le plus proche',
+                'carte':        'CARD S06-c Enedis',
+                'contrat':      _ctr,
+                'compteur':     '2 compteurs Enedis : PDL production + PDL consommation',
+                'pmo':          '',
+                'turpe_reduit': False,
+                'oa_requis':    True,
+            }
+        elif p <= 12000:
+            return {
+                'type':         'HTA 20 kV \u2014 CARD S06-d Enedis',
+                'tension':      'HTA 20 kV',
+                'point_inj':    'Poste de livraison HTA d\u00e9di\u00e9 (propri\u00e9t\u00e9 du producteur)',
+                'carte':        'CARD S06-d Enedis',
+                'contrat':      'Appel d\'offres CRE \u2014 TURPE producteur HTA',
+                'compteur':     'Compteur de production HTA (m\u00e9trologie Enedis)',
+                'pmo':          '',
+                'turpe_reduit': False,
+                'oa_requis':    True,
+            }
+        else:
+            return {
+                'type':         'HTB — CARD S01 RTE',
+                'tension':      'HTB (> 50 kV)',
+                'point_inj':    'Poste source HTB — raccordement direct réseau RTE',
+                'carte':        'CARD S01 RTE',
+                'contrat':      'Appel d\'offres CRE',
+                'compteur':     'Métrologie HTB (RTE)',
+                'pmo':          '',
+                'turpe_reduit': False,
+                'oa_requis':    True,
+            }
+
     # =========================================================================
     # PAGES
     # =========================================================================
@@ -490,8 +647,13 @@ class PropositionProfessionnelle:
         c.setFillColor(self.COLOR_WHITE)
         c.setFont("Helvetica-Bold", 22)
         c.drawCentredString(w / 2, h - 6.2 * cm, "PROPOSITION COMMERCIALE")
-        type_label = ("Autoconsommation avec revente du surplus"
-                      if self.type_projet == 'autoconsommation' else "Injection totale sur le r\u00e9seau")
+        _type_labels = {
+            'autoconsommation':            'Autoconsommation individuelle + revente du surplus',
+            'sans_injection':              'Autoconsommation totale \u2014 sans injection r\u00e9seau',
+            'autoconsommation_collective': 'Autoconsommation collective (OAC \u2014 Art. L315-2)',
+        }
+        type_label = _type_labels.get(self.type_projet,
+                                      'Injection totale sur le r\u00e9seau (obligation d\'achat)')
         c.setFillColor(self.COLOR_SECONDARY)
         c.setFont("Helvetica", 11)
         c.drawCentredString(w / 2, h - 7.2 * cm, type_label)
@@ -844,23 +1006,33 @@ class PropositionProfessionnelle:
         y -= 0.5 * cm
         y = self._draw_section_title(c, y, "Raccordement réseau")
 
-        poste_bt = self.prospect.get('poste_bt_nom', '')
-        poste_hta = self.prospect.get('poste_hta_nom', '')
-        dist_bt = self.prospect.get('poste_bt_distance_m', '')
-        dist_hta = self.prospect.get('poste_hta_distance_m', '')
+        poste_bt  = self.prospect.get('poste_bt_nom',         '')
+        poste_hta = self.prospect.get('poste_hta_nom',        '')
+        dist_bt   = self.prospect.get('poste_bt_distance_m',  '')
+        dist_hta  = self.prospect.get('poste_hta_distance_m', '')
 
-        if self.puissance_kwc < 250:
-            type_raccord = "Basse Tension (BT)"
-            poste = poste_bt or 'À identifier'
-            dist = f"{int(float(dist_bt))} m" if dist_bt else 'À déterminer'
-        else:
-            type_raccord = "Haute Tension A (HTA)"
-            poste = poste_hta or 'À identifier'
-            dist = f"{int(float(dist_hta))} m" if dist_hta else 'À déterminer'
+        rp      = self._get_raccordement_profile()
+        is_hta  = self.puissance_kwc > 250
+        poste   = (poste_hta or 'À identifier') if is_hta else (poste_bt or 'À identifier')
+        _dist_r = dist_hta if is_hta else dist_bt
+        try:
+            dist = f"{int(float(_dist_r))} m" if _dist_r else 'À déterminer'
+        except (ValueError, TypeError):
+            dist = str(_dist_r) if _dist_r else 'À déterminer'
 
-        y = self._draw_kv_line(c, y, "Type de raccordement :", type_raccord)
-        y = self._draw_kv_line(c, y, "Poste source :", poste)
-        y = self._draw_kv_line(c, y, "Distance estimée :", dist)
+        y = self._draw_kv_line(c, y, "Régime de raccordement :",  rp['type'])
+        y = self._draw_kv_line(c, y, "Tension d'injection :",      rp['tension'])
+        y = self._draw_kv_line(c, y, "Point d'injection réseau :", rp['point_inj'])
+        y = self._draw_kv_line(c, y, "Référence CARD :",           rp['carte'])
+        y = self._draw_kv_line(c, y, "Contrat / Convention :",     rp['contrat'])
+        y = self._draw_kv_line(c, y, "Comptage :",                 rp['compteur'])
+        if rp.get('pmo'):
+            y = self._draw_kv_line(c, y, "PMO :",                  rp['pmo'])
+        if rp.get('turpe_reduit'):
+            y = self._draw_kv_line(c, y, "TURPE :",
+                                   "Réduit (Art. L341-4-1 Code énergie)")
+        y = self._draw_kv_line(c, y, "Poste source :",             poste)
+        y = self._draw_kv_line(c, y, "Distance estimée :",         dist)
 
     def _draw_solution_technique(self, c):
         """Page 5 : Solution technique"""
@@ -921,11 +1093,18 @@ class PropositionProfessionnelle:
         y -= 0.3 * cm
         y = self._draw_section_title(c, y, "Câblage & Protection")
 
-        y = self._draw_kv_line(c, y, "Câbles DC :", "H1Z2Z2-K 1x6mm² (ou 1x10mm² selon longueur)")
-        y = self._draw_kv_line(c, y, "Câbles AC :", "Section adaptée au courant nominal")
-        y = self._draw_kv_line(c, y, "Protection DC :", "Parafoudre Type 2 DC, interrupteur-sectionneur")
-        y = self._draw_kv_line(c, y, "Protection AC :", "Disjoncteur, parafoudre Type 2 AC, différentiel")
-        y = self._draw_kv_line(c, y, "Norme :", "NF C 15-100 / NF C 15-752-1")
+        rp_cable = self._get_raccordement_profile()
+        y = self._draw_kv_line(c, y, "Câbles DC :",
+                               "H1Z2Z2-K 1x6mm² (ou 1x10mm² si longueur > 30 m)")
+        y = self._draw_kv_line(c, y, "Câbles AC :",
+                               "Section calculée au courant nominal (NF C 15-100 §5.2)")
+        y = self._draw_kv_line(c, y, "Protection DC :",
+                               "Parafoudre Type 2 DC, interrupteur-sectionneur DC")
+        y = self._draw_kv_line(c, y, "Protection AC :",
+                               "Disjoncteur de branchement, parafoudre Type 2 AC, DDR")
+        y = self._draw_kv_line(c, y, "Point d'injection réseau :", rp_cable['point_inj'])
+        y = self._draw_kv_line(c, y, "Norme électrique :",
+                               "NF C 15-100 éd. 2023 / UTE C 15-712-1")
 
     def _draw_etude_productible(self, c):
         """Page 6 : Étude productible"""
@@ -996,11 +1175,9 @@ class PropositionProfessionnelle:
 
         c.setFont("Helvetica", 8)
         c.setFillColor(self.COLOR_DARK)
-        prod_cumulee = 0
         for annee in [1, 5, 10, 15, 20, 25]:
             degradation = (1 - 0.004) ** annee
             prod_annee = self.production_annuelle * degradation
-            prod_cumulee += prod_annee * (annee - (0 if annee == 1 else [1, 5, 10, 15, 20, 25][[1, 5, 10, 15, 20, 25].index(annee) - 1]))
             y = self._draw_kv_line(c, y, f"Année {annee} :", f"{self._format_kwh(prod_annee)} (rendement {degradation * 100:.1f}%)")
 
     def _draw_etude_financiere(self, c):
@@ -1022,9 +1199,26 @@ class PropositionProfessionnelle:
         y = box_y - 1 * cm
         y = self._draw_section_title(c, y, "Hypothèses de calcul")
 
-        y = self._draw_kv_line(c, y, "Type de projet :", "Autoconsommation + surplus" if self.type_projet == 'autoconsommation' else "Vente totale")
+        _proj_labels = {
+            'autoconsommation':            'Autoconsommation individuelle + surplus (CACSI)',
+            'sans_injection':              'Autoconsommation totale — sans injection réseau',
+            'autoconsommation_collective': 'Autoconsommation collective (OAC — Art. L315-2)',
+        }
+        y = self._draw_kv_line(c, y, "Type de projet :",
+                               _proj_labels.get(self.type_projet,
+                                                'Vente totale — injection totale (OA/CRE)'))
         y = self._draw_kv_line(c, y, "Prix achat électricité :", f"{self.tarif_achat:.4f} €/kWh")
-        y = self._draw_kv_line(c, y, "Tarif revente surplus :", f"{self.tarif_revente:.4f} €/kWh")
+        # Libellé dynamique selon type_projet et tranche de puissance
+        if self.type_projet == 'autoconsommation':
+            _seuil_lbl = '≤9 kWc' if self.puissance_kwc <= 9 else '9-100 kWc'
+            _tarif_lbl = f"Tarif OA surplus S21 ({_seuil_lbl}, Q1-2026) :"
+        elif self.type_projet == 'sans_injection':
+            _tarif_lbl = "Tarif revente (aucune injection) :"
+        else:
+            _tarif_lbl = "Tarif OA injection totale S21 :"
+        y = self._draw_kv_line(c, y, _tarif_lbl, f"{self.tarif_revente:.4f} €/kWh")
+        if self.type_projet == 'autoconsommation':
+            y = self._draw_kv_line(c, y, "Éligibilité arrêté S21 :", "P+Q ≤ 100 kWc (depuis 22/09/2025)")
         if self.type_projet == 'autoconsommation':
             y = self._draw_kv_line(c, y, "Taux autoconsommation :", f"{self.taux_autoconso * 100:.0f}%")
             y = self._draw_kv_line(c, y, "Consommation annuelle :", f"{self._format_kwh(self.consommation)}")
@@ -1074,8 +1268,8 @@ class PropositionProfessionnelle:
 
         for annee in range(1, 26):
             prod = self.production_annuelle * ((1 - degradation) ** annee)
-            tarif_a = self.tarif_achat * ((1 + augmentation_tarif) ** annee)
-            tarif_r = self.tarif_revente  # Tarif revente fixe (contrat)
+            tarif_a = self.tarif_achat * ((1 + augmentation_tarif) ** (annee - 1))
+            tarif_r = self.tarif_revente  # Tarif revente fixe (contrat OA sur 20 ans)
 
             if self.type_projet == 'autoconsommation':
                 eco = prod * self.taux_autoconso * tarif_a
@@ -1111,7 +1305,7 @@ class PropositionProfessionnelle:
 
     def _draw_etude_autoconsommation(self, c):
         """Page 8A : KPI + bilan + graphique mensuel production vs consommation"""
-        y = self._draw_page_header(c, "8. SIMULATION AUTOCONSOMMATION")
+        y = self._draw_page_header(c, "SIMULATION AUTOCONSOMMATION DÉTAILLÉE")
 
         tariff_label = self._tariff_label
         profil_label = self.autoconso_data.get('profil_label', '')
@@ -1339,7 +1533,7 @@ class PropositionProfessionnelle:
 
     def _draw_autoconso_monthly_table(self, c):
         """Page 8B : Tableau mensuel détaillé + graphique taux de couverture"""
-        y = self._draw_page_header(c, "8B. ANALYSE MENSUELLE DÉTAILLÉE")
+        y = self._draw_page_header(c, "BILAN MENSUEL AUTOCONSOMMATION")
 
         _kpis = self.autoconso_data.get('kpis', {})
         monthly = self.autoconso_data.get('monthly', {})
@@ -1504,7 +1698,7 @@ class PropositionProfessionnelle:
 
     def _draw_autoconso_daily_profiles(self, c):
         """Page 8C : Profils journaliers 24h par saison (hiver / printemps / été)"""
-        y = self._draw_page_header(c, "8C. PROFILS JOURNALIERS SAISONNIERS")
+        y = self._draw_page_header(c, "PROFILS JOURNALIERS SAISONNIERS")
 
         dp = self.autoconso_data.get('daily_profiles', {})
         if not dp:
@@ -2397,9 +2591,14 @@ class PropositionProfessionnelle:
         for lbl, key in [("Nom :", 'nom'), ("Distance :", 'distance_m'), ("Puissance :", 'puissance'), ("État :", 'etat')]:
             val = poste_bt.get(key, '—')
             if key == 'distance_m' and val != '—':
-                val = f"{int(float(val))} m"
-            if key == 'puissance' and val != '—':
+                try:
+                    val = f"{int(float(val))} m"
+                except (ValueError, TypeError):
+                    val = str(val)
+            if key == 'puissance' and val not in ('—', None, 'None', ''):
                 val = f"{val} kVA"
+            elif key == 'puissance':
+                val = '—'
             c.setFont("Helvetica-Bold", 7.5)
             c.setFillColor(colors.HexColor('#555555'))
             c.drawString(1.7 * cm, ky2, lbl)
@@ -2626,10 +2825,10 @@ class PropositionProfessionnelle:
             y = self._draw_section_title(c, y, "Taxes IFER")
             c.setFont("Helvetica", 8)
             c.setFillColor(self.COLOR_DARK)
-            ifer = self.puissance_kwc * 7.82  # Tarif IFER 2025
+            ifer = self.puissance_kwc * 8.46  # Tarif IFER 2026 (CGI art. 1519 F)
             c.drawString(2 * cm, y, f"IFER (Imposition Forfaitaire sur les Entreprises de Réseaux) : {ifer:,.2f} €/an")
             y -= 0.4 * cm
-            c.drawString(2 * cm, y, f"Applicable aux installations ≥ 100 kWc — Tarif 2025 : 7,82 €/kW")
+            c.drawString(2 * cm, y, f"Applicable aux installations ≥ 100 kWc — Tarif 2026 : 8,46 €/kW")
 
         # Validité
         y -= 1.2 * cm
@@ -2794,15 +2993,50 @@ class PropositionProfessionnelle:
 
         c.setFont("Helvetica", 8)
         c.setFillColor(self.COLOR_DARK)
+        rp_cgv = self._get_raccordement_profile()
+        # ── Textes réglementaires communs à tous les types
         reglementaire = [
-            "• Arrêté du 6 octobre 2021 fixant les conditions d'achat de l'électricité photovoltaïque",
-            "• Décret n°2017-676 relatif à l'autoconsommation d'électricité",
-            "• Norme NF C 15-100 : Installations électriques à basse tension",
-            "• Guide UTE C 15-712-1 : Installations PV raccordées au réseau",
-            "• Code de l'urbanisme – Déclaration préalable de travaux",
-            "• Code de l'énergie – Articles L315-1 et suivants (autoconsommation)",
-            "• Arrêté du 9 mai 2017 fixant les conditions d'achat pour le photovoltaïque",
+            f"• {rp_cgv['carte']} — référence de raccordement applicable à ce projet",
+            "• NF C 15-100 éd. 2023 : Installations électriques basse tension",
+            "• UTE C 15-712-1 : Installations PV raccordées au réseau public",
+            "• Code de l'urbanisme — Art. R421-9 : Déclaration préalable de travaux",
         ]
+        # ── Textes spécifiques au type de projet
+        if self.type_projet == 'autoconsommation':
+            reglementaire += [
+                "• Code de l'énergie — Art. L315-1 : Autoconsommation individuelle",
+                "• Décret n°2017-676 du 28 avril 2017 — autoconsommation d'électricité",
+                "• Arrêté S21 du 6 oct. 2021 (mod. 26 mars 2025) — tarifs OA surplus autoconsommation",
+                "• Seuils tarifaires S21 : 4,00 c€/kWh (P+Q ≤ 9 kWc) | 5,36 c€/kWh (9-100 kWc)",
+                "• P+Q ≤ 100 kWc obligatoire pour éligibilité S21 (depuis le 22 sept. 2025)",
+                "• Décret n°2020-1452 du 27 nov. 2020 — prime à l'investissement (IAP)",
+                "• Contrat CACSI (Convention Autoconsommation avec Surplus et Injection EDF OA)",
+            ]
+        elif self.type_projet == 'autoconsommation_collective':
+            reglementaire += [
+                "• Code de l'énergie — Art. L315-2 : Autoconsommation collective (OAC)",
+                "• Décret n°2017-676 du 28 avril 2017 — autoconsommation d'électricité",
+                "• Art. L341-4-1 Code énergie — TURPE réduit pour OAC",
+                "• Arrêté du 21 novembre 2019 — modalités techniques OAC",
+                "• PMO (Personne Morale Organisatrice) obligatoire",
+            ]
+        elif self.type_projet == 'sans_injection':
+            reglementaire += [
+                "• Code de l'énergie — Art. L315-1 : Autoconsommation totale",
+                "• Aucun contrat OA ni CACSI — CONSUEL + déclaration CCAS",
+                "• Dispositif de limitation de production ou anti-îlotage obligatoire",
+            ]
+        else:  # vente totale
+            reglementaire += [
+                "• Code de l'énergie — Art. L314-1 : Obligation d'achat (OA)",
+                "• Arrêté S21 du 6 oct. 2021 (mod. 26 mars 2025) — conditions d'achat OA photovoltaïque",
+                "• OA (contrat EDF OA) : P+Q ≤ 100 kWc — appel d'offres CRE si P+Q > 100 kWc",
+            ]
+        if self.puissance_kwc >= 100:
+            reglementaire.append(
+                f"• Art. 1519 F CGI — IFER : {self.puissance_kwc * 8.46:,.0f} €/an (8,46 €/kW — 2026)")
+        if self.puissance_kwc > 100:
+            reglementaire.append("• Appel d'offres CRE obligatoire (P+Q > 100 kWc depuis 22/09/2025)")
 
         for r in reglementaire:
             c.drawString(2 * cm, y, r)
