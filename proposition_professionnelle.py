@@ -2100,21 +2100,18 @@ class PropositionProfessionnelle:
 
         y -= 8.3 * cm
 
-        # ─ Vue détaillée : screenshot du calpinage (vue satellite + modules) ─
+        # ─ Vue détaillée : tuile OSM satellite zoom 18 (sans modules) ─
         c.setFillColor(self.COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(1.5 * cm, y, "Vue détaillée — parcelle cadastrale")
+        c.drawString(1.5 * cm, y, "Vue détaillée")
         y -= 0.6 * cm
 
         map2_w = (self.width - 3 * cm)
         map2_h = 8.0 * cm
 
-        # Priorité 1 : screenshot du calpinage (vue satellite Leaflet avec modules)
-        _screenshot_calp = self.data_json.get('calpinage', {}).get('screenshot_map', '')
-        img17 = self._decode_base64_image(_screenshot_calp) if _screenshot_calp else None
-
-        # Priorité 2 : tuile OSM zoom 18
-        if not img17 and lat and lon:
+        # Tuile OSM zoom 18 — vue satellite pure, sans modules
+        img17 = None
+        if lat and lon:
             img17 = self._fetch_static_map_image(float(lat), float(lon), zoom=18, width=700, height=380)
 
         if img17:
@@ -2126,10 +2123,10 @@ class PropositionProfessionnelle:
             c.setFillColor(colors.HexColor('#AAAAAA'))
             c.setFont("Helvetica-Oblique", 9)
             c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h / 2 - 0.2 * cm, "Carte non disponible (hors-ligne)")
-        _detail_legend = "Vue rapprochée — Satellite + modules PV (calpinage)" if _screenshot_calp else "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle"
         c.setFont("Helvetica-Oblique", 7)
         c.setFillColor(colors.HexColor('#888888'))
-        c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm, _detail_legend)
+        c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm,
+                            "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle")
 
         self._draw_page_footer(c)
 
