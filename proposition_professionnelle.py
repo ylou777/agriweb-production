@@ -168,6 +168,14 @@ class PropositionProfessionnelle:
                 self.data_json = prospect['data_json']
             # Si c'est déjà une liste, on ignore (format non supporté)
 
+        # Garantie : self.calpinage (source de vérité directe) est toujours
+        # accessible via self.data_json['calpinage'], même si prospect.data_json
+        # était absent, malformé, ou ne contenait pas encore le calpinage.
+        # Cela assure que tous les appels self.data_json.get('calpinage', {})
+        # dans les méthodes de dessin trouvent bien les screenshots.
+        if self.calpinage:
+            self.data_json['calpinage'] = self.calpinage
+
         self.visite_technique = self.data_json.get('visite_technique', {})
         self.rapport_commune = self.data_json.get('rapport_commune', {})
 
@@ -1968,11 +1976,19 @@ class PropositionProfessionnelle:
                 b64_str = b64_str.get('screenshot', '')
             if not b64_str or not isinstance(b64_str, str):
                 return None
+            # Si c'est un objet JSON sérialisé en string (ex: '{"screenshot":"data:..."}')
+            if b64_str.startswith('{') and '"screenshot"' in b64_str:
+                try:
+                    obj = json.loads(b64_str)
+                    b64_str = obj.get('screenshot', b64_str)
+                except Exception:
+                    pass
             if ',' in b64_str:
                 b64_str = b64_str.split(',', 1)[1]
             img_bytes = base64.b64decode(b64_str)
             return ImageReader(io.BytesIO(img_bytes))
-        except Exception:
+        except Exception as e:
+            print(f"[PDF] ⚠️ _decode_base64_image failed: {type(b64_str).__name__} len={len(str(b64_str))} err={e}")
             return None
 
     def _draw_risk_badge(self, c, x, y, label, value, color):
