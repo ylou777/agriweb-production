@@ -1590,7 +1590,10 @@
                         <i class="bi bi-save"></i> Sauvegarder le calpinage
                     </button>
                     <button class="btn btn-outline-success" id="exporterDXF" title="Exporter le calpinage en fichier DXF (AutoCAD / LibreCAD)">
-                        <i class="bi bi-filetype-svg"></i> Exporter DXF
+                        <i class="bi bi-filetype-svg"></i> Exporter DXF 2D
+                    </button>
+                    <button class="btn btn-outline-info" id="exporterDXF3D" title="Exporter en DXF 3D géoréférencé (terrain MNT + bâtiments + modules inclinés)">
+                        <i class="bi bi-box"></i> Exporter DXF 3D
                     </button>
                     <!-- ⚡ Autoconsommation -->
                     <button class="btn fw-semibold" id="btnAutoconsommation" onclick="ouvrirPanneauAutoconso()"
@@ -6852,6 +6855,33 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-filetype-svg"></i> Exporter DXF';
+            }
+        });
+
+        // Exporter DXF 3D
+        document.getElementById('exporterDXF3D').addEventListener('click', async function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Génération 3D… (~30s)';
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage/export-dxf-3d`);
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    alert('❌ ' + (err.error || 'Erreur DXF 3D'));
+                    return;
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `calpinage_pv_3d_${prospectId}.dxf`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('❌ Erreur réseau : ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-box"></i> Exporter DXF 3D';
             }
         });
 

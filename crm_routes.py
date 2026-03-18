@@ -3545,6 +3545,378 @@ out geom tags;"""
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/crm/prospects/<int:prospect_id>/calpinage/export-dxf-3d')
+    def export_calpinage_dxf_3d(prospect_id):
+        """Exporter le calpinage PV en DXF 3D géoréférencé NGF-IGN69.
+        - Terrain MNT (grille LiDAR HD IGN @ 2m) → TIN de 3DFACE
+        - Bâtiments BD TOPO WFS extrudes à leur altitude réelle
+        - Modules PV inclinés selon orientation + inclinaison
+        """
+        try:
+            import ezdxf
+            import math as _math
+            import numpy as _np
+            from pyproj import Transformer
+            import requests as _req
+
+            # ── 1. Charger le calpinage ──────────────────────────────────────────────
+            row = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True
+            )
+            if not row:
+                return jsonify({'error': 'Prospect non trouvé'}), 404
+
+            prospect = dict(row)
+            try:
+                data_json = json.loads(prospect['data_json']) if prospect['data_json'] else {}
+            except Exception:
+                data_json = {}
+
+            calpinage = data_json.get('calpinage', {})
+            zones = calpinage.get('zones', [])
+            if not zones:
+                return jsonify({'error': 'Aucun calpinage sauvegardé.'}), 400
+
+            prospect_lat = float(prospect.get('latitude') or 0)
+            prospect_lon = float(prospect.get('longitude') or 0)
+            if not prospect_lat or not prospect_lon:
+                return jsonify({'error': 'Coordonnées du prospect manquantes.'}), 400
+
+            # ── 2. Projection Lambert 93 ─────────────────────────────────────────────
+            transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+
+            def gps_to_l93(lat, lng):
+                x, y = transformer.transform(lng, lat)
+                return x, y
+
+            # Origine locale = centroide des zones
+            all_pts = []
+            for zone in zones:
+                for c in zone.get('coordinates', []):
+                    all_pts.append(gps_to_l93(c['lat'], c['lng']))
+            if not all_pts:
+                return jsonify({'error': 'Aucune coordonnée de zone.'}), 400
+
+            ox = sum(p[0] for p in all_pts) / len(all_pts)
+            oy = sum(p[1] for p in all_pts) / len(all_pts)
+
+            def to_xy(lat, lng):
+                x, y = gps_to_l93(lat, lng)
+                return (x - ox, y - oy)
+
+            # ── 3. Terrain MNT via API IGN altimétrie ───────────────────────────────
+            radius_m = 200   # rayon autour du prospect
+            lat_deg_per_m = 1 / 111320
+            lng_deg_per_m = 1 / (111320 * _math.cos(_math.radians(prospect_lat)))
+            mnt_terrain = None
+            terrain_bbox = None
+
+            try:
+                # Grille 40×40 = 1600 pts (rapide, résolution ~10m pour rayon 200m)
+                GRID = 40
+                lat_min = prospect_lat - radius_m * lat_deg_per_m
+                lat_max = prospect_lat + radius_m * lat_deg_per_m
+                lon_min = prospect_lon - radius_m * lng_deg_per_m
+                lon_max = prospect_lon + radius_m * lng_deg_per_m
+                terrain_bbox = (lat_min, lat_max, lon_min, lon_max)
+
+                pts_lats, pts_lons = [], []
+                for iy in range(GRID):
+                    for ix in range(GRID):
+                        pts_lats.append(lat_min + (iy + 0.5) / GRID * (lat_max - lat_min))
+                        pts_lons.append(lon_min + (ix + 0.5) / GRID * (lon_max - lon_min))
+
+                r_alti = _req.post(
+                    'https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json',
+                    json={
+                        'lon': '|'.join(f'{v:.8f}' for v in pts_lons),
+                        'lat': '|'.join(f'{v:.8f}' for v in pts_lats),
+                        'resource': 'ign_lidar_hd_mnx_mono_wld',
+                        'delimiter': '|', 'indent': 'false',
+                        'measures': 'true', 'zonly': 'false'
+                    }, timeout=30
+                )
+                if r_alti.status_code == 200:
+                    elevs = r_alti.json().get('elevations', [])
+                    mnt_vals = []
+                    for e in elevs:
+                        z = e.get('z', -99999)
+                        for m in e.get('measures', []):
+                            if 'mnt' in m.get('title', '').lower():
+                                z = m.get('z', z)
+                                break
+                        mnt_vals.append(z if z > -9000 else None)
+                    if len(mnt_vals) == GRID * GRID:
+                        mnt_terrain = _np.array(
+                            [v if v is not None else 0 for v in mnt_vals],
+                            dtype=_np.float32
+                        ).reshape(GRID, GRID)
+                        print(f'[DXF3D] MNT: {GRID}×{GRID}, Z={mnt_terrain.min():.1f}-{mnt_terrain.max():.1f}m')
+                    else:
+                        print(f'[DXF3D] MNT: pts reçus={len(mnt_vals)} vs attendu={GRID*GRID}')
+            except Exception as e_mnt:
+                print(f'[DXF3D] MNT ignoré: {e_mnt}')
+
+            # ── 4. BD TOPO WFS bâtiments ─────────────────────────────────────────────
+            bdtopo_buildings = []
+            try:
+                from pyproj import Transformer as _T2
+                t2 = _T2.from_crs('EPSG:4326', 'EPSG:2154', always_xy=True)
+                cx, cy = t2.transform(prospect_lon, prospect_lat)
+                r_wfs = _req.get(
+                    'https://data.geopf.fr/wfs/ows',
+                    params={
+                        'service': 'WFS', 'version': '2.0.0', 'request': 'GetFeature',
+                        'typeName': 'BDTOPO_V3:batiment',
+                        'outputFormat': 'application/json',
+                        'bbox': f'{cx-radius_m},{cy-radius_m},{cx+radius_m},{cy+radius_m},EPSG:2154',
+                        'srsName': 'EPSG:4326', 'count': '100'
+                    }, timeout=15
+                )
+                if r_wfs.status_code == 200:
+                    for feat in r_wfs.json().get('features', []):
+                        geom = feat.get('geometry', {})
+                        props = feat.get('properties', {})
+                        gtype = geom.get('type', '')
+                        if gtype == 'MultiPolygon':
+                            coords = geom['coordinates'][0][0]
+                        elif gtype == 'Polygon':
+                            coords = geom['coordinates'][0]
+                        else:
+                            continue
+                        bdtopo_buildings.append({
+                            'coords': coords,
+                            'alt_sol': float(props.get('altitude_minimale_sol') or 0),
+                            'alt_toit': float(props.get('altitude_maximale_toit') or
+                                             (props.get('altitude_minimale_sol') or 0) +
+                                             (props.get('hauteur') or 6)),
+                            'hauteur': float(props.get('hauteur') or 6),
+                        })
+                    print(f'[DXF3D] BD TOPO: {len(bdtopo_buildings)} bâtiments')
+            except Exception as e_bd:
+                print(f'[DXF3D] BD TOPO ignoré: {e_bd}')
+
+            # ── 5. Document DXF ──────────────────────────────────────────────────────
+            doc = ezdxf.new(dxfversion='R2010')
+            msp = doc.modelspace()
+
+            doc.layers.add('TERRAIN_MNT',        color=3)   # vert — grille sol
+            doc.layers.add('BATIMENTS_3D',        color=2)   # jaune — volumes BD TOPO
+            doc.layers.add('MODULES_PV_3D',       color=5)   # bleu — panneaux inclinés
+            doc.layers.add('ZONE_CONTOUR_3D',     color=6)   # magenta — contour champ
+            doc.layers.add('ANNOTATIONS_3D',      color=1)   # rouge — textes
+
+            # ── 6. Terrain MNT → TIN de 3DFACE (sous-échantillonné) ─────────────────
+            if mnt_terrain is not None and terrain_bbox is not None:
+                lat_min, lat_max, lon_min, lon_max = terrain_bbox
+                GRID = mnt_terrain.shape[0]
+
+                def grid_xyz(iy, ix):
+                    """Coordonnées XY locales + Z MNT d'une cellule de grille."""
+                    glat = lat_min + (iy + 0.5) / GRID * (lat_max - lat_min)
+                    glon = lon_min + (ix + 0.5) / GRID * (lon_max - lon_min)
+                    gx, gy = to_xy(glat, glon)
+                    gz = float(mnt_terrain[iy, ix])
+                    return (gx, gy, gz)
+
+                for iy in range(GRID - 1):
+                    for ix in range(GRID - 1):
+                        p00 = grid_xyz(iy,     ix)
+                        p10 = grid_xyz(iy,     ix + 1)
+                        p11 = grid_xyz(iy + 1, ix + 1)
+                        p01 = grid_xyz(iy + 1, ix)
+                        # Deux triangles par cellule (3DFACE avec 4 pts, dernier répété = triangle)
+                        msp.add_3dface([p00, p10, p11, p01],
+                                       dxfattribs={'layer': 'TERRAIN_MNT'})
+
+            # ── 7. Bâtiments BD TOPO → parois verticales 3DFACE ─────────────────────
+            for bldg in bdtopo_buildings:
+                raw_coords = bldg['coords']   # [[lon, lat], ...]
+                z_sol  = bldg['alt_sol']
+                z_toit = bldg['alt_toit']
+                if z_toit <= z_sol:
+                    z_toit = z_sol + max(bldg.get('hauteur', 6), 3)
+
+                pts_base = []
+                for c in raw_coords:
+                    lx, ly = to_xy(c[1], c[0])   # lat=c[1], lng=c[0]
+                    pts_base.append((lx, ly))
+
+                # Parois verticales (une 3DFACE rectangulaire par arête)
+                n = len(pts_base)
+                for i in range(n - 1):
+                    x0, y0 = pts_base[i]
+                    x1, y1 = pts_base[(i + 1) % n]
+                    p_bl = (x0, y0, z_sol)
+                    p_br = (x1, y1, z_sol)
+                    p_tr = (x1, y1, z_toit)
+                    p_tl = (x0, y0, z_toit)
+                    msp.add_3dface([p_bl, p_br, p_tr, p_tl],
+                                   dxfattribs={'layer': 'BATIMENTS_3D'})
+
+                # Toit plat (dalle horizontale)
+                roof_pts = [(x, y, z_toit) for x, y in pts_base]
+                if len(roof_pts) >= 3:
+                    # Triangulation en éventail depuis le premier point
+                    for i in range(1, len(roof_pts) - 2):
+                        msp.add_3dface(
+                            [roof_pts[0], roof_pts[i], roof_pts[i+1], roof_pts[i+1]],
+                            dxfattribs={'layer': 'BATIMENTS_3D'}
+                        )
+
+            # ── 8. Modules PV 3D inclinés ─────────────────────────────────────────────
+            # Altitude de référence : bâtiment principal (le plus proche du prospect)
+            z_ref_default = 0.0
+            if bdtopo_buildings:
+                po_x, po_y = to_xy(prospect_lat, prospect_lon)
+                def _bldg_center(b):
+                    cs = b['coords']
+                    cx_ = sum(c[0] for c in cs) / len(cs)
+                    cy_ = sum(c[1] for c in cs) / len(cs)
+                    lx_, ly_ = to_xy(cy_, cx_)
+                    return lx_, ly_
+                dists = [((po_x - _bldg_center(b)[0])**2 + (po_y - _bldg_center(b)[1])**2, b)
+                          for b in bdtopo_buildings]
+                dists.sort(key=lambda t: t[0])
+                z_ref_default = dists[0][1]['alt_toit']
+
+            for zone in zones:
+                num          = zone.get('numero', '?')
+                orientation  = float(zone.get('orientation', 180))
+                inclinaison  = float(zone.get('inclinaison', 30))
+                coords        = zone.get('coordinates', [])
+                modules_pos  = zone.get('modulesPositions', [])
+                zone_outline = zone.get('zone_outline_coords') or []
+                nb_mod       = zone.get('nbModules', 0)
+                puissance_kw = float(zone.get('puissanceKw', 0))
+
+                beta_rad  = _math.radians(orientation)  # azimuth depuis Nord (0=N,180=S)
+                alpha_rad = _math.radians(inclinaison)
+                tan_alpha = _math.tan(alpha_rad)
+
+                # Z de référence du toit pour cette zone
+                if coords:
+                    clat_z = sum(c['lat'] for c in coords) / len(coords)
+                    clng_z = sum(c['lng'] for c in coords) / len(coords)
+                    # Z depuis MNT + hauteur bâtiment le plus proche
+                    if mnt_terrain is not None and terrain_bbox is not None:
+                        lat_min, lat_max, lon_min, lon_max = terrain_bbox
+                        GRID = mnt_terrain.shape[0]
+                        ix_f = (clng_z - lon_min) / (lon_max - lon_min) * GRID
+                        iy_f = (clat_z - lat_min) / (lat_max - lat_min) * GRID
+                        ix_c = max(0, min(GRID - 1, int(ix_f)))
+                        iy_c = max(0, min(GRID - 1, int(iy_f)))
+                        z_sol_zone = float(mnt_terrain[iy_c, ix_c])
+                        # Hauteur toit = z_sol + hauteur BD TOPO la plus proche
+                        if bdtopo_buildings:
+                            z_ref = z_sol_zone + dists[0][1].get('hauteur', 6)
+                        else:
+                            z_ref = z_sol_zone + 6
+                    else:
+                        z_ref = z_ref_default
+                else:
+                    z_ref = z_ref_default
+
+                def z_module(lx, ly):
+                    """Z d'un coin de module selon son décalage (lx,ly) depuis le centre.
+                    β=azimuth de la face (N=0°,S=180°) : les points 'en face' descendent.
+                    z(lx,ly) = z_ref - (lx·sin β + ly·cos β) · tan α
+                    """
+                    proj = lx * _math.sin(beta_rad) + ly * _math.cos(beta_rad)
+                    return z_ref - proj * tan_alpha
+
+                # Centre de la zone en mètres locaux
+                if coords:
+                    zone_cx, zone_cy = to_xy(
+                        sum(c['lat'] for c in coords) / len(coords),
+                        sum(c['lng'] for c in coords) / len(coords)
+                    )
+                else:
+                    zone_cx, zone_cy = 0.0, 0.0
+
+                # Modules individuels — 3DFACE inclinée
+                added = 0
+                for mod in modules_pos:
+                    corners = mod.get('corners', [])
+                    if len(corners) < 4:
+                        continue
+                    pts3d = []
+                    for c in corners[:4]:
+                        mx, my = to_xy(c['lat'], c['lng'])
+                        dx, dy = mx - zone_cx, my - zone_cy
+                        pts3d.append((mx, my, z_module(dx, dy)))
+                    msp.add_3dface(pts3d, dxfattribs={'layer': 'MODULES_PV_3D'})
+                    added += 1
+
+                # Contour du champ (zone_outline ou coords) en 3D
+                outline_src = zone_outline if len(zone_outline) >= 3 else coords
+                if outline_src:
+                    pts_ol = []
+                    for c in outline_src:
+                        ox2, oy2 = to_xy(c['lat'], c['lng'])
+                        dox, doy = ox2 - zone_cx, oy2 - zone_cy
+                        pts_ol.append((ox2, oy2, z_module(dox, doy)))
+                    # LWPOLYLINE 3D → utiliser POLYLINE via add_polyline3d
+                    if len(pts_ol) >= 2:
+                        pts_ol_closed = pts_ol + [pts_ol[0]]
+                        msp.add_polyline3d(
+                            pts_ol_closed,
+                            dxfattribs={'layer': 'ZONE_CONTOUR_3D'}
+                        )
+
+                # Annotation au-dessus du centre
+                if coords:
+                    ax, ay = zone_cx, zone_cy
+                    az = z_ref + 1.0
+                    msp.add_text(
+                        f'Zone {num} — {nb_mod} mod. — {puissance_kw:.2f} kWc',
+                        dxfattribs={'layer': 'ANNOTATIONS_3D', 'height': 0.4,
+                                    'insert': (ax, ay, az)}
+                    )
+
+                print(f'[DXF3D] Zone {num}: {added} modules 3D, orient={orientation:.0f}°, incl={inclinaison:.0f}°, z_ref={z_ref:.1f}m')
+
+            # ── 9. Infos projet ──────────────────────────────────────────────────────
+            totaux = calpinage.get('totaux', {})
+            nom = (prospect.get('nom') or prospect.get('adresse') or f'Prospect {prospect_id}').strip()
+            commune = prospect.get('commune', '') or ''
+            puissance_totale = float(totaux.get('puissanceTotale') or
+                                     sum(z.get('puissanceKw', 0) for z in zones))
+            nb_mod_total = int(totaux.get('nombreModules') or
+                               sum(z.get('nbModules', 0) for z in zones))
+            ox_info, oy_info = 0, -8
+            msp.add_text(f'HeliaPV — DXF 3D — {nom}',
+                         dxfattribs={'layer': 'ANNOTATIONS_3D', 'height': 0.5,
+                                     'insert': (ox_info, oy_info, 0)})
+            if commune:
+                msp.add_text(commune,
+                             dxfattribs={'layer': 'ANNOTATIONS_3D', 'height': 0.3,
+                                         'insert': (ox_info, oy_info - 1, 0)})
+            msp.add_text(f'{puissance_totale:.2f} kWc  |  {nb_mod_total} modules  |  Systeme: Lambert 93 / MNT LiDAR HD IGN',
+                         dxfattribs={'layer': 'ANNOTATIONS_3D', 'height': 0.3,
+                                     'insert': (ox_info, oy_info - 2, 0)})
+
+            # ── 10. Sérialiser ───────────────────────────────────────────────────────
+            text_stream = io.StringIO()
+            doc.write(text_stream)
+            byte_stream = io.BytesIO(text_stream.getvalue().encode('utf-8'))
+            byte_stream.seek(0)
+
+            return send_file(
+                byte_stream,
+                mimetype='application/dxf',
+                as_attachment=True,
+                download_name=f'calpinage_pv_3d_{prospect_id}.dxf'
+            )
+
+        except ImportError:
+            return jsonify({'error': 'Module ezdxf non disponible.'}), 500
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/crm/prospects/<int:prospect_id>/irradiation-cache', methods=['POST'])
     def save_irradiation_cache(prospect_id):
         """Sauvegarder uniquement le cache irradiation Google Solar dans data_json.calpinage.
