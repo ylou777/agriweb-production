@@ -998,20 +998,23 @@ class PropositionProfessionnelle:
         _vt = self.visite_technique or {}
         _vt_faite = bool(_vt.get('date') or _vt.get('notes') or _vt.get('rapport'))
         if not _vt_faite:
-            band_y = y - 1.1 * cm
-            band_h = 0.85 * cm
-            c.setFillColor(colors.Color(1.0, 0.95, 0.80))  # fond ambre très pâle
+            band_h = 1.3 * cm
+            band_y = y - band_h - 0.2 * cm
+            c.setFillColor(colors.Color(1.0, 0.95, 0.80))
             c.roundRect(1.5 * cm, band_y, self.width - 3 * cm, band_h, 4, fill=1, stroke=0)
             c.setStrokeColor(colors.Color(0.92, 0.60, 0.04))
             c.setLineWidth(1)
             c.roundRect(1.5 * cm, band_y, self.width - 3 * cm, band_h, 4, fill=0, stroke=1)
             c.setFillColor(colors.Color(0.55, 0.35, 0.0))
             c.setFont("Helvetica-Bold", 8)
-            c.drawString(2.1 * cm, band_y + 0.28 * cm,
-                         "⚠  SANS VISITE TECHNIQUE  —  "
-                         "Cette proposition est émise sur la base des données cadastrales et aériennes uniquement. "
-                         "Elle devra être confirmée après visite technique sur site.")
-            y = band_y - 0.4 * cm
+            c.drawString(2.1 * cm, band_y + 0.82 * cm,
+                         "\u26a0  SANS VISITE TECHNIQUE")
+            c.setFont("Helvetica", 8)
+            c.drawString(2.1 * cm, band_y + 0.44 * cm,
+                         "Cette proposition est \u00e9mise sur la base des donn\u00e9es cadastrales et a\u00e9riennes uniquement.")
+            c.drawString(2.1 * cm, band_y + 0.12 * cm,
+                         "Elle devra \u00eatre confirm\u00e9e apr\u00e8s visite technique sur site.")
+            y = band_y - 0.5 * cm
         else:
             y -= 0.5 * cm
         y = self._draw_section_title(c, y, "Localisation du projet")
