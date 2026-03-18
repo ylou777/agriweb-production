@@ -3783,9 +3783,14 @@ Cordialement,`
                               : null;
                     if (val) data[ssKey] = val;
                 }
+                // Inclure aussi les données d'urbanisme et visite technique
+                if (_djSS.rapport)           data.rapport           = _djSS.rapport;
+                if (_djSS.visite_technique)  data.visite_technique  = _djSS.visite_technique;
+                if (_djSS.rapport_commune)   data.rapport_commune   = _djSS.rapport_commune;
                 console.log('📸 Screenshots inclus dans la requête:',
                     ['screenshot_map','screenshot_plan_masse','screenshot_3d','screenshot_irradiation']
                     .map(k => `${k}=${data[k] ? Math.round(data[k].length/1024)+'kB' : 'absent'}`).join(', '));
+                console.log('🗺️ Données urbanisme:', _djSS.rapport ? '✓ rapport' : '—', _djSS.visite_technique ? '✓ VT' : '—rapport_commune' in _djSS ? '✓ rapport_commune' : '—');
             } catch(e) {
                 console.warn('⚠️ Impossible de lire les screenshots depuis le prospect en mémoire:', e);
             }

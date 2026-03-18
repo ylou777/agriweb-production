@@ -4666,9 +4666,15 @@ out geom tags;"""
             
             print(f"📊 Génération proposition - Paramètres: {parametres}")
             
-            # Enrichir prospect avec rapport_commune pour contraintes urbanisme
-            if rapport_commune:
-                prospect['data_json'] = data_json
+            # Toujours enrichir prospect avec data_json complet (rapport, visite_technique, rapport_commune, etc.)
+            # Ne pas conditionner au seul rapport_commune — le PDF lit aussi rapport, visite_technique, etc.
+            prospect['data_json'] = data_json
+
+            # Surcharger depuis le POST body si le frontend a envoyé des clés plus fraîches
+            for _dj_key in ('rapport', 'visite_technique', 'rapport_commune'):
+                if data.get(_dj_key):
+                    data_json[_dj_key] = data[_dj_key]
+                    prospect['data_json'] = data_json
 
             # Injecter les screenshots depuis la requête (priorité) ou depuis la DB
             for _ss_key in ('screenshot_map', 'screenshot_plan_masse', 'screenshot_3d', 'screenshot_irradiation'):
