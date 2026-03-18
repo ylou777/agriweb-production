@@ -2589,7 +2589,7 @@ def register_crm_routes(app):
           consommation_kwh : float  – consommation annuelle (kWh)
           profil_type      : str    – RES1|RES2|PRO1|PRO2|AGR|ENT
           tarif_achat      : float  – € / kWh (optionnel, défaut 0.2516)
-          tarif_revente    : float  – € / kWh surplus (optionnel, défaut 0.1276)
+          tarif_revente    : float  – € / kWh surplus (optionnel, défaut S21 selon puissance)
           enedis_pdl       : str    – (optionnel) PDL à 14 chiffres pour courbe réelle Linky
           enedis_token     : str    – (optionnel) access_token Enedis Data Connect
         """
@@ -2608,7 +2608,11 @@ def register_crm_routes(app):
             consommation_kwh  = float(data.get('consommation_kwh', 0))
             profil_type       = data.get('profil_type', 'RES1').upper()
             tariff_type       = data.get('tariff_type', 'BASE').upper()
-            tarif_revente     = float(data.get('tarif_revente', 0.1276))
+            # Tarif S21 : calculé selon la puissance totale si non fourni explicitement
+            _puissance_totale_kw = sum(float(z.get('puissance_kw', 0)) for z in data.get('zones', []))
+            from autoconsommation import get_tarif_revente_s21
+            _tr_s21_default = get_tarif_revente_s21(_puissance_totale_kw)
+            tarif_revente     = float(data.get('tarif_revente') or _tr_s21_default)
             duree_contrat_ans = int(data.get('duree_contrat_ans', 20))
             hc_plages_custom  = data.get('hc_plages_custom', None)  # ex: [[22,6]]
             # ── Option Enedis Data Connect (courbe réelle Linky) ─────────────────
@@ -3393,8 +3397,36 @@ def register_crm_routes(app):
                 nb_mod = zone.get('nbModules', 0)
                 puissance_kw = float(zone.get('puissanceKw', 0))
 
-                # Contour de la zone (LWPOLYLINE fermee)
-                if len(coords) >= 3:
+                # Contour de la zone pour le DXF
+                # Priorité : zone_outline_coords (champ réel après reculs + rotation),
+                # sinon : enveloppe convexe des modules, sinon : polygone dessiné
+                zone_outline = zone.get('zone_outline_coords') or []
+                if len(zone_outline) >= 3:
+                    pts_zone = [to_local(c['lat'], c['lng']) for c in zone_outline]
+                    msp.add_lwpolyline(
+                        pts_zone,
+                        dxfattribs={'layer': 'ZONES_PV', 'closed': True}
+                    )
+                elif modules_pos:
+                    # Fallback : enveloppe convexe des coins des modules
+                    try:
+                        from shapely.geometry import MultiPoint as _MP
+                        mod_pts = [to_local(c['lat'], c['lng'])
+                                   for m in modules_pos for c in m.get('corners', [])]
+                        if len(mod_pts) >= 3:
+                            hull = _MP(mod_pts).convex_hull
+                            if hull.geom_type == 'Polygon':
+                                msp.add_lwpolyline(
+                                    list(hull.exterior.coords),
+                                    dxfattribs={'layer': 'ZONES_PV', 'closed': True}
+                                )
+                    except Exception:
+                        if len(coords) >= 3:
+                            msp.add_lwpolyline(
+                                [to_local(c['lat'], c['lng']) for c in coords],
+                                dxfattribs={'layer': 'ZONES_PV', 'closed': True}
+                            )
+                elif len(coords) >= 3:
                     pts_zone = [to_local(c['lat'], c['lng']) for c in coords]
                     msp.add_lwpolyline(
                         pts_zone,
@@ -3412,10 +3444,27 @@ def register_crm_routes(app):
                         )
 
                 # Annotations au centroide de la zone
-                if coords:
+                # Utiliser le centre des modules si disponibles, sinon centroide des coords
+                if modules_pos:
+                    all_mod_lats = [c['lat'] for m in modules_pos for c in m.get('corners', [])]
+                    all_mod_lngs = [c['lng'] for m in modules_pos for c in m.get('corners', [])]
+                    if all_mod_lats:
+                        clat = (min(all_mod_lats) + max(all_mod_lats)) / 2
+                        clng = (min(all_mod_lngs) + max(all_mod_lngs)) / 2
+                    elif coords:
+                        clat = sum(c['lat'] for c in coords) / len(coords)
+                        clng = sum(c['lng'] for c in coords) / len(coords)
+                    else:
+                        clat = clng = None
+                elif coords:
                     clat = sum(c['lat'] for c in coords) / len(coords)
                     clng = sum(c['lng'] for c in coords) / len(coords)
+                else:
+                    clat = clng = None
+
+                if clat is not None:
                     lx, ly = to_local(clat, clng)
+                    orientation_display = round(float(orientation)) if orientation else 0
                     msp.add_text(
                         f"Zone {num}",
                         dxfattribs={'layer': 'ANNOTATIONS', 'height': 0.4, 'insert': (lx, ly + 1.0)}
@@ -3425,7 +3474,7 @@ def register_crm_routes(app):
                         dxfattribs={'layer': 'ANNOTATIONS', 'height': 0.25, 'insert': (lx, ly + 0.5)}
                     )
                     msp.add_text(
-                        f"Orient.: {orientation} deg  Incl.: {inclinaison} deg",
+                        f"Orient.: {orientation_display} deg  Incl.: {inclinaison} deg",
                         dxfattribs={'layer': 'ANNOTATIONS', 'height': 0.2, 'insert': (lx, ly + 0.0)}
                     )
 

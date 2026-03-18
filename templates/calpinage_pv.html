@@ -1746,11 +1746,11 @@
 
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
                             <div>
-                                <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente (€/kWh)</label>
+                                <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente surplus (€/kWh) <span id="acTarifReventeLabel" style="font-size:0.68rem;opacity:0.55;"></span></label>
                                 <input type="number" id="acTarifRevente" class="form-control form-control-sm"
                                     style="background:#1e293b;border-color:rgba(255,255,255,0.2);color:#e2e8f0;"
-                                    value="0.1276" step="0.001" min="0.01" max="0.5"
-                                    title="Tarif OA EDF achat du surplus – mise à jour annuelle">
+                                    value="0.0536" step="0.001" min="0.01" max="0.5"
+                                    title="Tarif S21 – arrêté 06/10/2021 mod. 26/03/2025 : ≤9 kWc→0.04 €/kWh / 9-100 kWc→0.0536 €/kWh">
                             </div>
                             <div>
                                 <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Durée (ans)</label>
@@ -1931,7 +1931,7 @@
                         <label style="font-size:0.78rem;color:rgba(255,255,255,0.6);">Tarif revente surplus (€/kWh)</label>
                         <input type="number" id="propoTarifRevente" class="form-control form-control-sm"
                             style="background:#0f172a;border-color:rgba(255,255,255,0.15);color:#e2e8f0;"
-                            value="0.1276" step="0.001">
+                            value="0.0536" step="0.001">
                     </div>
                 </div>
 
@@ -7090,6 +7090,19 @@
                         },
                         // 🔥 AJOUT CRITIQUE: Positions GPS de chaque module individuel
                         modulesPositions: z.modulesPositions || [],
+                        // Contour réel du champ (fieldCorners après reculs + rotation) — pour DXF
+                        zone_outline_coords: (function() {
+                            if (!z.moduleGroup) return null;
+                            let outlineCoords = null;
+                            z.moduleGroup.eachLayer(layer => {
+                                if (layer._isZoneOutline && layer.getLatLngs && !outlineCoords) {
+                                    const lls = layer.getLatLngs();
+                                    const ring = Array.isArray(lls[0]) ? lls[0] : lls;
+                                    outlineCoords = ring.map(ll => ({lat: ll.lat, lng: ll.lng}));
+                                }
+                            });
+                            return outlineCoords;
+                        })(),
                         // Indices exclus (suppression manuelle + filtre irradiation) → persistance entre sessions
                         deletedModuleIndices: Array.from(new Set([
                             ...(z._deletedModuleIndices || []),
@@ -11524,7 +11537,29 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             return resp.json();
         }
 
+        // ── S21 surplus tariff helper ────────────────────────────────────────
+        function getS21TarifRevente(totalKwc) {
+            // Arrêté S21 mod. 26/03/2025 – T1 2026
+            if (totalKwc <= 9)   return 0.0400;  // ≤9 kWc  : 4,00 c€/kWh
+            if (totalKwc <= 100) return 0.0536;  // ≤100 kWc : 5,36 c€/kWh
+            return 0.0536;  // >100 kWc : pas de tarif OA standard, approximation
+        }
+
+        function _acMajTarifRevente() {
+            const totalKwc = (zones || []).reduce((s, z) => s + (z.puissanceKw || 0), 0);
+            const tarif = getS21TarifRevente(totalKwc);
+            const inp = document.getElementById('acTarifRevente');
+            if (inp && !inp._manuellementModifie) inp.value = tarif.toFixed(4);
+            const lbl = document.getElementById('acTarifReventeLabel');
+            if (lbl) {
+                if (totalKwc <= 9)        lbl.textContent = '(S21 ≤9 kWc)';
+                else if (totalKwc <= 100) lbl.textContent = '(S21 9-100 kWc)';
+                else                     lbl.textContent = '(>100 kWc, approx.)';
+            }
+        }
+
         async function ouvrirPanneauAutoconso() {
+            _acMajTarifRevente();  // Met à jour le tarif S21 selon la puissance totale
             const p = document.getElementById('panneauAutoconso');
             if (p) p.style.display = 'block';
 
@@ -12179,7 +12214,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     consommation_annuelle_kwh: parseFloat(document.getElementById('propoConsommation').value) || 0,
                     taux_autoconso           : parseFloat(document.getElementById('propoTauxAutoconso').value) || 70,
                     tarif_achat_kwh          : parseFloat(document.getElementById('propoTarifAchat').value) || 0.2516,
-                    tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || 0.1276,
+                    tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || getS21TarifRevente(parseFloat(document.getElementById('propoPuissance')?.value || 0)),
                 };
 
                 const resp = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
