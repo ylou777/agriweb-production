@@ -783,6 +783,20 @@ class PropositionProfessionnelle:
         c.drawCentredString(w / 2, 0.65 * cm,
                             f"R\u00e9f: PROP-{self.prospect.get('id', 'XXX')}-{self.date_now.strftime('%Y%m%d')}")
 
+        # \u2500\u2500 Bandeau \u00ab Sous r\u00e9serve de visite technique \u00bb (si VT non faite) \u2500\u2500\u2500\u2500\u2500\u2500
+        _vt = self.visite_technique or {}
+        _vt_faite = bool(_vt.get('date') or _vt.get('notes') or _vt.get('rapport'))
+        if not _vt_faite:
+            vt_band_h = 0.65 * cm
+            vt_band_y = 2.65 * cm   # juste au-dessus de la bande certifs
+            c.setFillColor(colors.Color(0.92, 0.60, 0.04, alpha=0.92))  # ambre
+            c.rect(0, vt_band_y, w, vt_band_h, fill=1, stroke=0)
+            c.setFillColor(colors.Color(0.1, 0.06, 0.0))
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(w / 2, vt_band_y + 0.19 * cm,
+                                "\u26a0  Proposition \u00e9mise SANS visite technique  \u2014  "
+                                "dimensions, contraintes et faisabilit\u00e9 \u00e0 confirmer sur site")
+
     def _draw_sommaire(self, c):
         """Page 2 : Sommaire \u2014 design moderne"""
         y = self._draw_page_header(c, "SOMMAIRE")
@@ -974,7 +988,26 @@ class PropositionProfessionnelle:
         """Page 4 : Analyse du site"""
         y = self._draw_page_header(c, "2. ANALYSE DU SITE")
 
-        y -= 0.5 * cm
+        # Bandeau avertissement si visite technique non réalisée
+        _vt = self.visite_technique or {}
+        _vt_faite = bool(_vt.get('date') or _vt.get('notes') or _vt.get('rapport'))
+        if not _vt_faite:
+            band_y = y - 1.1 * cm
+            band_h = 0.85 * cm
+            c.setFillColor(colors.Color(1.0, 0.95, 0.80))  # fond ambre très pâle
+            c.roundRect(1.5 * cm, band_y, self.width - 3 * cm, band_h, 4, fill=1, stroke=0)
+            c.setStrokeColor(colors.Color(0.92, 0.60, 0.04))
+            c.setLineWidth(1)
+            c.roundRect(1.5 * cm, band_y, self.width - 3 * cm, band_h, 4, fill=0, stroke=1)
+            c.setFillColor(colors.Color(0.55, 0.35, 0.0))
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(2.1 * cm, band_y + 0.28 * cm,
+                         "⚠  SANS VISITE TECHNIQUE  —  "
+                         "Cette proposition est émise sur la base des données cadastrales et aériennes uniquement. "
+                         "Elle devra être confirmée après visite technique sur site.")
+            y = band_y - 0.4 * cm
+        else:
+            y -= 0.5 * cm
         y = self._draw_section_title(c, y, "Localisation du projet")
 
         commune = self.prospect.get('commune', 'N/A')
