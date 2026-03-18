@@ -4626,10 +4626,20 @@ out geom tags;"""
             if rapport_commune:
                 prospect['data_json'] = data_json
 
-            # Injecter screenshot_3d depuis la requête (priorité) ou depuis la DB
-            screenshot_3d_req = data.get('screenshot_3d', '')
-            screenshot_3d_db  = calpinage.get('screenshot_3d', '')
-            calpinage['screenshot_3d'] = screenshot_3d_req or screenshot_3d_db
+            # Injecter les screenshots depuis la requête (priorité) ou depuis la DB
+            for _ss_key in ('screenshot_map', 'screenshot_3d', 'screenshot_irradiation'):
+                _from_req = data.get(_ss_key, '')
+                _from_db  = calpinage.get(_ss_key, '')
+                val = _from_req or _from_db
+                if val:
+                    calpinage[_ss_key] = val
+            # Debug : état des screenshots au moment de la génération
+            _ss_map = calpinage.get('screenshot_map', '')
+            _ss_3d  = calpinage.get('screenshot_3d', '')
+            print(f"📸 screenshot_map: {'OK '+str(len(str(_ss_map)))+' chars' if _ss_map else 'ABSENT'}")
+            print(f"📸 screenshot_3d:  {'OK '+str(len(str(_ss_3d)))+' chars' if _ss_3d else 'ABSENT'}")
+            # Toujours passer data_json complet au prospect pour que self.data_json soit peuplé
+            prospect['data_json'] = data_json
             
             # Générer la proposition professionnelle
             try:

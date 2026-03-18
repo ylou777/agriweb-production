@@ -12297,6 +12297,28 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || getS21TarifRevente(parseFloat(document.getElementById('propoPuissance')?.value || 0)),
                 };
 
+                // Capturer le screenshot de la carte au moment de la génération
+                // (évite toute dépendance à la DB pour les screenshots)
+                try {
+                    load.textContent = '📸 Capture de la carte en cours...';
+                    const _propoCapture = await captureMapScreenshot();
+                    if (typeof _propoCapture === 'object' && _propoCapture.screenshot) {
+                        body.screenshot_map = _propoCapture.screenshot;
+                        body.map_metadata   = { bounds: _propoCapture.bounds, center: _propoCapture.center, zoom: _propoCapture.zoom, dimensions: _propoCapture.dimensions };
+                    } else if (typeof _propoCapture === 'string' && _propoCapture.length > 100) {
+                        body.screenshot_map = _propoCapture;
+                    }
+                    // Screenshot 3D si vue active
+                    if (viewer3D && viewer3D.isActive) {
+                        const s3d = viewer3D.getScreenshot();
+                        if (s3d) body.screenshot_3d = s3d;
+                    }
+                    load.textContent = '⚙️ Génération du PDF...';
+                } catch(eSS) {
+                    console.warn('⚠️ Screenshot proposition impossible:', eSS);
+                    load.textContent = '⚙️ Génération du PDF (sans capture)...';
+                }
+
                 const resp = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
                     method : 'POST',
                     headers: { 'Content-Type': 'application/json' },
