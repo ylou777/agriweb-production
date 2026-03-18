@@ -93,9 +93,16 @@ class PropositionProfessionnelle:
         self.tarif_revente = self._sf(parametres.get('tarif_revente_kwh'), _tr_default)
 
         # Calculs techniques
-        totaux = calpinage.get('totaux', {})
-        self.nb_modules = totaux.get('nbModules', int(self.puissance_kwc / 0.55))
-        self.puissance_module = totaux.get('puissanceModule', 550)
+        totaux   = calpinage.get('totaux', {})
+        _module  = calpinage.get('module', {})
+        _puiss_m = self._sf(_module.get('puissance'), 0)  # puissance module en W
+        _puiss_t = self._sf(totaux.get('puissanceTotale'), 0)  # puissance totale kWc
+        if _puiss_m > 0 and _puiss_t > 0:
+            self.nb_modules      = int(round(_puiss_t * 1000 / _puiss_m))
+            self.puissance_module = int(_puiss_m)
+        else:
+            self.nb_modules      = totaux.get('nbModules', int(self.puissance_kwc / 0.55))
+            self.puissance_module = totaux.get('puissanceModule', 550)
 
         # ── Résultats simulation autoconsommation (si disponibles) ────────────────
         # Priorité : données issues de la simulation PVGIS 8760h > estimations
@@ -103,7 +110,7 @@ class PropositionProfessionnelle:
         _kpis = self.autoconso_data.get('kpis', {})
         _eco  = self.autoconso_data.get('economics', {})
 
-        # Production : réelle PVGIS si dispos, sinon 1100 kWh/kWc moyen France
+        # Production : réelle PVGIS si dispos, sinon productibleTotal du calpinage, sinon 1100 kWh/kWc moyen France
         # Clés issues de compute_autoconsommation() : production_annuelle_kwh, autoconso_kwh, surplus_kwh, taux_autoconsommation (en %)
         if _kpis.get('production_annuelle_kwh'):
             self.production_annuelle   = self._sf(_kpis['production_annuelle_kwh'])
@@ -113,7 +120,12 @@ class PropositionProfessionnelle:
             self.taux_autoconso        = self._sf(_kpis.get('taux_autoconsommation', self.taux_autoconso * 100)) / 100.0
             self.consommation          = self._sf(_kpis.get('consommation_annuelle_kwh', self.consommation))
         else:
-            self.production_annuelle   = self.puissance_kwc * 1100  # estimation
+            # Utiliser productibleTotal du calpinage (somme PVGIS par zone, en MWh) si disponible
+            _prod_calpinage_mwh = self._sf(totaux.get('productibleTotal'), 0)
+            if _prod_calpinage_mwh > 0:
+                self.production_annuelle = _prod_calpinage_mwh * 1000  # MWh → kWh
+            else:
+                self.production_annuelle = self.puissance_kwc * 1100  # estimation France
             self.energie_autoconsommee = self.production_annuelle * self.taux_autoconso
             self.energie_revendue      = self.production_annuelle * (1 - self.taux_autoconso)
 
