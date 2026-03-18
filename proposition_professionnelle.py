@@ -1872,18 +1872,80 @@ class PropositionProfessionnelle:
     # =========================================================================
 
     def _fetch_static_map_image(self, lat, lon, zoom=16, width=600, height=380):
-        """Télécharge une image de carte OSM static et retourne un ImageReader ReportLab.
-        Retourne None si indisponible."""
+        """Assemble une carte depuis les tuiles OSM (tile.openstreetmap.org).
+        Retourne un ImageReader ReportLab ou None si indisponible."""
         try:
-            url = (
-                f"https://staticmap.openstreetmap.de/staticmap.php"
-                f"?center={lat},{lon}&zoom={zoom}&size={width}x{height}"
-                f"&markers={lat},{lon},red"
-            )
-            resp = requests.get(url, timeout=8,
-                                headers={"User-Agent": "AgriWeb-PV-Proposition/1.0"})
-            if resp.status_code == 200 and resp.content:
-                return ImageReader(io.BytesIO(resp.content))
+            from PIL import Image as PILImage, ImageDraw
+            import math
+
+            def _deg2tile(lat_d, lon_d, z):
+                lat_r = math.radians(lat_d)
+                n = 2 ** z
+                xt = int((lon_d + 180.0) / 360.0 * n)
+                yt = int((1.0 - math.asinh(math.tan(lat_r)) / math.pi) / 2.0 * n)
+                return xt, yt
+
+            def _tile_frac(lat_d, lon_d, z):
+                lat_r = math.radians(lat_d)
+                n = 2 ** z
+                xf = (lon_d + 180.0) / 360.0 * n
+                yf = (1.0 - math.asinh(math.tan(lat_r)) / math.pi) / 2.0 * n
+                return xf, yf
+
+            TILE = 256
+            # Tuiles à récupérer pour couvrir width×height pixels autour de (lat,lon)
+            tx_center, ty_center = _deg2tile(lat, lon, zoom)
+            xf, yf = _tile_frac(lat, lon, zoom)
+            # Décalage pixel du centre par rapport au coin supérieur gauche de la tuile centrale
+            px_off = int((xf - tx_center) * TILE)
+            py_off = int((yf - ty_center) * TILE)
+
+            tiles_x = math.ceil(width / TILE) + 2
+            tiles_y = math.ceil(height / TILE) + 2
+            canvas_w = tiles_x * TILE
+            canvas_h = tiles_y * TILE
+            canvas = PILImage.new('RGB', (canvas_w, canvas_h), (240, 240, 240))
+
+            tx0 = tx_center - tiles_x // 2
+            ty0 = ty_center - tiles_y // 2
+
+            sess = requests.Session()
+            sess.headers['User-Agent'] = 'AgriWeb-PV-Proposition/1.0'
+            n_tiles = 2 ** zoom
+            for ix in range(tiles_x):
+                for iy in range(tiles_y):
+                    tx = (tx0 + ix) % n_tiles
+                    ty = ty0 + iy
+                    if ty < 0 or ty >= n_tiles:
+                        continue
+                    url = f"https://tile.openstreetmap.org/{zoom}/{tx}/{ty}.png"
+                    try:
+                        r = sess.get(url, timeout=6)
+                        if r.status_code == 200:
+                            tile_img = PILImage.open(io.BytesIO(r.content)).convert('RGB')
+                            canvas.paste(tile_img, (ix * TILE, iy * TILE))
+                    except Exception:
+                        pass
+
+            # Centrer le crop sur (lat,lon)
+            cx = (tiles_x // 2) * TILE + px_off
+            cy = (tiles_y // 2) * TILE + py_off
+            left  = cx - width  // 2
+            top   = cy - height // 2
+            cropped = canvas.crop((left, top, left + width, top + height))
+
+            # Marqueur rouge (croix) au centre
+            draw = ImageDraw.Draw(cropped)
+            mx, my = width // 2, height // 2
+            r = 8
+            draw.ellipse((mx - r, my - r, mx + r, my + r), fill=(220, 30, 30), outline=(255, 255, 255), width=2)
+            draw.line((mx - r - 4, my, mx + r + 4, my), fill=(220, 30, 30), width=2)
+            draw.line((mx, my - r - 4, mx, my + r + 4), fill=(220, 30, 30), width=2)
+
+            buf = io.BytesIO()
+            cropped.save(buf, format='PNG')
+            buf.seek(0)
+            return ImageReader(buf)
         except Exception:
             pass
         return None
@@ -1994,7 +2056,7 @@ class PropositionProfessionnelle:
             img14 = self._fetch_static_map_image(float(lat), float(lon), zoom=14, width=500, height=330)
         if img14:
             c.drawImage(img14, map_x, y - map_h, width=map_w, height=map_h,
-                        preserveAspectRatio=True, anchor='c')
+                        preserveAspectRatio=False, mask='auto')
         else:
             c.setFillColor(self.COLOR_LIGHT_BG)
             c.rect(map_x, y - map_h, map_w, map_h, fill=1, stroke=1)
@@ -2008,7 +2070,7 @@ class PropositionProfessionnelle:
 
         y -= 8.3 * cm
 
-        # ─ Carte OSM zoom (vue parcelle, zoom 17) ────────────────────────────
+        # ─ Vue détaillée : screenshot du calpinage (vue satellite + modules) ─
         c.setFillColor(self.COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 10)
         c.drawString(1.5 * cm, y, "Vue détaillée — parcelle cadastrale")
@@ -2016,22 +2078,28 @@ class PropositionProfessionnelle:
 
         map2_w = (self.width - 3 * cm)
         map2_h = 8.0 * cm
-        img17 = None
-        if lat and lon:
+
+        # Priorité 1 : screenshot du calpinage (vue satellite Leaflet avec modules)
+        _screenshot_calp = self.data_json.get('calpinage', {}).get('screenshot_map', '')
+        img17 = self._decode_base64_image(_screenshot_calp) if _screenshot_calp else None
+
+        # Priorité 2 : tuile OSM zoom 18
+        if not img17 and lat and lon:
             img17 = self._fetch_static_map_image(float(lat), float(lon), zoom=18, width=700, height=380)
+
         if img17:
             c.drawImage(img17, 1.5 * cm, y - map2_h, width=map2_w, height=map2_h,
-                        preserveAspectRatio=True, anchor='c')
+                        preserveAspectRatio=False, mask='auto')
         else:
             c.setFillColor(self.COLOR_LIGHT_BG)
             c.rect(1.5 * cm, y - map2_h, map2_w, map2_h, fill=1, stroke=1)
             c.setFillColor(colors.HexColor('#AAAAAA'))
             c.setFont("Helvetica-Oblique", 9)
             c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h / 2 - 0.2 * cm, "Carte non disponible (hors-ligne)")
+        _detail_legend = "Vue rapprochée — Satellite + modules PV (calpinage)" if _screenshot_calp else "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle"
         c.setFont("Helvetica-Oblique", 7)
         c.setFillColor(colors.HexColor('#888888'))
-        c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm,
-                            "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle")
+        c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm, _detail_legend)
 
         self._draw_page_footer(c)
 
