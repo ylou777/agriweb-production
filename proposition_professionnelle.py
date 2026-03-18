@@ -204,15 +204,23 @@ class PropositionProfessionnelle:
         self._draw_analyse_site(c)
 
         # Page 4b : Plan de situation (si lat/lon disponibles)
-        _lat = self.data_json.get('rapport', {}).get('lat') or self.prospect.get('lat')
-        _lon = self.data_json.get('rapport', {}).get('lon') or self.prospect.get('lon')
+        _lat = (self.data_json.get('rapport', {}).get('lat')
+                or self.prospect.get('lat') or self.prospect.get('latitude'))
+        _lon = (self.data_json.get('rapport', {}).get('lon')
+                or self.prospect.get('lon') or self.prospect.get('longitude'))
+        _screenshot = self.data_json.get('calpinage', {}).get('screenshot_map', '')
         if _lat and _lon:
             c.showPage()
             self.page_number += 1
             self._draw_plan_situation(c)
 
-        # Page 4c : Plan de calpinage (si screenshot disponible)
-        _screenshot = self.data_json.get('calpinage', {}).get('screenshot_map', '')
+        # Page 4c : Plan de masse (si screenshot disponible)
+        if _screenshot:
+            c.showPage()
+            self.page_number += 1
+            self._draw_plan_masse(c)
+
+        # Page 4d : Plan de calpinage (si screenshot disponible)
         if _screenshot:
             c.showPage()
             self.page_number += 1
@@ -2316,6 +2324,142 @@ class PropositionProfessionnelle:
 
     # ── Plan de calpinage ─────────────────────────────────────────────────────
 
+    def _draw_plan_masse(self, c):
+        """Page Plan de masse officiel : screenshot + nord, échelle, légende, cartouche."""
+        y = self._draw_page_header(c, "PLAN DE MASSE - INSTALLATION PHOTOVOLTAÏQUE")
+
+        calpinage = self.data_json.get('calpinage', {})
+        screenshot = calpinage.get('screenshot_map', '')
+        zones = calpinage.get('zones', self.calpinage.get('zones', []))
+
+        # ─ Infos propriétaire / adresse ──────────────────────────────────────
+        c.setFont("Helvetica", 8)
+        c.setFillColor(self.COLOR_DARK)
+        nom = self.prospect.get('nom', '')
+        prenom = self.prospect.get('prenom', '')
+        adresse = self.prospect.get('adresse', '')
+        commune = self.prospect.get('commune', '')
+        parcelle = self.prospect.get('parcelle', 'Non renseignée')
+        if nom or prenom:
+            c.drawString(1.5 * cm, y, f"Propriétaire : {prenom} {nom}".strip())
+        if adresse or commune:
+            c.drawRightString(self.width - 1.5 * cm, y,
+                              f"Adresse : {adresse}, {commune}".strip(', '))
+        y -= 0.5 * cm
+
+        # ─ Zone image ─────────────────────────────────────────────────────────
+        plan_x = 1.5 * cm
+        plan_w = self.width - 3 * cm
+        max_img_h = 16 * cm   # hauteur maximale de la zone image
+
+        img = self._decode_base64_image(screenshot) if screenshot else None
+        if img:
+            iw_px, ih_px = img.getSize()
+            aspect = iw_px / ih_px
+            img_w = plan_w
+            img_h = img_w / aspect
+            if img_h > max_img_h:
+                img_h = max_img_h
+                img_w = img_h * aspect
+            img_x = plan_x + (plan_w - img_w) / 2
+
+            # Cadre puis image
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(1.5)
+            c.rect(img_x, y - img_h, img_w, img_h)
+            c.drawImage(img, img_x, y - img_h, width=img_w, height=img_h,
+                        preserveAspectRatio=False, mask='auto')
+
+            # Rose des vents (coin supérieur droit de l'image, fond blanc semi-opaque)
+            ax = img_x + img_w - 1.3 * cm
+            ay = y - 1.3 * cm
+            c.setFillColor(colors.white)
+            c.circle(ax, ay, 0.75 * cm, stroke=0, fill=1)
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(0.8)
+            c.circle(ax, ay, 0.75 * cm, stroke=1, fill=0)
+            path = c.beginPath()
+            path.moveTo(ax, ay + 0.55 * cm)
+            path.lineTo(ax - 0.2 * cm, ay - 0.15 * cm)
+            path.lineTo(ax + 0.2 * cm, ay - 0.15 * cm)
+            path.close()
+            c.setFillColor(colors.black)
+            c.drawPath(path, fill=1, stroke=0)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawCentredString(ax, ay - 0.58 * cm, "N")
+
+            actual_h = img_h
+        else:
+            c.setFillColor(self.COLOR_LIGHT_BG)
+            c.rect(plan_x, y - max_img_h, plan_w, max_img_h, fill=1, stroke=1)
+            c.setFillColor(colors.HexColor('#AAAAAA'))
+            c.setFont("Helvetica-Oblique", 10)
+            c.drawCentredString(self.width / 2, y - max_img_h / 2,
+                                "Veuillez sauvegarder le calepinage pour générer le plan de masse")
+            actual_h = max_img_h
+
+        y -= actual_h + 0.5 * cm
+
+        # ─ Échelle + légende + cartouche ─────────────────────────────────────
+        # Barre d'échelle 1/500 (à gauche)
+        sb_x = plan_x
+        sb_y = y
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(self.COLOR_DARK)
+        c.drawString(sb_x, sb_y + 0.15 * cm, "Échelle 1/500 (1 cm = 5 m)")
+        for i in range(4):
+            xi = sb_x + i * cm
+            c.setFillColor(colors.black if i % 2 == 0 else colors.white)
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(0.5)
+            c.rect(xi, sb_y - 0.55 * cm, 1 * cm, 0.3 * cm, fill=1, stroke=1)
+        c.setFont("Helvetica", 6.5)
+        c.setFillColor(self.COLOR_DARK)
+        for i in range(5):
+            c.drawCentredString(sb_x + i * cm, sb_y - 0.75 * cm, f"{i * 5}m")
+
+        # Légende (centre)
+        leg_x = plan_x + 6 * cm
+        leg_y = y
+        c.setFont("Helvetica-Bold", 8)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.drawString(leg_x, leg_y, "LÉGENDE :")
+        leg_y -= 0.45 * cm
+        c.setFillColor(colors.HexColor('#1565C0'))
+        c.rect(leg_x, leg_y - 2 * mm, 8 * mm, 3.5 * mm, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_DARK)
+        c.setFont("Helvetica", 8)
+        c.drawString(leg_x + 1 * cm, leg_y, "Modules photovoltaïques")
+
+        # Cartouche (à droite)
+        total_kwc = sum(z.get('puissanceKwc', z.get('puissance_kwc', 0)) for z in zones)
+        total_modules = int(sum(z.get('nbModules', z.get('nb_modules', 0)) for z in zones))
+        cart_x = self.width - 8.5 * cm
+        cart_y = y + 0.05 * cm
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(0.8)
+        c.rect(cart_x, cart_y - 2.8 * cm, 7 * cm, 2.8 * cm)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.rect(cart_x, cart_y - 0.55 * cm, 7 * cm, 0.55 * cm, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(cart_x + 3.5 * cm, cart_y - 0.38 * cm,
+                            "CARACTÉRISTIQUES TECHNIQUES")
+        c.setFillColor(self.COLOR_DARK)
+        c.setFont("Helvetica", 7.5)
+        cart_items = [
+            f"Puissance totale : {total_kwc:.2f} kWc",
+            f"Nombre de modules : {total_modules}",
+            f"Parcelle cadastrale : {parcelle}",
+            f"Date du plan : {datetime.now().strftime('%d/%m/%Y')}",
+        ]
+        for i, txt in enumerate(cart_items):
+            c.drawString(cart_x + 0.3 * cm, cart_y - 0.95 * cm - i * 0.45 * cm, txt)
+
+        self._draw_page_footer(c)
+
+    # ── Plan de calpinage ─────────────────────────────────────────────────────
+
     def _draw_plan_calpinage(self, c):
         """Page Plan de calpinage : screenshot Leaflet + résumé des zones."""
         y = self._draw_page_header(c, "PLAN DE CALPINAGE")
@@ -2356,11 +2500,21 @@ class PropositionProfessionnelle:
 
         # ─ Image du calpinage ────────────────────────────────────────────────
         img_calp = self._decode_base64_image(screenshot) if screenshot else None
-        img_h = 13 * cm
+        max_img_h = 14 * cm
+        box_w = self.width - 3 * cm
         if img_calp:
-            c.drawImage(img_calp, 1.5 * cm, y - img_h, width=self.width - 3 * cm,
-                        height=img_h, preserveAspectRatio=True, anchor='c')
+            iw_px, ih_px = img_calp.getSize()
+            aspect = iw_px / ih_px
+            img_w = box_w
+            img_h = img_w / aspect
+            if img_h > max_img_h:
+                img_h = max_img_h
+                img_w = img_h * aspect
+            img_x = 1.5 * cm + (box_w - img_w) / 2
+            c.drawImage(img_calp, img_x, y - img_h, width=img_w, height=img_h,
+                        preserveAspectRatio=False, mask='auto')
         else:
+            img_h = max_img_h
             c.setFillColor(self.COLOR_LIGHT_BG)
             c.rect(1.5 * cm, y - img_h, self.width - 3 * cm, img_h, fill=1, stroke=1)
             c.setFillColor(colors.HexColor('#AAAAAA'))
