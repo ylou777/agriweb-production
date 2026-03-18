@@ -3539,27 +3539,22 @@ Cordialement,`
                         doc: _screenshots.map ? 'Screenshot avec modules ✓' : 'Absent de la proposition',
                         icon: 'bi-image'
                     },
-                    {
-                        label: 'Simulation autoconsommation',
-                        ok: _hasAC,
-                        optional: true,
-                        doc: _hasAC ? 'Graphiques PVGIS inclus' : 'Non simulée (chiffres manuels)',
-                        icon: 'bi-graph-up-arrow'
-                    },
                     (() => {
-                        if (!_hasAC) return null;
-                        const _src    = _calp.autoconso_results?.data_source;
-                        const _pdl    = _calp.autoconso_results?.enedis_pdl;
+                        const _ac    = _calp.autoconso_results || {};
+                        const _src   = _ac.data_source;
+                        const _pdl   = _ac.enedis_pdl;
                         const _isReal = _src === 'enedis_dataconnect' && _pdl;
                         return {
-                            label: _isReal ? 'Courbes Enedis réelles' : '⚠ Courbes théoriques',
-                            ok: _isReal,
+                            label: 'Étude d\'autoconsommation',
+                            ok: _hasAC,
                             optional: true,
-                            doc: _isReal
-                                ? `PDL ${_pdl} — Data Connect ✓`
-                                : `Profil type (${_calp.autoconso_results?.profil_label || ''}) — à confirmer avec courbes réelles (mandat PDL requis)`,
-                            icon: _isReal ? 'bi-plug-fill' : 'bi-exclamation-triangle-fill',
-                            warn: !_isReal
+                            warn: _hasAC && !_isReal,
+                            icon: _hasAC ? (_isReal ? 'bi-plug-fill' : 'bi-exclamation-triangle-fill') : 'bi-graph-up-arrow',
+                            doc: !_hasAC
+                                ? 'Non réalisée — chiffres estimatifs'
+                                : _isReal
+                                ? `Courbes réelles Linky ✓ — PDL ${_pdl}`
+                                : `Profil théorique (${_ac.profil_label || _ac.profil_type || ''}) — à confirmer avec courbes PDL réelles (mandat requis)`
                         };
                     })()
                 ].filter(Boolean);

@@ -2799,6 +2799,18 @@ def register_crm_routes(app):
                     (json.dumps(_dj), prospect_id)
                 )
                 print(f"[AUTOCONSO] Résultats sauvegardés en BDD (prospect {prospect_id})")
+                # Marquer l'étape "Étude d'autoconsommation" (ordre 5) comme terminée
+                _proj = execute_query(
+                    'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                    (prospect_id,), fetch_one=True
+                )
+                if _proj:
+                    execute_query('''
+                        UPDATE project_etapes
+                        SET statut = 'termine', date_fin_reelle = CURRENT_DATE
+                        WHERE project_id = %s AND ordre = 5 AND statut != 'termine'
+                    ''', (_proj['id'],))
+                    print(f"[AUTOCONSO] ✅ Étape 5 (Étude autoconsommation) marquée terminée (projet {_proj['id']})")
             except Exception as _save_err:
                 print(f"[AUTOCONSO] Warn: impossible de sauvegarder résultats BDD: {_save_err}")
 
@@ -4012,7 +4024,7 @@ out geom tags;"""
             if not calpinage or not calpinage.get('zones'):
                 return "Aucun calpinage trouvé pour ce prospect", 400
             
-            # Marquer l'étape "Étude d'autoconsommation" (ordre 4) comme terminée si un projet existe
+            # Marquer l'étape "Étude d'autoconsommation" (ordre 5) comme terminée si un projet existe
             project = execute_query(
                 'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
                 (prospect_id,),
@@ -4024,10 +4036,10 @@ out geom tags;"""
                     SET statut = 'termine', 
                         date_fin_reelle = CURRENT_DATE
                     WHERE project_id = %s 
-                    AND ordre = 4
+                    AND ordre = 5
                     AND statut != 'termine'
                 ''', (project['id'],))
-                print(f"✅ [ETAPE UPDATE] Étape 4 (Étude d'autoconsommation) marquée comme terminée pour projet {project['id']}")
+                print(f"✅ [ETAPE UPDATE] Étape 5 (Étude d'autoconsommation) marquée comme terminée pour projet {project['id']}")
             
             # Créer le PDF
             buffer = BytesIO()
