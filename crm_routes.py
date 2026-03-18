@@ -4635,10 +4635,14 @@ out geom tags;"""
                 if val:
                     calpinage[_ss_key] = val
             # Debug : état des screenshots au moment de la génération
-            _ss_map = calpinage.get('screenshot_map', '')
-            _ss_3d  = calpinage.get('screenshot_3d', '')
-            print(f"📸 screenshot_map: {'OK '+str(len(str(_ss_map)))+' chars' if _ss_map else 'ABSENT'}")
-            print(f"📸 screenshot_3d:  {'OK '+str(len(str(_ss_3d)))+' chars' if _ss_3d else 'ABSENT'}")
+            _ss_map   = calpinage.get('screenshot_map', '')
+            _ss_masse = calpinage.get('screenshot_plan_masse', '')
+            _ss_3d    = calpinage.get('screenshot_3d', '')
+            print(f"📸 screenshot_map:        {'OK '+str(len(str(_ss_map)))+' chars' if _ss_map else 'ABSENT'}")
+            print(f"📸 screenshot_plan_masse: {'OK '+str(len(str(_ss_masse)))+' chars' if _ss_masse else 'ABSENT'}")
+            print(f"📸 screenshot_3d:         {'OK '+str(len(str(_ss_3d)))+' chars' if _ss_3d else 'ABSENT'}")
+            # Synchroniser data_json avec le calpinage enrichi (screenshots inclus)
+            data_json['calpinage'] = calpinage
             # Toujours passer data_json complet au prospect pour que self.data_json soit peuplé
             prospect['data_json'] = data_json
             

@@ -7014,19 +7014,18 @@
             // Masquer les contrôles Leaflet
             const controls = document.querySelectorAll('.leaflet-control');
             controls.forEach(ctrl => ctrl.style.display = 'none');
-            
-            // 🔥 FIX DÉCALAGE : scroller en haut AVANT la capture.
-            // Les calques SVG Leaflet (modules) sont positionnés par CSS transforms
-            // calculés depuis l'origine de la page. Si la page est scrollée,
-            // html2canvas capture les tiles au bon endroit mais les SVG sont décalés.
-            // Solution : scroll top=0, forcer Leaflet à recalculer, puis restaurer.
-            const prevScrollX = window.scrollX;
-            const prevScrollY = window.scrollY;
-            window.scrollTo(0, 0);
-            // Forcer Leaflet à recalculer les positions des calques SVG/Canvas
-            map.invalidateSize(false);
-            // Attendre le rendu complet (tiles + SVG recalculés)
-            await new Promise(resolve => setTimeout(resolve, 600));
+
+            // ── FIX DÉCALAGE MODULES (cause racine) ────────────────────────────
+            // Leaflet accumule un offset pixel interne dans mapPane pour la
+            // navigation fluide (ex: translate3d(-1234px, -567px, 0px)).
+            // html2canvas ne le compense pas → tiles OK mais SVG modules décalés.
+            // Solution : neutraliser cet offset à (0,0) avant capture, puis restaurer.
+            const mapPane = map.getPanes().mapPane;
+            const savedPos = L.DomUtil.getPosition(mapPane);
+            L.DomUtil.setPosition(mapPane, { x: 0, y: 0 });
+
+            // Attendre le rendu complet après reset de l'offset
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             try {
                 const canvas = await html2canvas(mapContainer, {
@@ -7039,9 +7038,9 @@
                     scale: 1
                 });
                 
-                // Restaurer les contrôles et la position de scroll
+                // Restaurer l'offset Leaflet et les contrôles
+                L.DomUtil.setPosition(mapPane, savedPos);
                 controls.forEach(ctrl => ctrl.style.display = '');
-                window.scrollTo(prevScrollX, prevScrollY);
                 
                 const screenshot = canvas.toDataURL('image/png');
                 console.log('✅ Screenshot:', canvas.width + 'x' + canvas.height + 'px');
@@ -7066,8 +7065,8 @@
                     }
                 };
             } catch (err) {
+                L.DomUtil.setPosition(mapPane, savedPos);
                 controls.forEach(ctrl => ctrl.style.display = '');
-                window.scrollTo(prevScrollX, prevScrollY);
                 console.error('❌ Erreur capture:', err);
                 throw err;
             }
@@ -7580,16 +7579,17 @@
                             zoom: map.getZoom(),
                             size: { width: mapSize.x, height: mapSize.y }
                         };
-                        // Scroll top + invalidateSize pour éviter le décalage modules
-                        const prevSX = window.scrollX, prevSY = window.scrollY;
-                        window.scrollTo(0, 0);
-                        map.invalidateSize(false);
-                        await new Promise(r => setTimeout(r, 600));
+                        // Neutraliser l'offset interne Leaflet avant capture
+                        const _massMapPane = map.getPanes().mapPane;
+                        const _massSavedPos = L.DomUtil.getPosition(_massMapPane);
+                        L.DomUtil.setPosition(_massMapPane, { x: 0, y: 0 });
+                        await new Promise(r => setTimeout(r, 300));
                         const canvas = await html2canvas(mapContainer, {
                             useCORS: true, allowTaint: true,
                             backgroundColor: '#ffffff',
                             scrollX: 0, scrollY: 0, logging: false, scale: 1
                         });
+                        L.DomUtil.setPosition(_massMapPane, _massSavedPos);
                         window.scrollTo(prevSX, prevSY);
                         // Clé dédiée plan de masse — ne pas écraser screenshot_map (calpinage)
                         calData.screenshot_plan_masse = canvas.toDataURL('image/png');
