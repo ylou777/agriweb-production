@@ -220,6 +220,14 @@ class PropositionProfessionnelle:
             self.page_number += 1
             self._draw_plan_masse(c)
 
+        # Page 4c2 : Visuels 3D + irradiation (si disponibles)
+        _s3d   = self.data_json.get('calpinage', {}).get('screenshot_3d', '')
+        _sirr  = self.data_json.get('calpinage', {}).get('screenshot_irradiation', '')
+        if _s3d or _sirr:
+            c.showPage()
+            self.page_number += 1
+            self._draw_visuels_calpinage(c)
+
         # Page 4d : Plan de calpinage (si screenshot disponible)
         if _screenshot:
             c.showPage()
@@ -2391,6 +2399,97 @@ class PropositionProfessionnelle:
         self._draw_page_footer(c)
 
     # ── Plan de calpinage ─────────────────────────────────────────────────────
+
+    def _draw_visuels_calpinage(self, c):
+        """Page Visuels ambiance : vue 3D WebGL + calque irradiation solaire."""
+        y = self._draw_page_header(c, "VISUELS DE L'INSTALLATION")
+
+        calpinage   = self.data_json.get('calpinage', {})
+        s3d         = calpinage.get('screenshot_3d', '')
+        sirr        = calpinage.get('screenshot_irradiation', '')
+        img3d       = self._decode_base64_image(s3d)  if s3d  else None
+        img_irr     = self._decode_base64_image(sirr) if sirr else None
+
+        has_both = img3d and img_irr
+
+        # ─ Sous-titre intro ─────────────────────────────────────────────────
+        c.setFont("Helvetica", 9)
+        c.setFillColor(colors.HexColor('#64748b'))
+        c.drawString(1.5 * cm, y,
+                     "Modélisation 3D de l'installation et analyse de l'irradiation solaire reçue par les modules.")
+        y -= 0.8 * cm
+
+        img_h = 10.5 * cm if has_both else 14 * cm
+        box_w = (self.width - 3.5 * cm) / 2 if has_both else (self.width - 3 * cm)
+
+        def _draw_img_box(img, bx, by, bw, bh, title, legend):
+            # Cadre titre
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.roundRect(bx, by + 0.1 * cm, bw, 0.7 * cm, 4, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(bx + 0.3 * cm, by + 0.35 * cm, title)
+            by -= bh + 0.25 * cm
+            if img:
+                c.drawImage(img, bx, by, width=bw, height=bh,
+                            preserveAspectRatio=False, mask='auto')
+            else:
+                c.setFillColor(self.COLOR_LIGHT_BG)
+                c.rect(bx, by, bw, bh, fill=1, stroke=1)
+                c.setFillColor(colors.HexColor('#AAAAAA'))
+                c.setFont("Helvetica-Oblique", 9)
+                c.drawCentredString(bx + bw / 2, by + bh / 2, "Visuel non disponible")
+                c.setFont("Helvetica-Oblique", 7.5)
+                c.drawCentredString(bx + bw / 2, by + bh / 2 - 0.55 * cm,
+                                    "Activez la vue puis sauvegardez le calpinage")
+            # Légende sous l'image
+            c.setFont("Helvetica-Oblique", 7)
+            c.setFillColor(colors.HexColor('#888888'))
+            c.drawCentredString(bx + bw / 2, by - 0.3 * cm, legend)
+
+        if has_both:
+            _draw_img_box(img3d,  1.5 * cm,           y, box_w, img_h,
+                          "🏠  VUE 3D — MODÉLISATION WEBGL",
+                          "Rendu 3D temps réel — terrain LiDAR IGN + modules inclinés")
+            _draw_img_box(img_irr, 1.5 * cm + box_w + 0.5 * cm, y, box_w, img_h,
+                          "☀️  IRRADIATION SOLAIRE — ANALYSE SITE",
+                          "Flux solaire reçu (kWh/m²/an) — source Google Solar / PVGIS")
+        elif img3d:
+            _draw_img_box(img3d,  1.5 * cm, y, box_w, img_h,
+                          "🏠  VUE 3D — MODÉLISATION WEBGL",
+                          "Rendu 3D temps réel — terrain LiDAR IGN + modules inclinés")
+        else:
+            _draw_img_box(img_irr, 1.5 * cm, y, box_w, img_h,
+                          "☀️  IRRADIATION SOLAIRE — ANALYSE SITE",
+                          "Flux solaire reçu (kWh/m²/an) — source Google Solar / PVGIS")
+
+        y -= img_h + 1.5 * cm
+
+        # ─ Bloc interprétatif technologique ─────────────────────────────────
+        c.setFillColor(self.COLOR_HEADER_BG)
+        c.roundRect(1.5 * cm, y - 3.2 * cm, self.width - 3 * cm, 3.2 * cm, 6, fill=1, stroke=0)
+        c.setFillColor(self.COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(2 * cm, y - 0.4 * cm, "ANALYSE ET MÉTHODOLOGIE")
+
+        items = [
+            ("Modélisation 3D",   "Reconstruction à partir du MNT LiDAR IGN 1 m/px — pentes et orientations des pans réels."),
+            ("Irradiation fine",  "Cartographie pixel par pixel du flux solaire reçu selon l'ombrage et l'orientation."),
+            ("Précision du calcul", f"Production simulée zone par zone — PVGIS 8760h/an à {self.prospect.get('commune', 'ce site')}."),
+        ]
+        ky = y - 1.0 * cm
+        for titre, texte in items:
+            c.setFillColor(self.COLOR_SECONDARY)
+            c.circle(2.2 * cm, ky + 0.05 * cm, 0.18 * cm, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_PRIMARY)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(2.5 * cm, ky, titre + " :")
+            c.setFillColor(self.COLOR_DARK)
+            c.setFont("Helvetica", 8)
+            c.drawString(2.5 * cm + 4.2 * cm, ky, texte)
+            ky -= 0.75 * cm
+
+        self._draw_page_footer(c)
 
     def _draw_plan_masse(self, c):
         """Page Plan de masse officiel : screenshot + nord, échelle, légende, cartouche."""

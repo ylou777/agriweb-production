@@ -6788,11 +6788,9 @@
         document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
             const data = prepareCalepinageData();
             
-            // Capturer screenshot avec la fonction centralisée
+            // ── 1. Screenshot vue 2D Leaflet (satellite + modules) ───────────────
             console.log('📸 Capture screenshot de la carte...');
             const captureData = await captureMapScreenshot();
-            
-            // 🔥 NOUVEAU: Sauvegarder le screenshot ET les métadonnées de la carte
             if (typeof captureData === 'object' && captureData.screenshot) {
                 data.screenshot_map = captureData.screenshot;
                 data.map_metadata = {
@@ -6801,10 +6799,37 @@
                     zoom: captureData.zoom,
                     dimensions: captureData.dimensions
                 };
-                console.log('📍 Métadonnées carte sauvegardées:', data.map_metadata);
             } else {
-                // Ancien format (rétrocompatibilité)
                 data.screenshot_map = captureData;
+            }
+
+            // ── 2. Screenshot vue 3D WebGL (si active) ───────────────────────────
+            if (viewer3D && viewer3D.isActive) {
+                const s3d = viewer3D.getScreenshot();
+                if (s3d) {
+                    data.screenshot_3d = s3d;
+                    console.log('📸 Screenshot 3D capturé:', s3d.length, 'caractères');
+                }
+            }
+
+            // ── 3. Screenshot calque irradiation (si actif) ──────────────────────
+            if (_fluxCanvas && _fluxActive) {
+                try {
+                    // Rendre la scène Leaflet + calque irradiation via html2canvas
+                    const mapEl = document.getElementById('map');
+                    if (mapEl && typeof html2canvas !== 'undefined') {
+                        const cnv = await html2canvas(mapEl, { useCORS: true, allowTaint: true, scale: 1 });
+                        data.screenshot_irradiation = cnv.toDataURL('image/jpeg', 0.90);
+                        console.log('📸 Screenshot irradiation capturé');
+                    } else {
+                        // Fallback : exporter le canvas flux seul
+                        data.screenshot_irradiation = _fluxCanvas.toDataURL('image/png');
+                        data.screenshot_irradiation_bbox = _fluxBbox;
+                        console.log('📸 Screenshot irradiation (flux canvas) capturé');
+                    }
+                } catch(e) {
+                    console.warn('⚠️ Capture irradiation échouée:', e);
+                }
             }
             
             console.log('Données à sauvegarder:', data);

@@ -97,7 +97,7 @@ class Calpinage3DViewer {
         this.camera.lookAt(0, 0, 0);
         
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
@@ -7173,6 +7173,18 @@ class Calpinage3DViewer {
                 this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
             }
             this.renderer = null;
+        }
+    }
+
+    /** Retourne un dataURL PNG de la vue 3D courante (null si renderer indisponible) */
+    getScreenshot() {
+        if (!this.renderer || !this.scene || !this.camera) return null;
+        try {
+            this.renderer.render(this.scene, this.camera);
+            return this.renderer.domElement.toDataURL('image/jpeg', 0.92);
+        } catch(e) {
+            console.warn('[3D] getScreenshot error:', e);
+            return null;
         }
         
         this.scene = null;
