@@ -228,22 +228,28 @@ class PropositionProfessionnelle:
                 or self.prospect.get('lat') or self.prospect.get('latitude'))
         _lon = (self.data_json.get('rapport', {}).get('lon')
                 or self.prospect.get('lon') or self.prospect.get('longitude'))
-        _screenshot = self.data_json.get('calpinage', {}).get('screenshot_map', '')
+        # helper : premier screenshot non-vide entre data_json et self.calpinage
+        def _ss(key):
+            return (self.data_json.get('calpinage', {}).get(key, '')
+                    or self.calpinage.get(key, ''))
+
+        _screenshot       = _ss('screenshot_map')
+        _screenshot_masse = _ss('screenshot_plan_masse') or _screenshot
+        _s3d  = _ss('screenshot_3d')
+        _sirr = _ss('screenshot_irradiation')
+
         if _lat and _lon:
             c.showPage()
             self.page_number += 1
             self._draw_plan_situation(c)
 
         # Page 4c : Plan de masse (si screenshot plan masse ou calpinage disponible)
-        _screenshot_masse = self.data_json.get('calpinage', {}).get('screenshot_plan_masse', '') or _screenshot
         if _screenshot_masse:
             c.showPage()
             self.page_number += 1
             self._draw_plan_masse(c)
 
         # Page 4c2 : Visuels 3D + irradiation (si disponibles)
-        _s3d   = self.data_json.get('calpinage', {}).get('screenshot_3d', '')
-        _sirr  = self.data_json.get('calpinage', {}).get('screenshot_irradiation', '')
         if _s3d or _sirr:
             c.showPage()
             self.page_number += 1
@@ -2588,7 +2594,11 @@ class PropositionProfessionnelle:
 
         calpinage = self.data_json.get('calpinage', {})
         # Priorité : screenshot_plan_masse (vue cadastrale dédiée) > screenshot_map (vue calpinage)
-        screenshot = calpinage.get('screenshot_plan_masse', '') or calpinage.get('screenshot_map', '')
+        # Chercher dans data_json ET self.calpinage (direct pass from route)
+        screenshot = (calpinage.get('screenshot_plan_masse', '')
+                      or self.calpinage.get('screenshot_plan_masse', '')
+                      or calpinage.get('screenshot_map', '')
+                      or self.calpinage.get('screenshot_map', ''))
         zones = calpinage.get('zones', self.calpinage.get('zones', []))
 
         # ─ Infos propriétaire / adresse ──────────────────────────────────────
@@ -2724,7 +2734,9 @@ class PropositionProfessionnelle:
         y = self._draw_page_header(c, "PLAN DE CALPINAGE")
 
         calpinage  = self.data_json.get('calpinage', {})
-        screenshot = calpinage.get('screenshot_map', '')
+        # Chercher screenshot dans data_json ET self.calpinage (direct pass from route)
+        screenshot = (calpinage.get('screenshot_map', '')
+                      or self.calpinage.get('screenshot_map', ''))
         totaux     = calpinage.get('totaux', self.calpinage.get('totaux', {}))
         zones      = calpinage.get('zones', self.calpinage.get('zones', []))
 
