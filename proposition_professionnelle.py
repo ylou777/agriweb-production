@@ -1963,6 +1963,11 @@ class PropositionProfessionnelle:
         try:
             if not b64_str:
                 return None
+            # Si screenshot_map est stocké comme objet {screenshot, bounds, ...}
+            if isinstance(b64_str, dict):
+                b64_str = b64_str.get('screenshot', '')
+            if not b64_str or not isinstance(b64_str, str):
+                return None
             if ',' in b64_str:
                 b64_str = b64_str.split(',', 1)[1]
             img_bytes = base64.b64decode(b64_str)
@@ -2562,7 +2567,7 @@ class PropositionProfessionnelle:
             c.setFillColor(colors.HexColor('#AAAAAA'))
             c.setFont("Helvetica-Oblique", 10)
             c.drawCentredString(self.width / 2, y - max_img_h / 2,
-                                "Veuillez sauvegarder le calepinage pour générer le plan de masse")
+                                "Veuillez sauvegarder le calpinage pour générer le plan de masse")
             actual_h = max_img_h
 
         y -= actual_h + 0.5 * cm

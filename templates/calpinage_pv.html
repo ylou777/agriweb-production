@@ -6953,6 +6953,19 @@
                 }
             };
             
+            // Capturer le screenshot pour que le PDF ait la vue satellite
+            try {
+                const _etudeCapture = await captureMapScreenshot();
+                if (typeof _etudeCapture === 'object' && _etudeCapture.screenshot) {
+                    data.screenshot_map = _etudeCapture.screenshot;
+                    data.map_metadata = { bounds: _etudeCapture.bounds, center: _etudeCapture.center, zoom: _etudeCapture.zoom, dimensions: _etudeCapture.dimensions };
+                } else {
+                    data.screenshot_map = _etudeCapture;
+                }
+            } catch(e) {
+                console.warn('⚠️ Capture screenshot impossible (étude):', e);
+            }
+            
             try {
                 const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
                     method: 'POST',
@@ -7413,7 +7426,13 @@
                 
                 // Capturer le screenshot
                 console.log('📸 Capture screenshot...');
-                calp.screenshot_map = await captureMapScreenshot();
+                const _calpCapture = await captureMapScreenshot();
+                if (typeof _calpCapture === 'object' && _calpCapture.screenshot) {
+                    calp.screenshot_map = _calpCapture.screenshot;
+                    calp.map_metadata = { bounds: _calpCapture.bounds, center: _calpCapture.center, zoom: _calpCapture.zoom, dimensions: _calpCapture.dimensions };
+                } else {
+                    calp.screenshot_map = _calpCapture;
+                }
                 
                 try {
                     console.log(`📡 Sauvegarde calpinage pour prospect ${prospectId}...`);
@@ -7481,7 +7500,13 @@
                 
                 // Capturer le screenshot
                 console.log('📸 Capture screenshot...');
-                calData.screenshot_map = await captureMapScreenshot();
+                const _stringsCapture = await captureMapScreenshot();
+                if (typeof _stringsCapture === 'object' && _stringsCapture.screenshot) {
+                    calData.screenshot_map = _stringsCapture.screenshot;
+                    calData.map_metadata = { bounds: _stringsCapture.bounds, center: _stringsCapture.center, zoom: _stringsCapture.zoom, dimensions: _stringsCapture.dimensions };
+                } else {
+                    calData.screenshot_map = _stringsCapture;
+                }
                 
                 try {
                     // Sauvegarder d'abord le calpinage

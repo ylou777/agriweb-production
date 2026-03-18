@@ -3172,6 +3172,12 @@ def register_crm_routes(app):
                 current_data = {}
             
             # Ajouter les données de calpinage
+            # Préserver les champs volumétriques existants (screenshots) si non fournis dans ce save
+            old_calp = current_data.get('calpinage', {}) if isinstance(current_data, dict) else {}
+            for preserve_key in ('screenshot_map', 'screenshot_3d', 'screenshot_irradiation',
+                                 'screenshot_irradiation_bbox', 'map_metadata'):
+                if not data.get(preserve_key) and old_calp.get(preserve_key):
+                    data[preserve_key] = old_calp[preserve_key]
             current_data['calpinage'] = data
             current_data['calpinage']['date_maj'] = datetime.now().isoformat()
             
