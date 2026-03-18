@@ -7005,7 +7005,7 @@
             }
         });
         
-        // 📸 CAPTURE SCREENSHOT avec html2canvas - VERSION SIMPLIFIÉE
+        // 📸 CAPTURE SCREENSHOT avec html2canvas
         async function captureMapScreenshot() {
             console.log('📸 Capture screenshot carte...');
             
@@ -7015,26 +7015,33 @@
             const controls = document.querySelectorAll('.leaflet-control');
             controls.forEach(ctrl => ctrl.style.display = 'none');
             
-            // Attendre le rendu complet (tiles + SVG)
-            await new Promise(resolve => setTimeout(resolve, 400));
+            // 🔥 FIX DÉCALAGE : scroller en haut AVANT la capture.
+            // Les calques SVG Leaflet (modules) sont positionnés par CSS transforms
+            // calculés depuis l'origine de la page. Si la page est scrollée,
+            // html2canvas capture les tiles au bon endroit mais les SVG sont décalés.
+            // Solution : scroll top=0, forcer Leaflet à recalculer, puis restaurer.
+            const prevScrollX = window.scrollX;
+            const prevScrollY = window.scrollY;
+            window.scrollTo(0, 0);
+            // Forcer Leaflet à recalculer les positions des calques SVG/Canvas
+            map.invalidateSize(false);
+            // Attendre le rendu complet (tiles + SVG recalculés)
+            await new Promise(resolve => setTimeout(resolve, 600));
             
             try {
-                // 🔥 FIX DÉCALAGE MODULES : compenser le scroll de la page et fixer
-                // les dimensions à celles du conteneur carte pour que Leaflet
-                // SVG/Canvas soit capturé depuis la bonne origine.
                 const canvas = await html2canvas(mapContainer, {
                     useCORS: true,
                     allowTaint: true,
                     backgroundColor: '#1a1a2e',
                     scrollX: 0,
-                    scrollY: -window.scrollY,   // Compenser le scroll page
-                    windowWidth: mapContainer.offsetWidth,
-                    windowHeight: mapContainer.offsetHeight,
+                    scrollY: 0,
+                    logging: false,
                     scale: 1
                 });
                 
-                // Restaurer les contrôles
+                // Restaurer les contrôles et la position de scroll
                 controls.forEach(ctrl => ctrl.style.display = '');
+                window.scrollTo(prevScrollX, prevScrollY);
                 
                 const screenshot = canvas.toDataURL('image/png');
                 console.log('✅ Screenshot:', canvas.width + 'x' + canvas.height + 'px');
@@ -7060,6 +7067,7 @@
                 };
             } catch (err) {
                 controls.forEach(ctrl => ctrl.style.display = '');
+                window.scrollTo(prevScrollX, prevScrollY);
                 console.error('❌ Erreur capture:', err);
                 throw err;
             }
