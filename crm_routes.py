@@ -4144,6 +4144,7 @@ out geom tags;"""
         """
         try:
             from proposition_professionnelle import PropositionProfessionnelle
+            from autoconsommation import get_tarif_revente_s21
             from io import BytesIO
             
             # Récupérer les données de la requête
@@ -4243,7 +4244,8 @@ out geom tags;"""
                     or eco_saved.get('tarif_achat'), 0.20),
                 'tarif_revente_kwh': safe_float(
                     data.get('tarif_revente_kwh')
-                    or eco_saved.get('tarif_revente'), 0.13),
+                    or eco_saved.get('tarif_revente')
+                    or get_tarif_revente_s21(puissance_finale), 0.0536),
                 # taux_autoconsommation est déjà en % (ex: 75.0) - pas de * 100
                 'taux_autoconso': safe_float(
                     data.get('taux_autoconso')

@@ -133,6 +133,34 @@ TARIFF_STRUCTURES = {
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# TARIFS S21 – Arrêté du 6 oct. 2021, mod. 26 mars 2025
+# Tarification du surplus injecté (autoconsommation avec injection du surplus)
+# Tranche 1 : P_totale ≤ 9 kWc  →  4,00 c€/kWh
+# Tranche 2 : 9 < P_totale ≤ 100 kWc  →  5,36 c€/kWh
+# (P = puissance crête modules + Q = puissance onduleur, ici approximé sur P seule)
+# Mise à jour trimestrielle – ces valeurs sont valides pour T1 2026
+# ──────────────────────────────────────────────────────────────────────────────
+
+TARIFS_S21_SURPLUS = [
+    (9.0,   0.0400),   # ≤ 9 kWc  → 4,00 c€/kWh
+    (100.0, 0.0536),   # ≤ 100 kWc → 5,36 c€/kWh
+]
+
+
+def get_tarif_revente_s21(puissance_kwc: float) -> float:
+    """
+    Retourne le tarif d'achat du surplus S21 (€/kWh) selon la puissance totale.
+    Source : Arrêté S21 modifié le 26/03/2025, valeurs T1 2026.
+    """
+    for seuil, tarif in TARIFS_S21_SURPLUS:
+        if puissance_kwc <= seuil:
+            return tarif
+    # Au-delà de 100 kWc : pas d'obligation d'achat standard – on renvoie le
+    # tarif 9-100 kWc comme approximation conservative.
+    return TARIFS_S21_SURPLUS[-1][1]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # GÉNÉRATION DU PLANNING TEMPO : attribution des couleurs aux 365 jours
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -723,7 +751,7 @@ def compute_autoconsommation(
 def compute_economics(
     kpis: dict,
     tarif_achat_kwh: float = 0.2516,    # utilisé uniquement si tariff_type='BASE' ou non fourni
-    prix_revente_kwh: float = 0.1276,   # Tarif OA EDF achat surplus ≤36 kVA (€/kWh, 2024)
+    prix_revente_kwh: float = 0.0536,   # Tarif S21 surplus 9-100 kWc (€/kWh, T1 2026) – à calculer via get_tarif_revente_s21()
     degradation_annuelle_pct: float = 0.5,
     duree_contrat_ans: int = 20,
     tariff_type: str = 'BASE',
