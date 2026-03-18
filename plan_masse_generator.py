@@ -334,8 +334,11 @@ class PlanMasseGenerator:
         
         if lat and lon:
             # PRIORITE 1: Utiliser le screenshot Leaflet comme fond de carte
-            # → mêmes tiles ESRI que le calpinage → pas de décalage possible
-            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
+            # Priorité : screenshot_plan_masse (vue cadastrale dédiée) > screenshot_map (calpinage)
+            screenshot_data = None
+            if self.calpinage:
+                screenshot_data = (self.calpinage.get('screenshot_plan_masse') or
+                                   self.calpinage.get('screenshot_map'))
 
             if screenshot_data:
                 try:
