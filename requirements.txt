@@ -42,6 +42,9 @@ openpyxl==3.1.2
 # LiDAR HD COPC streaming (nuages de points IGN bruts, HTTP range requests)
 laspy[lazrs]>=2.5.0
 
+# Export CAO/DXF (calpinage PV → AutoCAD / LibreCAD)
+ezdxf>=1.3.0
+
 # Utilities
 requests==2.31.0
 python-dotenv==1.0.0

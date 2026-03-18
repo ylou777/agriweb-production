@@ -1589,6 +1589,9 @@
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
                         <i class="bi bi-save"></i> Sauvegarder le calpinage
                     </button>
+                    <button class="btn btn-outline-success" id="exporterDXF" title="Exporter le calpinage en fichier DXF (AutoCAD / LibreCAD)">
+                        <i class="bi bi-filetype-svg"></i> Exporter DXF
+                    </button>
                     <!-- ⚡ Autoconsommation -->
                     <button class="btn fw-semibold" id="btnAutoconsommation" onclick="ouvrirPanneauAutoconso()"
                         style="background:#f59e0b;color:#1a1a1a;border:none;box-shadow:0 0 8px rgba(245,158,11,0.5);">
@@ -6824,6 +6827,34 @@
             }
         });
 
+        // Exporter DXF
+        document.getElementById('exporterDXF').addEventListener('click', async function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Génération...';
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage/export-dxf`);
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    alert('❌ ' + (err.error || 'Erreur lors de la génération du DXF'));
+                    return;
+                }
+                // Déclencher le téléchargement
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `calpinage_pv_${prospectId}.dxf`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('❌ Erreur réseau : ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-filetype-svg"></i> Exporter DXF';
+            }
+        });
+
         // Toggle légende
         document.getElementById('toggleLegende').addEventListener('click', function() {
             showLegende = !showLegende;
@@ -7264,6 +7295,31 @@
                         };
                     }
                     return null;
+                })(),
+                // Empreinte du bâtiment PV principal ([[lon, lat], ...] format GeoJSON)
+                building_coords: (typeof viewer3D !== 'undefined' && viewer3D && viewer3D.pvBuildingCoords)
+                    ? viewer3D.pvBuildingCoords
+                    : [],
+                // Parcelles cadastrales (si chargées sur la carte)
+                parcelle_polygons: (function() {
+                    const polys = [];
+                    try {
+                        if (typeof parcellesLayer !== 'undefined' && parcellesLayer) {
+                            parcellesLayer.eachLayer(geoJsonGroup => {
+                                try {
+                                    geoJsonGroup.eachLayer(layer => {
+                                        if (layer.getLatLngs) {
+                                            const latlngs = layer.getLatLngs();
+                                            const outer = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+                                            if (outer.length >= 3)
+                                                polys.push(outer.map(ll => ({lat: ll.lat, lng: ll.lng})));
+                                        }
+                                    });
+                                } catch(e) {}
+                            });
+                        }
+                    } catch(e) {}
+                    return polys;
                 })()
             };
         }

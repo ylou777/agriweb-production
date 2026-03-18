@@ -3303,6 +3303,197 @@ def register_crm_routes(app):
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/crm/prospects/<int:prospect_id>/calpinage/export-dxf')
+    def export_calpinage_dxf(prospect_id):
+        """Exporter le calpinage PV en format DXF (AutoCAD / LibreCAD / BricsCAD)"""
+        try:
+            import ezdxf
+            from pyproj import Transformer
+
+            row = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True
+            )
+            if not row:
+                return jsonify({'error': 'Prospect non trouve'}), 404
+
+            prospect = dict(row)
+            try:
+                data_json = json.loads(prospect['data_json']) if prospect['data_json'] else {}
+            except Exception:
+                data_json = {}
+
+            calpinage = data_json.get('calpinage', {})
+            zones = calpinage.get('zones', [])
+            if not zones:
+                return jsonify({'error': 'Aucun calpinage sauvegarde. Veuillez d\'abord sauvegarder le calpinage.'}), 400
+
+            # Transformer GPS (EPSG:4326) -> Lambert 93 (EPSG:2154) - coordonnees metriques France
+            transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+
+            def gps_to_m(lat, lng):
+                x, y = transformer.transform(lng, lat)
+                return x, y
+
+            # Centroide de toutes les zones => origine locale (coordonnees relatives en metres)
+            all_pts = []
+            for zone in zones:
+                for c in zone.get('coordinates', []):
+                    all_pts.append(gps_to_m(c['lat'], c['lng']))
+
+            if not all_pts:
+                return jsonify({'error': 'Aucune coordonnee trouvee dans le calpinage.'}), 400
+
+            origin_x = sum(p[0] for p in all_pts) / len(all_pts)
+            origin_y = sum(p[1] for p in all_pts) / len(all_pts)
+
+            def to_local(lat, lng):
+                x, y = gps_to_m(lat, lng)
+                return (x - origin_x, y - origin_y)
+
+            # --- Document DXF ---
+            doc = ezdxf.new(dxfversion='R2010')
+            msp = doc.modelspace()
+
+            doc.layers.add('ZONES_PV',          color=3)   # vert
+            doc.layers.add('MODULES_PV',          color=5)   # bleu
+            doc.layers.add('ANNOTATIONS',         color=1)   # rouge
+            doc.layers.add('INFOS_PROJET',        color=7)   # blanc
+            doc.layers.add('BATIMENT_PRINCIPAL',  color=2)   # jaune
+            doc.layers.add('PARCELLES',           color=6)   # magenta
+            doc.layers.add('ENV_BATIMENTS',       color=8)   # gris
+
+            totaux = calpinage.get('totaux', {})
+            nom = (prospect.get('nom') or prospect.get('adresse') or f"Prospect {prospect_id}").strip()
+            commune = prospect.get('commune', '') or ''
+            puissance_totale = float(totaux.get('puissanceTotale') or sum(z.get('puissanceKw', 0) for z in zones))
+            nb_modules_total = int(totaux.get('nombreModules') or sum(z.get('nbModules', 0) for z in zones))
+
+            # En-tete projet (positionne sous l'origine)
+            msp.add_text(
+                f"HeliaPV - Calpinage PV - {nom}",
+                dxfattribs={'layer': 'INFOS_PROJET', 'height': 0.5, 'insert': (0, -3)}
+            )
+            if commune:
+                msp.add_text(
+                    commune,
+                    dxfattribs={'layer': 'INFOS_PROJET', 'height': 0.3, 'insert': (0, -3.8)}
+                )
+            msp.add_text(
+                f"Puissance crete : {puissance_totale:.2f} kWc  |  {nb_modules_total} modules",
+                dxfattribs={'layer': 'INFOS_PROJET', 'height': 0.3, 'insert': (0, -4.6)}
+            )
+
+            for zone in zones:
+                num = zone.get('numero', '?')
+                coords = zone.get('coordinates', [])
+                modules_pos = zone.get('modulesPositions', [])
+                orientation = zone.get('orientation', 0)
+                inclinaison = zone.get('inclinaison', 30)
+                nb_mod = zone.get('nbModules', 0)
+                puissance_kw = float(zone.get('puissanceKw', 0))
+
+                # Contour de la zone (LWPOLYLINE fermee)
+                if len(coords) >= 3:
+                    pts_zone = [to_local(c['lat'], c['lng']) for c in coords]
+                    msp.add_lwpolyline(
+                        pts_zone,
+                        dxfattribs={'layer': 'ZONES_PV', 'closed': True}
+                    )
+
+                # Modules individuels (rectangles)
+                for mod in modules_pos:
+                    corners = mod.get('corners', [])
+                    if len(corners) >= 4:
+                        pts_mod = [to_local(c['lat'], c['lng']) for c in corners[:4]]
+                        msp.add_lwpolyline(
+                            pts_mod,
+                            dxfattribs={'layer': 'MODULES_PV', 'closed': True}
+                        )
+
+                # Annotations au centroide de la zone
+                if coords:
+                    clat = sum(c['lat'] for c in coords) / len(coords)
+                    clng = sum(c['lng'] for c in coords) / len(coords)
+                    lx, ly = to_local(clat, clng)
+                    msp.add_text(
+                        f"Zone {num}",
+                        dxfattribs={'layer': 'ANNOTATIONS', 'height': 0.4, 'insert': (lx, ly + 1.0)}
+                    )
+                    msp.add_text(
+                        f"{nb_mod} modules - {puissance_kw:.2f} kWc",
+                        dxfattribs={'layer': 'ANNOTATIONS', 'height': 0.25, 'insert': (lx, ly + 0.5)}
+                    )
+                    msp.add_text(
+                        f"Orient.: {orientation} deg  Incl.: {inclinaison} deg",
+                        dxfattribs={'layer': 'ANNOTATIONS', 'height': 0.2, 'insert': (lx, ly + 0.0)}
+                    )
+
+            # --- Bâtiment PV principal (empreinte sauvegardée par le viewer 3D) ---
+            # Format building_coords : [[lon, lat], ...] (GeoJSON)
+            building_coords = calpinage.get('building_coords', [])
+            if len(building_coords) >= 3:
+                pts_bat = [to_local(c[1], c[0]) for c in building_coords]  # [lon,lat] → to_local(lat, lng)
+                msp.add_lwpolyline(
+                    pts_bat,
+                    dxfattribs={'layer': 'BATIMENT_PRINCIPAL', 'closed': True}
+                )
+
+            # --- Parcelles cadastrales (sauvegardées depuis la couche Leaflet) ---
+            # Format parcelle_polygons : [[{lat, lng}, ...], ...]
+            for poly_pts in calpinage.get('parcelle_polygons', []):
+                if len(poly_pts) >= 3:
+                    pts_parc = [to_local(p['lat'], p['lng']) for p in poly_pts]
+                    msp.add_lwpolyline(
+                        pts_parc,
+                        dxfattribs={'layer': 'PARCELLES', 'closed': True}
+                    )
+
+            # --- Bâtiments environnants (OSM Overpass, rayon 150 m) ---
+            try:
+                import requests as _req
+                prospect_lat = float(prospect.get('latitude') or 0)
+                prospect_lon = float(prospect.get('longitude') or 0)
+                if prospect_lat and prospect_lon:
+                    overpass_q = f"""[out:json][timeout:12];
+(way["building"](around:150,{prospect_lat},{prospect_lon}););
+out geom tags;"""
+                    r_osm = _req.post(
+                        'https://overpass-api.de/api/interpreter',
+                        data=overpass_q, timeout=15
+                    )
+                    if r_osm.status_code == 200:
+                        for elem in r_osm.json().get('elements', []):
+                            geom_pts = elem.get('geometry', [])
+                            if len(geom_pts) >= 3:
+                                # GeoJSON format: lon first
+                                pts_env = [to_local(p['lat'], p['lon']) for p in geom_pts]
+                                msp.add_lwpolyline(
+                                    pts_env,
+                                    dxfattribs={'layer': 'ENV_BATIMENTS', 'closed': True}
+                                )
+            except Exception as e_osm:
+                print(f'[DXF] OSM Overpass ignoré: {e_osm}')
+
+            stream = io.BytesIO()
+            doc.write(stream)
+            stream.seek(0)
+
+            nom_fichier = f"calpinage_pv_{prospect_id}.dxf"
+            return send_file(
+                stream,
+                mimetype='application/dxf',
+                as_attachment=True,
+                download_name=nom_fichier
+            )
+
+        except ImportError:
+            return jsonify({'error': 'Module ezdxf non disponible. Contactez l\'administrateur.'}), 500
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/crm/prospects/<int:prospect_id>/irradiation-cache', methods=['POST'])
     def save_irradiation_cache(prospect_id):
         """Sauvegarder uniquement le cache irradiation Google Solar dans data_json.calpinage.
