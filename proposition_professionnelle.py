@@ -1380,6 +1380,33 @@ class PropositionProfessionnelle:
         tariff_label = self._tariff_label
         profil_label = self.autoconso_data.get('profil_label', '')
         date_calcul  = (self.autoconso_data.get('date_calcul', '') or '')[:10]
+        data_source  = self.autoconso_data.get('data_source', 'profil_type')
+        enedis_pdl   = self.autoconso_data.get('enedis_pdl', '')
+        _is_theorique = (data_source != 'enedis_dataconnect' or not enedis_pdl)
+
+        # ── Bandeau avertissement courbes théoriques ─────────────────────────────
+        if _is_theorique:
+            band_y = y - 1.6 * cm
+            band_h = 1.4 * cm
+            c.setFillColor(colors.Color(1.0, 0.97, 0.88))
+            c.roundRect(1.5 * cm, band_y, self.width - 3 * cm, band_h, 4, fill=1, stroke=0)
+            c.setStrokeColor(colors.Color(0.92, 0.60, 0.04))
+            c.setLineWidth(1)
+            c.roundRect(1.5 * cm, band_y, self.width - 3 * cm, band_h, 4, fill=0, stroke=1)
+            # Icône + titre
+            c.setFillColor(colors.Color(0.55, 0.35, 0.0))
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(2.1 * cm, band_y + 0.85 * cm,
+                         "⚠  ÉTUDE BASSÉE SUR COURBES THÉORIQUES ENEDIS (profil type « {} »)".format(profil_label))
+            c.setFont("Helvetica", 7.5)
+            c.setFillColor(colors.Color(0.40, 0.25, 0.0))
+            c.drawString(2.1 * cm, band_y + 0.28 * cm,
+                         "Les résultats devront être confirmés avec les courbes de charge réelles du client. "
+                         "Un mandat de collecte de données et le numéro de PDL (point de livraison) "
+                         "sont nécessaires pour accéder aux données Enedis.")
+            y = band_y - 0.5 * cm
+        else:
+            y -= 0.3 * cm
 
         # Mention source
         c.setFont("Helvetica-Oblique", 7)

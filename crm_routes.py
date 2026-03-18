@@ -2788,6 +2788,8 @@ def register_crm_routes(app):
                     'daily_profiles' : result['daily_profiles'],
                     'profil_type'    : profil_type,
                     'profil_label'   : PROFILE_LABELS.get(profil_type, profil_type),
+                    'data_source'    : data_source,  # 'profil_type' ou 'enedis_dataconnect'
+                    'enedis_pdl'     : enedis_pdl if data_source == 'enedis_dataconnect' else None,
                     'tariff_type'    : tariff_type,
                     'tariff_label'   : TARIFF_LABELS.get(tariff_type, tariff_type),
                     'date_calcul'    : datetime.now().isoformat(),

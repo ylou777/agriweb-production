@@ -3545,8 +3545,24 @@ Cordialement,`
                         optional: true,
                         doc: _hasAC ? 'Graphiques PVGIS inclus' : 'Non simulée (chiffres manuels)',
                         icon: 'bi-graph-up-arrow'
-                    }
-                ];
+                    },
+                    (() => {
+                        if (!_hasAC) return null;
+                        const _src    = _calp.autoconso_results?.data_source;
+                        const _pdl    = _calp.autoconso_results?.enedis_pdl;
+                        const _isReal = _src === 'enedis_dataconnect' && _pdl;
+                        return {
+                            label: _isReal ? 'Courbes Enedis réelles' : '⚠ Courbes théoriques',
+                            ok: _isReal,
+                            optional: true,
+                            doc: _isReal
+                                ? `PDL ${_pdl} — Data Connect ✓`
+                                : `Profil type (${_calp.autoconso_results?.profil_label || ''}) — à confirmer avec courbes réelles (mandat PDL requis)`,
+                            icon: _isReal ? 'bi-plug-fill' : 'bi-exclamation-triangle-fill',
+                            warn: !_isReal
+                        };
+                    })()
+                ].filter(Boolean);
 
                 const required = checks.filter(c => !c.optional);
                 const allRequired = required.every(c => c.ok);
@@ -3559,6 +3575,8 @@ Cordialement,`
                 listEl.innerHTML = checks.map(c => {
                     const [bg, icon, textCol] = c.ok
                         ? ['rgba(16,185,129,.12)', 'bi-check-circle-fill text-success', 'text-success']
+                        : c.warn
+                        ? ['rgba(251,146,60,.12)',  'bi-exclamation-triangle-fill text-warning', 'text-warning']
                         : c.optional
                         ? ['rgba(234,179,8,.10)',  'bi-dash-circle text-warning',       'text-warning']
                         : ['rgba(239,68,68,.10)',  'bi-x-circle-fill text-danger',      'text-danger'];
