@@ -854,6 +854,19 @@
                     <input type="hidden" id="proposal-prospect-id">
                     <input type="hidden" id="proposal-production-simul" value="0">
 
+                    <!-- 📋 Panneau prérequis proposition -->
+                    <div id="proposal-prereqs" class="mb-3">
+                        <div class="card border-0" style="background:rgba(255,255,255,0.04);border-radius:10px;">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="fw-semibold" style="font-size:.9rem;"><i class="bi bi-clipboard-check me-1"></i>Prérequis pour la proposition</span>
+                                    <span id="prereqs-score" class="badge bg-secondary" style="font-size:.75rem;">—</span>
+                                </div>
+                                <div id="prereqs-list" class="row g-1"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Bannière simulation disponible -->
                     <div id="autoconso-simul-banner" class="alert alert-success d-flex align-items-start py-2 mb-3" style="display:none!important">
                         <i class="bi bi-check-circle-fill me-2 mt-1"></i>
@@ -3461,6 +3474,97 @@ Cordialement,`
 
             // Mettre à jour les calculs
             updateProposalCalculation();
+
+            // 📋 Vérifier les prérequis
+            try {
+                const _dj = typeof currentProspect.data_json === 'string'
+                    ? JSON.parse(currentProspect.data_json || '{}')
+                    : (currentProspect.data_json || {});
+                const _calp = _dj?.calpinage || {};
+                const _totaux = _calp?.totaux || {};
+                const _screenshots = {
+                    map:    !!_calp.screenshot_map,
+                    masse:  !!_calp.screenshot_plan_masse,
+                    irr:    !!_calp.screenshot_irradiation,
+                    d3:     !!_calp.screenshot_3d
+                };
+                const _hasAC = !!(_calp.autoconso_results?.kpis);
+                const _hasVT = !!(_dj.visite_technique?.date || _dj.visite_technique?.notes);
+                const _hasZones = Array.isArray(_calp.zones) && _calp.zones.length > 0;
+                const _puisKwc  = parseFloat(_totaux.puissanceTotale || 0);
+
+                const checks = [
+                    {
+                        label: 'Rapport HeliaPV',
+                        ok: true,
+                        doc: 'Vue aérienne + contexte',
+                        icon: 'bi-file-earmark-bar-graph'
+                    },
+                    {
+                        label: 'Visite technique',
+                        ok: _hasVT,
+                        optional: true,
+                        doc: _hasVT ? 'Compte-rendu inclu' : 'Non réalisée',
+                        icon: 'bi-clipboard2-check'
+                    },
+                    {
+                        label: 'Calepinage',
+                        ok: _hasZones,
+                        doc: _hasZones ? `${_puisKwc.toFixed(2)} kWc — ${_calp.zones.length} zone(s)` : 'Aucun calepinage sauvegardé',
+                        icon: 'bi-grid-3x3'
+                    },
+                    {
+                        label: 'Plan de masse (screenshot)',
+                        ok: _screenshots.masse || _screenshots.map,
+                        doc: _screenshots.masse ? 'Screenshot dédié ✓'
+                           : _screenshots.map    ? 'Repli sur vue calpinage'
+                           : 'Absent de la proposition',
+                        icon: 'bi-map'
+                    },
+                    {
+                        label: 'Calpinage (screenshot)',
+                        ok: _screenshots.map,
+                        doc: _screenshots.map ? 'Screenshot avec modules ✓' : 'Absent de la proposition',
+                        icon: 'bi-image'
+                    },
+                    {
+                        label: 'Simulation autoconsommation',
+                        ok: _hasAC,
+                        optional: true,
+                        doc: _hasAC ? 'Graphiques PVGIS inclus' : 'Non simulée (chiffres manuels)',
+                        icon: 'bi-graph-up-arrow'
+                    }
+                ];
+
+                const required = checks.filter(c => !c.optional);
+                const allRequired = required.every(c => c.ok);
+                const nOk = checks.filter(c => c.ok).length;
+                const scoreEl = document.getElementById('prereqs-score');
+                scoreEl.textContent = `${nOk}/${checks.length} prêts`;
+                scoreEl.className = 'badge ' + (allRequired ? 'bg-success' : required.filter(c=>!c.ok).length > 0 ? 'bg-danger' : 'bg-warning text-dark');
+
+                const listEl = document.getElementById('prereqs-list');
+                listEl.innerHTML = checks.map(c => {
+                    const [bg, icon, textCol] = c.ok
+                        ? ['rgba(16,185,129,.12)', 'bi-check-circle-fill text-success', 'text-success']
+                        : c.optional
+                        ? ['rgba(234,179,8,.10)',  'bi-dash-circle text-warning',       'text-warning']
+                        : ['rgba(239,68,68,.10)',  'bi-x-circle-fill text-danger',      'text-danger'];
+                    return `
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start gap-2 rounded px-2 py-1" style="background:${bg};">
+                                <i class="bi ${icon} mt-1 flex-shrink-0" style="font-size:.85rem;"></i>
+                                <div style="min-width:0;">
+                                    <div class="fw-semibold" style="font-size:.8rem;">${c.label}</div>
+                                    <div class="text-muted" style="font-size:.73rem;">${c.doc}</div>
+                                </div>
+                            </div>
+                        </div>`;
+                }).join('');
+            } catch(e) {
+                console.warn('Erreur vérification prérequis:', e);
+            }
+
             proposalModal.show();
         }
 
