@@ -222,8 +222,9 @@ class PropositionProfessionnelle:
             self.page_number += 1
             self._draw_plan_situation(c)
 
-        # Page 4c : Plan de masse (si screenshot disponible)
-        if _screenshot:
+        # Page 4c : Plan de masse (si screenshot plan masse ou calpinage disponible)
+        _screenshot_masse = self.data_json.get('calpinage', {}).get('screenshot_plan_masse', '') or _screenshot
+        if _screenshot_masse:
             c.showPage()
             self.page_number += 1
             self._draw_plan_masse(c)
@@ -2517,7 +2518,8 @@ class PropositionProfessionnelle:
         y = self._draw_page_header(c, "PLAN DE MASSE - INSTALLATION PHOTOVOLTAÏQUE")
 
         calpinage = self.data_json.get('calpinage', {})
-        screenshot = calpinage.get('screenshot_map', '')
+        # Priorité : screenshot_plan_masse (vue cadastrale dédiée) > screenshot_map (vue calpinage)
+        screenshot = calpinage.get('screenshot_plan_masse', '') or calpinage.get('screenshot_map', '')
         zones = calpinage.get('zones', self.calpinage.get('zones', []))
 
         # ─ Infos propriétaire / adresse ──────────────────────────────────────

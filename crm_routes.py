@@ -3174,8 +3174,8 @@ def register_crm_routes(app):
             # Ajouter les données de calpinage
             # Préserver les champs volumétriques existants (screenshots) si non fournis dans ce save
             old_calp = current_data.get('calpinage', {}) if isinstance(current_data, dict) else {}
-            for preserve_key in ('screenshot_map', 'screenshot_3d', 'screenshot_irradiation',
-                                 'screenshot_irradiation_bbox', 'map_metadata'):
+            for preserve_key in ('screenshot_map', 'screenshot_plan_masse', 'screenshot_3d',
+                                 'screenshot_irradiation', 'screenshot_irradiation_bbox', 'map_metadata'):
                 if not data.get(preserve_key) and old_calp.get(preserve_key):
                     data[preserve_key] = old_calp[preserve_key]
             current_data['calpinage'] = data
@@ -4627,7 +4627,7 @@ out geom tags;"""
                 prospect['data_json'] = data_json
 
             # Injecter les screenshots depuis la requête (priorité) ou depuis la DB
-            for _ss_key in ('screenshot_map', 'screenshot_3d', 'screenshot_irradiation'):
+            for _ss_key in ('screenshot_map', 'screenshot_plan_masse', 'screenshot_3d', 'screenshot_irradiation'):
                 _from_req = data.get(_ss_key, '')
                 _from_db  = calpinage.get(_ss_key, '')
                 val = _from_req or _from_db

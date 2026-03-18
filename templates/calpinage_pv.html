@@ -7564,52 +7564,37 @@
                 // Préparer les données
                 const calData = prepareCalepinageData();
                 
-                // 🔥 CAPTURER LE SCREENSHOT + MÉTADONNÉES BBOX POUR ALIGNEMENT PRÉCIS
-                console.log('📸 Capture screenshot pour plan de masse...');
+                // � Capturer la vue Plan de Masse Cadastral (clé séparée screenshot_plan_masse)
+                // pour ne pas écraser le screenshot de calpinage (screenshot_map)
+                console.log('📸 Capture screenshot vue Plan de Masse Cadastral...');
                 try {
                     const mapContainer = document.getElementById('map');
                     if (typeof html2canvas !== 'undefined') {
-                        // Capturer l'état de la carte
                         const bounds = map.getBounds();
                         const mapSize = map.getSize();
-                        
                         calData.map_metadata = {
-                            bounds: {
-                                north: bounds.getNorth(),
-                                south: bounds.getSouth(),
-                                east: bounds.getEast(),
-                                west: bounds.getWest()
-                            },
-                            center: {
-                                lat: map.getCenter().lat,
-                                lng: map.getCenter().lng
-                            },
+                            bounds: { north: bounds.getNorth(), south: bounds.getSouth(), east: bounds.getEast(), west: bounds.getWest() },
+                            center: { lat: map.getCenter().lat, lng: map.getCenter().lng },
                             zoom: map.getZoom(),
-                            size: {
-                                width: mapSize.x,
-                                height: mapSize.y
-                            }
+                            size: { width: mapSize.x, height: mapSize.y }
                         };
-                        
-                        console.log('📐 Métadonnées carte:', calData.map_metadata);
-                        
-                        // 🔥 Capturer SANS scroll pour éviter décalage
+                        // Scroll top + invalidateSize pour éviter le décalage modules
+                        const prevSX = window.scrollX, prevSY = window.scrollY;
+                        window.scrollTo(0, 0);
+                        map.invalidateSize(false);
+                        await new Promise(r => setTimeout(r, 600));
                         const canvas = await html2canvas(mapContainer, {
-                            useCORS: true,
-                            allowTaint: true,
+                            useCORS: true, allowTaint: true,
                             backgroundColor: '#ffffff',
-                            scrollX: 0,
-                            scrollY: -window.scrollY,  // Compenser le scroll de la page
-                            windowWidth: mapContainer.offsetWidth,
-                            windowHeight: mapContainer.offsetHeight
+                            scrollX: 0, scrollY: 0, logging: false, scale: 1
                         });
-                        calData.screenshot_map = canvas.toDataURL('image/png');
-                        console.log('✅ Screenshot capturé (', canvas.width, 'x', canvas.height, 'px) - longueur:', calData.screenshot_map.length, 'caractères');
-                    } else {
-                        console.warn('⚠️ html2canvas non disponible');
+                        window.scrollTo(prevSX, prevSY);
+                        // Clé dédiée plan de masse — ne pas écraser screenshot_map (calpinage)
+                        calData.screenshot_plan_masse = canvas.toDataURL('image/png');
+                        console.log('✅ Screenshot plan masse capturé:', canvas.width + 'x' + canvas.height + 'px');
                     }
                 } catch (err) {
-                    console.error('❌ Erreur capture screenshot:', err);
+                    console.error('❌ Erreur capture screenshot plan masse:', err);
                 }
                 
                 try {
