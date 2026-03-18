@@ -3475,13 +3475,15 @@ out geom tags;"""
             except Exception as e_osm:
                 print(f'[DXF] OSM Overpass ignoré: {e_osm}')
 
-            stream = io.BytesIO()
-            doc.write(stream)
-            stream.seek(0)
+            # ezdxf >= 1.x : doc.write() attend un flux texte (StringIO)
+            text_stream = io.StringIO()
+            doc.write(text_stream)
+            byte_stream = io.BytesIO(text_stream.getvalue().encode('utf-8'))
+            byte_stream.seek(0)
 
             nom_fichier = f"calpinage_pv_{prospect_id}.dxf"
             return send_file(
-                stream,
+                byte_stream,
                 mimetype='application/dxf',
                 as_attachment=True,
                 download_name=nom_fichier
