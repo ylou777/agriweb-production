@@ -3769,7 +3769,27 @@ Cordialement,`
                 data.consommation_annuelle_kwh = parseFloat(document.getElementById('proposal-consommation').value);
                 data.taux_autoconso = parseFloat(document.getElementById('proposal-taux-autoconso').value);
             }
-            
+
+            // Inclure les screenshots depuis la mémoire JS (in-memory = source de vérité la plus fiable)
+            // Évite les problèmes de lecture/parsing de data_json côté serveur pour les grands prospects
+            try {
+                const _djSS = typeof currentProspect.data_json === 'string'
+                    ? JSON.parse(currentProspect.data_json || '{}')
+                    : (currentProspect.data_json || {});
+                const _calpSS = _djSS?.calpinage || {};
+                for (const ssKey of ['screenshot_map', 'screenshot_plan_masse', 'screenshot_3d', 'screenshot_irradiation']) {
+                    const val = typeof _calpSS[ssKey] === 'string' ? _calpSS[ssKey]
+                              : (typeof _calpSS[ssKey] === 'object' && _calpSS[ssKey]?.screenshot) ? _calpSS[ssKey].screenshot
+                              : null;
+                    if (val) data[ssKey] = val;
+                }
+                console.log('📸 Screenshots inclus dans la requête:',
+                    ['screenshot_map','screenshot_plan_masse','screenshot_3d','screenshot_irradiation']
+                    .map(k => `${k}=${data[k] ? Math.round(data[k].length/1024)+'kB' : 'absent'}`).join(', '));
+            } catch(e) {
+                console.warn('⚠️ Impossible de lire les screenshots depuis le prospect en mémoire:', e);
+            }
+
             try {
                 showSuccess('⏳ Génération de la proposition complète en cours...');
                 
