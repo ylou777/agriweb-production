@@ -6476,6 +6476,41 @@ class Calpinage3DViewer {
             .filter(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)
             .map(p => ({ panel: p, poly2d: p.polygon_2d.map(pt => ({ x: pt[0], y: pt[1] })) }));
 
+        // ── Alignement LiDAR/Satellite ────────────────────────────────────────────────────────
+        // Les zones sont dessinées sur l'orthophoto IGN (Leaflet), mais le mesh toit 3D est
+        // construit depuis le LiDAR/COPC. Ces deux sources peuvent être décalées de 0.5–2m
+        // en horizontal (décalage géodésique LiDAR ↔ ortho IGN typique en France).
+        // → Correction : calculer le centroïde 3D des zones et le comparer au centroïde du
+        //   bâtiment COPC (building_center). Si l'écart est dans [0.3m, 4m], appliquer un
+        //   shift de recalage sur modLocal.x/z pour aligner les modules sur le mesh toit.
+        //   En dehors de cette plage : l'écart est nul (même source) ou trop grand (anomalie).
+        let _alignShiftX = 0, _alignShiftZ = 0;
+        if (_ransacPanelsList.length > 0 && zones?.length > 0) {
+            // Centroïde des modules dans le repère local 3D (depuis GPS zones Leaflet)
+            let _sumX = 0, _sumZ = 0, _nPts = 0;
+            zones.forEach(zone => {
+                (zone.modulesPositions || []).forEach(mp => {
+                    if (!mp.lat || !mp.lng) return;
+                    const _ml = this._geoToLocal(mp.lat, mp.lng);
+                    _sumX += _ml.x; _sumZ += _ml.z; _nPts++;
+                });
+            });
+            if (_nPts > 0) {
+                const _zoneCX = _sumX / _nPts, _zoneCZ = _sumZ / _nPts;
+                // Centroïde du bâtiment COPC en local 3D (depuis building_center LiDAR)
+                const _bldgCX = _bOXadd, _bldgCZ = _bOZadd;
+                const _dx = _bldgCX - _zoneCX, _dz = _bldgCZ - _zoneCZ;
+                const _dist = Math.sqrt(_dx * _dx + _dz * _dz);
+                if (_dist >= 0.3 && _dist <= 4.0) {
+                    _alignShiftX = _dx;
+                    _alignShiftZ = _dz;
+                    console.log(`📍 [alignement LiDAR/sat] shift=(${_dx.toFixed(2)}, ${_dz.toFixed(2)})m — centroïde zones local=(${_zoneCX.toFixed(2)},${_zoneCZ.toFixed(2)}) bldgCenter local=(${_bldgCX.toFixed(2)},${_bldgCZ.toFixed(2)})`);
+                } else {
+                    console.log(`📍 [alignement LiDAR/sat] dist=${_dist.toFixed(2)}m — hors plage [0.3,4], pas de correction`);
+                }
+            }
+        }
+
         // ── Pré-scan obstacles : modules dont la hauteur COPC > plan RANSAC + 25 cm ────────────
         // Stratégie :
         //  1. Modules qui «touchent» un obstacle → calculer leur empreinte 2D réelle (corners)
@@ -6674,7 +6709,8 @@ class Calpinage3DViewer {
                     // Priorité 1 : _sampleCopcHeight() → même hauteur que le mesh toit COPC
                     //              (_buildRoofFromGrid : terrainH + max(bh, z_rel - z_baseline + bh))
                     // Priorité 2 : sans COPC → max(bh, mnh_ransac) cohérent avec _buildRoofFromPlanes
-                    const _copcRawY = _hasCOPCGrid ? this._sampleCopcHeight(modLocal.x, modLocal.z) : null;
+                    // NB : utiliser les coords shiftées pour échantillonner la bonne cellule COPC
+                    const _copcRawY = _hasCOPCGrid ? this._sampleCopcHeight(modLocal.x + _alignShiftX, modLocal.z + _alignShiftZ) : null;
                     const modY = (_copcRawY !== null)
                         ? _copcRawY + 0.06 * _normLen
                         : terrainH + Math.max(_bWHadd, mnh) + 0.06 * _normLen;
@@ -6694,7 +6730,8 @@ class Calpinage3DViewer {
 
                     const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
                     // Position en world space (panGroup à l'origine)
-                    panel.position.set(modLocal.x, modY, modLocal.z);
+                    // _alignShiftX/Z : correction décalage LiDAR ↔ ortho satellite (0–4m)
+                    panel.position.set(modLocal.x + _alignShiftX, modY, modLocal.z + _alignShiftZ);
                     // Rotation : orientation 2D conservée (edgeAngle), pente RANSAC (LiDAR)
                     panel.rotation.order = 'YXZ';
                     panel.rotation.y = -edgeAngle;
@@ -6715,10 +6752,13 @@ class Calpinage3DViewer {
                 const wallH   = this.roofPanelsInfo?.buildingWallH
                              || this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
                 // Hauteur de référence pour le groupe (centre de zone)
+                // _alignShiftX/Z : correction décalage LiDAR ↔ ortho satellite (0–4m)
+                const _zcShiftedX = zoneLocalCenter.x + _alignShiftX;
+                const _zcShiftedZ = zoneLocalCenter.z + _alignShiftZ;
                 const roofBaseY = hasCOPC
-                    ? (this._sampleCopcHeight(zoneLocalCenter.x, zoneLocalCenter.z) ?? (terrainH + wallH)) + 0.12
+                    ? (this._sampleCopcHeight(_zcShiftedX, _zcShiftedZ) ?? (terrainH + wallH)) + 0.12
                     : terrainH + wallH + 0.12;
-                panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
+                panGroup.position.set(_zcShiftedX, roofBaseY, _zcShiftedZ);
 
                 zone.modulesPositions.forEach(modPos => {
                     if (!modPos.corners || modPos.corners.length < 4) return;
@@ -6738,13 +6778,13 @@ class Calpinage3DViewer {
                         return;
                     }
 
-                    const dx       = modLocal.x - zoneLocalCenter.x;
-                    const dz       = modLocal.z - zoneLocalCenter.z;
+                    const dx       = (modLocal.x + _alignShiftX) - _zcShiftedX;
+                    const dz       = (modLocal.z + _alignShiftZ) - _zcShiftedZ;
                     // Si COPC disponible : hauteur individuelle de chaque module
                     // pour suivre le relief exact du toit (au lieu de tout aligner sur le centre)
                     let yOffset = 0;
                     if (hasCOPC) {
-                        const modCopcY = this._sampleCopcHeight(modLocal.x, modLocal.z);
+                        const modCopcY = this._sampleCopcHeight(modLocal.x + _alignShiftX, modLocal.z + _alignShiftZ);
                         if (modCopcY !== null) {
                             yOffset = modCopcY + 0.12 - roofBaseY;
                         }
