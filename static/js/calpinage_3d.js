@@ -6485,11 +6485,12 @@ class Calpinage3DViewer {
 
         // ── Pré-scan obstacles : modules dont la hauteur COPC > plan RANSAC + 25 cm ────────────
         // Stratégie :
-        //  1. Modules qui «touchent» un obstacle → calculer leur empreinte 2D réelle (corners)
-        //  2. Fusionner les empreintes proches en obstacles uniques (bboxes)
-        //  3. Dilater chaque bbox de 50 cm → zone d'exclusion
-        //  4. Exclure tout module dont UN COIN touche une zone d'exclusion (RANSAC + OBB)
-        //  5. Mémoriser les exclus pour les propager en 2D via onModulesExcluded
+        //  1. Modules dont le CENTRE ou un COIN dépasse le plan RANSAC de 5cm (= obstacle)
+        //  2. Enregistrer l'empreinte réelle (coins géo) de ces modules comme footprint obstacle
+        //  3. Fusionner les empreintes proches en obstacles uniques (bboxes)
+        //  4. Dilater chaque bbox de 30 cm → périmètre d'exclusion
+        //  5. Exclure TOUT module dont le centre ou un coin touche la zone d'exclusion
+        //  6. Mémoriser les exclus pour les propager en 2D via onModulesExcluded
         const _obstBBoxes  = []; // [{xMin,xMax,zMin,zMax}] — zones d'exclusion finales
         this._excludedModuleGeoPos = []; // réinitialiser pour ce cycle
         const _tHGlobal    = this.roofPanelsInfo?.buildingTerrainH ?? 0;
@@ -6507,7 +6508,6 @@ class Calpinage3DViewer {
                     if (copcY === null) return;
                     const px  = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
                     // Matching par module : choisir le pan avec le mnh le plus haut
-                    // (évite les faux positifs obstacle quand un pan voisin extrapolé plus bas)
                     let _scanPanel = _mp;
                     let _scanPanelMnh = _mp
                         ? (_mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c)
@@ -6522,11 +6522,23 @@ class Calpinage3DViewer {
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 5 cm
-                    // copcY = _sampleCopcHeight() = terrainH + max(bh, z_rel - baseline + bh)
-                    // → même repère que le mesh toit → comparaison directe
-                    const _roofAtPoint = this._sampleCopcHeight(ml.x, ml.z) ?? (_tHGlobal + Math.max(_bWHadd, mnh));
-                    if (copcY <= _roofAtPoint + 0.05) return;
+                    // Référence de toit = surface RANSAC attendue (lisse, sans obstacles)
+                    // copcY (LiDAR brut) > _roofAtPoint + 5cm → point de toit est un obstacle
+                    // ⚠️ NE PAS utiliser _sampleCopcHeight() ici (= copcY → comparaison nulle)
+                    const _roofAtPoint = _tHGlobal + Math.max(_bWHadd, mnh);
+                    // Vérifier : centre du module OU l'un de ses 4 coins dépasse le plan RANSAC
+                    const _centerObst = copcY > _roofAtPoint + 0.05;
+                    let _modIsObst = _centerObst;
+                    if (!_modIsObst && modPos.corners?.length >= 4) {
+                        for (const _cr of modPos.corners) {
+                            const _crl  = this._geoToLocal(_cr.lat, _cr.lng);
+                            const _copcCr = this._sampleCopcHeight(_crl.x, _crl.z);
+                            if (_copcCr !== null && _copcCr > _roofAtPoint + 0.05) {
+                                _modIsObst = true; break;
+                            }
+                        }
+                    }
+                    if (!_modIsObst) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
                     if (modPos.corners?.length >= 4) {
@@ -6558,18 +6570,19 @@ class Calpinage3DViewer {
                     }
                     if (!found) _merged.push({ ...bb });
                 });
-                // Dilater le périmètre de chaque obstacle de 50 cm
-                const _BUFFER = 0.50;
+                // Dilater le périmètre de chaque obstacle de 30 cm
+                const _BUFFER = 0.30;
                 _merged.forEach(m => _obstBBoxes.push({
                     xMin: m.xMin - _BUFFER, xMax: m.xMax + _BUFFER,
                     zMin: m.zMin - _BUFFER, zMax: m.zMax + _BUFFER,
                 }));
-                console.log(`🔍 [Obstacles] ${_obstBBoxes.length} obstacle(s) détecté(s) — ${_rawBBoxes.length} module(s) touchent un obstacle`);
+                console.log(`🔍 [Obstacles] ${_obstBBoxes.length} obstacle(s) détecté(s) (buffer 30cm) — ${_rawBBoxes.length} modules sur obstacle`);
             }
         }
-        // Retourne true si AU MOINS UN coin d'un module est dans une zone d'exclusion
-        const _cornerInObstacle = (c0, c1, c2, c3) =>
-            _obstBBoxes.length > 0 && [c0, c1, c2, c3].some(c =>
+        // Retourne true si le CENTRE ou AU MOINS UN COIN du module est dans une zone d'exclusion
+        // → retire le module ENTIER dès qu'une partie entre dans le périmètre +30cm de l'obstacle
+        const _cornerInObstacle = (c0, c1, c2, c3, center) =>
+            _obstBBoxes.length > 0 && [c0, c1, c2, c3, center].some(c =>
                 _obstBBoxes.some(b => c.x >= b.xMin && c.x <= b.xMax && c.z >= b.zMin && c.z <= b.zMax)
             );
 
@@ -6646,8 +6659,8 @@ class Calpinage3DViewer {
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
                     const c2 = this._geoToLocal(c[2].lat, c[2].lng);
 
-                    // Exclure les modules dont un coin touche la zone d'exclusion (périmètre obstacle +50cm)
-                    if (_cornerInObstacle(c0, c1, c2, c3)) {
+                    // Exclure les modules dont le centre ou un coin entre dans le périmètre +30cm d'un obstacle
+                    if (_cornerInObstacle(c0, c1, c2, c3, modLocal)) {
                         this._excludedModuleGeoPos.push({ lat: modPos.lat, lng: modPos.lng, zoneNumero: zone.numero });
                         return;
                     }
@@ -6739,8 +6752,8 @@ class Calpinage3DViewer {
                     const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
                     const c2 = this._geoToLocal(c[2].lat, c[2].lng);
 
-                    // Exclure les modules dont un coin touche la zone d'exclusion (périmètre obstacle +50cm)
-                    if (_cornerInObstacle(c0, c1, c2, c3)) {
+                    // Exclure les modules dont le centre ou un coin entre dans le périmètre +30cm d'un obstacle
+                    if (_cornerInObstacle(c0, c1, c2, c3, modLocal)) {
                         this._excludedModuleGeoPos.push({ lat: modPos.lat, lng: modPos.lng, zoneNumero: zone.numero });
                         return;
                     }
