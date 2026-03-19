@@ -866,7 +866,9 @@ class Calpinage3DViewer {
                 _pivotX = _bldgOffX + _pcx;
                 _pivotZ = _bldgOffZ - _pcy;
                 const _mnh = panel.mnh_a * _pcx + panel.mnh_b * _pcy + panel.mnh_c;
-                _pivotY = terrainH + Math.max(wallH, _mnh);
+                // Utiliser eave_mnh (seuil bas de gouttière) et non wallH (hauteur faîtage)
+                // qui est souvent la hauteur totale BD TOPO → modules flottants au-dessus de la toiture
+                _pivotY = terrainH + Math.max(panel.eave_mnh ?? 0, _mnh);
             }
             panGroup.position.set(_pivotX, _pivotY, _pivotZ);
             
@@ -984,7 +986,9 @@ class Calpinage3DViewer {
                         // Composante Y de l'offset perpendiculaire (0.06m le long de la normale)
                         const normLen = Math.sqrt(panel.mnh_a*panel.mnh_a + panel.mnh_b*panel.mnh_b + 1);
                         const offsetY = 0.06 * normLen; // ≈ 0.06 for gentle slopes
-                        const modY = terrainH + Math.max(wallH, mnh) + offsetY;
+                        // Utiliser eave_mnh (gouttière) et non wallH (hauteur totale BD TOPO)
+                        // pour éviter que les modules ne flottent au niveau du faîtage
+                        const modY = terrainH + Math.max(panel.eave_mnh ?? 0, mnh) + offsetY;
                         // panel3d.position est en espace LOCAL du panGroup → soustraire le pivot monde
                         panel3d.position.set(worldX - _pivotX, modY - _pivotY, worldZ - _pivotZ);
                         // Orienter le module : long axe (X) perpendiculaire au versant (axe faîtage),
@@ -6501,7 +6505,10 @@ class Calpinage3DViewer {
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    if (copcY <= _tHGlobal + Math.max(_bWHadd, mnh) + 0.25) return;
+                    // Seuil obstacle : surface réelle + 15 cm (au lieu de wallH+25cm)
+                    // → détecte les lanterneaux, costières et petits équipements HVAC (~15-20cm)
+                    const _scanEaveH = _scanPanel?.eave_mnh ?? 0;
+                    if (copcY <= _tHGlobal + Math.max(_scanEaveH, mnh) + 0.15) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
                     if (modPos.corners?.length >= 4) {
@@ -6651,7 +6658,9 @@ class Calpinage3DViewer {
                         _modPanel.mnh_a * _modPanel.mnh_a +
                         _modPanel.mnh_b * _modPanel.mnh_b + 1);
                     const mnh = _modPanel.mnh_a * sPx + _modPanel.mnh_b * sPy + _modPanel.mnh_c;
-                    const modY = terrainH + Math.max(_bWHadd, mnh) + 0.06 * _normLen;
+                    // Utiliser eave_mnh (seuil gouttière du pan RANSAC) au lieu de wallH
+                    // (hauteur totale bâtiment) : évite les modules flottants au-dessus de la toiture
+                    const modY = terrainH + Math.max(_modPanel.eave_mnh ?? 0, mnh) + 0.06 * _normLen;
                     const _modPente  = (_modPanel.pente_deg  || 0) * Math.PI / 180;
                     const _modAzimut = (_modPanel.orientation_deg || 180) * Math.PI / 180;
 
