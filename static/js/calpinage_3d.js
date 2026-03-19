@@ -6679,17 +6679,25 @@ class Calpinage3DViewer {
                         ? _copcRawY + 0.06 * _normLen
                         : terrainH + Math.max(_bWHadd, mnh) + 0.06 * _normLen;
                     const _modPente  = (_modPanel.pente_deg  || 0) * Math.PI / 180;
-                    const _modAzimut = (_modPanel.orientation_deg || 180) * Math.PI / 180;
+
                     if (totalModules === 0) {
-                        console.log(`🔧 [mod#1 RANSAC] pos=(${modLocal.x.toFixed(1)},${modY.toFixed(2)},${modLocal.z.toFixed(1)}) copcRawY=${_copcRawY?.toFixed(2) ?? 'null'} mnh=${mnh.toFixed(2)} pente=${(_modPente*180/Math.PI).toFixed(1)}° az=${(_modAzimut*180/Math.PI).toFixed(0)}° bWH=${_bWHadd} terrainH=${terrainH.toFixed(2)}`);
+                        console.log(`🔧 [mod#1 RANSAC] pos=(${modLocal.x.toFixed(1)},${modY.toFixed(2)},${modLocal.z.toFixed(1)}) copcRawY=${_copcRawY?.toFixed(2) ?? 'null'} mnh=${mnh.toFixed(2)} pente=${(_modPente*180/Math.PI).toFixed(1)}°`);
                     }
+
+                    // Orientation horizontale : depuis les coins réels du module 2D
+                    // (c0→c1 = arête long côté), même logique que le chemin OBB.
+                    // NE PAS utiliser l'azimut RANSAC ici : il donne la direction de la pente
+                    // du pan, pas l'orientation de la zone dessinée par l'utilisateur.
+                    // Utiliser l'azimut RANSAC rotatait les modules de plusieurs dizaines de
+                    // degrés par rapport à leur dessin 2D → bandes en diagonale + débordement.
+                    const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
 
                     const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
                     // Position en world space (panGroup à l'origine)
                     panel.position.set(modLocal.x, modY, modLocal.z);
-                    // Rotation identique à autoFillRoofPanels : YXZ, y=π-az, x=pente
+                    // Rotation : orientation 2D conservée (edgeAngle), pente RANSAC (LiDAR)
                     panel.rotation.order = 'YXZ';
-                    panel.rotation.y = Math.PI - _modAzimut;
+                    panel.rotation.y = -edgeAngle;
                     panel.rotation.x = _modPente;
                     panel.castShadow    = true;
                     panel.receiveShadow = true;
