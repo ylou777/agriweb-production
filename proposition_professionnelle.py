@@ -234,7 +234,8 @@ class PropositionProfessionnelle:
                     or self.calpinage.get(key, ''))
 
         _screenshot       = _ss('screenshot_map')
-        _screenshot_masse = _ss('screenshot_plan_masse') or _screenshot
+        # Plan de masse : UNIQUEMENT si screenshot dédié disponible (pas de repli sur screenshot_map)
+        _screenshot_masse = _ss('screenshot_plan_masse')
         _s3d  = _ss('screenshot_3d')
         _sirr = _ss('screenshot_irradiation')
 
@@ -243,7 +244,7 @@ class PropositionProfessionnelle:
             self.page_number += 1
             self._draw_plan_situation(c)
 
-        # Page 4c : Plan de masse (si screenshot plan masse ou calpinage disponible)
+        # Page 4c : Plan de masse (uniquement si screenshot plan masse dédié disponible)
         if _screenshot_masse:
             c.showPage()
             self.page_number += 1
@@ -2853,6 +2854,22 @@ class PropositionProfessionnelle:
         plu_list = rapport.get('plu_info', [])
         zaer_list = rapport.get('zaer', [])
 
+        # ── Fallback GPU : si plu_info vide, lire depuis api_details.gpu.details ──────
+        gpu_details = rapport.get('api_details', {}).get('gpu', {}).get('details', {})
+        if not plu_list and gpu_details:
+            z_layer = gpu_details.get('Zone Urba') or gpu_details.get('zone-urba') or {}
+            for feat_props in z_layer.get('features', [])[:5]:
+                # Normaliser les clés en minuscules pour compatibilité avec le code existant
+                props_lower = {k.lower(): v for k, v in feat_props.items() if v}
+                plu_list.append({'properties': props_lower, '_source': 'gpu'})
+
+        # Idem pour ZAER si vide
+        if not zaer_list and gpu_details:
+            z_zaer = gpu_details.get('ZAER') or gpu_details.get('zaer') or {}
+            for feat_props in z_zaer.get('features', [])[:3]:
+                props_lower = {k.lower(): v for k, v in feat_props.items() if v}
+                zaer_list.append({'properties': props_lower, '_source': 'gpu'})
+
         col1_x, col2_x = 1.5 * cm, 10.5 * cm
         col_w = 8.5 * cm
 
@@ -2864,8 +2881,8 @@ class PropositionProfessionnelle:
         if plu_list:
             for feat in plu_list[:3]:
                 props = feat.get('properties', feat) if isinstance(feat, dict) else {}
-                typezone  = props.get('typezone', props.get('zone', ''))
-                libelle   = props.get('libelle', props.get('libelong', props.get('lib', '')))
+                typezone  = props.get('typezone', props.get('Typezone', props.get('zone', '')))
+                libelle   = props.get('libelle', props.get('Libelle', props.get('libelong', props.get('Libelong', props.get('lib', '')))))
                 c.setFillColor(self.COLOR_ACCENT)
                 c.roundRect(col1_x, y - 0.6 * cm, 1.8 * cm, 0.7 * cm, 3, fill=1, stroke=0)
                 c.setFillColor(colors.white)
@@ -2873,7 +2890,7 @@ class PropositionProfessionnelle:
                 c.drawCentredString(col1_x + 0.9 * cm, y - 0.2 * cm, typezone or "—")
                 c.setFillColor(self.COLOR_DARK)
                 c.setFont("Helvetica", 8)
-                c.drawString(col1_x + 2 * cm, y - 0.2 * cm, (libelle or "Zone inconnue")[:55])
+                c.drawString(col1_x + 2 * cm, y - 0.2 * cm, (libelle or "Zone urbanisme")[:55])
                 y -= 0.75 * cm
         else:
             c.setFont("Helvetica-Oblique", 8)
@@ -3098,11 +3115,78 @@ class PropositionProfessionnelle:
                 y -= 0.4 * cm
 
         # ─────────────────────────────────────────────────────────────────────
+        # SECTION E : Contraintes GPU (protection patrimoniaux, etc.)
+        # ─────────────────────────────────────────────────────────────────────
+        protection_keywords = ['patrimoine', 'monument', 'perimetre', 'sauvegarde', 'abf',
+                               'psmv', 'pm1', 'pm2', 'pm3', 'spt', 'sct', 'protection',
+                               'prescription', 'servitude']
+        protection_layers_found = {}
+        mh_present = False
+        if gpu_details:
+            for layer_key, layer_info in gpu_details.items():
+                if not isinstance(layer_info, dict):
+                    continue
+                lk_lower = layer_key.lower()
+                if any(kw in lk_lower for kw in protection_keywords):
+                    cnt = layer_info.get('count', 0)
+                    if cnt and cnt > 0:
+                        protection_layers_found[layer_key] = layer_info
+                        mh_present = True
+
+        if gpu_details:
+            y -= 0.1 * cm
+            y = self._draw_section_title(c, y, "Contraintes Urbanisme GPU (toutes couches)", number="E")
+            # Résumé des couches GPU disponibles
+            non_empty_layers = {k: v for k, v in gpu_details.items()
+                                if isinstance(v, dict) and v.get('count', 0) > 0}
+            if non_empty_layers:
+                row_y = y
+                for i, (layer_key, layer_info) in enumerate(list(non_empty_layers.items())[:8]):
+                    cnt = layer_info.get('count', 0)
+                    name_fr = layer_info.get('name_fr', layer_key.replace('-', ' ').replace('_', ' ').title())[:35]
+                    # Badge couleur selon type de couche
+                    lk_l = layer_key.lower()
+                    is_risk = any(kw in lk_l for kw in protection_keywords)
+                    badge_col = colors.HexColor('#E53935') if is_risk else self.COLOR_PRIMARY
+                    c.setFillColor(badge_col)
+                    c.roundRect(1.5 * cm, row_y - 0.45 * cm, 0.5 * cm, 0.45 * cm, 2, fill=1, stroke=0)
+                    c.setFillColor(colors.white)
+                    c.setFont("Helvetica-Bold", 6.5)
+                    c.drawCentredString(1.75 * cm, row_y - 0.28 * cm, str(cnt))
+                    c.setFillColor(self.COLOR_DARK)
+                    c.setFont("Helvetica", 7.5)
+                    c.drawString(2.2 * cm, row_y - 0.28 * cm, name_fr)
+                    # Première feature (valeur principale)
+                    feats = layer_info.get('features', [])
+                    if feats:
+                        f0 = feats[0]
+                        sample = ', '.join(f"{v}" for k, v in list(f0.items())[:2] if v)[:50]
+                        c.setFont("Helvetica-Oblique", 7)
+                        c.setFillColor(colors.HexColor('#555555'))
+                        c.drawString(9.5 * cm, row_y - 0.28 * cm, sample)
+                    row_y -= 0.5 * cm
+                y = row_y
+                if len(non_empty_layers) > 8:
+                    c.setFont("Helvetica-Oblique", 7)
+                    c.setFillColor(colors.HexColor('#777777'))
+                    c.drawString(1.7 * cm, y, f"  … et {len(non_empty_layers) - 8} autre(s) couche(s) GPU")
+                    y -= 0.4 * cm
+            else:
+                c.setFont("Helvetica-Oblique", 8)
+                c.setFillColor(colors.HexColor('#777777'))
+                c.drawString(1.7 * cm, y, "Aucune contrainte GPU détectée au point exact.")
+                y -= 0.45 * cm
+
+        # ─────────────────────────────────────────────────────────────────────
         # SECTION 5 : Note de synthèse
         # ─────────────────────────────────────────────────────────────────────
         y -= 0.2 * cm
+        # Ajuster hauteur note selon contenu
+        note_lines_count = 1 + (1 if plu_list else 0) + (1 if ppri_present else 0) + \
+                           (1 if sismo_zone not in ['—', '1', 'Zone 1'] else 0) + \
+                           (1 if mh_present else 0)
+        note_h = max(2.5 * cm, note_lines_count * 0.55 * cm + 1.2 * cm)
         c.setFillColor(self.COLOR_HEADER_BG)
-        note_h = 2.5 * cm
         c.rect(1.5 * cm, y - note_h, self.width - 3 * cm, note_h, fill=1, stroke=0)
         c.setFillColor(self.COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 9)
@@ -3112,16 +3196,22 @@ class PropositionProfessionnelle:
         notes = []
         if plu_list:
             zones_str = ", ".join([
-                (f.get('properties', f) if isinstance(f, dict) else {}).get('typezone', '?')
+                (f.get('properties', f) if isinstance(f, dict) else {}).get('typezone',
+                 (f.get('properties', f) if isinstance(f, dict) else {}).get('Typezone', '?'))
                 for f in plu_list[:3]
             ])
             notes.append(f"Zonage PLU identifié : {zones_str}.")
+        if mh_present:
+            layers_str = ', '.join(list(protection_layers_found.keys())[:2])
+            notes.append(f"Contrainte patrimoniaux/protection détectée : {layers_str[:60]}.")
+        else:
+            notes.append("Périmètre de protection patrimoniale (MH 500 m) : aucun identifié.")
         if ppri_present:
             notes.append("Attention : le site est concerné par un PPRI — consulter la Mairie / DDT.")
         if sismo_zone not in ['—', '1', 'Zone 1']:
             notes.append(f"Zone sismique {sismo_zone} — respecter la réglementation para-sismique.")
-        if not notes:
-            notes.append("Aucune contrainte majeure identifiée. Vérification en Mairie recommandée.")
+        if not [n for n in notes if n.startswith('Zonage') or n.startswith('Attention') or n.startswith('Zone sis')]:
+            notes.insert(0, "Aucune contrainte majeure identifiée. Vérification en Mairie recommandée.")
         ny = y - 0.75 * cm
         for note in notes:
             c.drawString(1.8 * cm, ny, f"→ {note}"[:90])

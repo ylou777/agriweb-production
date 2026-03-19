@@ -4636,8 +4636,9 @@ out geom tags;"""
                     'has_gpu_plu'      : bool(rapport.get('api_details', {}).get('gpu', {}).get('success')),
                     'has_plu_info'     : bool(rapport.get('plu_info')),
                     'has_zaer'         : bool(rapport.get('zaer')),
-                    'has_georisques'   : bool(rapport.get('georisques')),
+                    'has_georisques'   : bool(rapport.get('georisques_risks')),  # clé correcte
                     'has_pvgis'        : bool(rapport.get('pvgis_data')),
+                    'gpu_layers'       : list(rapport.get('api_details', {}).get('gpu', {}).get('details', {}).keys())[:10],
                 },
 
                 'visite_technique': {
@@ -4651,17 +4652,22 @@ out geom tags;"""
                 },
 
                 'verdict': {
+                    # Plan de masse : UNIQUEMENT screenshot_plan_masse (plus de repli sur screenshot_map)
                     'PDF_plan_de_masse_aura_image'   : bool(
-                        (isinstance(calp.get('screenshot_plan_masse'), str) and len(calp.get('screenshot_plan_masse','')) > 1000)
-                        or (isinstance(calp.get('screenshot_map'), str) and len(calp.get('screenshot_map','')) > 1000)
+                        isinstance(calp.get('screenshot_plan_masse'), str) and len(calp.get('screenshot_plan_masse','')) > 1000
                     ),
                     'PDF_calpinage_aura_image'        : bool(
                         isinstance(calp.get('screenshot_map'), str) and len(calp.get('screenshot_map','')) > 1000
                     ),
                     'PDF_plan_situation_sera_genere'  : bool(rapport.get('lat') and rapport.get('lon')) or bool(prospect.get('latitude') and prospect.get('longitude')),
                     'PDF_contraintes_site_sera_genere': bool(rapport),
+                    'PDF_plu_source'                  : (
+                        'plu_info' if rapport.get('plu_info')
+                        else 'gpu_details' if rapport.get('api_details', {}).get('gpu', {}).get('details')
+                        else 'aucune'
+                    ),
                     'ACTION_REQUISE': (
-                        'Re-ouvrir la page Calpinage et cliquer Sauvegarder'
+                        'Re-ouvrir la page Calpinage et cliquer Sauvegarder pour recapturer screenshot_map'
                         if not (isinstance(calp.get('screenshot_map'), str) and len(calp.get('screenshot_map','')) > 1000)
                         else 'Aucune action requise pour les screenshots'
                     )
