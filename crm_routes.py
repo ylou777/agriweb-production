@@ -3308,25 +3308,40 @@ def register_crm_routes(app):
                         project['id']
                     ))
                     
-                    # Marquer l'étape Calepinage (ordre 3) comme terminée
+                    # Marquer l'étape Calepinage comme terminée (par nom, indépendamment de l'ordre)
                     execute_query('''
                         UPDATE project_etapes 
                         SET statut = 'termine', 
                             date_fin_reelle = CURRENT_DATE
                         WHERE project_id = %s 
-                        AND ordre = 3
+                        AND nom_etape = 'Calepinage'
                         AND statut != 'termine'
                     ''', (project['id'],))
                     
                     # Insérer l'étape "Plan de masse" si elle n'existe pas encore
-                    execute_query('''
-                        INSERT INTO project_etapes (project_id, nom_etape, ordre, statut, date_fin_reelle)
-                        SELECT %s, 'Plan de masse', 4, 'a_faire', NULL
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM project_etapes
-                            WHERE project_id = %s AND nom_etape = 'Plan de masse'
-                        )
-                    ''', (project['id'], project['id']))
+                    # Vérifier qu'il n'y a pas déjà un autre step à ordre=4 (anciens projets)
+                    # pour éviter les doublons d'ordre
+                    _existing_ordre4 = execute_query(
+                        'SELECT id FROM project_etapes WHERE project_id = %s AND ordre = 4',
+                        (project['id'],), fetch_one=True
+                    )
+                    _existing_pdm = execute_query(
+                        "SELECT id FROM project_etapes WHERE project_id = %s AND nom_etape = 'Plan de masse'",
+                        (project['id'],), fetch_one=True
+                    )
+                    if not _existing_pdm:
+                        if _existing_ordre4:
+                            # Ancien schéma : décaler toutes les étapes >= 4 pour faire de la place
+                            execute_query('''
+                                UPDATE project_etapes SET ordre = ordre + 1
+                                WHERE project_id = %s AND ordre >= 4
+                            ''', (project['id'],))
+                            print(f"🔧 [MIGRATION] Étapes ordre ≥4 décalées +1 pour projet {project['id']}")
+                        execute_query('''
+                            INSERT INTO project_etapes (project_id, nom_etape, ordre, statut, date_fin_reelle)
+                            VALUES (%s, 'Plan de masse', 4, 'a_faire', NULL)
+                        ''', (project['id'],))
+                        print(f"✅ [ETAPE INSERT] 'Plan de masse' (ordre 4) insérée pour projet {project['id']}")
                     
                     # Marquer "Plan de masse" terminé si screenshot_plan_masse disponible
                     if data.get('screenshot_plan_masse'):
@@ -4533,6 +4548,113 @@ out geom tags;"""
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # ============================================================================
+    # DIAGNOSTIC DONNÉES PROSPECT (admin seulement)
+    # ============================================================================
+    @app.route('/api/crm/prospects/<int:prospect_id>/debug-data')
+    def debug_prospect_data(prospect_id):
+        """
+        Endpoint de diagnostic : vérifie la présence et la taille des données clés
+        (calpinage, plan de masse, rapport) pour un prospect donné.
+        Réservé aux admins connectés.
+        """
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'error': 'Authentification requise'}), 401
+            if not is_admin and not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'error': 'Accès non autorisé'}), 403
+
+            row = execute_query(
+                "SELECT id, commune, adresse, data_json FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True
+            )
+            if not row:
+                return jsonify({'error': f'Prospect {prospect_id} non trouvé'}), 404
+
+            prospect = dict(row)
+            try:
+                dj = json.loads(prospect['data_json']) if isinstance(prospect['data_json'], str) else (prospect['data_json'] or {})
+                if not isinstance(dj, dict):
+                    dj = {}
+            except Exception as e:
+                return jsonify({'error': f'Impossible de parser data_json : {e}'}), 500
+
+            calp  = dj.get('calpinage', {}) or {}
+            rapport = dj.get('rapport', {}) or {}
+            vt    = dj.get('visite_technique', {}) or {}
+            rc    = dj.get('rapport_commune', {}) or {}
+
+            def ss_info(val):
+                if not val:
+                    return {'present': False, 'taille_ko': 0}
+                if isinstance(val, dict):
+                    val = val.get('screenshot', '')
+                return {'present': bool(val), 'taille_ko': round(len(str(val)) / 1024, 1)}
+
+            zones = calp.get('zones', [])
+            totaux = calp.get('totaux', {}) or {}
+
+            result = {
+                'prospect_id'  : prospect_id,
+                'commune'      : prospect.get('commune', ''),
+                'adresse'      : prospect.get('adresse', ''),
+                'data_json_present': bool(dj),
+                'data_json_cles'   : list(dj.keys()),
+
+                'calpinage': {
+                    'present'          : bool(calp),
+                    'nb_zones'         : len(zones),
+                    'puissance_kwc'    : totaux.get('puissanceTotale', 0),
+                    'nb_modules'       : totaux.get('nombreModules') or sum(z.get('nbModules', 0) for z in zones),
+                    'date_maj'         : calp.get('date_maj', '—'),
+                    'screenshot_map'         : ss_info(calp.get('screenshot_map')),
+                    'screenshot_plan_masse'  : ss_info(calp.get('screenshot_plan_masse')),
+                    'screenshot_3d'          : ss_info(calp.get('screenshot_3d')),
+                    'screenshot_irradiation' : ss_info(calp.get('screenshot_irradiation')),
+                    'autoconso_results'      : bool(calp.get('autoconso_results')),
+                },
+
+                'rapport': {
+                    'present'          : bool(rapport),
+                    'lat'              : rapport.get('lat'),
+                    'lon'              : rapport.get('lon'),
+                    'commune'          : rapport.get('commune_name', '—'),
+                    'altitude'         : rapport.get('altitude_m', '—'),
+                    'kwh_per_kwc'      : rapport.get('kwh_per_kwc', '—'),
+                    'has_cadastre'     : bool(rapport.get('api_details', {}).get('cadastre', {}).get('success')),
+                    'has_gpu_plu'      : bool(rapport.get('api_details', {}).get('gpu', {}).get('success')),
+                    'has_plu_info'     : bool(rapport.get('plu_info')),
+                    'has_zaer'         : bool(rapport.get('zaer')),
+                    'has_georisques'   : bool(rapport.get('georisques')),
+                    'has_pvgis'        : bool(rapport.get('pvgis_data')),
+                },
+
+                'visite_technique': {
+                    'present': bool(vt),
+                    'date'   : vt.get('date', '—'),
+                    'notes'  : bool(vt.get('notes')),
+                },
+
+                'rapport_commune': {
+                    'present': bool(rc),
+                },
+
+                'verdict': {
+                    'PDF_plan_de_masse_aura_image'  : bool(calp.get('screenshot_plan_masse') or calp.get('screenshot_map')),
+                    'PDF_calpinage_aura_image'       : bool(calp.get('screenshot_map')),
+                    'PDF_plan_situation_sera_genere' : bool(rapport.get('lat') and rapport.get('lon')) or bool(prospect.get('latitude') and prospect.get('longitude')),
+                    'PDF_contraintes_site_sera_genere': bool(rapport),
+                }
+            }
+
+            return jsonify(result)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
+    # ============================================================================
     # PROPOSITION COMMERCIALE PROFESSIONNELLE
     @app.route('/api/crm/prospects/<int:prospect_id>/proposition-complete', methods=['POST'])
     def generer_proposition_complete(prospect_id):
@@ -4713,7 +4835,7 @@ out geom tags;"""
             
             buffer.seek(0)
             
-            # Marquer l'étape "Devis commercial" (ordre 5) comme terminée
+            # Marquer l'étape "Devis commercial" comme terminée (par nom, indépendamment de l'ordre)
             project = execute_query(
                 'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
                 (prospect_id,),
@@ -4725,10 +4847,10 @@ out geom tags;"""
                     SET statut = 'termine', 
                         date_fin_reelle = CURRENT_DATE
                     WHERE project_id = %s 
-                    AND ordre = 5
+                    AND nom_etape = 'Devis commercial'
                     AND statut != 'termine'
                 ''', (project['id'],))
-                print(f"✅ [ETAPE UPDATE] Étape 5 (Devis commercial) marquée comme terminée pour projet {project['id']}")
+                print(f"✅ [ETAPE UPDATE] Étape 'Devis commercial' marquée comme terminée pour projet {project['id']}")
             
             # Sauvegarder automatiquement dans la dataroom
             prop_filename = f'Proposition_Professionnelle_{prospect.get("commune", "NA")}_{datetime.now().strftime("%Y%m%d")}.pdf'
