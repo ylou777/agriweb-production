@@ -6429,6 +6429,10 @@ class Calpinage3DViewer {
     addModules3D(zones) {
         // Mémoriser pour re-placement automatique quand COPC/RANSAC arrive après
         this._lastZones = zones;
+        // ── Diagnostic : état des données disponibles ──
+        const _dbgHasRansac = (this.roofPanelsInfo?.panels || []).some(p => p.mnh_a !== undefined);
+        const _dbgHasCOPC   = !!(this.lidarData?.building_hd?.copc_grid?.grid);
+        console.log(`🔧 [addModules3D] RANSAC:${_dbgHasRansac} COPC:${_dbgHasCOPC} zones:${zones?.length} bWH:${this.roofPanelsInfo?.buildingWallH ?? '?'} terrainH:${this.roofPanelsInfo?.buildingTerrainH ?? '?'}`);
 
         // Supprimer les anciens modules (groupes ou meshes individuels)
         this.modules3D.forEach(m => {
@@ -6676,6 +6680,9 @@ class Calpinage3DViewer {
                         : terrainH + Math.max(_bWHadd, mnh) + 0.06 * _normLen;
                     const _modPente  = (_modPanel.pente_deg  || 0) * Math.PI / 180;
                     const _modAzimut = (_modPanel.orientation_deg || 180) * Math.PI / 180;
+                    if (totalModules === 0) {
+                        console.log(`🔧 [mod#1 RANSAC] pos=(${modLocal.x.toFixed(1)},${modY.toFixed(2)},${modLocal.z.toFixed(1)}) copcRawY=${_copcRawY?.toFixed(2) ?? 'null'} mnh=${mnh.toFixed(2)} pente=${(_modPente*180/Math.PI).toFixed(1)}° az=${(_modAzimut*180/Math.PI).toFixed(0)}° bWH=${_bWHadd} terrainH=${terrainH.toFixed(2)}`);
+                    }
 
                     const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), panelMat);
                     // Position en world space (panGroup à l'origine)
@@ -6925,12 +6932,20 @@ class Calpinage3DViewer {
         const bx = worldX - bldgOX;
         const by = -(worldZ - bldgOZ);
         const { grid, x0, y0, nx, ny, step, z_baseline_rel } = cg;
-        const fi = (bx - x0) / step;
-        const fj = (by - y0) / step;
-        if (fi < 0 || fi >= nx - 1 || fj < 0 || fj >= ny - 1) return null;
+        // Tolérance de 2 cellules aux bords : permet aux modules en bordure de toiture
+        // (légèrement hors grille COPC) de recevoir quand même une hauteur via la valeur
+        // de bord la plus proche, plutôt que de retourner null et tomber en fallback RANSAC.
+        const EDGE_TOL = 2.0;
+        const fi_raw = (bx - x0) / step;
+        const fj_raw = (by - y0) / step;
+        if (fi_raw < -EDGE_TOL || fi_raw >= nx - 1 + EDGE_TOL ||
+            fj_raw < -EDGE_TOL || fj_raw >= ny - 1 + EDGE_TOL) return null;
+        // Clamper aux limites valides
+        const fi = Math.max(0, Math.min(nx - 1 - 0.001, fi_raw));
+        const fj = Math.max(0, Math.min(ny - 1 - 0.001, fj_raw));
         // Bilinéaire
-        const i0 = Math.floor(fi), i1 = i0 + 1;
-        const j0 = Math.floor(fj), j1 = j0 + 1;
+        const i0 = Math.floor(fi), i1 = Math.min(i0 + 1, nx - 1);
+        const j0 = Math.floor(fj), j1 = Math.min(j0 + 1, ny - 1);
         const ti = fi - i0, tj = fj - j0;
         const v = (iy, ix) => { const v = grid[iy]?.[ix]; return v ?? z_baseline_rel; };
         const z_rel = v(j0,i0)*(1-ti)*(1-tj) + v(j0,i1)*ti*(1-tj)
