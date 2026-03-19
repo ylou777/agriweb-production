@@ -509,9 +509,14 @@ class Calpinage3DViewer {
             tex.anisotropy = 4;
 
             if (this.terrainMesh) {
-                this.terrainMesh.material.map = tex;
-                this.terrainMesh.material.color.set(0xffffff);
-                this.terrainMesh.material.needsUpdate = true;
+                // Passer en MeshBasicMaterial : supprime le shading Lambert sur le relief
+                // → texture satellite propre sans effet "gaufrée" (embossed)
+                const _oldTerrainMat = this.terrainMesh.material;
+                this.terrainMesh.material = new THREE.MeshBasicMaterial({
+                    map: tex,
+                    side: THREE.DoubleSide,
+                });
+                if (_oldTerrainMat) _oldTerrainMat.dispose();
             }
 
             // Stocker la texture AVANT la construction des toits
@@ -2278,12 +2283,14 @@ class Calpinage3DViewer {
                 shininess: roofType === 'zinc' || roofType === 'metal' ? 20 : 3,
                 transparent: false,
                 opacity: 1.0,
-                depthWrite: true
+                depthWrite: true,
+                side: THREE.DoubleSide,
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
                 specular: 0x111111,
                 shininess: 5,
+                side: THREE.DoubleSide,
             });
             
             mesh = new THREE.Mesh(geo, [capMat, wallMat]);
@@ -2301,8 +2308,8 @@ class Calpinage3DViewer {
             
             const facadeTex = this._getFacadeTexture(wallType, bx, bh, bz);
             const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
-            const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
-            const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
+            const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5, side: THREE.DoubleSide });
+            const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5, side: THREE.DoubleSide });
             const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
             const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
             
@@ -6515,11 +6522,11 @@ class Calpinage3DViewer {
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 15 cm
+                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 5 cm
                     // copcY = _sampleCopcHeight() = terrainH + max(bh, z_rel - baseline + bh)
                     // → même repère que le mesh toit → comparaison directe
                     const _roofAtPoint = this._sampleCopcHeight(ml.x, ml.z) ?? (_tHGlobal + Math.max(_bWHadd, mnh));
-                    if (copcY <= _roofAtPoint + 0.15) return;
+                    if (copcY <= _roofAtPoint + 0.05) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
                     if (modPos.corners?.length >= 4) {
@@ -7088,9 +7095,13 @@ class Calpinage3DViewer {
             texture.wrapT = THREE.ClampToEdgeWrapping;
             
             if (this.terrainMesh) {
-                this.terrainMesh.material.map = texture;
-                this.terrainMesh.material.color.set(0xffffff);
-                this.terrainMesh.material.needsUpdate = true;
+                // MeshBasicMaterial : texture satellite propre sans shading
+                const _oldTMat = this.terrainMesh.material;
+                this.terrainMesh.material = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    side: THREE.DoubleSide,
+                });
+                if (_oldTMat) _oldTMat.dispose();
             } else if (this.ground) {
                 this.ground.material.map = texture;
                 this.ground.material.color.set(0xffffff);
