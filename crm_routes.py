@@ -4585,11 +4585,22 @@ out geom tags;"""
             rc    = dj.get('rapport_commune', {}) or {}
 
             def ss_info(val):
+                """Analyse un champ screenshot : détecte les valeurs invalides (bool, dict vide, string vide)"""
                 if not val:
-                    return {'present': False, 'taille_ko': 0}
+                    return {'present': False, 'valide': False, 'taille_ko': 0, 'type': 'absent'}
+                if isinstance(val, bool):
+                    return {'present': False, 'valide': False, 'taille_ko': 0, 'type': 'boolean_invalide',
+                            'action': 'Re-sauvegarder le calpinage pour recapturer le screenshot'}
                 if isinstance(val, dict):
                     val = val.get('screenshot', '')
-                return {'present': bool(val), 'taille_ko': round(len(str(val)) / 1024, 1)}
+                    if not val:
+                        return {'present': False, 'valide': False, 'taille_ko': 0, 'type': 'dict_sans_screenshot'}
+                if not isinstance(val, str):
+                    return {'present': False, 'valide': False, 'taille_ko': 0, 'type': f'type_inattendu_{type(val).__name__}'}
+                is_b64 = val.startswith('data:image') or len(val) > 1000
+                taille = round(len(val) / 1024, 1)
+                return {'present': True, 'valide': is_b64, 'taille_ko': taille,
+                        'type': 'base64_image' if is_b64 else 'string_courte_invalide'}
 
             zones = calp.get('zones', [])
             totaux = calp.get('totaux', {}) or {}
@@ -4640,14 +4651,94 @@ out geom tags;"""
                 },
 
                 'verdict': {
-                    'PDF_plan_de_masse_aura_image'  : bool(calp.get('screenshot_plan_masse') or calp.get('screenshot_map')),
-                    'PDF_calpinage_aura_image'       : bool(calp.get('screenshot_map')),
-                    'PDF_plan_situation_sera_genere' : bool(rapport.get('lat') and rapport.get('lon')) or bool(prospect.get('latitude') and prospect.get('longitude')),
+                    'PDF_plan_de_masse_aura_image'   : bool(
+                        (isinstance(calp.get('screenshot_plan_masse'), str) and len(calp.get('screenshot_plan_masse','')) > 1000)
+                        or (isinstance(calp.get('screenshot_map'), str) and len(calp.get('screenshot_map','')) > 1000)
+                    ),
+                    'PDF_calpinage_aura_image'        : bool(
+                        isinstance(calp.get('screenshot_map'), str) and len(calp.get('screenshot_map','')) > 1000
+                    ),
+                    'PDF_plan_situation_sera_genere'  : bool(rapport.get('lat') and rapport.get('lon')) or bool(prospect.get('latitude') and prospect.get('longitude')),
                     'PDF_contraintes_site_sera_genere': bool(rapport),
+                    'ACTION_REQUISE': (
+                        'Re-ouvrir la page Calpinage et cliquer Sauvegarder'
+                        if not (isinstance(calp.get('screenshot_map'), str) and len(calp.get('screenshot_map','')) > 1000)
+                        else 'Aucune action requise pour les screenshots'
+                    )
                 }
             }
 
             return jsonify(result)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
+    # ============================================================================
+    # RÉPARATION ÉTAPES PROJET (ordre dupliqué)
+    # ============================================================================
+    @app.route('/api/crm/projets/<int:project_id>/repair-etapes', methods=['POST'])
+    def repair_project_etapes(project_id):
+        """
+        Répare les étapes d'un projet dont les numéros d'ordre sont dupliqués
+        (ex: deux étapes à ordre=4 suite à l'ancien bug d'insertion Plan de masse).
+        Réservé aux admins.
+        """
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'error': 'Authentification requise'}), 401
+            if not is_admin:
+                return jsonify({'error': 'Réservé aux administrateurs'}), 403
+
+            etapes = execute_query(
+                'SELECT id, nom_etape, ordre, statut FROM project_etapes WHERE project_id = %s ORDER BY ordre, id',
+                (project_id,), fetch_all=True
+            )
+            if not etapes:
+                return jsonify({'error': 'Projet non trouvé ou sans étapes'}), 404
+
+            # Ordre attendu canonique
+            ordre_canonique = [
+                'Rapport de recherche HeliaPV',
+                'Visite technique',
+                'Calepinage',
+                'Plan de masse',
+                "Étude d'autoconsommation",
+                'Devis commercial',
+                'Signature & Facture',
+                'Déclaration Préalable de Travaux (DP)',
+                'Déclaration de Raccordement (DDR)',
+                'Installation & DOE',
+                'Consuel',
+                'Mise en service & Maintenance'
+            ]
+
+            # Réassigner les ordres selon le nom canonique
+            repaired = []
+            for etape in etapes:
+                nom = etape['nom_etape']
+                try:
+                    nouvel_ordre = ordre_canonique.index(nom) + 1
+                except ValueError:
+                    nouvel_ordre = etape['ordre']  # garder l'ordre existant si étape inconnue
+                execute_query(
+                    'UPDATE project_etapes SET ordre = %s WHERE id = %s',
+                    (nouvel_ordre, etape['id'])
+                )
+                repaired.append({
+                    'id': etape['id'],
+                    'nom_etape': nom,
+                    'ancien_ordre': etape['ordre'],
+                    'nouvel_ordre': nouvel_ordre
+                })
+
+            return jsonify({
+                'success': True,
+                'project_id': project_id,
+                'etapes_reparees': repaired
+            })
 
         except Exception as e:
             import traceback
