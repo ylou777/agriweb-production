@@ -865,10 +865,12 @@ class Calpinage3DViewer {
                 const _pcy = panel.polygon_2d.reduce((s, p) => s + p[1], 0) / panel.polygon_2d.length;
                 _pivotX = _bldgOffX + _pcx;
                 _pivotZ = _bldgOffZ - _pcy;
+                // Pivot Y : si grille COPC dispo → hauteur mesh toit ; sinon max(bh, mnh_ransac)
+                const _copcPivotY = this._sampleCopcHeight?.(_pivotX, _pivotZ);
                 const _mnh = panel.mnh_a * _pcx + panel.mnh_b * _pcy + panel.mnh_c;
-                // Utiliser eave_mnh (seuil bas de gouttière) et non wallH (hauteur faîtage)
-                // qui est souvent la hauteur totale BD TOPO → modules flottants au-dessus de la toiture
-                _pivotY = terrainH + Math.max(panel.eave_mnh ?? 0, _mnh);
+                _pivotY = (_copcPivotY !== null && _copcPivotY !== undefined)
+                    ? _copcPivotY
+                    : terrainH + Math.max(wallH, _mnh);
             }
             panGroup.position.set(_pivotX, _pivotY, _pivotZ);
             
@@ -985,10 +987,14 @@ class Calpinage3DViewer {
                         const mnh = panel.mnh_a * sPx + panel.mnh_b * sPy + panel.mnh_c;
                         // Composante Y de l'offset perpendiculaire (0.06m le long de la normale)
                         const normLen = Math.sqrt(panel.mnh_a*panel.mnh_a + panel.mnh_b*panel.mnh_b + 1);
-                        const offsetY = 0.06 * normLen; // ≈ 0.06 for gentle slopes
-                        // Utiliser eave_mnh (gouttière) et non wallH (hauteur totale BD TOPO)
-                        // pour éviter que les modules ne flottent au niveau du faîtage
-                        const modY = terrainH + Math.max(panel.eave_mnh ?? 0, mnh) + offsetY;
+                        const offsetY = 0.06 * normLen;
+                        // Priorité : _sampleCopcHeight → même hauteur que le mesh toit COPC
+                        //            (_buildRoofFromGrid : terrainH + max(bh, z_rel - z_baseline + bh))
+                        // Fallback  : max(wallH, mnh_ransac) — sans grille COPC
+                        const _copcY = this._sampleCopcHeight?.(worldX, worldZ);
+                        const modY = (_copcY !== null && _copcY !== undefined)
+                            ? _copcY + offsetY
+                            : terrainH + Math.max(wallH, mnh) + offsetY;
                         // panel3d.position est en espace LOCAL du panGroup → soustraire le pivot monde
                         panel3d.position.set(worldX - _pivotX, modY - _pivotY, worldZ - _pivotZ);
                         // Orienter le module : long axe (X) perpendiculaire au versant (axe faîtage),
@@ -6505,10 +6511,11 @@ class Calpinage3DViewer {
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    // Seuil obstacle : surface réelle + 15 cm (au lieu de wallH+25cm)
-                    // → détecte les lanterneaux, costières et petits équipements HVAC (~15-20cm)
-                    const _scanEaveH = _scanPanel?.eave_mnh ?? 0;
-                    if (copcY <= _tHGlobal + Math.max(_scanEaveH, mnh) + 0.15) return;
+                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 15 cm
+                    // copcY = _sampleCopcHeight() = terrainH + max(bh, z_rel - baseline + bh)
+                    // → même repère que le mesh toit → comparaison directe
+                    const _roofAtPoint = this._sampleCopcHeight(ml.x, ml.z) ?? (_tHGlobal + Math.max(_bWHadd, mnh));
+                    if (copcY <= _roofAtPoint + 0.15) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
                     if (modPos.corners?.length >= 4) {
@@ -6608,9 +6615,11 @@ class Calpinage3DViewer {
 
             if (isRansac) {
                 // ── CHEMIN RANSAC : chaque module à sa hauteur exacte via équation du plan ──
-                // Identique à autoFillRoofPanels branche RANSAC.
-                // Aucun tilt du groupe : la hauteur Y est calculée individuellement
-                // depuis mnh_a*sPx + mnh_b*sPy + mnh_c pour chaque position.
+                // Si la grille COPC est disponible, on utilise _sampleCopcHeight() qui retourne
+                // directement la hauteur monde du mesh toit (même formule que _buildRoofFromGrid).
+                // → alignement pixel-perfect entre modules et mesh toit, relief et pans respectés.
+                // Fallback sans COPC : max(bh, mnh_ransac) — cohérent avec _buildRoofFromPlanes.
+                const _hasCOPCGrid = !!(this.lidarData?.building_hd?.copc_grid?.grid);
                 panGroup.position.set(0, 0, 0);
 
                 zone.modulesPositions.forEach(modPos => {
@@ -6653,14 +6662,18 @@ class Calpinage3DViewer {
                             }
                         }
                     }
-                    // Clearance perpendiculaire (cohérent avec autoFillRoofPanels : 0.06 × normLen)
+                    // Clearance perpendiculaire (0.06 × normLen de la normale au plan)
                     const _normLen = Math.sqrt(
                         _modPanel.mnh_a * _modPanel.mnh_a +
                         _modPanel.mnh_b * _modPanel.mnh_b + 1);
                     const mnh = _modPanel.mnh_a * sPx + _modPanel.mnh_b * sPy + _modPanel.mnh_c;
-                    // Utiliser eave_mnh (seuil gouttière du pan RANSAC) au lieu de wallH
-                    // (hauteur totale bâtiment) : évite les modules flottants au-dessus de la toiture
-                    const modY = terrainH + Math.max(_modPanel.eave_mnh ?? 0, mnh) + 0.06 * _normLen;
+                    // Priorité 1 : _sampleCopcHeight() → même hauteur que le mesh toit COPC
+                    //              (_buildRoofFromGrid : terrainH + max(bh, z_rel - z_baseline + bh))
+                    // Priorité 2 : sans COPC → max(bh, mnh_ransac) cohérent avec _buildRoofFromPlanes
+                    const _copcRawY = _hasCOPCGrid ? this._sampleCopcHeight(modLocal.x, modLocal.z) : null;
+                    const modY = (_copcRawY !== null)
+                        ? _copcRawY + 0.06 * _normLen
+                        : terrainH + Math.max(_bWHadd, mnh) + 0.06 * _normLen;
                     const _modPente  = (_modPanel.pente_deg  || 0) * Math.PI / 180;
                     const _modAzimut = (_modPanel.orientation_deg || 180) * Math.PI / 180;
 
