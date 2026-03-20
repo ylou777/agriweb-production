@@ -999,7 +999,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- Finance + Comparatif PV -->
+        <!-- Finance + Comparatif barres -->
         <div class="grid-2" style="margin-bottom:1.2rem">
           <div class="card">
             <div class="card-title" style="margin-bottom:0.8rem">💰 Indicateurs financiers estimatifs</div>
@@ -1010,15 +1010,67 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <div class="gauge-row"><span class="gauge-label">Revenus annuels</span><span class="gauge-val green"><span id="kpi-rev">{{ "{:,.0f}".format(sim.revenue_annual_eur / 1000) }}</span> k€</span></div>
             <div class="gauge-row"><span class="gauge-label">ROI estime</span><span class="gauge-val gold"><span id="kpi-roi">{{ sim.roi_years }}</span> ans</span></div>
             <div class="gauge-row"><span class="gauge-label">CA cumule 25 ans</span><span class="gauge-val orange"><span id="kpi-ca25">{{ "{:,.0f}".format(sim.revenue_25y / 1000) }}</span> k€</span></div>
+            <!-- Ratios clés -->
+            <div style="margin-top:1rem;padding-top:0.8rem;border-top:1px solid var(--border)">
+              <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em">Ratio HST vs PV standard</div>
+              <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+                <div style="flex:1;min-width:70px;background:rgba(255,183,0,0.08);border:1px solid rgba(255,183,0,0.2);border-radius:8px;padding:0.5rem;text-align:center">
+                  <div style="font-size:1.4rem;font-weight:900;color:var(--gold)">×<span id="kpi-ratio">{{ sim.electricity_ratio }}</span></div>
+                  <div style="font-size:0.68rem;color:var(--muted)">Electricite</div>
+                </div>
+                <div style="flex:1;min-width:70px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:0.5rem;text-align:center">
+                  <div style="font-size:1.4rem;font-weight:900;color:var(--green)">×9,3</div>
+                  <div style="font-size:0.68rem;color:var(--muted)">Cogeneration</div>
+                </div>
+                <div style="flex:1;min-width:70px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:0.5rem;text-align:center">
+                  <div style="font-size:1.4rem;font-weight:900;color:var(--purple)">×1500</div>
+                  <div style="font-size:0.68rem;color:var(--muted)">Stockage</div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="card">
-            <div class="card-title" style="margin-bottom:0.8rem">📊 Comparatif vs PV standard (meme surface)</div>
-            <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.3rem">Productivite electrique NEWS-SOLAR HST vs PV</div>
-            <div class="kpi-value gold" style="font-size:2.2rem">×<span id="kpi-ratio">{{ sim.electricity_ratio }}</span></div>
-            <div class="gauge-row" style="margin-top:0.8rem"><span class="gauge-label">PV standard (900 KWc/ha)</span><span class="gauge-val muted"><span id="kpi-pv">{{ "{:,.0f}".format(sim.pv_electricity_mwh) }}</span> MWh/an</span></div>
-            <div class="gauge-row"><span class="gauge-label">NEWS-SOLAR HST</span><span class="gauge-val green"><span id="kpi-hst">{{ "{:,.0f}".format(sim.electricity_mwh) }}</span> MWh/an</span></div>
-            <div class="gauge-row"><span class="gauge-label">Heures prod. HST</span><span class="gauge-val gold">8 760 h/an</span></div>
-            <div class="gauge-row"><span class="gauge-label">Heures prod. PV</span><span class="gauge-val muted">~1 500 h/an</span></div>
+            <div class="card-title" style="margin-bottom:0.8rem">📊 Productions comparees HST vs PV (MWh/an)</div>
+            <canvas id="chartProductions" height="195"></canvas>
+            <div style="display:flex;gap:1.2rem;margin-top:0.7rem;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:var(--muted2)">
+                <div style="width:12px;height:12px;border-radius:3px;background:#FFB700;flex-shrink:0"></div>NEWS-SOLAR HST
+              </div>
+              <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:var(--muted2)">
+                <div style="width:12px;height:12px;border-radius:3px;background:rgba(120,130,160,0.6);flex-shrink:0"></div>PV standard
+              </div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-left:auto"><span id="kpi-pv" style="display:none">0</span><span id="kpi-hst" style="display:none">0</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Courbe CA cumulatif 25 ans -->
+        <div class="card" style="margin-bottom:1.2rem">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.8rem;margin-bottom:0.9rem">
+            <div>
+              <div class="card-title">📈 Revenus cumulatifs sur 25 ans — HST vs PV standard</div>
+              <div style="font-size:0.8rem;color:var(--muted2);margin-top:0.25rem">Base tarif 80 €/MWh · Meme surface installee</div>
+            </div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap">
+              <div style="text-align:right">
+                <div style="font-size:0.7rem;color:var(--muted)">HST @ 25 ans</div>
+                <div style="font-size:1.2rem;font-weight:800;color:var(--gold)"><span id="kpi-ca25-m">{{ "{:,.0f}".format(sim.revenue_25y / 1_000_000) }}</span> M€</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:0.7rem;color:var(--muted)">PV @ 25 ans</div>
+                <div style="font-size:1.2rem;font-weight:800;color:var(--muted)"><span id="kpi-pvcum25">{{ "{:,.0f}".format(sim.pv_electricity_mwh * 80 * 25 / 1_000_000) }}</span> M€</div>
+              </div>
+            </div>
+          </div>
+          <canvas id="chartCumul" height="160"></canvas>
+          <div style="display:flex;gap:1.2rem;margin-top:0.7rem;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:var(--muted2)">
+              <div style="width:28px;height:3px;border-radius:2px;background:linear-gradient(90deg,#FFB700,#FF6600);flex-shrink:0"></div>NEWS-SOLAR HST
+            </div>
+            <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:var(--muted2)">
+              <div style="width:28px;height:3px;border-radius:2px;background:rgba(120,130,160,0.7);flex-shrink:0"></div>PV standard
+            </div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-left:auto">Zone verte = gain HST supplementaire</div>
           </div>
         </div>
 
@@ -1044,8 +1096,11 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 </footer>
 
 <script>
-// ── Graphique temperature initial ─────────────────────────────────────────
+// ── Données initiales ─────────────────────────────────────────────────────
 const tp0 = {{ sim.temp_profile | tojson }};
+const _initSim = {{ sim | tojson }};
+
+// ── Graphique température batterie ────────────────────────────────────────
 const tempChart = new Chart(document.getElementById('tempChart'), {
   type:'line',
   data:{
@@ -1065,11 +1120,95 @@ const tempChart = new Chart(document.getElementById('tempChart'), {
   }
 });
 
+// ── Graphique productions comparées (barres) ──────────────────────────────
+function buildProdData(d){
+  const h2eq = (d.h2_kg * 33.33) / 1000; // kWh/kg_H2 → MWh
+  return {
+    labels:['Electricite','Chaleur','Froid','H2 (equiv)'],
+    datasets:[
+      {
+        label:'NEWS-SOLAR HST',
+        data:[d.electricity_mwh, d.heat_mwh, d.cold_mwh, Math.round(h2eq)],
+        backgroundColor:['rgba(255,183,0,0.75)','rgba(255,102,0,0.75)','rgba(59,130,246,0.75)','rgba(16,185,129,0.75)'],
+        borderColor:['#FFB700','#FF6600','#3b82f6','#10b981'],
+        borderWidth:1.5, borderRadius:5
+      },
+      {
+        label:'PV standard',
+        data:[d.pv_electricity_mwh, 0, 0, 0],
+        backgroundColor:'rgba(120,130,160,0.35)',
+        borderColor:'rgba(140,150,180,0.6)',
+        borderWidth:1.5, borderRadius:5
+      }
+    ]
+  };
+}
+const chartProd = new Chart(document.getElementById('chartProductions'), {
+  type:'bar',
+  data: buildProdData(_initSim),
+  options:{
+    indexAxis:'y',
+    plugins:{
+      legend:{labels:{color:'#8892a4',font:{size:10},padding:12}},
+      tooltip:{callbacks:{label:ctx => ' '+ctx.dataset.label+': '+ctx.parsed.x.toLocaleString('fr-FR')+' MWh/an'}}
+    },
+    scales:{
+      x:{ticks:{color:'#8892a4',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'},title:{display:true,text:'MWh/an',color:'#8892a4',font:{size:9}}},
+      y:{ticks:{color:'#8892a4',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}
+    },
+    animation:{duration:550}
+  }
+});
+
+// ── Graphique CA cumulatif 25 ans (lignes) ────────────────────────────────
+const YEARS = Array.from({length:25}, (_,i) => 'An '+(i+1));
+function buildCumulData(d){
+  const pvAnnual  = d.pv_electricity_mwh * 80;   // 80 €/MWh
+  const hstAnnual = d.revenue_annual_eur;
+  const pvCum  = YEARS.map((_,i) => Math.round(pvAnnual  * (i+1) / 1000));  // k€
+  const hstCum = YEARS.map((_,i) => Math.round(hstAnnual * (i+1) / 1000));
+  return {
+    labels: YEARS,
+    datasets:[
+      {
+        label:'NEWS-SOLAR HST',
+        data: hstCum,
+        borderColor:'#FFB700',
+        backgroundColor:'rgba(255,183,0,0.08)',
+        borderWidth:2.5, tension:0.35, fill:true, pointRadius:0, pointHoverRadius:4
+      },
+      {
+        label:'PV standard',
+        data: pvCum,
+        borderColor:'rgba(140,150,180,0.7)',
+        backgroundColor:'rgba(120,130,160,0.04)',
+        borderWidth:1.5, tension:0.35, fill:true, pointRadius:0, pointHoverRadius:4,
+        borderDash:[4,4]
+      }
+    ]
+  };
+}
+const chartCumul = new Chart(document.getElementById('chartCumul'), {
+  type:'line',
+  data: buildCumulData(_initSim),
+  options:{
+    plugins:{
+      legend:{labels:{color:'#8892a4',font:{size:10},padding:12}},
+      tooltip:{callbacks:{label:ctx => ' '+ctx.dataset.label+': '+ctx.parsed.y.toLocaleString('fr-FR')+' k€ cumulatif'}}
+    },
+    scales:{
+      x:{ticks:{color:'#8892a4',font:{size:9},maxTicksLimit:13},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#8892a4',font:{size:9},callback:v=>v.toLocaleString('fr-FR')+' k€'},grid:{color:'rgba(255,255,255,0.04)'}}
+    },
+    animation:{duration:550}
+  }
+});
+
 // ── Init barres KPI ────────────────────────────────────────────────────────
 (function initBars(){
-  const therm = {{ sim.stored_thermal_mwh }} || 1;
-  document.getElementById('bar-elec').style.width = Math.min({{ sim.electricity_mwh }} / therm * 100, 100) + '%';
-  document.getElementById('bar-heat').style.width = Math.min({{ sim.heat_mwh }} / therm * 100, 100) + '%';
+  const therm = _initSim.stored_thermal_mwh || 1;
+  document.getElementById('bar-elec').style.width = Math.min(_initSim.electricity_mwh / therm * 100, 100) + '%';
+  document.getElementById('bar-heat').style.width = Math.min(_initSim.heat_mwh / therm * 100, 100) + '%';
 })();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1134,11 +1273,24 @@ function applyResults(d, params){
   document.getElementById('kpi-rev').textContent     = fmt(d.revenue_annual_eur / 1000);
   document.getElementById('kpi-roi').textContent     = d.roi_years;
   document.getElementById('kpi-ca25').textContent    = fmt(d.revenue_25y / 1000);
+  document.getElementById('kpi-ca25-m').textContent  = fmt(d.revenue_25y / 1_000_000);
+  document.getElementById('kpi-pvcum25').textContent = fmt(d.pv_electricity_mwh * 80 * 25 / 1_000_000);
 
   // Comparatif
   document.getElementById('kpi-ratio').textContent   = d.electricity_ratio;
-  document.getElementById('kpi-pv').textContent      = fmt(d.pv_electricity_mwh);
-  document.getElementById('kpi-hst').textContent     = fmt(d.electricity_mwh);
+
+  // ── Mise à jour graphique barres productions ───────────────────────────
+  const h2eq = Math.round((d.h2_kg * 33.33) / 1000);
+  chartProd.data.datasets[0].data = [d.electricity_mwh, d.heat_mwh, d.cold_mwh, h2eq];
+  chartProd.data.datasets[1].data = [d.pv_electricity_mwh, 0, 0, 0];
+  chartProd.update('active');
+
+  // ── Mise à jour graphique CA cumulatif 25 ans ─────────────────────────
+  const pvAnnual  = d.pv_electricity_mwh * 80;
+  const hstAnnual = d.revenue_annual_eur;
+  chartCumul.data.datasets[0].data = YEARS.map((_,i) => Math.round(hstAnnual * (i+1) / 1000));
+  chartCumul.data.datasets[1].data = YEARS.map((_,i) => Math.round(pvAnnual  * (i+1) / 1000));
+  chartCumul.update('active');
 }
 
 // ── Smooth scroll depuis nav ────────────────────────────────────────────────
