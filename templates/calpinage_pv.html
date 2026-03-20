@@ -1767,6 +1767,11 @@
                             class="btn btn-info w-100 fw-semibold" style="color:#0f172a;">
                             🔬 Calculer
                         </button>
+                        <button id="acBtnSauvegarder" onclick="acSauvegarderParams()"
+                            class="btn btn-sm w-100 mt-2"
+                            style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.35);color:#a5b4fc;">
+                            💾 Sauvegarder les paramètres
+                        </button>
                         <div id="acLoading" style="display:none;text-align:center;margin-top:12px;color:#7dd3fc;font-size:0.82rem;">
                             <span class="spinner-border spinner-border-sm me-1"></span>
                             Interrogation PVGIS en cours…
@@ -1835,15 +1840,20 @@
                         <!-- Bouton générer proposition -->
                         <div id="acBtnPropoBox" style="display:none;margin-top:16px;padding-top:14px;
                             border-top:1px solid rgba(255,255,255,0.1);">
-                            <button onclick="_acOuvrirModalPropo()"
+                            <button onclick="preparerPropositionComplete()"
                                 class="btn w-100 fw-semibold"
-                                style="background:linear-gradient(135deg,#16a34a,#0e7490);
-                                       border:none;color:#fff;font-size:0.88rem;padding:9px 12px;">
-                                📄 Générer la Proposition Commerciale
+                                style="background:linear-gradient(135deg,#7c3aed,#0e7490);
+                                       border:none;color:#fff;font-size:0.9rem;padding:10px 12px;">
+                                🚀 Préparer &amp; Générer la Proposition
                             </button>
                             <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);text-align:center;margin-top:5px;">
-                                Inclut les graphiques de simulation PVGIS
+                                Capture automatique carte · plan masse · irradiation · 3D
                             </div>
+                            <button onclick="_acOuvrirModalPropo()"
+                                class="btn btn-sm w-100 mt-2"
+                                style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.45);font-size:0.75rem;">
+                                📄 Utiliser les captures existantes
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -11424,6 +11434,25 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         if (savedCalpinage && savedCalpinage.zones && savedCalpinage.zones.length > 0) {
             loadSavedCalpinage();
         }
+
+        // Restaurer les paramètres autoconsommation (indépendant de la présence de zones)
+        if (savedCalpinage && savedCalpinage.autoconso_params) {
+            const _ap = savedCalpinage.autoconso_params;
+            const _elProfil = document.getElementById('acProfilType');
+            const _elConso  = document.getElementById('acConsommationKwh');
+            const _elTariff = document.getElementById('acTariffType');
+            const _elRev    = document.getElementById('acTarifRevente');
+            const _elDuree  = document.getElementById('acDureeAns');
+            const _elPdl    = document.getElementById('acPdlInput');
+            if (_elProfil && _ap.profil_type)      _elProfil.value = _ap.profil_type;
+            if (_elConso  && _ap.consommation_kwh > 0) _elConso.value = _ap.consommation_kwh;
+            if (_elTariff && _ap.tariff_type)      _elTariff.value = _ap.tariff_type;
+            if (_elRev    && _ap.tarif_revente > 0) _elRev.value = _ap.tarif_revente;
+            if (_elDuree  && _ap.duree_contrat_ans > 0) _elDuree.value = _ap.duree_contrat_ans;
+            if (_elPdl    && _ap.pdl)              _elPdl.value = _ap.pdl;
+            if (typeof _acUpdateTariffInfo === 'function') _acUpdateTariffInfo();
+            console.log('[AUTOCONSO] ✅ Paramètres restaurés depuis la BDD:', _ap);
+        }
         
         // Fonction pour charger le calpinage sauvegardé
         function loadSavedCalpinage() {
@@ -11925,6 +11954,191 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             } finally {
                 document.getElementById('acBtnLancer').disabled = false;
                 document.getElementById('acLoading').style.display = 'none';
+            }
+        }
+
+        async function acSauvegarderParams() {
+            const btn = document.getElementById('acBtnSauvegarder');
+            const origTxt = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Sauvegarde…';
+            try {
+                const resp = await fetch(`/api/crm/prospects/${prospectId}/autoconso-params`, {
+                    method : 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body   : JSON.stringify({
+                        profil_type      : document.getElementById('acProfilType').value,
+                        consommation_kwh : parseFloat(document.getElementById('acConsommationKwh').value) || 0,
+                        tariff_type      : document.getElementById('acTariffType').value,
+                        tarif_revente    : parseFloat(document.getElementById('acTarifRevente').value) || 0,
+                        duree_contrat_ans: parseInt(document.getElementById('acDureeAns')?.value || 20),
+                        pdl              : document.getElementById('acPdlInput')?.value || '',
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    btn.textContent = '✅ Paramètres sauvegardés !';
+                    btn.style.borderColor = 'rgba(34,197,94,0.5)';
+                    btn.style.color = '#86efac';
+                    setTimeout(() => {
+                        btn.textContent = origTxt;
+                        btn.style.borderColor = '';
+                        btn.style.color = '#a5b4fc';
+                        btn.disabled = false;
+                    }, 2500);
+                } else {
+                    btn.textContent = '❌ ' + (data.error || 'Erreur');
+                    setTimeout(() => { btn.textContent = origTxt; btn.disabled = false; }, 2500);
+                }
+            } catch (e) {
+                btn.textContent = '❌ Erreur réseau';
+                setTimeout(() => { btn.textContent = origTxt; btn.disabled = false; }, 2500);
+            }
+        }
+
+        // ── Agent proposition : orchestre toutes les captures puis ouvre le modal ──
+        async function preparerPropositionComplete() {
+            if (zones.length === 0) {
+                alert('⚠️ Aucune zone PV dessinée. Dessinez d\'abord vos zones sur la carte.');
+                return;
+            }
+
+            // ── Overlay de progression ──────────────────────────────────────────
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(15,23,42,0.93);display:flex;align-items:center;justify-content:center;';
+            const card = document.createElement('div');
+            card.style.cssText = 'background:#1e293b;border:1px solid rgba(99,179,237,0.25);border-radius:16px;padding:28px 36px;min-width:340px;max-width:420px;';
+            card.innerHTML = `
+                <div style="font-size:1.05rem;font-weight:700;margin-bottom:18px;color:#7dd3fc;text-align:center;">
+                    🤖 Agent Proposition en cours…
+                </div>
+                <div id="_paSteps" style="font-size:0.83rem;"></div>
+                <div id="_paErr" style="display:none;color:#fca5a5;margin-top:10px;font-size:0.8rem;"></div>
+            `;
+            overlay.appendChild(card);
+            document.body.appendChild(overlay);
+
+            const stepsEl = document.getElementById('_paSteps');
+            const errEl   = document.getElementById('_paErr');
+            const ICONS   = { pending:'⏳', ok:'✅', skip:'⏭️', warn:'⚠️' };
+
+            function _step(txt) {
+                const d = document.createElement('div');
+                d.style.cssText = 'margin-bottom:7px;display:flex;gap:8px;align-items:flex-start;';
+                d.innerHTML = `<span style="flex-shrink:0;">${ICONS.pending}</span><span>${txt}</span>`;
+                stepsEl.appendChild(d);
+                return d;
+            }
+            function _upd(el, txt, status) {
+                el.innerHTML = `<span style="flex-shrink:0;">${ICONS[status]}</span><span>${txt}</span>`;
+            }
+
+            try {
+                const calData = prepareCalepinageData();
+
+                // ── 1. Carte satellite (plan de calpinage) ──────────────────────
+                const s1 = _step('Capture carte satellite…');
+                try {
+                    const _hidden = [];
+                    zones.forEach(z => {
+                        if (z.moduleGroup && map.hasLayer(z.moduleGroup)) {
+                            map.removeLayer(z.moduleGroup); _hidden.push(z.moduleGroup);
+                        }
+                    });
+                    if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
+                        map.removeLayer(_flux2DOverlay); _hidden.push(_flux2DOverlay);
+                    }
+                    const cap = await captureMapScreenshot();
+                    _hidden.forEach(l => l.addTo(map));
+                    if (typeof cap === 'object' && cap.screenshot) {
+                        calData.screenshot_map = cap.screenshot;
+                        calData.map_metadata   = { bounds: cap.bounds, center: cap.center, zoom: cap.zoom, dimensions: cap.dimensions };
+                    } else { calData.screenshot_map = cap; }
+                    _upd(s1, 'Carte satellite capturée', 'ok');
+                } catch(e) { _upd(s1, 'Carte satellite — erreur (ignorée)', 'warn'); }
+
+                // ── 2. Plan de masse cadastral ──────────────────────────────────
+                const s2 = _step('Capture plan de masse cadastral…');
+                try {
+                    const mapContainer = document.getElementById('map');
+                    if (typeof html2canvas !== 'undefined') {
+                        const b = map.getBounds();
+                        const sz = map.getSize();
+                        calData.plan_masse_metadata = {
+                            bounds: { north:b.getNorth(), south:b.getSouth(), east:b.getEast(), west:b.getWest() },
+                            center: { lat:map.getCenter().lat, lng:map.getCenter().lng },
+                            zoom: map.getZoom(), size: { width:sz.x, height:sz.y }
+                        };
+                        const _hidden2 = [];
+                        zones.forEach(z => {
+                            if (z.moduleGroup && map.hasLayer(z.moduleGroup)) {
+                                map.removeLayer(z.moduleGroup); _hidden2.push(z.moduleGroup);
+                            }
+                        });
+                        if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
+                            map.removeLayer(_flux2DOverlay); _hidden2.push(_flux2DOverlay);
+                        }
+                        await new Promise(r => { map.once('moveend', r); map.setView(map.getCenter(), map.getZoom(), {animate:false}); setTimeout(r, 120); });
+                        await new Promise(r => setTimeout(r, 400));
+                        const canvas = await html2canvas(mapContainer, {
+                            useCORS:true, allowTaint:true, backgroundColor:'#ffffff',
+                            scrollX:-window.scrollX, scrollY:-window.scrollY, logging:false, scale:1
+                        });
+                        _hidden2.forEach(l => l.addTo(map));
+                        calData.screenshot_plan_masse = canvas.toDataURL('image/png');
+                        _upd(s2, 'Plan de masse capturé', 'ok');
+                    } else { _upd(s2, 'html2canvas non disponible', 'skip'); }
+                } catch(e) { _upd(s2, 'Plan de masse — erreur (ignorée)', 'warn'); }
+
+                // ── 3. Irradiation heatmap (si active) ─────────────────────────
+                const s3 = _step('Irradiation heatmap…');
+                if (typeof _fluxCanvas !== 'undefined' && _fluxCanvas && _fluxBbox && _fluxActive) {
+                    try {
+                        const irr = captureHeatmapStandalone();
+                        if (irr) {
+                            calData.screenshot_irradiation      = irr;
+                            calData.screenshot_irradiation_bbox = _fluxBbox;
+                            _upd(s3, 'Irradiation capturée', 'ok');
+                        } else { _upd(s3, 'Capture irradiation vide (ignorée)', 'skip'); }
+                    } catch(e) { _upd(s3, 'Irradiation — erreur (ignorée)', 'warn'); }
+                } else { _upd(s3, 'Heatmap inactive — ignoré', 'skip'); }
+
+                // ── 4. Vue 3D WebGL (si active) ─────────────────────────────────
+                const s4 = _step('Vue 3D WebGL…');
+                if (typeof viewer3D !== 'undefined' && viewer3D && viewer3D.isActive) {
+                    try {
+                        const s3d = viewer3D.getScreenshot();
+                        if (s3d) { calData.screenshot_3d = s3d; _upd(s4, 'Vue 3D capturée', 'ok'); }
+                        else { _upd(s4, 'Vue 3D — capture vide (ignorée)', 'skip'); }
+                    } catch(e) { _upd(s4, 'Vue 3D — erreur (ignorée)', 'warn'); }
+                } else { _upd(s4, 'Vue 3D inactive — ignoré', 'skip'); }
+
+                // ── 5. Sauvegarde BDD ────────────────────────────────────────────
+                const s5 = _step('Sauvegarde en base de données…');
+                const saveResp = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify(calData)
+                });
+                if (!saveResp.ok) throw new Error('Erreur sauvegarde calpinage (HTTP ' + saveResp.status + ')');
+                _upd(s5, 'Données sauvegardées en BDD', 'ok');
+
+                // ── 6. Ouverture de la proposition ──────────────────────────────
+                const s6 = _step('Ouverture de la proposition…');
+                await new Promise(r => setTimeout(r, 500));
+                _upd(s6, 'Proposition prête !', 'ok');
+                await new Promise(r => setTimeout(r, 700));
+                document.body.removeChild(overlay);
+                _acOuvrirModalPropo();
+
+            } catch(e) {
+                errEl.textContent = '❌ ' + e.message;
+                errEl.style.display = 'block';
+                const closeBtn = document.createElement('button');
+                closeBtn.textContent = 'Fermer';
+                closeBtn.className = 'btn btn-sm btn-outline-secondary mt-3';
+                closeBtn.style.width = '100%';
+                closeBtn.onclick = () => document.body.removeChild(overlay);
+                card.appendChild(closeBtn);
             }
         }
 

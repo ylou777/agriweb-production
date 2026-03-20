@@ -2794,6 +2794,15 @@ def register_crm_routes(app):
                     'tariff_label'   : TARIFF_LABELS.get(tariff_type, tariff_type),
                     'date_calcul'    : datetime.now().isoformat(),
                 }
+                # Sauvegarder également les paramètres d'entrée pour restaurer le formulaire
+                _dj['calpinage']['autoconso_params'] = {
+                    'profil_type'     : profil_type,
+                    'consommation_kwh': consommation_kwh,
+                    'tariff_type'     : tariff_type,
+                    'tarif_revente'   : tarif_revente,
+                    'duree_contrat_ans': duree_contrat_ans,
+                    'pdl'             : enedis_pdl or '',
+                }
                 execute_query(
                     "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
                     (json.dumps(_dj), prospect_id)
@@ -2846,6 +2855,45 @@ def register_crm_routes(app):
                     for k, v in PROFILE_LABELS.items()
                 ]
             })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/autoconso-params', methods=['PATCH'])
+    def save_autoconso_params(prospect_id):
+        """Sauvegarder uniquement les paramètres du formulaire autoconsommation (sans calcul)."""
+        try:
+            data = request.json or {}
+            profil_type       = str(data.get('profil_type', 'RES1'))[:10]
+            consommation_kwh  = float(data.get('consommation_kwh', 0) or 0)
+            tariff_type       = str(data.get('tariff_type', 'BASE'))[:20]
+            tarif_revente     = float(data.get('tarif_revente', 0) or 0)
+            duree_contrat_ans = int(data.get('duree_contrat_ans', 20) or 20)
+            pdl               = str(data.get('pdl', '') or '')[:14]
+
+            row = execute_query(
+                "SELECT data_json FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True
+            )
+            if not row:
+                return jsonify({'error': 'Prospect non trouvé'}), 404
+
+            dj = row['data_json'] or {}
+            if isinstance(dj, str):
+                dj = json.loads(dj)
+
+            dj.setdefault('calpinage', {})['autoconso_params'] = {
+                'profil_type'     : profil_type,
+                'consommation_kwh': consommation_kwh,
+                'tariff_type'     : tariff_type,
+                'tarif_revente'   : tarif_revente,
+                'duree_contrat_ans': duree_contrat_ans,
+                'pdl'             : pdl,
+            }
+            execute_query(
+                "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
+                (json.dumps(dj), prospect_id)
+            )
+            return jsonify({'success': True})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
