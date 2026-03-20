@@ -463,7 +463,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         {% set steps = [
           ('1', 'Champ solaire', 'Micro-réflecteurs hyper-concentration ×15 000 · Film optique 95%', 'gold'),
           ('2', 'Absorbeur', 'Reçoit le flux THT concentré · Transfert vers batterie', 'orange'),
-          ('3', 'Batterie thermique', 'Stockage jusqu\'à 3 000°C · 1,3 MWh/m³ · 98% rendement · Continu 8760h/an', 'blue'),
+          ('3', 'Batterie thermique', "Stockage jusqu'à 3 000°C · 1,3 MWh/m³ · 98% rendement · Continu 8760h/an", 'blue'),
           ('4', 'Convertisseur', 'Thermodynamique linéaire · 35% (mono) ou 60% (bi-étagé)', 'purple'),
           ('5', 'Multi-output', 'Chaleur · Froid · Électricité · H₂/NH₃ · SAF/e-SAF', 'green'),
         ] %}
