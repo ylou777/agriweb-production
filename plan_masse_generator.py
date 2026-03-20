@@ -433,12 +433,10 @@ class PlanMasseGenerator:
         # 2. B├éTIMENT (├á la position GPS) - D├ëSACTIV├ë pour plan de masse simple
         # self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
-        # 3. MODULES PV
-        # Si screenshot_map utilisé : zones déjà dessinées dans le fond — on ne redessine pas
-        # (le screenshot Leaflet = référence exacte ; redessiner créerait un doublon décalé
-        #  si map_metadata.bounds est absent et que gps_bounds n'est pas recalibré)
-        # Si fallback satellite : on dessine avec GPS précis depuis le calpinage
-        if self.calpinage and not self.screenshot_used:
+        # 3. MODULES PV — toujours depuis les coordonnées GPS sauvegardées
+        # Le screenshot sert UNIQUEMENT de fond tuiles satellites (modules masqués lors de la capture).
+        # On dessine SYSTÉMATIQUEMENT les modules en vecteur GPS → alignement pixel-perfect garanti.
+        if self.calpinage:
             self._draw_modules_pv_from_gps(c)
         
         # 4. COTATIONS - Dessiner les cotations sur les zones PV
