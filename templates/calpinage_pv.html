@@ -6813,26 +6813,14 @@
             }
 
             // ── 3. Screenshot calque irradiation (si actif) ──────────────────────
-            // Réutiliser captureMapScreenshot() : masque les contrôles, corrige
-            // le scrollX/scrollY et réinitialise le _pixelOrigin Leaflet.
-            // La heatmap (canvas SVG superposé) est incluse automatiquement.
-            if (_fluxCanvas && _fluxActive) {
-                try {
-                    const _irrCapture = await captureMapScreenshot();
-                    if (typeof _irrCapture === 'object' && _irrCapture.screenshot) {
-                        data.screenshot_irradiation = _irrCapture.screenshot;
-                    } else if (typeof _irrCapture === 'string' && _irrCapture) {
-                        data.screenshot_irradiation = _irrCapture;
-                    } else {
-                        // Fallback : exporter le canvas flux seul si capture échoue
-                        data.screenshot_irradiation = _fluxCanvas.toDataURL('image/png');
-                        data.screenshot_irradiation_bbox = _fluxBbox;
-                    }
-                    console.log('📸 Screenshot irradiation capturé');
-                } catch(e) {
-                    console.warn('⚠️ Capture irradiation échouée:', e);
-                    data.screenshot_irradiation = _fluxCanvas.toDataURL('image/png');
-                    data.screenshot_irradiation_bbox = _fluxBbox;
+            // Export standalone : heatmap _fluxCanvas + modules projetés via _fluxBbox.
+            // Aucune dépendance aux tuiles satellite → alignement parfait dans le PDF.
+            if (_fluxCanvas && _fluxBbox && _fluxActive) {
+                const _irrStandalone = captureHeatmapStandalone();
+                if (_irrStandalone) {
+                    data.screenshot_irradiation       = _irrStandalone;
+                    data.screenshot_irradiation_bbox  = _fluxBbox;
+                    console.log('📸 Screenshot irradiation standalone généré (heatmap + modules, sans tuiles)');
                 }
             }
             
@@ -7079,6 +7067,57 @@
             }
         }
         
+        /**
+         * Génère une image standalone de la heatmap irradiation avec les modules
+         * dessinés par-dessus, en utilisant uniquement _fluxCanvas + _fluxBbox.
+         * Aucune dépendance aux tuiles satellite → pas de problème CORS, alignement
+         * parfait car _fluxCanvas est déjà dans le même référentiel GPS que les modules.
+         */
+        function captureHeatmapStandalone() {
+            if (!_fluxCanvas || !_fluxBbox) return null;
+            const W = _fluxCanvas.width, H = _fluxCanvas.height;
+            const out = document.createElement('canvas');
+            out.width  = W;
+            out.height = H;
+            const ctx = out.getContext('2d');
+
+            // 1. Fond = heatmap irradiation (canvas pur, pas de CORS)
+            ctx.drawImage(_fluxCanvas, 0, 0);
+
+            // 2. Projection GPS → pixels via la bbox de la heatmap
+            const {north, south, east, west} = _fluxBbox;
+            function gpsToPixel(lat, lng) {
+                return {
+                    x: (lng  - west)  / (east  - west)  * W,
+                    y: (north - lat) / (north - south) * H
+                };
+            }
+
+            // 3. Dessiner chaque module (polygon bleu) par-dessus la heatmap
+            (typeof zones !== 'undefined' ? zones : []).forEach(zone => {
+                if (!zone || !zone.moduleGroup) return;
+                zone.moduleGroup.eachLayer(layer => {
+                    if (layer._isZoneOutline) return;          // exclure le contour de zone
+                    if (!(layer instanceof L.Polygon)) return;  // exclure les markers/labels
+                    const lls = layer.getLatLngs()[0];
+                    if (!lls || lls.length < 3) return;
+                    ctx.beginPath();
+                    lls.forEach((ll, i) => {
+                        const p = gpsToPixel(ll.lat, ll.lng);
+                        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+                    });
+                    ctx.closePath();
+                    ctx.fillStyle   = 'rgba(77, 148, 255, 0.75)';
+                    ctx.strokeStyle = '#0033aa';
+                    ctx.lineWidth   = Math.max(0.6, W / 800);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+            });
+
+            return out.toDataURL('image/png');
+        }
+
         // Fonction pour préparer les données de calepinage (SANS screenshot - à ajouter séparément)
         function prepareCalepinageData() {
             // 🔥 CORRECTION: Extraire les positions GPS des modules AVANT sauvegarde
