@@ -6802,7 +6802,7 @@
             // Le PDF _draw_plan_calpinage redessine les modules depuis modulesPositions GPS
             // → alignement mathématiquement exact, indépendant de tout offset Leaflet.
             console.log('📸 Capture screenshot carte (fond tuiles uniquement)...');
-            // Masquer les groupes de modules PV ET les contours de zones
+            // Masquer les groupes de modules PV
             const _hiddenForScreenshot = [];
             zones.forEach(zone => {
                 if (zone.moduleGroup && map.hasLayer(zone.moduleGroup)) {
@@ -6810,10 +6810,6 @@
                     _hiddenForScreenshot.push(zone.moduleGroup);
                 }
             });
-            if (typeof drawnItems !== 'undefined' && drawnItems && map.hasLayer(drawnItems)) {
-                map.removeLayer(drawnItems);
-                _hiddenForScreenshot.push(drawnItems);
-            }
             if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
                 map.removeLayer(_flux2DOverlay);
                 _hiddenForScreenshot.push(_flux2DOverlay);
@@ -12049,9 +12045,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             map.removeLayer(z.moduleGroup); _hidden.push(z.moduleGroup);
                         }
                     });
-                    if (typeof drawnItems !== 'undefined' && drawnItems && map.hasLayer(drawnItems)) {
-                        map.removeLayer(drawnItems); _hidden.push(drawnItems);
-                    }
                     if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
                         map.removeLayer(_flux2DOverlay); _hidden.push(_flux2DOverlay);
                     }
@@ -12082,9 +12075,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 map.removeLayer(z.moduleGroup); _hidden2.push(z.moduleGroup);
                             }
                         });
-                        if (typeof drawnItems !== 'undefined' && drawnItems && map.hasLayer(drawnItems)) {
-                            map.removeLayer(drawnItems); _hidden2.push(drawnItems);
-                        }
                         if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
                             map.removeLayer(_flux2DOverlay); _hidden2.push(_flux2DOverlay);
                         }
