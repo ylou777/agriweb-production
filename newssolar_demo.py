@@ -110,9 +110,12 @@ def simulate_hst(surface_ha, region, converter_type, outputs_requested):
     # Températures fictives de la batterie selon heure du jour (démo)
     temp_data = _fictitious_temp_profile()
 
-    # Comparatif vs PV (même surface)
-    pv_electricity_mwh = (irr["ghi"] * SURFACE_M2 * 0.20) / 1000  # 20% rendement PV standard
-    electricity_ratio  = (electricity_mwh / pv_electricity_mwh) if pv_electricity_mwh > 0 else 0
+    # Comparatif vs PV (même surface) — 900 kWc/ha, rendement spécifique GHI × PR 85%
+    # Valeur réaliste : ~1 250–1 600 kWh/kWc/an selon région
+    INSTALLED_KWC_PER_HA = 900          # Capacité installée typique parc PV au sol
+    pv_specific_yield    = irr["ghi"] * 0.85  # kWh/kWc/an (PR 85% onduleur+câbles+temp)
+    pv_electricity_mwh   = (INSTALLED_KWC_PER_HA * surface_ha * pv_specific_yield) / 1000
+    electricity_ratio    = (electricity_mwh / pv_electricity_mwh) if pv_electricity_mwh > 0 else 0
 
     # CAPEX estimatif (€)
     capex_eur = surface_ha * 1_200_000  # ~1,2M€/ha ordre de grandeur
@@ -184,7 +187,7 @@ _BASE_CSS = """
     --ns-blue:  #0066CC;
     --ns-orange:#FF6600;
 }
-body { background: var(--bg); color: var(--text); font-family: 'Inter',sans-serif; min-height:100vh; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter',sans-serif; min-height:100vh; overflow-y: auto; }
 a { color: var(--gold); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
