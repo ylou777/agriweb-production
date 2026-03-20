@@ -295,7 +295,11 @@ option { background:#0d1024; }
 .disclaimer { background:rgba(255,183,0,0.06); border:1px solid rgba(255,183,0,0.15); border-radius:10px; padding:0.7rem 1rem; font-size:0.78rem; color:var(--muted); margin-top:0.5rem; }
 
 /* ── SCROLLBAR ── */
-::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:3px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 5px; }
+::-webkit-scrollbar-thumb { background: rgba(0,102,204,0.55); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,102,204,0.85); border: 2px solid transparent; background-clip: content-box; }
+* { scrollbar-width: thin; scrollbar-color: rgba(0,102,204,0.55) rgba(255,255,255,0.05); }
 
 /* ── LAYOUT ── */
 .main-content { max-width:1400px; margin:0 auto; padding:1.5rem 2rem; }
@@ -368,141 +372,309 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NEWS-SOLAR — Tableau de bord</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-<style>""" + _BASE_CSS + """</style>
+<style>""" + _BASE_CSS + """
+/* Layout 2 colonnes : panneau gauche fixe + contenu droit scrollable */
+.dash-layout {
+  display: flex; height: calc(100vh - 62px); overflow: hidden;
+}
+.dash-sidebar {
+  width: 300px; min-width: 280px; max-width: 320px;
+  background: var(--card); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 1.2rem;
+  flex-shrink: 0;
+}
+.dash-main {
+  flex: 1; overflow-y: auto; padding: 1.5rem 2rem;
+}
+.sim-label { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:0.3rem; display:block; }
+.sim-badge {
+  display:inline-block; background:rgba(0,102,204,0.12); border:1px solid rgba(0,102,204,0.25);
+  color: var(--blue); font-size:0.72rem; font-weight:700; padding:0.18rem 0.55rem; border-radius:20px; margin-bottom:0.8rem;
+}
+.sidebar-section { margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
+.sidebar-section:last-child { border-bottom:none; }
+.spin { animation:spin 0.8s linear infinite; display:inline-block; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.updating { opacity: 0.5; transition: opacity 0.2s; }
+</style>
 </head>
 <body>
 """ + _HEADER_HTML + """
 <script>document.getElementById('nav-dash').classList.add('active');</script>
 
-<!-- HERO -->
-<div class="hero">
-  <div style="max-width:1400px;margin:0 auto">
-    <span class="tagline">⚡ Technologie HST — High Solar Temperature · Breveté NEWS-SOLAR</span>
-    <h1>Poly-génération d'énergies vertes <span class="gold">8 760 h/an</span></h1>
-    <p>Captation solaire à hyper-concentration (×15 000) — Rendement 95% — Batterie thermique jusqu'à 3 000°C — Production continue sans interruption. Simulation pour <strong>{{ sim.region_label }}</strong> · 1 ha · Convertisseur {{ sim.converter_type }} ({{ sim.conv_eff_pct }}%).</p>
-  </div>
-</div>
+<div class="dash-layout">
 
-<div class="main-content">
+  <!-- ══ PANNEAU GAUCHE : PARAMÈTRES ══ -->
+  <aside class="dash-sidebar">
+    <div style="margin-bottom:1rem">
+      <span class="sim-badge">⚙️ Simulateur interactif</span>
+      <div style="font-size:0.8rem;color:var(--muted);line-height:1.5">Modifiez les paramètres — le tableau de bord se met à jour instantanément.</div>
+    </div>
 
-  <!-- KPI production principale -->
-  <div class="section-title" style="margin-top:0">⚡ Production annuelle estimée</div>
-  <div class="grid-4" style="margin-bottom:1.5rem">
-    <div class="card">
-      <div class="card-title">Électricité</div>
-      <div class="kpi-value gold">{{ '{:,.0f}'.format(sim.electricity_mwh) }}<span class="kpi-unit">MWh/an</span></div>
-      <div class="bar-wrap"><div class="bar-fill" style="width:{{ [sim.electricity_mwh / sim.stored_thermal_mwh * 100, 100] | min | round | int }}%; background:var(--gold)"></div></div>
-      <div class="kpi-delta muted" style="margin-top:0.6rem">Convertisseur {{ sim.converter_type }} — {{ sim.conv_eff_pct }}% rendement</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Chaleur process</div>
-      <div class="kpi-value orange">{{ '{:,.0f}'.format(sim.heat_mwh) }}<span class="kpi-unit">MWh/an</span></div>
-      <div class="bar-wrap"><div class="bar-fill" style="width:{{ [sim.heat_mwh / sim.stored_thermal_mwh * 100, 100] | min | round | int }}%; background:var(--ns-orange)"></div></div>
-      <div class="kpi-delta muted" style="margin-top:0.6rem">Chaleur directe THT disponible</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Froid industriel</div>
-      <div class="kpi-value blue">{{ '{:,.0f}'.format(sim.cold_mwh) }}<span class="kpi-unit">MWh/an</span></div>
-      <div class="bar-wrap"><div class="bar-fill" style="width:30%; background:var(--blue)"></div></div>
-      <div class="kpi-delta muted" style="margin-top:0.6rem">Cycle absorption thermique</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Hydrogène H₂</div>
-      <div class="kpi-value green">{{ '{:,.0f}'.format(sim.h2_kg) }}<span class="kpi-unit">kg/an</span></div>
-      <div class="bar-wrap"><div class="bar-fill" style="width:55%; background:var(--green)"></div></div>
-      <div class="kpi-delta muted" style="margin-top:0.6rem">Électrolyse HTE rendement 60%</div>
-    </div>
-  </div>
-
-  <!-- Financiers & Comparatif -->
-  <div class="grid-3" style="margin-bottom:1.5rem">
-    <div class="card">
-      <div class="card-title">💰 CAPEX estimatif</div>
-      <div class="kpi-value gold">{{ '{:,.0f}'.format(sim.capex_eur / 1000) }}<span class="kpi-unit">k€</span></div>
-      <div style="margin-top:1rem">
-        <div class="gauge-row"><span class="gauge-label">Revenus annuels estimés</span><span class="gauge-val green">{{ '{:,.0f}'.format(sim.revenue_annual_eur / 1000) }} k€</span></div>
-        <div class="gauge-row"><span class="gauge-label">ROI estimé</span><span class="gauge-val gold">{{ sim.roi_years }} ans</span></div>
-        <div class="gauge-row"><span class="gauge-label">CA cumulé 25 ans</span><span class="gauge-val orange">{{ '{:,.0f}'.format(sim.revenue_25y / 1000) }} k€</span></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">📊 Comparatif vs PV standard</div>
-      <div class="kpi-value gold">×{{ sim.electricity_ratio }}<span class="kpi-unit">productivité élec.</span></div>
-      <div style="margin-top:1rem">
-        <div class="gauge-row"><span class="gauge-label">PV standard (20% rdt)</span><span class="gauge-val muted">{{ '{:,.0f}'.format(sim.pv_electricity_mwh) }} MWh/an</span></div>
-        <div class="gauge-row"><span class="gauge-label">NEWS-SOLAR HST</span><span class="gauge-val green">{{ '{:,.0f}'.format(sim.electricity_mwh) }} MWh/an</span></div>
-        <div class="gauge-row"><span class="gauge-label">Heures de production</span><span class="gauge-val gold">{{ sim.hours_per_year }} h/an</span></div>
-        <div class="gauge-row"><span class="gauge-label">PV heures production</span><span class="gauge-val muted">~1 500 h/an</span></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">🌡️ Températures batterie thermique (illustratif)</div>
-      <canvas id="tempChart" height="140"></canvas>
-      <div class="disclaimer">⚠️ Données T°C à titre illustratif — Simulation. Non contractuel.</div>
-    </div>
-  </div>
-
-  <!-- Tableau récapitulatif technologie -->
-  <div class="grid-2" style="margin-bottom:1.5rem">
-    <div class="card">
-      <div class="section-title">🔩 Paramètres technologiques HST</div>
-      <table>
-        <tr><th>Paramètre</th><th>Valeur</th></tr>
-        <tr><td>Rendement de captation solaire</td><td class="gold">95%</td></tr>
-        <tr><td>Rendement batterie thermique</td><td class="gold">98%</td></tr>
-        <tr><td>Facteur concentration</td><td class="blue">×15 000</td></tr>
-        <tr><td>Densité énergétique batterie</td><td class="orange">1,3 – 1,5 MWh/m³</td></tr>
-        <tr><td>Température max batterie</td><td class="temp-high">3 000°C</td></tr>
-        <tr><td>Perte thermique batterie / jour</td><td class="green">1%</td></tr>
-        <tr><td>MTBF convertisseur</td><td class="green">> 220 000 h</td></tr>
-        <tr><td>Durée de vie installation</td><td class="green">> 25 ans</td></tr>
-        <tr><td>Production annuelle continue</td><td class="gold">8 760 h/an</td></tr>
-        <tr><td>Poids film collecteur</td><td>300 g/m²</td></tr>
-      </table>
-    </div>
-    <div class="card">
-      <div class="section-title">⚡ Chaîne énergétique HST</div>
-      <div style="padding:0.5rem 0">
-        {% set steps = [
-          ('1', 'Champ solaire', 'Micro-réflecteurs hyper-concentration ×15 000 · Film optique 95%', 'gold'),
-          ('2', 'Absorbeur', 'Reçoit le flux THT concentré · Transfert vers batterie', 'orange'),
-          ('3', 'Batterie thermique', "Stockage jusqu'à 3 000°C · 1,3 MWh/m³ · 98% rendement · Continu 8760h/an", 'blue'),
-          ('4', 'Convertisseur', 'Thermodynamique linéaire · 35% (mono) ou 60% (bi-étagé)', 'purple'),
-          ('5', 'Multi-output', 'Chaleur · Froid · Électricité · H₂/NH₃ · SAF/e-SAF', 'green'),
-        ] %}
-        {% for num, title, desc, color in steps %}
-        <div style="display:flex;gap:0.8rem;align-items:flex-start;padding:0.6rem 0;border-bottom:1px solid var(--border)">
-          <div style="width:28px;height:28px;min-width:28px;background:rgba(255,255,255,0.06);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;color:var(--{{ color }})">{{ num }}</div>
-          <div>
-            <div style="font-weight:600;font-size:0.88rem;color:var(--{{ color }})">{{ title }}</div>
-            <div style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem">{{ desc }}</div>
-          </div>
-        </div>
+    <div class="sidebar-section">
+      <label class="sim-label">🌍 Région</label>
+      <select id="p_region">
+        {% for key, val in irradiance_regions.items() %}
+        <option value="{{ key }}" {% if key=='france_sud' %}selected{% endif %}>{{ val.label }}</option>
         {% endfor %}
+      </select>
+    </div>
+
+    <div class="sidebar-section">
+      <label class="sim-label">📐 Surface (hectares)</label>
+      <input type="number" id="p_surface" value="1" min="0.1" max="10000" step="0.5">
+      <div style="display:flex;justify-content:space-between;margin-top:0.5rem;gap:0.3rem">
+        <button class="btn btn-ghost" style="flex:1;padding:0.3rem;font-size:0.75rem" onclick="setHa(0.5)">0.5 ha</button>
+        <button class="btn btn-ghost" style="flex:1;padding:0.3rem;font-size:0.75rem" onclick="setHa(1)">1 ha</button>
+        <button class="btn btn-ghost" style="flex:1;padding:0.3rem;font-size:0.75rem" onclick="setHa(5)">5 ha</button>
+        <button class="btn btn-ghost" style="flex:1;padding:0.3rem;font-size:0.75rem" onclick="setHa(10)">10 ha</button>
       </div>
     </div>
-  </div>
 
-  <div class="disclaimer" style="margin-bottom:1.5rem">
-    ⚠️ <strong>Document confidentiel — Démo investisseurs.</strong> Toutes les valeurs sont des estimations calculées à titre illustratif. Non contractuel. Données NEWS-SOLAR © 2026 — Brevets internationaux déposés. Technologie HST (High Solar Temperature) propriété exclusive NEWS-SOLAR, Valence (26).
-  </div>
+    <div class="sidebar-section">
+      <label class="sim-label">⚡ Convertisseur</label>
+      <select id="p_converter">
+        <option value="mono">Mono-étagé — 35% rdt</option>
+        <option value="bi">Bi-étagé — 60% rdt</option>
+        <option value="photostatic">Photostatique — 42% rdt</option>
+      </select>
+    </div>
 
+    <div class="sidebar-section">
+      <label class="sim-label">🧩 Sorties actives</label>
+      <div class="checkbox-group" style="flex-direction:column;gap:0.45rem">
+        <label class="cb-label"><input type="checkbox" value="electricity" checked> ⚡ Électricité</label>
+        <label class="cb-label"><input type="checkbox" value="heat" checked> 🔥 Chaleur process</label>
+        <label class="cb-label"><input type="checkbox" value="cold" checked> ❄️ Froid industriel</label>
+        <label class="cb-label"><input type="checkbox" value="h2" checked> 🌿 Hydrogène H₂</label>
+        <label class="cb-label"><input type="checkbox" value="nh3"> 🏭 Ammoniac NH₃</label>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%" onclick="runSim()">
+      <span id="btn-icon">▶</span> Calculer
+    </button>
+
+    <div id="sim-info" style="margin-top:0.8rem;font-size:0.75rem;color:var(--muted);text-align:center"></div>
+  </aside>
+
+  <!-- ══ CONTENU PRINCIPAL DYNAMIQUE ══ -->
+  <main class="dash-main" id="dash-main">
+
+    <!-- Hero summary -->
+    <div style="background:linear-gradient(135deg,rgba(0,102,204,0.1),rgba(255,102,0,0.07));border:1px solid var(--border);border-radius:16px;padding:1.2rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+      <div>
+        <span class="tagline">⚡ Technologie HST — Breveté NEWS-SOLAR</span>
+        <div id="hero-desc" style="font-size:0.9rem;color:var(--muted);margin-top:0.3rem">
+          Région : <strong class="text-white" id="hero-region">{{ sim.region_label }}</strong> ·
+          Surface : <strong id="hero-surface">{{ sim.surface_ha }} ha</strong> ·
+          Convertisseur : <strong id="hero-conv">{{ sim.converter_type }} ({{ sim.conv_eff_pct }}%)</strong>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:0.75rem;color:var(--muted)">Production continue</div>
+        <div style="font-size:1.6rem;font-weight:800;color:var(--gold)">8 760 h/an</div>
+      </div>
+    </div>
+
+    <!-- KPI production -->
+    <div class="section-title" style="margin-top:0">⚡ Production annuelle estimée</div>
+    <div class="grid-4" style="margin-bottom:1.5rem" id="kpi-production">
+      <div class="card">
+        <div class="card-title">Électricité</div>
+        <div class="kpi-value gold"><span id="kpi-elec">{{ '{:,.0f}'.format(sim.electricity_mwh) }}</span><span class="kpi-unit">MWh/an</span></div>
+        <div class="bar-wrap"><div class="bar-fill" id="bar-elec" style="width:{{ [sim.electricity_mwh / sim.stored_thermal_mwh * 100, 100] | min | round | int }}%; background:var(--gold)"></div></div>
+        <div class="kpi-delta muted" id="kpi-elec-info" style="margin-top:0.6rem">Convertisseur {{ sim.converter_type }} — {{ sim.conv_eff_pct }}% rdt</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Chaleur process</div>
+        <div class="kpi-value orange"><span id="kpi-heat">{{ '{:,.0f}'.format(sim.heat_mwh) }}</span><span class="kpi-unit">MWh/an</span></div>
+        <div class="bar-wrap"><div class="bar-fill" id="bar-heat" style="width:{{ [sim.heat_mwh / sim.stored_thermal_mwh * 100, 100] | min | round | int }}%; background:var(--ns-orange)"></div></div>
+        <div class="kpi-delta muted" style="margin-top:0.6rem">Chaleur directe THT disponible</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Froid industriel</div>
+        <div class="kpi-value blue"><span id="kpi-cold">{{ '{:,.0f}'.format(sim.cold_mwh) }}</span><span class="kpi-unit">MWh/an</span></div>
+        <div class="bar-wrap"><div class="bar-fill" id="bar-cold" style="width:30%; background:var(--blue)"></div></div>
+        <div class="kpi-delta muted" style="margin-top:0.6rem">Cycle absorption thermique</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Hydrogène H₂</div>
+        <div class="kpi-value green"><span id="kpi-h2">{{ '{:,.0f}'.format(sim.h2_kg) }}</span><span class="kpi-unit">kg/an</span></div>
+        <div class="bar-wrap"><div class="bar-fill" id="bar-h2" style="width:55%; background:var(--green)"></div></div>
+        <div class="kpi-delta muted" style="margin-top:0.6rem">Électrolyse HTE rdt 60%</div>
+      </div>
+    </div>
+
+    <!-- Financiers & Comparatif -->
+    <div class="grid-3" style="margin-bottom:1.5rem">
+      <div class="card">
+        <div class="card-title">💰 CAPEX estimatif</div>
+        <div class="kpi-value gold"><span id="kpi-capex">{{ '{:,.0f}'.format(sim.capex_eur / 1000) }}</span><span class="kpi-unit">k€</span></div>
+        <div style="margin-top:1rem">
+          <div class="gauge-row"><span class="gauge-label">Revenus annuels</span><span class="gauge-val green"><span id="kpi-rev">{{ '{:,.0f}'.format(sim.revenue_annual_eur / 1000) }}</span> k€</span></div>
+          <div class="gauge-row"><span class="gauge-label">ROI estimé</span><span class="gauge-val gold"><span id="kpi-roi">{{ sim.roi_years }}</span> ans</span></div>
+          <div class="gauge-row"><span class="gauge-label">CA cumulé 25 ans</span><span class="gauge-val orange"><span id="kpi-ca25">{{ '{:,.0f}'.format(sim.revenue_25y / 1000) }}</span> k€</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 Comparatif vs PV standard (même surface)</div>
+        <div class="kpi-value gold">×<span id="kpi-ratio">{{ sim.electricity_ratio }}</span><span class="kpi-unit">productivité élec.</span></div>
+        <div style="margin-top:1rem">
+          <div class="gauge-row"><span class="gauge-label">PV standard (900 kWc/ha)</span><span class="gauge-val muted"><span id="kpi-pv">{{ '{:,.0f}'.format(sim.pv_electricity_mwh) }}</span> MWh/an</span></div>
+          <div class="gauge-row"><span class="gauge-label">NEWS-SOLAR HST</span><span class="gauge-val green"><span id="kpi-hst">{{ '{:,.0f}'.format(sim.electricity_mwh) }}</span> MWh/an</span></div>
+          <div class="gauge-row"><span class="gauge-label">Heures production HST</span><span class="gauge-val gold">8 760 h/an</span></div>
+          <div class="gauge-row"><span class="gauge-label">PV heures production</span><span class="gauge-val muted">~1 500 h/an</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🌡️ Températures batterie thermique (illustratif)</div>
+        <canvas id="tempChart" height="150"></canvas>
+        <div class="disclaimer">⚠️ Données T°C illustratives — Non contractuel.</div>
+      </div>
+    </div>
+
+    <!-- Tableau techno + chaine -->
+    <div class="grid-2" style="margin-bottom:1.5rem">
+      <div class="card">
+        <div class="section-title">🔩 Paramètres technologiques HST</div>
+        <table>
+          <tr><th>Paramètre</th><th>Valeur</th></tr>
+          <tr><td>Rendement captation solaire</td><td class="gold">95%</td></tr>
+          <tr><td>Rendement batterie thermique</td><td class="gold">98%</td></tr>
+          <tr><td>Facteur concentration</td><td class="blue">×15 000</td></tr>
+          <tr><td>Densité énergétique batterie</td><td class="orange">1,3 – 1,5 MWh/m³</td></tr>
+          <tr><td>Température max batterie</td><td class="temp-high">3 000°C</td></tr>
+          <tr><td>Perte thermique / jour</td><td class="green">1%</td></tr>
+          <tr><td>MTBF convertisseur</td><td class="green">> 220 000 h</td></tr>
+          <tr><td>Durée de vie installation</td><td class="green">> 25 ans</td></tr>
+          <tr><td>Production annuelle continue</td><td class="gold">8 760 h/an</td></tr>
+          <tr><td>Poids film collecteur</td><td>300 g/m²</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="section-title">⚡ Chaîne énergétique HST</div>
+        <div style="padding:0.5rem 0">
+          {% set steps = [
+            ('1', 'Champ solaire', 'Micro-réflecteurs hyper-concentration ×15 000 · Film optique 95%', 'gold'),
+            ('2', 'Absorbeur', 'Reçoit le flux THT concentré · Transfert vers batterie', 'orange'),
+            ('3', 'Batterie thermique', "Stockage jusqu'à 3 000°C · 1,3 MWh/m³ · 98% rendement · Continu 8760h/an", 'blue'),
+            ('4', 'Convertisseur', 'Thermodynamique linéaire · 35% (mono) ou 60% (bi-étagé)', 'purple'),
+            ('5', 'Multi-output', 'Chaleur · Froid · Électricité · H₂/NH₃ · SAF/e-SAF', 'green'),
+          ] %}
+          {% for num, title, desc, color in steps %}
+          <div style="display:flex;gap:0.8rem;align-items:flex-start;padding:0.6rem 0;border-bottom:1px solid var(--border)">
+            <div style="width:28px;height:28px;min-width:28px;background:rgba(255,255,255,0.06);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;color:var(--{{ color }})">{{ num }}</div>
+            <div>
+              <div style="font-weight:600;font-size:0.88rem;color:var(--{{ color }})">{{ title }}</div>
+              <div style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem">{{ desc }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="disclaimer" style="margin-bottom:1.5rem">
+      ⚠️ <strong>Document confidentiel — Démo investisseurs.</strong> Estimations à titre illustratif. Non contractuel. NEWS-SOLAR © 2026 — Brevets internationaux déposés.
+    </div>
+
+  </main>
 </div>
 
 <script>
-// Graphique températures
-const tp = {{ sim.temp_profile | tojson }};
-new Chart(document.getElementById('tempChart'), {
+// ── Graphique température initial ──────────────────────────────────────────
+const tp0 = {{ sim.temp_profile | tojson }};
+const tempChart = new Chart(document.getElementById('tempChart'), {
   type: 'line',
   data: {
-    labels: tp.hours.map(h => h+'h'),
+    labels: tp0.hours.map(h => h+'h'),
     datasets: [
-      { label: 'Batterie (°C)', data: tp.battery_temp, borderColor: '#ff4444', backgroundColor: 'rgba(255,68,68,0.08)', tension: 0.4, pointRadius: 0, borderWidth: 2 },
-      { label: 'Sortie process (°C)', data: tp.output_temp, borderColor: '#FFB700', backgroundColor: 'rgba(255,183,0,0.08)', tension: 0.4, pointRadius: 0, borderWidth: 2 }
+      { label: 'Batterie (°C)', data: tp0.battery_temp, borderColor:'#ff4444', backgroundColor:'rgba(255,68,68,0.07)', tension:0.4, pointRadius:0, borderWidth:2 },
+      { label: 'Sortie process (°C)', data: tp0.output_temp, borderColor:'#FFB700', backgroundColor:'rgba(255,183,0,0.07)', tension:0.4, pointRadius:0, borderWidth:2 }
     ]
   },
-  options: { plugins: { legend: { labels: { color:'#8892a4', font:{ size:10 } } } }, scales: { x: { ticks:{ color:'#8892a4', font:{size:9} }, grid:{ color:'rgba(255,255,255,0.04)' } }, y: { ticks:{ color:'#8892a4', font:{size:9} }, grid:{ color:'rgba(255,255,255,0.04)' } } }, animation:{ duration:800 }, maintainAspectRatio:true }
+  options: {
+    plugins:{ legend:{ labels:{ color:'#8892a4', font:{ size:10 } } } },
+    scales:{
+      x:{ ticks:{ color:'#8892a4', font:{size:9} }, grid:{ color:'rgba(255,255,255,0.04)' } },
+      y:{ ticks:{ color:'#8892a4', font:{size:9} }, grid:{ color:'rgba(255,255,255,0.04)' } }
+    },
+    animation:{ duration:600 }, maintainAspectRatio:true
+  }
 });
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmt(n){ return Number(n).toLocaleString('fr-FR', {maximumFractionDigits:0}); }
+function setHa(v){ document.getElementById('p_surface').value = v; runSim(); }
+
+// ── Simulation dynamique ───────────────────────────────────────────────────
+let _debounce = null;
+function schedSim(){ clearTimeout(_debounce); _debounce = setTimeout(runSim, 500); }
+
+['p_region','p_converter'].forEach(id => document.getElementById(id).addEventListener('change', runSim));
+document.getElementById('p_surface').addEventListener('input', schedSim);
+document.querySelectorAll('.checkbox-group input').forEach(cb => cb.addEventListener('change', runSim));
+
+async function runSim(){
+  const btn = document.getElementById('btn-icon');
+  const info = document.getElementById('sim-info');
+  const main = document.getElementById('dash-main');
+  btn.textContent = '⟳'; btn.classList.add('spin');
+  main.classList.add('updating');
+  info.textContent = 'Calcul en cours...';
+
+  const outputs = [...document.querySelectorAll('.checkbox-group input:checked')].map(c => c.value);
+  const body = {
+    region:         document.getElementById('p_region').value,
+    surface_ha:     parseFloat(document.getElementById('p_surface').value) || 1,
+    converter_type: document.getElementById('p_converter').value,
+    outputs:        outputs.length ? outputs : ['electricity']
+  };
+
+  try {
+    const r = await fetch('/newssolar/api/simulate', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    applyResults(d, body);
+    info.textContent = 'Mis à jour ✓';
+  } catch(e) {
+    info.textContent = 'Erreur de calcul';
+  } finally {
+    btn.textContent = '▶'; btn.classList.remove('spin');
+    main.classList.remove('updating');
+  }
+}
+
+function applyResults(d, params){
+  // Hero
+  document.getElementById('hero-region').textContent  = d.region_label;
+  document.getElementById('hero-surface').textContent = d.surface_ha + ' ha';
+  const convLabel = {mono:'mono (35%)', bi:'bi-étagé (60%)', photostatic:'photostatique (42%)'}[params.converter_type] || params.converter_type;
+  document.getElementById('hero-conv').textContent = convLabel;
+
+  // KPI production
+  const therm = d.stored_thermal_mwh || 1;
+  document.getElementById('kpi-elec').textContent = fmt(d.electricity_mwh);
+  document.getElementById('bar-elec').style.width = Math.min(d.electricity_mwh / therm * 100, 100) + '%';
+  document.getElementById('kpi-elec-info').textContent = 'Convertisseur ' + params.converter_type + ' — ' + d.conv_eff_pct + '% rdt';
+  document.getElementById('kpi-heat').textContent = fmt(d.heat_mwh);
+  document.getElementById('bar-heat').style.width = Math.min(d.heat_mwh / therm * 100, 100) + '%';
+  document.getElementById('kpi-cold').textContent = fmt(d.cold_mwh);
+  document.getElementById('kpi-h2').textContent   = fmt(d.h2_kg);
+
+  // Financiers
+  document.getElementById('kpi-capex').textContent = fmt(d.capex_eur / 1000);
+  document.getElementById('kpi-rev').textContent   = fmt(d.revenue_annual_eur / 1000);
+  document.getElementById('kpi-roi').textContent   = d.roi_years;
+  document.getElementById('kpi-ca25').textContent  = fmt(d.revenue_25y / 1000);
+
+  // Comparatif PV
+  document.getElementById('kpi-ratio').textContent = d.electricity_ratio;
+  document.getElementById('kpi-pv').textContent    = fmt(d.pv_electricity_mwh);
+  document.getElementById('kpi-hst').textContent   = fmt(d.electricity_mwh);
+}
 </script>
 </body></html>
 """
