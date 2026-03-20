@@ -107,8 +107,9 @@ def simulate_hst(surface_ha, region, converter_type, outputs_requested):
     h2_kg_per_year  = (electricity_mwh * 1000 / 50) * 0.60 if 'h2' in outputs_requested else 0
     nh3_tons        = h2_kg_per_year * 0.18 / 1000 if 'nh3' in outputs_requested else 0   # ratio H₂→NH₃
 
-    # Températures fictives de la batterie selon heure du jour (démo)
-    temp_data = _fictitious_temp_profile()
+    # Températures batterie selon convertisseur et irradiance régionale (démo illustratif)
+    irr_day   = irr["ghi"] / 365
+    temp_data = _fictitious_temp_profile(converter_type, irr_day)
 
     # Comparatif vs PV (même surface) — 900 kWc/ha, rendement spécifique GHI × PR 85%
     # Valeur réaliste : ~1 250–1 600 kWh/kWc/an selon région
@@ -152,17 +153,24 @@ def simulate_hst(surface_ha, region, converter_type, outputs_requested):
         "temp_profile":        temp_data,
     }
 
-def _fictitious_temp_profile():
-    """Profil de température fictif illustratif (batterie thermique HST, 24h)."""
+def _fictitious_temp_profile(converter_type='mono', irr_kwh_m2_day=5.5):
+    """Profil de temperature illustratif batterie HST & sortie process, 24h.
+    Varie selon le type de convertisseur (temperatures operatoires differentes)
+    et l'irradiance regionale journaliere (kWh/m2/jour)."""
     hours = list(range(24))
-    # Batterie maintient une haute T° stable, légère variation jour/nuit
+    # T° batterie thermique selon convertisseur
+    BASE_BAT = {'mono': 860, 'bi': 1100, 'photostatic': 750}
+    AMP_BAT  = {'mono': 55,  'bi': 100,  'photostatic': 70}
+    base_bat = BASE_BAT.get(converter_type, 860)
+    amp_bat  = AMP_BAT.get(converter_type, 55)
+    # T° sortie process : croît avec l'irradiance journalière régionale
+    base_out = 350 + (irr_kwh_m2_day - 5.5) * 25
+    amp_out  = 70  + (irr_kwh_m2_day - 5.5) * 8
     temps_battery = []
     temps_output  = []
     for h in hours:
-        # Batterie : maintenue entre 800°C et 920°C
-        t_bat = 860 + 60 * math.sin((h - 14) * math.pi / 12)
-        # Sortie process : selon demande (simulation fluctuation)
-        t_out = 350 + 80 * math.sin((h - 10) * math.pi / 12) + (20 if 8 <= h <= 18 else -10)
+        t_bat = base_bat + amp_bat * math.sin((h - 14) * math.pi / 12)
+        t_out = base_out + amp_out * math.sin((h - 10) * math.pi / 12) + (20 if 8 <= h <= 18 else -10)
         temps_battery.append(round(t_bat, 1))
         temps_output.append(round(t_out, 1))
     return {"hours": hours, "battery_temp": temps_battery, "output_temp": temps_output}
@@ -1074,6 +1082,37 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
 
+        <!-- Courbe températures 24h dynamique -->
+        <div class="card" style="margin-bottom:1.2rem">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.8rem;margin-bottom:0.9rem">
+            <div>
+              <div class="card-title">🌡️ Températures batterie &amp; sortie process — profil 24h</div>
+              <div style="font-size:0.8rem;color:var(--muted2);margin-top:0.25rem">Mis a jour selon convertisseur et irradiance regionale</div>
+            </div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap">
+              <div style="text-align:right">
+                <div style="font-size:0.7rem;color:var(--muted)">T° max batterie</div>
+                <div style="font-size:1.2rem;font-weight:800;color:#ff6655"><span id="kpi-tmax-bat">{{ sim.temp_profile.battery_temp | max | int }}</span>°C</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:0.7rem;color:var(--muted)">T° max sortie</div>
+                <div style="font-size:1.2rem;font-weight:800;color:var(--gold)"><span id="kpi-tmax-out">{{ sim.temp_profile.output_temp | max | int }}</span>°C</div>
+              </div>
+            </div>
+          </div>
+          <canvas id="chartTemp24h" height="150"></canvas>
+          <div style="display:flex;gap:1.2rem;margin-top:0.7rem;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:var(--muted2)">
+              <div style="width:28px;height:3px;border-radius:2px;background:#ff4444;flex-shrink:0"></div>Batterie thermique (°C)
+            </div>
+            <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:var(--muted2)">
+              <div style="width:28px;height:3px;border-radius:2px;background:#FFB700;flex-shrink:0;background:repeating-linear-gradient(90deg,#FFB700 0 6px,transparent 6px 10px)"></div>Sortie process (°C)
+            </div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-left:auto">Region : {{ sim.region_label }}</div>
+          </div>
+          <div class="disclaimer">Profil illustratif — varie selon convertisseur et region — Non contractuel</div>
+        </div>
+
         <div class="disclaimer">
           ⚠️ <strong>Document confidentiel — Espace investisseurs prive.</strong> Toutes les valeurs sont a titre illustratif — non contractuel. Donnees non libres de droit — Copyright NEWS-SOLAR 2026. Brevets internationaux deposes.
         </div>
@@ -1204,6 +1243,42 @@ const chartCumul = new Chart(document.getElementById('chartCumul'), {
   }
 });
 
+// ── Graphique températures 24h — simulateur dynamique ────────────────────────
+const chartTemp24h = new Chart(document.getElementById('chartTemp24h'), {
+  type:'line',
+  data:{
+    labels: _initSim.temp_profile.hours.map(h => h+'h'),
+    datasets:[
+      {
+        label:'Batterie (°C)',
+        data: _initSim.temp_profile.battery_temp,
+        borderColor:'#ff4444',
+        backgroundColor:'rgba(255,68,68,0.08)',
+        tension:0.4, pointRadius:0, borderWidth:2, fill:false
+      },
+      {
+        label:'Sortie process (°C)',
+        data: _initSim.temp_profile.output_temp,
+        borderColor:'#FFB700',
+        backgroundColor:'rgba(255,183,0,0.08)',
+        tension:0.4, pointRadius:0, borderWidth:2,
+        borderDash:[5,3], fill:false
+      }
+    ]
+  },
+  options:{
+    plugins:{
+      legend:{labels:{color:'#8892a4',font:{size:10}}},
+      tooltip:{callbacks:{label:ctx=>' '+ctx.dataset.label+': '+ctx.parsed.y.toFixed(0)+'°C'}}
+    },
+    scales:{
+      x:{ticks:{color:'#8892a4',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#8892a4',font:{size:9},callback:v=>v+'°C'},grid:{color:'rgba(255,255,255,0.04)'}}
+    },
+    animation:{duration:600}
+  }
+});
+
 // ── Init barres KPI ────────────────────────────────────────────────────────
 (function initBars(){
   const therm = _initSim.stored_thermal_mwh || 1;
@@ -1291,6 +1366,15 @@ function applyResults(d, params){
   chartCumul.data.datasets[0].data = YEARS.map((_,i) => Math.round(hstAnnual * (i+1) / 1000));
   chartCumul.data.datasets[1].data = YEARS.map((_,i) => Math.round(pvAnnual  * (i+1) / 1000));
   chartCumul.update('active');
+
+  // ── Mise à jour températures 24h ─────────────────────────────────────────
+  if(d.temp_profile){
+    chartTemp24h.data.datasets[0].data = d.temp_profile.battery_temp;
+    chartTemp24h.data.datasets[1].data = d.temp_profile.output_temp;
+    chartTemp24h.update('active');
+    document.getElementById('kpi-tmax-bat').textContent = Math.round(Math.max(...d.temp_profile.battery_temp));
+    document.getElementById('kpi-tmax-out').textContent = Math.round(Math.max(...d.temp_profile.output_temp));
+  }
 }
 
 // ── Smooth scroll depuis nav ────────────────────────────────────────────────
