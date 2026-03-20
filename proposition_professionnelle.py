@@ -2597,12 +2597,12 @@ class PropositionProfessionnelle:
         y = self._draw_page_header(c, "PLAN DE MASSE - INSTALLATION PHOTOVOLTAÏQUE")
 
         calpinage = self.data_json.get('calpinage', {})
-        # Priorité : screenshot_plan_masse (vue cadastrale dédiée) > screenshot_map (vue calpinage)
-        # Chercher dans data_json ET self.calpinage (direct pass from route)
+        # Uniquement screenshot_plan_masse (vue cadastrale dédiée) — pas de repli sur screenshot_map
         screenshot = (calpinage.get('screenshot_plan_masse', '')
-                      or self.calpinage.get('screenshot_plan_masse', '')
-                      or calpinage.get('screenshot_map', '')
-                      or self.calpinage.get('screenshot_map', ''))
+                      or self.calpinage.get('screenshot_plan_masse', ''))
+        # Bounds Leaflet de la vue plan masse (pour overlay GPS modules)
+        plan_masse_meta = (calpinage.get('plan_masse_metadata')
+                           or self.calpinage.get('plan_masse_metadata', {}))
         zones = calpinage.get('zones', self.calpinage.get('zones', []))
 
         # ─ Infos propriétaire / adresse ──────────────────────────────────────
@@ -2642,6 +2642,62 @@ class PropositionProfessionnelle:
             c.rect(img_x, y - img_h, img_w, img_h)
             c.drawImage(img, img_x, y - img_h, width=img_w, height=img_h,
                         preserveAspectRatio=False, mask='auto')
+
+            # ── Overlay modules PV en vecteur GPS ──────────────────────────────
+            # screenshot_plan_masse = tuiles seules (modules masqués lors capture)
+            # → redessiner depuis modulesPositions GPS via plan_masse_metadata.bounds
+            if plan_masse_meta and 'bounds' in plan_masse_meta and zones:
+                try:
+                    b = plan_masse_meta['bounds']
+                    bb_n, bb_s = float(b['north']), float(b['south'])
+                    bb_e, bb_w = float(b['east']),  float(b['west'])
+                    if bb_n > bb_s and bb_e > bb_w:
+                        _bx, _by = img_x, y - img_h
+
+                        def _pm_gps_to_pdf(lat, lng):
+                            return (_bx + (lng - bb_w) / (bb_e - bb_w) * img_w,
+                                    _by + (lat - bb_s) / (bb_n - bb_s) * img_h)
+
+                        c.saveState()
+                        clip = c.beginPath()
+                        clip.rect(_bx, _by, img_w, img_h)
+                        c.clipPath(clip, stroke=0)
+                        # Passe 1 : fill semi-transparent
+                        c.setFillColor(colors.HexColor('#1565C0'))
+                        c.setFillAlpha(0.60)
+                        c.setStrokeAlpha(0.0)
+                        for zone in zones:
+                            for mod in zone.get('modulesPositions', []):
+                                corners = mod.get('corners', [])
+                                if len(corners) < 3:
+                                    continue
+                                path = c.beginPath()
+                                for i, corn in enumerate(corners):
+                                    px, py = _pm_gps_to_pdf(corn['lat'], corn['lng'])
+                                    if i == 0: path.moveTo(px, py)
+                                    else:      path.lineTo(px, py)
+                                path.close()
+                                c.drawPath(path, stroke=0, fill=1)
+                        # Passe 2 : bordures
+                        c.setFillAlpha(0.0)
+                        c.setStrokeColor(colors.HexColor('#0D47A1'))
+                        c.setStrokeAlpha(1.0)
+                        c.setLineWidth(0.6)
+                        for zone in zones:
+                            for mod in zone.get('modulesPositions', []):
+                                corners = mod.get('corners', [])
+                                if len(corners) < 3:
+                                    continue
+                                path = c.beginPath()
+                                for i, corn in enumerate(corners):
+                                    px, py = _pm_gps_to_pdf(corn['lat'], corn['lng'])
+                                    if i == 0: path.moveTo(px, py)
+                                    else:      path.lineTo(px, py)
+                                path.close()
+                                c.drawPath(path, stroke=1, fill=0)
+                        c.restoreState()
+                except Exception as e:
+                    print(f'[PDF] ⚠️ Overlay modules plan masse proposition: {e}')
 
             # Rose des vents (coin supérieur droit de l'image, fond blanc semi-opaque)
             ax = img_x + img_w - 1.3 * cm
