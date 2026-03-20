@@ -244,8 +244,8 @@ class PropositionProfessionnelle:
             self.page_number += 1
             self._draw_plan_situation(c)
 
-        # Page 4c : Plan de masse (screenshot dédié si dispo, sinon screenshot_map en fallback)
-        if _screenshot_masse or _screenshot:
+        # Page 4c : Plan de masse (uniquement si screenshot plan masse dédié disponible)
+        if _screenshot_masse:
             c.showPage()
             self.page_number += 1
             self._draw_plan_masse(c)
@@ -2508,8 +2508,6 @@ class PropositionProfessionnelle:
         calpinage   = self.data_json.get('calpinage', {})
         s3d         = calpinage.get('screenshot_3d', '')
         sirr        = calpinage.get('screenshot_irradiation', '')
-        irr_bbox    = calpinage.get('screenshot_irradiation_bbox') or {}
-        zones       = calpinage.get('zones', self.calpinage.get('zones', []))
         img3d       = self._decode_base64_image(s3d)  if s3d  else None
         img_irr     = self._decode_base64_image(sirr) if sirr else None
 
@@ -2550,102 +2548,21 @@ class PropositionProfessionnelle:
             c.setFillColor(colors.HexColor('#888888'))
             c.drawCentredString(bx + bw / 2, by - 0.3 * cm, legend)
 
-        # ── Méthode plan_masse_generator : overlay modules PV sur la heatmap ─
-        # Même projection GPS→PDF que _lat_lon_to_pdf / _draw_modules_pv_from_gps
-        def _overlay_irr_modules(img_x, img_y, img_w, img_h):
-            """Dessine les modules en vecteur sur la heatmap — alignement parfait garanti."""
-            if not irr_bbox or not zones:
-                return
-            try:
-                bb_n = float(irr_bbox.get('north', 0))
-                bb_s = float(irr_bbox.get('south', 0))
-                bb_e = float(irr_bbox.get('east',  0))
-                bb_w = float(irr_bbox.get('west',  0))
-                if bb_n <= bb_s or bb_e <= bb_w:
-                    return
-
-                def gps_to_pdf(lat, lng):
-                    # PDF Y augmente vers le haut, latitude aussi → même sens ✓
-                    lon_r = (lng - bb_w) / (bb_e - bb_w)
-                    lat_r = (lat - bb_s) / (bb_n - bb_s)
-                    return img_x + lon_r * img_w, img_y + lat_r * img_h
-
-                c.saveState()
-                # Clipping sur la zone image (ne déborde pas sur le titre ni la légende)
-                clip = c.beginPath()
-                clip.rect(img_x, img_y, img_w, img_h)
-                c.clipPath(clip, stroke=0)
-
-                # Étape 1 : remplissage semi-transparent (voir la heatmap en dessous)
-                c.setFillColor(colors.HexColor('#1565C0'))
-                c.setFillAlpha(0.40)
-                c.setStrokeColor(colors.HexColor('#0D47A1'))
-                c.setStrokeAlpha(0.0)
-                c.setLineWidth(0.5)
-                for zone in zones:
-                    for mod in zone.get('modulesPositions', []):
-                        corners = mod.get('corners', [])
-                        if len(corners) < 3:
-                            continue
-                        path = c.beginPath()
-                        for i, corn in enumerate(corners):
-                            px, py = gps_to_pdf(corn['lat'], corn['lng'])
-                            if i == 0:
-                                path.moveTo(px, py)
-                            else:
-                                path.lineTo(px, py)
-                        path.close()
-                        c.drawPath(path, stroke=0, fill=1)
-
-                # Étape 2 : bordures bien visibles par-dessus
-                c.setFillAlpha(0.0)
-                c.setStrokeColor(colors.HexColor('#0D47A1'))
-                c.setStrokeAlpha(1.0)
-                c.setLineWidth(0.6)
-                for zone in zones:
-                    for mod in zone.get('modulesPositions', []):
-                        corners = mod.get('corners', [])
-                        if len(corners) < 3:
-                            continue
-                        path = c.beginPath()
-                        for i, corn in enumerate(corners):
-                            px, py = gps_to_pdf(corn['lat'], corn['lng'])
-                            if i == 0:
-                                path.moveTo(px, py)
-                            else:
-                                path.lineTo(px, py)
-                        path.close()
-                        c.drawPath(path, stroke=1, fill=0)
-
-                c.restoreState()
-                print(f"[PDF] ✅ Modules irradiation overlay: {sum(len(z.get('modulesPositions',[])) for z in zones)} modules dessinés")
-            except Exception as e:
-                print(f"[PDF] ⚠️ Overlay modules irradiation: {e}")
-
-        # Image bottom-y is always: y - img_h - 0.25*cm  (title takes 0.7cm above y)
-        irr_img_y = y - img_h - 0.25 * cm
-
         if has_both:
             _draw_img_box(img3d,  1.5 * cm,           y, box_w, img_h,
                           "🏠  VUE 3D — MODÉLISATION WEBGL",
                           "Rendu 3D temps réel — terrain LiDAR IGN + modules inclinés")
-            irr_img_x = 1.5 * cm + box_w + 0.5 * cm
-            _draw_img_box(img_irr, irr_img_x, y, box_w, img_h,
+            _draw_img_box(img_irr, 1.5 * cm + box_w + 0.5 * cm, y, box_w, img_h,
                           "☀️  IRRADIATION SOLAIRE — ANALYSE SITE",
                           "Flux solaire reçu (kWh/m²/an) — source Google Solar / PVGIS")
-            if img_irr:
-                _overlay_irr_modules(irr_img_x, irr_img_y, box_w, img_h)
         elif img3d:
             _draw_img_box(img3d,  1.5 * cm, y, box_w, img_h,
                           "🏠  VUE 3D — MODÉLISATION WEBGL",
                           "Rendu 3D temps réel — terrain LiDAR IGN + modules inclinés")
         else:
-            irr_img_x = 1.5 * cm
-            _draw_img_box(img_irr, irr_img_x, y, box_w, img_h,
+            _draw_img_box(img_irr, 1.5 * cm, y, box_w, img_h,
                           "☀️  IRRADIATION SOLAIRE — ANALYSE SITE",
                           "Flux solaire reçu (kWh/m²/an) — source Google Solar / PVGIS")
-            if img_irr:
-                _overlay_irr_modules(irr_img_x, irr_img_y, box_w, img_h)
 
         y -= img_h + 1.5 * cm
 
