@@ -3065,15 +3065,15 @@
             
             // Contrôle de couches pour basculer entre les fonds
             // ESRI est le fond par défaut : aligné WGS84 → cadastre correct
-            // Google par défaut — même source que Google Solar → alignement parfait modules + heatmap
+            // Esri par défaut — CORS valide → html2canvas fonctionne sans taint
             const baseMaps = {
-                "🛰️ Satellite Google (aligné heatmap)": tileLayerGoogle,
-                "🛰️ Satellite Esri (cadastre)": tileLayerSatellite,
+                "🛰️ Satellite Esri (cadastre aligné)": tileLayerSatellite,
+                "🛰️ Satellite Google (heatmap Solar)": tileLayerGoogle,
                 "🗺️ Carte OSM (capture)": tileLayerOSM
             };
             
-            // GOOGLE par défaut — aligné avec Google Solar → modules et irradiation cohérents
-            tileLayerGoogle.addTo(map);
+            // ESRI par défaut — CORS OK → capture screenshot sans SecurityError
+            tileLayerSatellite.addTo(map);
             
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
@@ -6813,22 +6813,26 @@
             }
 
             // ── 3. Screenshot calque irradiation (si actif) ──────────────────────
+            // Réutiliser captureMapScreenshot() : masque les contrôles, corrige
+            // le scrollX/scrollY et réinitialise le _pixelOrigin Leaflet.
+            // La heatmap (canvas SVG superposé) est incluse automatiquement.
             if (_fluxCanvas && _fluxActive) {
                 try {
-                    // Rendre la scène Leaflet + calque irradiation via html2canvas
-                    const mapEl = document.getElementById('map');
-                    if (mapEl && typeof html2canvas !== 'undefined') {
-                        const cnv = await html2canvas(mapEl, { useCORS: true, allowTaint: true, scale: 1 });
-                        data.screenshot_irradiation = cnv.toDataURL('image/jpeg', 0.90);
-                        console.log('📸 Screenshot irradiation capturé');
+                    const _irrCapture = await captureMapScreenshot();
+                    if (typeof _irrCapture === 'object' && _irrCapture.screenshot) {
+                        data.screenshot_irradiation = _irrCapture.screenshot;
+                    } else if (typeof _irrCapture === 'string' && _irrCapture) {
+                        data.screenshot_irradiation = _irrCapture;
                     } else {
-                        // Fallback : exporter le canvas flux seul
+                        // Fallback : exporter le canvas flux seul si capture échoue
                         data.screenshot_irradiation = _fluxCanvas.toDataURL('image/png');
                         data.screenshot_irradiation_bbox = _fluxBbox;
-                        console.log('📸 Screenshot irradiation (flux canvas) capturé');
                     }
+                    console.log('📸 Screenshot irradiation capturé');
                 } catch(e) {
                     console.warn('⚠️ Capture irradiation échouée:', e);
+                    data.screenshot_irradiation = _fluxCanvas.toDataURL('image/png');
+                    data.screenshot_irradiation_bbox = _fluxBbox;
                 }
             }
             
@@ -7015,30 +7019,19 @@
             const controls = document.querySelectorAll('.leaflet-control');
             controls.forEach(ctrl => ctrl.style.display = 'none');
 
-            // ── FIX DÉCALAGE MODULES (cause racine) ────────────────────────────
-            // 1. Forcer tuiles Google pour la capture (même source que Google Solar)
-            //    → modules, heatmap et fond sont tous alignés dans le PDF.
-            // 2. map.setView() avec animate:false remet _pixelOrigin à zéro
-            //    → tiles et SVG sont dans le même système de coordonnées pour html2canvas.
+            // ── FIX DÉCALAGE MODULES ────────────────────────────────────────────
+            // Leaflet accumule un offset pixel interne (_pixelOrigin + mapPane transform).
+            // map.setView() avec animate:false force Leaflet à tout recalculer depuis
+            // zéro → tiles et polygones SVG sont cohérents pour html2canvas.
+            // NOTE: On garde Esri comme fond (CORS valide) pour éviter SecurityError
+            // sur toDataURL() — les tuiles Google (sans CORS) taintent le canvas.
             const savedCenter = map.getCenter();
             const savedZoom   = map.getZoom();
-            const _wasEsri    = map.hasLayer(tileLayerSatellite);
-            const _wasOSM     = map.hasLayer(tileLayerOSM);
-            const _hadGoogle  = map.hasLayer(tileLayerGoogle);
-
-            // Basculer sur Google si pas déjà actif
-            if (!_hadGoogle && tileLayerGoogle) {
-                if (tileLayerSatellite) map.removeLayer(tileLayerSatellite);
-                if (tileLayerOSM)       map.removeLayer(tileLayerOSM);
-                tileLayerGoogle.addTo(map);
-                await new Promise(resolve => setTimeout(resolve, 300)); // attendre chargement tuiles
-            }
 
             await new Promise(resolve => {
                 map.once('moveend', resolve);
                 map.setView(savedCenter, savedZoom, { animate: false, duration: 0 });
-                // Fallback si moveend ne se déclenche pas (vue identique)
-                setTimeout(resolve, 100);
+                setTimeout(resolve, 150);
             });
 
             // Attendre rendu complet des tuiles + SVG
@@ -7055,12 +7048,6 @@
                     scale: 1
                 });
                 
-                // Restaurer la couche de tuiles originale si on avait basculé
-                if (!_hadGoogle && tileLayerGoogle) {
-                    map.removeLayer(tileLayerGoogle);
-                    if (_wasEsri && tileLayerSatellite) tileLayerSatellite.addTo(map);
-                    else if (_wasOSM && tileLayerOSM)   tileLayerOSM.addTo(map);
-                }
                 controls.forEach(ctrl => ctrl.style.display = '');
                 
                 const screenshot = canvas.toDataURL('image/png');
@@ -7086,12 +7073,6 @@
                     }
                 };
             } catch (err) {
-                // Restaurer tuiles en cas d'erreur
-                if (!_hadGoogle && tileLayerGoogle) {
-                    try { map.removeLayer(tileLayerGoogle); } catch(e) {}
-                    if (_wasEsri && tileLayerSatellite) { try { tileLayerSatellite.addTo(map); } catch(e) {} }
-                    else if (_wasOSM && tileLayerOSM)   { try { tileLayerOSM.addTo(map); } catch(e) {} }
-                }
                 controls.forEach(ctrl => ctrl.style.display = '');
                 console.error('❌ Erreur capture:', err);
                 throw err;
@@ -9199,40 +9180,31 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
         /**
          * Bascule le fond de carte vers Google quand la heatmap est activée.
-         * Google est maintenant le fond par défaut → dans la plupart des cas, rien à faire.
-         * Si l'utilisateur a manuellement basculé sur Esri/OSM, on revient sur Google.
+         * Google Solar est aligné sur les tuiles Google → heatmap cohérente visuellement.
+         * Au désactivation, retour sur Esri (CORS valide pour capture screenshot).
          */
         function _switchTileForHeatmap(activateGoogle) {
-            if (!map || !tileLayerGoogle) return;
+            if (!map || !tileLayerGoogle || !tileLayerSatellite) return;
             if (activateGoogle) {
                 if (!map.hasLayer(tileLayerGoogle)) {
-                    // Mémoriser le fond actuel pour restauration éventuelle
                     _tileBeforeHeatmap = map.hasLayer(tileLayerSatellite) ? 'esri'
                         : map.hasLayer(tileLayerOSM) ? 'osm' : 'google';
-                    if (tileLayerSatellite) map.removeLayer(tileLayerSatellite);
-                    if (tileLayerOSM)       map.removeLayer(tileLayerOSM);
+                    map.removeLayer(tileLayerSatellite);
+                    if (tileLayerOSM) map.removeLayer(tileLayerOSM);
                     tileLayerGoogle.addTo(map);
                     console.log('🛰️ [Heatmap ON] → Tuiles Google (alignées Google Solar)');
-                } else {
-                    // Google déjà actif (défaut) — rien à faire
-                    _tileBeforeHeatmap = 'google';
-                    console.log('🛰️ [Heatmap ON] → Tuiles Google déjà actives');
                 }
             } else {
-                // Heatmap désactivée : restaurer le fond précédent si ce n'était pas Google
-                if (_tileBeforeHeatmap && _tileBeforeHeatmap !== 'google') {
-                    if (map.hasLayer(tileLayerGoogle)) map.removeLayer(tileLayerGoogle);
+                if (map.hasLayer(tileLayerGoogle) && _tileBeforeHeatmap !== 'google') {
+                    map.removeLayer(tileLayerGoogle);
                     if (_tileBeforeHeatmap === 'osm' && tileLayerOSM) {
                         tileLayerOSM.addTo(map);
-                    } else if (tileLayerSatellite) {
-                        tileLayerSatellite.addTo(map);
+                    } else {
+                        tileLayerSatellite.addTo(map); // retour Esri (CORS OK)
                     }
-                    console.log('🛰️ [Heatmap OFF] → Tuiles restaurées (' + _tileBeforeHeatmap + ')');
-                } else {
-                    // Rester sur Google (défaut)
-                    console.log('🛰️ [Heatmap OFF] → Tuiles Google conservées (défaut)');
+                    console.log('🛰️ [Heatmap OFF] → Tuiles Esri restaurées');
+                    _tileBeforeHeatmap = null;
                 }
-                _tileBeforeHeatmap = null;
             }
         }
 
