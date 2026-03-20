@@ -1,174 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Blueprint NEWS-SOLAR — Site complet investisseurs (HST Technology)
-===================================================================
-Module ISOLÉ — n'impacte aucun autre fichier du programme.
-Accessible uniquement aux utilisateurs connectés (démo privée).
-
-Routes :
-  GET  /newssolar/               → Site complet multi-sections (SPA)
-  GET  /newssolar/simulation     → Simulateur standalone
-  POST /newssolar/api/simulate   → API calcul (JSON)
-"""
-
-import math
-from flask import Blueprint, render_template_string, request, jsonify, redirect, session
-from auth_database import get_auth_db
-
-newssolar_demo_bp = Blueprint('newssolar_demo', __name__, url_prefix='/newssolar')
-
-# ── Helpers auth ─────────────────────────────────────────────────────────────
-
-def _get_current_user():
-    """Retourne le dict utilisateur depuis le session_token, ou None."""
-    token = session.get('session_token') or request.cookies.get('session_token')
-    if not token:
-        return None
-    try:
-        conn = get_auth_db()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT u.id, u.email, u.name, u.company
-            FROM user_sessions s
-            JOIN users u ON u.id = s.user_id
-            WHERE s.session_token = ?
-              AND s.expires_at > datetime('now')
-              AND u.is_active = 1
-        """, (token,))
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            return {'id': row[0], 'email': row[1], 'name': row[2], 'company': row[3]}
-    except Exception as e:
-        print(f"[NEWSSOLAR] Erreur auth check: {e}")
-    return None
-
-def _require_auth():
-    """Retourne (user, None) ou (None, redirect_response)."""
-    user = _get_current_user()
-    if not user:
-        return None, redirect('/auth/login')
-    return user, None
-
-# ── Moteur de simulation HST ─────────────────────────────────────────────────
-
-# Données d'irradiance fictives mais réalistes par région (kWh/m²/an DNI)
-IRRADIANCE_DB = {
-    "france_sud":       {"dnI": 1800, "ghi": 1600, "label": "France Sud (Valence, Marseille, Nice)"},
-    "france_nord":      {"dnI": 1100, "ghi": 1050, "label": "France Nord (Paris, Lille)"},
-    "espagne":          {"dnI": 2200, "ghi": 1900, "label": "Espagne / Portugal"},
-    "maroc_algerie":    {"dnI": 2600, "ghi": 2200, "label": "Maroc / Algérie"},
-    "moyen_orient":     {"dnI": 2800, "ghi": 2400, "label": "Moyen-Orient / Arabie Saoudite"},
-    "afrique_subsah":   {"dnI": 2400, "ghi": 2100, "label": "Afrique sub-saharienne"},
-    "inde":             {"dnI": 2100, "ghi": 1900, "label": "Inde / Pakistan"},
-    "australie":        {"dnI": 2500, "ghi": 2100, "label": "Australie"},
-    "amerique_latine":  {"dnI": 2300, "ghi": 2000, "label": "Amérique Latine (Chili, Brésil)"},
-    "europe_centrale":  {"dnI": 1300, "ghi": 1200, "label": "Europe Centrale (Allemagne, Pologne)"},
-}
-
-def simulate_hst(surface_ha, region, converter_type, outputs_requested):
-    """
-    Moteur de calcul HST NEWS-SOLAR.
-    surface_ha      : surface en hectares
-    region          : clé dans IRRADIANCE_DB
-    converter_type  : 'mono' (35%) | 'bi' (60%) | 'photostatic' (42%)
-    outputs_requested : liste de 'heat','cold','electricity','h2','nh3'
-    Retourne un dict de résultats énergétiques annuels.
-    """
-    irr = IRRADIANCE_DB.get(region, IRRADIANCE_DB["france_sud"])
-    dni_kwh_m2y = irr["dnI"]
-
-    # Paramètres HST
-    CAPTATION_EFFICIENCY  = 0.95    # 95% captation hyper-concentration
-    SURFACE_M2            = surface_ha * 10_000
-    ACTIVE_RATIO          = 1.0     # toute la surface est collectrice (film réfléchissant)
-    THERMAL_STORAGE_EFF   = 0.98    # batterie thermique rendement 98%
-    HOURS_PER_YEAR        = 8760
-
-    # Énergie thermique brute captée (MWh/an)
-    raw_thermal_mwh = (dni_kwh_m2y * SURFACE_M2 * CAPTATION_EFFICIENCY * ACTIVE_RATIO) / 1000
-
-    # Puissance crête thermique (MWc)
-    peak_thermal_mwc = (dns := dni_kwh_m2y * CAPTATION_EFFICIENCY / 1000) * SURFACE_M2 / 1000
-    # Plus simple :
-    peak_thermal_mwc = (dni_kwh_m2y / 1000) * SURFACE_M2 * CAPTATION_EFFICIENCY / 1000
-
-    stored_thermal_mwh = raw_thermal_mwh * THERMAL_STORAGE_EFF
-
-    # Rendement du convertisseur électrique
-    conv_eff = {"mono": 0.35, "bi": 0.60, "photostatic": 0.42}.get(converter_type, 0.35)
-
-    # Productions annuelles
-    electricity_mwh = stored_thermal_mwh * conv_eff if 'electricity' in outputs_requested else 0
-    heat_mwh        = stored_thermal_mwh * (1 - conv_eff) * 0.85 if 'heat' in outputs_requested else 0
-    cold_mwh        = stored_thermal_mwh * 0.30 if 'cold' in outputs_requested else 0   # cycle absorption
-
-    # H₂ : 50 kWh électrolyse → 1 kg H₂ (rendement ~60% électrolyseur HTE)
-    h2_kg_per_year  = (electricity_mwh * 1000 / 50) * 0.60 if 'h2' in outputs_requested else 0
-    nh3_tons        = h2_kg_per_year * 0.18 / 1000 if 'nh3' in outputs_requested else 0   # ratio H₂→NH₃
-
-    # Températures fictives de la batterie selon heure du jour (démo)
-    temp_data = _fictitious_temp_profile()
-
-    # Comparatif vs PV (même surface) — 900 kWc/ha, rendement spécifique GHI × PR 85%
-    # Valeur réaliste : ~1 250–1 600 kWh/kWc/an selon région
-    INSTALLED_KWC_PER_HA = 900          # Capacité installée typique parc PV au sol
-    pv_specific_yield    = irr["ghi"] * 0.85  # kWh/kWc/an (PR 85% onduleur+câbles+temp)
-    pv_electricity_mwh   = (INSTALLED_KWC_PER_HA * surface_ha * pv_specific_yield) / 1000
-    electricity_ratio    = (electricity_mwh / pv_electricity_mwh) if pv_electricity_mwh > 0 else 0
-
-    # CAPEX estimatif (€)
-    capex_eur = surface_ha * 1_200_000  # ~1,2M€/ha ordre de grandeur
-
-    # Revenus annuels estimés (€) — tarif moyen 80€/MWh
-    revenue_elec  = electricity_mwh  * 80
-    revenue_heat  = heat_mwh         * 65
-    revenue_cold  = cold_mwh         * 55
-    revenue_h2    = h2_kg_per_year   * 6    # ~6€/kg H₂ vert
-    revenue_total = revenue_elec + revenue_heat + revenue_cold + revenue_h2
-
-    roi_years = (capex_eur / revenue_total) if revenue_total > 0 else 0
-    revenue_25y = revenue_total * 25
-
-    return {
-        "region_label":        irr["label"],
-        "surface_ha":          surface_ha,
-        "raw_thermal_mwh":     round(raw_thermal_mwh, 1),
-        "stored_thermal_mwh":  round(stored_thermal_mwh, 1),
-        "electricity_mwh":     round(electricity_mwh, 1),
-        "heat_mwh":            round(heat_mwh, 1),
-        "cold_mwh":            round(cold_mwh, 1),
-        "h2_kg":               round(h2_kg_per_year, 0),
-        "nh3_tons":            round(nh3_tons, 1),
-        "pv_electricity_mwh":  round(pv_electricity_mwh, 1),
-        "electricity_ratio":   round(electricity_ratio, 1),
-        "capex_eur":           round(capex_eur, 0),
-        "revenue_annual_eur":  round(revenue_total, 0),
-        "roi_years":           round(roi_years, 1),
-        "revenue_25y":         round(revenue_25y, 0),
-        "converter_type":      converter_type,
-        "conv_eff_pct":        int(conv_eff * 100),
-        "hours_per_year":      HOURS_PER_YEAR,
-        "temp_profile":        temp_data,
-    }
-
-def _fictitious_temp_profile():
-    """Profil de température fictif illustratif (batterie thermique HST, 24h)."""
-    hours = list(range(24))
-    # Batterie maintient une haute T° stable, légère variation jour/nuit
-    temps_battery = []
-    temps_output  = []
-    for h in hours:
-        # Batterie : maintenue entre 800°C et 920°C
-        t_bat = 860 + 60 * math.sin((h - 14) * math.pi / 12)
-        # Sortie process : selon demande (simulation fluctuation)
-        t_out = 350 + 80 * math.sin((h - 10) * math.pi / 12) + (20 if 8 <= h <= 18 else -10)
-        temps_battery.append(round(t_bat, 1))
-        temps_output.append(round(t_out, 1))
-    return {"hours": hours, "battery_temp": temps_battery, "output_temp": temps_output}
-
-
-# -*- coding: utf-8 -*-
 # NOUVEAU SITE NEWS-SOLAR — injection dans newssolar_demo.py
 # Contenu: CSS, Header, Page principale SPA (5 sections), Simulateur standalone
 
@@ -698,10 +528,10 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     <div class="card-title" style="font-size:0.85rem;margin-bottom:1rem;color:var(--muted2)">🔋 Batteries thermiques THT — Modeles TB</div>
     <div class="grid-3" style="margin-bottom:2rem">
       {% set batteries = [
-        ('TB 10', '< 10 MWh', "1x container 10''", '2,99 x 2,43 x 2,59 m', '410 k€ HT', 'x2 minimum', '~2 mois'),
-        ('TB 25', '< 25 MWh', "1x container 15''", '4,50 x 2,43 x 2,59 m', '922 k€ HT', 'x1 minimum', '>2 mois'),
-        ('TB 50', '< 50 MWh', "1x container 20''", '6,05 x 2,43 x 2,59 m', '1 660 k€ HT', 'x1 minimum', '>2,5 mois'),
-        ('TB 100', '< 100 MWh', "1x container 40''", '12,10 x 2,43 x 2,59 m', '2 500 k€ HT', 'x1 minimum', '>3 mois'),
+        ('TB 10', '< 10 MWh', '1x container 10\'\'', '2,99 x 2,43 x 2,59 m', '410 k€ HT', 'x2 minimum', '~2 mois'),
+        ('TB 25', '< 25 MWh', '1x container 15\'\'', '4,50 x 2,43 x 2,59 m', '922 k€ HT', 'x1 minimum', '>2 mois'),
+        ('TB 50', '< 50 MWh', '1x container 20\'\'', '6,05 x 2,43 x 2,59 m', '1 660 k€ HT', 'x1 minimum', '>2,5 mois'),
+        ('TB 100', '< 100 MWh', '1x container 40\'\'', '12,10 x 2,43 x 2,59 m', '2 500 k€ HT', 'x1 minimum', '>3 mois'),
         ('TB 1.000', '< 1 GWh', 'Batiment industriel', '25 x 10 x 3,2 m (800 m³)', 'Nous consulter', 'Sur demande', '>8 mois'),
       ] %}
       {% for nom, capa, format_, dims, prix, cmd, delai in batteries %}
@@ -799,7 +629,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
       <div class="card">
         <div class="card-title" style="margin-bottom:1rem">✅ Pourquoi investir dans NEWS-SOLAR ?</div>
         {% set invest_points = [
-          ('📈', "Rendement superieur aux placements traditionnels — ROI jusqu'a 20% sur certaines configurations."),
+          ('📈', 'Rendement superieur aux placements traditionnels — ROI jusqu\'a 20% sur certaines configurations.'),
           ('💰', 'Flux de revenus stables et recurrents sur 5 a 30 ans via contrats PPA (Power Purchase Agreement).'),
           ('🌱', 'Impact environnemental positif, conformite ESG, credits carbone >100 €/T @ 2030.'),
           ('🛡️', 'Decorrelation des marches fossiles, protection contre la volatilite, contrats a prix garantis.'),
@@ -808,7 +638,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
           ('📋', 'Protection industrielle haute level : >45 brevets internationaux @ 2025.'),
           ('✈️', 'Signature en cours avec de grands operateurs ENR, projets Power 1 (1 MWc) et Power 10 (10 MWc).'),
           ('♻️', 'Materiaux 100% recyclables — fusion via nos procedes solaires HST — empreinte quasi nulle.'),
-          ('📊', "Avantages fiscaux et subventions disponibles selon pays d'implantation."),
+          ('📊', 'Avantages fiscaux et subventions disponibles selon pays d\'implantation.'),
         ] %}
         {% for icon, text in invest_points %}
         <div class="invest-point">
@@ -824,7 +654,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
           <div class="card-title">💡 Indicateurs financiers (ordre de grandeur)</div>
           <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.8rem">
             {% set fin_kpis = [
-              ('ROI installations Power', "jusqu'a 20%", 'gold'),
+              ('ROI installations Power', 'jusqu\'a 20%', 'gold'),
               ('Tarif vente energie', 'des 25 EUR/MWh', 'gold'),
               ('Duree contrats PPA', '5 a 30 ans', 'green'),
               ('CA annuel 1 MWc (elec+chaleur)', '>1 M€/an', 'green'),
@@ -844,10 +674,10 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <div class="card">
           <div class="card-title" style="margin-bottom:0.8rem">👤 Profils d'investisseurs recherches</div>
           {% set profils = [
-            ('🏦', "Fonds d'investissement et institutionnels", 'Actifs verts rentables, conformite ESG'),
+            ('🏦', 'Fonds d\'investissement et institutionnels', 'Actifs verts rentables, conformite ESG'),
             ('🏭', 'Grands groupes industriels', 'Decarbonation, optimisation bilan carbone, tarifs stables'),
-            ('🏢', "PME/ETI consommatrices d'energie", 'Tarifs avantageux, autonomie energetique 365 j/an'),
-            ('👨‍👩‍👧', 'Particuliers & Family Offices', "Via vehicules d'investissement dedies (SPV)"),
+            ('🏢', 'PME/ETI consommatrices d\'energie', 'Tarifs avantageux, autonomie energetique 365 j/an'),
+            ('👨‍👩‍👧', 'Particuliers & Family Offices', 'Via vehicules d\'investissement dedies (SPV)'),
             ('🌆', 'Collectivites territoriales', 'Transition energetique, souverainete, emploi local'),
           ] %}
           {% for icon, type_, desc in profils %}
@@ -878,9 +708,9 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
       <div class="card-title" style="margin-bottom:1rem">⚡ Nos modeles d'investissement</div>
       <div class="grid-3">
         {% set modeles = [
-          ("Vente d'energie PPA", '📋', "Nous finançons, installons et gerons la centrale. Vous achetez l'energie a tarif garanti 5-25 ans, sans investissement initial. Revenus via Delta tarifaire sur contrats PPA.", 'green'),
-          ('Investissement direct dans une SPV', '🏗️', "Vous investissez dans une SPV entierement dedie au projet. Production autofinancee, retour sur capital via revenus de revente d'energies. ROI jusqu'a 20%.", 'gold'),
-          ('Trading energetique GigaPower', '⚡', "Achat d'electricite a prix spot negatif, stockage dans nos batteries THT, revente aux pointes. Gestion par notre IA brevetee FR2505822. Exemple 2025 : 58,74 M€/an sur 1 GWh.", 'orange'),
+          ('Vente d\'energie PPA', '📋', 'Nous finançons, installons et gerons la centrale. Vous achetez l\'energie a tarif garanti 5-25 ans, sans investissement initial. Revenus via Delta tarifaire sur contrats PPA.', 'green'),
+          ('Investissement direct dans une SPV', '🏗️', 'Vous investissez dans une SPV entierement dedie au projet. Production autofinancee, retour sur capital via revenus de revente d\'energies. ROI jusqu\'a 20%.', 'gold'),
+          ('Trading energetique GigaPower', '⚡', 'Achat d\'electricite a prix spot negatif, stockage dans nos batteries THT, revente aux pointes. Gestion par notre IA brevetee FR2505822. Exemple 2025 : 58,74 M€/an sur 1 GWh.', 'orange'),
         ] %}
         {% for title, icon, desc, color in modeles %}
         <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:1.3rem">
@@ -1295,60 +1125,3 @@ function renderResults(d){
 </script>
 </body></html>
 """
-
-
-
-# -- Donnees regions pour les templates ------------------------------------
-_REGIONS_FOR_TEMPLATE = {
-    k: {"label": v["label"], "dni": v["dnI"], "ghi": v["ghi"]}
-    for k, v in IRRADIANCE_DB.items()
-}
-
-# -- Routes Flask ----------------------------------------------------------
-
-@newssolar_demo_bp.route('/', methods=['GET'])
-def dashboard():
-    user, redir = _require_auth()
-    if redir:
-        return redir
-    sim = simulate_hst(1.0, "france_sud", "mono", ["electricity", "heat", "cold", "h2"])
-    return render_template_string(
-        DASHBOARD_TEMPLATE,
-        user=user,
-        sim=sim,
-        irradiance_regions=_REGIONS_FOR_TEMPLATE
-    )
-
-
-@newssolar_demo_bp.route('/simulation', methods=['GET'])
-def simulation_page():
-    user, redir = _require_auth()
-    if redir:
-        return redir
-    return render_template_string(
-        SIMULATION_TEMPLATE,
-        user=user,
-        irradiance_regions=_REGIONS_FOR_TEMPLATE
-    )
-
-
-@newssolar_demo_bp.route('/api/simulate', methods=['POST'])
-def api_simulate():
-    user, redir = _require_auth()
-    if redir:
-        return jsonify({"error": "Non autorise"}), 401
-    data = request.get_json(force=True) or {}
-    surface_ha     = float(data.get("surface_ha", 1.0))
-    region         = str(data.get("region", "france_sud"))
-    converter_type = str(data.get("converter_type", "mono"))
-    outputs        = list(data.get("outputs", ["electricity", "heat"]))
-    # Securite : limites raisonnables
-    surface_ha = max(0.01, min(surface_ha, 100_000))
-    if region not in IRRADIANCE_DB:
-        region = "france_sud"
-    if converter_type not in ("mono", "bi", "photostatic"):
-        converter_type = "mono"
-    allowed_outputs = {"electricity", "heat", "cold", "h2", "nh3"}
-    outputs = [o for o in outputs if o in allowed_outputs] or ["electricity"]
-    result = simulate_hst(surface_ha, region, converter_type, outputs)
-    return jsonify(result)
