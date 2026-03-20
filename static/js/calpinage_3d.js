@@ -7047,7 +7047,9 @@ class Calpinage3DViewer {
      * Ajuste la caméra pour voir toute la scène
      */
     _fitCamera(radiusM) {
-        const dist = radiusM * 1.5;
+        // Cap the effective radius so the camera is always tight on the building
+        const effectiveR = Math.min(radiusM, 60);
+        const dist = effectiveR * 1.5;
         this.camera.position.set(dist * 0.7, dist * 0.9, dist * 0.7);
         if (this.controls) {
             this.controls.target.set(0, 3, 0);
