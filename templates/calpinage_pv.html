@@ -6788,9 +6788,25 @@
         document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
             const data = prepareCalepinageData();
             
-            // ── 1. Screenshot vue 2D Leaflet (satellite + modules) ───────────────
-            console.log('📸 Capture screenshot de la carte...');
+            // ── 1. Screenshot vue 2D Leaflet — TUILES SEULES (sans modules PV) ─────
+            // Le PDF _draw_plan_calpinage redessine les modules depuis modulesPositions GPS
+            // → alignement mathématiquement exact, indépendant de tout offset Leaflet.
+            console.log('📸 Capture screenshot carte (fond tuiles uniquement)...');
+            // Masquer les groupes de modules PV
+            const _hiddenForScreenshot = [];
+            zones.forEach(zone => {
+                if (zone.moduleGroup && map.hasLayer(zone.moduleGroup)) {
+                    map.removeLayer(zone.moduleGroup);
+                    _hiddenForScreenshot.push(zone.moduleGroup);
+                }
+            });
+            if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
+                map.removeLayer(_flux2DOverlay);
+                _hiddenForScreenshot.push(_flux2DOverlay);
+            }
             const captureData = await captureMapScreenshot();
+            // Restaurer les couches masquées
+            _hiddenForScreenshot.forEach(layer => layer.addTo(map));
             if (typeof captureData === 'object' && captureData.screenshot) {
                 data.screenshot_map = captureData.screenshot;
                 data.map_metadata = {

@@ -2774,6 +2774,8 @@ class PropositionProfessionnelle:
         y -= 1.6 * cm
 
         # ─ Image du calpinage ────────────────────────────────────────────────
+        # Bounds réels du screenshot (pour la projection GPS→PDF des modules)
+        map_metadata = calpinage.get('map_metadata') or self.calpinage.get('map_metadata', {})
         img_calp = self._decode_base64_image(screenshot) if screenshot else None
         max_img_h = 14 * cm
         box_w = self.width - 3 * cm
@@ -2786,8 +2788,70 @@ class PropositionProfessionnelle:
                 img_h = max_img_h
                 img_w = img_h * aspect
             img_x = 1.5 * cm + (box_w - img_w) / 2
-            c.drawImage(img_calp, img_x, y - img_h, width=img_w, height=img_h,
+            img_y = y - img_h
+            c.drawImage(img_calp, img_x, img_y, width=img_w, height=img_h,
                         preserveAspectRatio=False, mask='auto')
+
+            # ── Overlay modules PV en vecteur GPS (même méthode que plan_masse_generator) ──
+            # screenshot_map = tuiles satellites pures (modules masqués lors capture)
+            # → on redessine les modules depuis modulesPositions GPS → 0 décalage
+            if map_metadata and 'bounds' in map_metadata and zones:
+                try:
+                    b = map_metadata['bounds']
+                    bb_n, bb_s = float(b['north']), float(b['south'])
+                    bb_e, bb_w = float(b['east']),  float(b['west'])
+                    if bb_n > bb_s and bb_e > bb_w:
+                        def _gps_to_pdf_calp(lat, lng):
+                            lon_r = (lng - bb_w) / (bb_e - bb_w)
+                            lat_r = (lat - bb_s) / (bb_n - bb_s)
+                            return img_x + lon_r * img_w, img_y + lat_r * img_h
+
+                        c.saveState()
+                        clip = c.beginPath()
+                        clip.rect(img_x, img_y, img_w, img_h)
+                        c.clipPath(clip, stroke=0)
+
+                        # Passe 1 : remplissage semi-transparent
+                        c.setFillColor(colors.HexColor('#1565C0'))
+                        c.setFillAlpha(0.60)
+                        c.setStrokeAlpha(0.0)
+                        c.setLineWidth(0.5)
+                        for zone in zones:
+                            for mod in zone.get('modulesPositions', []):
+                                corners = mod.get('corners', [])
+                                if len(corners) < 3:
+                                    continue
+                                path = c.beginPath()
+                                for i, corn in enumerate(corners):
+                                    px, py = _gps_to_pdf_calp(corn['lat'], corn['lng'])
+                                    if i == 0: path.moveTo(px, py)
+                                    else:      path.lineTo(px, py)
+                                path.close()
+                                c.drawPath(path, stroke=0, fill=1)
+
+                        # Passe 2 : bordures nettes
+                        c.setFillAlpha(0.0)
+                        c.setStrokeColor(colors.HexColor('#0D47A1'))
+                        c.setStrokeAlpha(1.0)
+                        c.setLineWidth(0.6)
+                        for zone in zones:
+                            for mod in zone.get('modulesPositions', []):
+                                corners = mod.get('corners', [])
+                                if len(corners) < 3:
+                                    continue
+                                path = c.beginPath()
+                                for i, corn in enumerate(corners):
+                                    px, py = _gps_to_pdf_calp(corn['lat'], corn['lng'])
+                                    if i == 0: path.moveTo(px, py)
+                                    else:      path.lineTo(px, py)
+                                path.close()
+                                c.drawPath(path, stroke=1, fill=0)
+
+                        c.restoreState()
+                        nb_mods = sum(len(z.get('modulesPositions', [])) for z in zones)
+                        print(f'[PDF] ✅ Plan calpinage: {nb_mods} modules GPS overlay')
+                except Exception as e:
+                    print(f'[PDF] ⚠️ Overlay modules calpinage: {e}')
         else:
             img_h = max_img_h
             c.setFillColor(self.COLOR_LIGHT_BG)
