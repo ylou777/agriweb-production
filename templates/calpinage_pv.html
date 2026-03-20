@@ -7016,30 +7016,36 @@
             controls.forEach(ctrl => ctrl.style.display = 'none');
 
             // ── FIX DÉCALAGE MODULES (cause racine) ────────────────────────────
-            // Leaflet accumule un offset pixel interne dans mapPane pour la
-            // navigation fluide (ex: translate3d(-1234px, -567px, 0px)).
-            // html2canvas ne le compense pas → tiles OK mais SVG modules décalés.
-            // Solution : neutraliser cet offset à (0,0) avant capture, puis restaurer.
-            const mapPane = map.getPanes().mapPane;
-            const savedPos = L.DomUtil.getPosition(mapPane);
-            L.DomUtil.setPosition(mapPane, { x: 0, y: 0 });
+            // Leaflet accumule un offset pixel interne dans mapPane + _pixelOrigin.
+            // Réinitialiser uniquement mapPane (sans _pixelOrigin) laisse tiles et
+            // SVG dans des systèmes de coordonnées incohérents → modules décalés.
+            // Solution correcte : map.setView() avec animate:false force Leaflet à
+            // recalculer _pixelOrigin ET repositionner TOUS les calques (tiles + SVG)
+            // depuis zéro, garantissant une cohérence parfaite pour html2canvas.
+            const savedCenter = map.getCenter();
+            const savedZoom   = map.getZoom();
 
-            // Attendre le rendu complet après reset de l'offset
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => {
+                map.once('moveend', resolve);
+                map.setView(savedCenter, savedZoom, { animate: false, duration: 0 });
+                // Fallback si moveend ne se déclenche pas (vue identique)
+                setTimeout(resolve, 100);
+            });
+
+            // Attendre rendu complet des tuiles + SVG
+            await new Promise(resolve => setTimeout(resolve, 400));
             
             try {
                 const canvas = await html2canvas(mapContainer, {
                     useCORS: true,
                     allowTaint: true,
                     backgroundColor: '#1a1a2e',
-                    scrollX: 0,
-                    scrollY: 0,
+                    scrollX: -window.scrollX,
+                    scrollY: -window.scrollY,
                     logging: false,
                     scale: 1
                 });
                 
-                // Restaurer l'offset Leaflet et les contrôles
-                L.DomUtil.setPosition(mapPane, savedPos);
                 controls.forEach(ctrl => ctrl.style.display = '');
                 
                 const screenshot = canvas.toDataURL('image/png');
@@ -7065,7 +7071,6 @@
                     }
                 };
             } catch (err) {
-                L.DomUtil.setPosition(mapPane, savedPos);
                 controls.forEach(ctrl => ctrl.style.display = '');
                 console.error('❌ Erreur capture:', err);
                 throw err;
@@ -7579,18 +7584,19 @@
                             zoom: map.getZoom(),
                             size: { width: mapSize.x, height: mapSize.y }
                         };
-                        // Neutraliser l'offset interne Leaflet avant capture
-                        const _massMapPane = map.getPanes().mapPane;
-                        const _massSavedPos = L.DomUtil.getPosition(_massMapPane);
-                        L.DomUtil.setPosition(_massMapPane, { x: 0, y: 0 });
-                        await new Promise(r => setTimeout(r, 300));
+                        // Réinitialiser l'état Leaflet via setView (reset complet _pixelOrigin + layers)
+                        await new Promise(resolve => {
+                            map.once('moveend', resolve);
+                            map.setView(map.getCenter(), map.getZoom(), { animate: false, duration: 0 });
+                            setTimeout(resolve, 100);
+                        });
+                        await new Promise(r => setTimeout(r, 400));
                         const canvas = await html2canvas(mapContainer, {
                             useCORS: true, allowTaint: true,
                             backgroundColor: '#ffffff',
-                            scrollX: 0, scrollY: 0, logging: false, scale: 1
+                            scrollX: -window.scrollX, scrollY: -window.scrollY,
+                            logging: false, scale: 1
                         });
-                        L.DomUtil.setPosition(_massMapPane, _massSavedPos);
-                        window.scrollTo(prevSX, prevSY);
                         // Clé dédiée plan de masse — ne pas écraser screenshot_map (calpinage)
                         calData.screenshot_plan_masse = canvas.toDataURL('image/png');
                         console.log('✅ Screenshot plan masse capturé:', canvas.width + 'x' + canvas.height + 'px');
