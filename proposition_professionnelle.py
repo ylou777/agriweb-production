@@ -2612,7 +2612,14 @@ class PropositionProfessionnelle:
         prenom = self.prospect.get('prenom', '')
         adresse = self.prospect.get('adresse', '')
         commune = self.prospect.get('commune', '')
-        parcelle = self.prospect.get('parcelle', 'Non renseignée')
+        _rapport  = self.data_json.get('rapport', {})
+        _api_det  = _rapport.get('api_details', {})
+        _cad_det  = (_api_det.get('cadastre', {}).get('details', {})
+                     if isinstance(_api_det, dict) else {})
+        _section  = _cad_det.get('section', '')
+        _parcelle_n = _cad_det.get('parcelle_numero', '')
+        parcelle  = (f"Section {_section} n°{_parcelle_n}"
+                     if _section else self.prospect.get('parcelle', 'Non renseignée'))
         if nom or prenom:
             c.drawString(1.5 * cm, y, f"Propriétaire : {prenom} {nom}".strip())
         if adresse or commune:
@@ -2699,6 +2706,44 @@ class PropositionProfessionnelle:
                 except Exception as e:
                     print(f'[PDF] ⚠️ Overlay modules plan masse proposition: {e}')
 
+            # ── Overlay parcelle cadastrale ───────────────────────────────────
+            parcelle_polygons = calpinage.get('parcelle_polygons',
+                                              self.calpinage.get('parcelle_polygons', []))
+            if plan_masse_meta and 'bounds' in plan_masse_meta and parcelle_polygons:
+                try:
+                    b = plan_masse_meta['bounds']
+                    bb_n, bb_s = float(b['north']), float(b['south'])
+                    bb_e, bb_w = float(b['east']),  float(b['west'])
+                    if bb_n > bb_s and bb_e > bb_w:
+                        _bx, _by = img_x, y - img_h
+
+                        def _parc_gps_to_pdf(lat, lng):
+                            return (_bx + (lng - bb_w) / (bb_e - bb_w) * img_w,
+                                    _by + (lat - bb_s) / (bb_n - bb_s) * img_h)
+
+                        c.saveState()
+                        clip_p = c.beginPath()
+                        clip_p.rect(_bx, _by, img_w, img_h)
+                        c.clipPath(clip_p, stroke=0)
+                        c.setFillColor(colors.HexColor('#FFD700'))
+                        c.setFillAlpha(0.12)
+                        c.setStrokeColor(colors.HexColor('#FF6600'))
+                        c.setStrokeAlpha(1.0)
+                        c.setLineWidth(1.8)
+                        for poly_pts in parcelle_polygons:
+                            if len(poly_pts) < 3:
+                                continue
+                            path = c.beginPath()
+                            for i, pt in enumerate(poly_pts):
+                                px, py = _parc_gps_to_pdf(pt['lat'], pt['lng'])
+                                if i == 0: path.moveTo(px, py)
+                                else:      path.lineTo(px, py)
+                            path.close()
+                            c.drawPath(path, stroke=1, fill=1)
+                        c.restoreState()
+                except Exception as e:
+                    print(f'[PDF] ⚠️ Overlay parcelle plan masse: {e}')
+
             # Rose des vents (coin supérieur droit de l'image, fond blanc semi-opaque)
             ax = img_x + img_w - 1.3 * cm
             ay = y - 1.3 * cm
@@ -2759,9 +2804,17 @@ class PropositionProfessionnelle:
         c.setFillColor(self.COLOR_DARK)
         c.setFont("Helvetica", 8)
         c.drawString(leg_x + 1 * cm, leg_y, "Modules photovoltaïques")
+        leg_y -= 0.45 * cm
+        c.setStrokeColor(colors.HexColor('#FF6600'))
+        c.setFillColor(colors.HexColor('#FFD700'))
+        c.setFillAlpha(0.4)
+        c.rect(leg_x, leg_y - 2 * mm, 8 * mm, 3.5 * mm, fill=1, stroke=1)
+        c.setFillColor(self.COLOR_DARK)
+        c.setFillAlpha(1.0)
+        c.drawString(leg_x + 1 * cm, leg_y, "Parcelle cadastrale")
 
         # Cartouche (à droite)
-        total_kwc = sum(z.get('puissanceKwc', z.get('puissance_kwc', 0)) for z in zones)
+        total_kwc = sum(z.get('puissanceKw', z.get('puissanceKwc', z.get('puissance_kwc', 0))) for z in zones)
         total_modules = int(sum(z.get('nbModules', z.get('nb_modules', 0)) for z in zones))
         cart_x = self.width - 8.5 * cm
         cart_y = y + 0.05 * cm
@@ -2801,8 +2854,11 @@ class PropositionProfessionnelle:
         zones      = calpinage.get('zones', self.calpinage.get('zones', []))
 
         nb_modules    = totaux.get('nbModules', self.nb_modules)
-        puissance_kwc = totaux.get('puissanceKwc', totaux.get('puissance_kwc', self.puissance_kwc))
-        surface_tot   = totaux.get('surfaceTotale', totaux.get('surface_totale', 0))
+        puissance_kwc = (totaux.get('puissanceTotale')
+                         or totaux.get('puissanceKwc', totaux.get('puissance_kwc', self.puissance_kwc)))
+        # JS totaux has no surfaceTotale → compute from zones
+        surface_tot   = (totaux.get('surfaceTotale', totaux.get('surface_totale', 0))
+                         or sum(z.get('surfaceM2', z.get('surface', z.get('surface_m2', 0))) for z in zones))
         nb_zones      = len(zones) if zones else 0
 
         y -= 0.2 * cm
@@ -2941,8 +2997,8 @@ class PropositionProfessionnelle:
                 c.setFillColor(self.COLOR_LIGHT_BG if zi % 2 == 0 else colors.white)
                 c.rect(1.5 * cm, y - 0.1 * cm, self.width - 3 * cm, 0.5 * cm, fill=1, stroke=0)
                 z_nb   = zone.get('nbModules', zone.get('nb_modules', '—'))
-                z_kwc  = zone.get('puissanceKwc', zone.get('puissance_kwc', 0))
-                z_surf = zone.get('surface', zone.get('surface_m2', 0))
+                z_kwc  = zone.get('puissanceKw', zone.get('puissanceKwc', zone.get('puissance_kwc', 0)))
+                z_surf = zone.get('surfaceM2', zone.get('surface', zone.get('surface_m2', 0)))
                 z_ori  = zone.get('orientation', zone.get('azimut', '—'))
                 z_name = zone.get('nom', zone.get('name', f"Zone {zi + 1}"))
                 c.setFillColor(self.COLOR_DARK)
