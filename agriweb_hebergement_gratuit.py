@@ -685,6 +685,14 @@ try:
 except Exception as e:
     print(f"⚠️ [NEWS] Impossible d'enregistrer le blueprint news: {e}")
 
+# Démo NEWS-SOLAR — module isolé, n'interagit pas avec le reste du programme
+try:
+    from newssolar_demo import newssolar_demo_bp
+    app.register_blueprint(newssolar_demo_bp)
+    print("🌞 [NEWS-SOLAR] Blueprint démo investisseurs enregistré (/newssolar)")
+except Exception as e:
+    print(f"⚠️ [NEWS-SOLAR] Impossible d'enregistrer le blueprint démo: {e}")
+
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
 def redirect_register():
