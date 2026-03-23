@@ -204,10 +204,8 @@ def register_crm_routes(app):
 
     @app.route('/crm/stats')
     def crm_stats_page():
-        """Page de statistiques et KPI du CRM - Admin seulement"""
+        """Page de statistiques et KPI du CRM"""
         user_id, is_admin = get_current_crm_user()
-        if not is_admin:
-            return redirect('/crm')
         return render_template('crm_dashboard.html')
 
     @app.route('/crm/desktop')
@@ -227,11 +225,9 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/stats')
     def crm_stats():
-        """Statistiques CRM pour la page d'accueil - Admin seulement"""
+        """Statistiques CRM pour la page d'accueil"""
         try:
             user_id, is_admin = get_current_crm_user()
-            if not is_admin:
-                return jsonify({'success': False, 'error': 'Accès réservé aux administrateurs'}), 403
             filter_clause, filter_params = user_filter_clause(user_id, is_admin)
 
             stats = execute_query(f'''
@@ -269,11 +265,9 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/dashboard/stats')
     def get_dashboard_stats():
-        """Récupère toutes les statistiques pour le dashboard CRM KPI - Admin seulement"""
+        """Récupère toutes les statistiques pour le dashboard CRM KPI"""
         try:
             user_id, is_admin = get_current_crm_user()
-            if not is_admin:
-                return jsonify({'success': False, 'error': 'Accès réservé aux administrateurs'}), 403
             filter_clause, filter_params = user_filter_clause(user_id, is_admin)
 
             print("\n" + "="*70)
@@ -294,13 +288,30 @@ def register_crm_routes(app):
             
             print(f"📊 [DASHBOARD KPI] KPIs bruts: {kpis}")
             
-            # Propositions
-            proposals = execute_query('''
-                SELECT 
-                    COUNT(*) as nb_proposals,
-                    COALESCE(SUM(CAST(investissement_total AS NUMERIC)), 0) as total_value
-                FROM prospect_proposals
-            ''', fetch_one=True) or {'nb_proposals': 0, 'total_value': 0}
+            # Propositions — utilise project_fiches (peuplée automatiquement à chaque export CRM)
+            # Combine avec prospect_proposals si elle existe
+            try:
+                pf_row = execute_query(f'''
+                    SELECT COUNT(*) as nb_proposals
+                    FROM project_fiches
+                    WHERE 1=1{filter_clause}
+                ''', filter_params if filter_params else None, fetch_one=True)
+                nb_pf = pf_row['nb_proposals'] if pf_row else 0
+            except Exception:
+                nb_pf = 0
+            try:
+                pp_row = execute_query('''
+                    SELECT 
+                        COUNT(*) as nb_proposals,
+                        COALESCE(SUM(CAST(investissement_total AS NUMERIC)), 0) as total_value
+                    FROM prospect_proposals
+                ''', fetch_one=True)
+                proposals = pp_row if pp_row else {'nb_proposals': 0, 'total_value': 0}
+                # Si prospect_proposals est vide, utiliser project_fiches
+                if proposals['nb_proposals'] == 0 and nb_pf > 0:
+                    proposals = {'nb_proposals': nb_pf, 'total_value': 0}
+            except Exception:
+                proposals = {'nb_proposals': nb_pf, 'total_value': 0}
             
             print(f"💰 [DASHBOARD KPI] Propositions: {proposals}")
             
