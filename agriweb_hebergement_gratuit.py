@@ -5154,40 +5154,64 @@ Pour la direction du faîtage, indique l'orientation géographique approximative
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/satellite-tile', methods=['GET'])
 def api_satellite_tile():
-    """Proxy pour tuile satellite IGN orthoimagery — évite les problèmes CORS avec Three.js"""
+    """Proxy pour tuile satellite — évite les problèmes CORS avec Three.js.
+    Paramètre source:
+      esri  (défaut) — ArcGIS World Imagery : même source que la vue 2D Leaflet par défaut
+      ign            — HR.ORTHOIMAGERY.ORTHOPHOTOS IGN (décalage possible vs ArcGIS)
+      google         — Google Satellite (fallback sur esri si indisponible)
+    """
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
     radius = request.args.get('radius', type=float, default=100)
-    
+    source = request.args.get('source', 'esri').lower()
+
     if not lat or not lon:
         return jsonify({"error": "Paramètres lat, lon requis"}), 400
-    
+
     try:
-        # Arrondir le rayon pour le WMS
         radius = max(5, int(round(radius)))
         lat_deg = radius / 111320.0
         lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
-        bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
-        
-        # wms-r est le seul endpoint qui sert HR.ORTHOIMAGERY.ORTHOPHOTOS en image/jpeg
-        wms_url = "https://data.geopf.fr/wms-r/wms"
-        # Résolution satellite adaptative selon le rayon
-        # Max 1024 = limite WMS IGN
         sat_size = "1024" if radius <= 50 else ("768" if radius <= 100 else "512")
-        params = {
-            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-            "CRS": "EPSG:4326", "BBOX": bbox,
-            "WIDTH": sat_size, "HEIGHT": sat_size,
-            "FORMAT": "image/jpeg", "STYLES": ""
-        }
-        
-        print(f"🛰️ Satellite tile: lat={lat}, lon={lon}, radius={radius}")
-        r = requests.get(wms_url, params=params, timeout=15)
-        
+
+        print(f"🛰️ Satellite tile: lat={lat}, lon={lon}, radius={radius}, source={source}")
+
+        if source == 'ign':
+            # ── IGN WMS 1.3.0 — EPSG:4326 axis order = lat,lon ──────────────────
+            bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
+            wms_url = "https://data.geopf.fr/wms-r/wms"
+            params = {
+                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+                "CRS": "EPSG:4326", "BBOX": bbox,
+                "WIDTH": sat_size, "HEIGHT": sat_size,
+                "FORMAT": "image/jpeg", "STYLES": ""
+            }
+            r = requests.get(wms_url, params=params, timeout=15)
+
+        else:
+            # ── ESRI World Imagery export (défaut) — bbox lon,lat pour bboxSR=4326 ──
+            # Même imagerie que le layer Leaflet ArcGIS par défaut en vue 2D.
+            # → élimine le décalage de quelques mètres entre couche 2D et texture 3D.
+            min_lon = lon - lon_deg
+            max_lon = lon + lon_deg
+            min_lat = lat - lat_deg
+            max_lat = lat + lat_deg
+            esri_url = "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export"
+            params = {
+                "bbox": f"{min_lon},{min_lat},{max_lon},{max_lat}",
+                "bboxSR": "4326",
+                "imageSR": "4326",
+                "size":   f"{sat_size},{sat_size}",
+                "format": "jpg",
+                "transparent": "false",
+                "f":      "image"
+            }
+            r = requests.get(esri_url, params=params, timeout=15)
+
         content_type = r.headers.get('content-type', '')
         print(f"🛰️ Response: status={r.status_code}, type={content_type}, size={len(r.content)}")
-        
+
         if r.status_code == 200 and 'image' in content_type and 'xml' not in content_type:
             resp = app.response_class(
                 response=r.content,
@@ -5196,11 +5220,30 @@ def api_satellite_tile():
             )
             resp.headers['Cache-Control'] = 'public, max-age=86400'
             return resp
-        else:
-            body_preview = r.text[:200] if len(r.text) < 500 else r.text[:200]
-            print(f"⚠ Satellite WMS error body: {body_preview}")
-            return jsonify({"error": f"WMS returned {r.status_code}, type={content_type}"}), 502
-    
+
+        # Fallback IGN si ESRI a échoué
+        if source != 'ign':
+            print(f"⚠ ESRI satellite HTTP {r.status_code} — fallback IGN WMS")
+            bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
+            wms_url = "https://data.geopf.fr/wms-r/wms"
+            params = {
+                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+                "CRS": "EPSG:4326", "BBOX": bbox,
+                "WIDTH": sat_size, "HEIGHT": sat_size,
+                "FORMAT": "image/jpeg", "STYLES": ""
+            }
+            r2 = requests.get(wms_url, params=params, timeout=15)
+            ct2 = r2.headers.get('content-type', '')
+            if r2.status_code == 200 and 'image' in ct2 and 'xml' not in ct2:
+                resp = app.response_class(response=r2.content, status=200, mimetype='image/jpeg')
+                resp.headers['Cache-Control'] = 'public, max-age=86400'
+                return resp
+
+        body_preview = r.text[:200]
+        print(f"⚠ Satellite WMS/REST error body: {body_preview}")
+        return jsonify({"error": f"Satellite source={source} returned {r.status_code}, type={content_type}"}), 502
+
     except Exception as e:
         print(f"⚠ Satellite tile error: {e}")
         import traceback

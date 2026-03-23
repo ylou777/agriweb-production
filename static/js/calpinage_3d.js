@@ -454,10 +454,13 @@ class Calpinage3DViewer {
     async _loadSatelliteTexture(lat, lon, radiusM) {
         try {
             // Demander une image satellite couvrant exactement le même rayon que le terrain
-            // pour un alignement pixel-parfait avec les bâtiments
+            // pour un alignement pixel-parfait avec les bâtiments.
+            // La source est synchronisée avec le fond de carte 2D actif (window._activeSatSource)
+            // pour éliminer tout décalage entre la vue 2D et la vue 3D.
             const satRadius = Math.ceil(radiusM);
             this._satRadiusM = satRadius; // disponible dès maintenant pour calcul UV des toits
-            const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${satRadius}`;
+            const satSrc = (typeof window !== 'undefined' && window._activeSatSource) || 'esri';
+            const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${satRadius}&source=${satSrc}`;
             console.log('🛰️ Chargement texture satellite via proxy:', proxyUrl);
             
             const response = await fetch(proxyUrl);
