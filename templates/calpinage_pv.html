@@ -3053,42 +3053,25 @@
                 attributionControl: true
             }).setView([prospectLat, prospectLon], 19);
             
-            // ── Source satellite active (partagée 2D ↔ 3D pour éviter tout décalage) ──
-            // En 3D, /api/satellite-tile reçoit &source=<activeSatSource> pour utiliser
-            // la même imagerie que la vue 2D. Valeurs : 'esri' | 'ign' | 'google'
-            window._activeSatSource = 'esri'; // ESRI par défaut (même que 2D)
-
-            // Fond satellite Esri (WorldImagery) — source 3D : esri
+            // Fond satellite Esri (WorldImagery)
             tileLayerSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 22,
                 maxNativeZoom: 19,
                 attribution: 'Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN'
             });
-            tileLayerSatellite._satSource = 'esri';
 
             // Fond Google Satellite — même source que Google Solar → alignement parfait pour la heatmap
-            // source 3D : esri (Google tiles non disponibles en WMS/REST public — ESRI reste aligné à <2m)
             tileLayerGoogle = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 maxZoom: 22,
                 maxNativeZoom: 20,
                 attribution: '© Google'
             });
-            tileLayerGoogle._satSource = 'esri'; // fallback ESRI en 3D (pas d'API export Google)
-
-            // Fond IGN Orthophotos — aligné avec la vue 3D par défaut (source WMS IGN)
-            // Choisir ce fond si un léger décalage subsiste avec ESRI dans votre zone.
-            const tileLayerIGN = L.tileLayer(
-                'https://data.geopf.fr/wmts?layer=HR.ORTHOIMAGERY.ORTHOPHOTOS&style=normal&tilematrixset=PM&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fjpeg&TileMatrix={z}&TileCol={x}&TileRow={y}',
-                { maxZoom: 22, maxNativeZoom: 19, attribution: '© IGN Géoportail' }
-            );
-            tileLayerIGN._satSource = 'ign';
-
+            
             // Fond OSM pour capture orthogonale (sans perspective)
             tileLayerOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 22,
                 attribution: 'OpenStreetMap contributors'
             });
-            tileLayerOSM._satSource = 'esri'; // OSM en 2D → ESRI en 3D
             
             // Contrôle de couches pour basculer entre les fonds
             // ESRI est le fond par défaut : aligné WGS84 → cadastre correct
@@ -3096,27 +3079,12 @@
             const baseMaps = {
                 "🛰️ Satellite Esri (cadastre aligné)": tileLayerSatellite,
                 "🛰️ Satellite Google (heatmap Solar)": tileLayerGoogle,
-                "🛰️ Satellite IGN (aligné vue 3D)": tileLayerIGN,
                 "🗺️ Carte OSM (capture)": tileLayerOSM
             };
             
             // ESRI par défaut — CORS OK → capture screenshot sans SecurityError
             tileLayerSatellite.addTo(map);
             
-            // ── Synchroniser la source satellite 2D → 3D au changement de fond ──
-            map.on('baselayerchange', function(e) {
-                const src = e.layer._satSource || 'esri';
-                window._activeSatSource = src;
-                console.log(`🛰️ Fond carte changé → source satellite 3D : ${src}`);
-                // Rafraîchir la texture 3D si le viewer est actif
-                if (viewer3D && viewer3D.isActive && viewer3D.centerLat) {
-                    const r = viewer3D._satRadiusM || 100;
-                    viewer3D._loadSatelliteTexture(viewer3D.centerLat, viewer3D.centerLon, r)
-                        .then(() => console.log(`✅ Texture 3D rechargée (source: ${src})`))
-                        .catch(err => console.warn('⚠ Rechargement texture 3D:', err));
-                }
-            });
-
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
                 position: 'topright',
