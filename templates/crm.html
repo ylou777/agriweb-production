@@ -4,98 +4,224 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRM Prospects - HeliaPV</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>
+        /* ===== DARK MINIMAL — CRM PROSPECTS ===== */
+        :root {
+            --c-bg: #0f1117;
+            --c-surface: #1a1d27;
+            --c-surface-2: #22252f;
+            --c-border: #2a2d3a;
+            --c-border-light: #353849;
+            --c-text: #e8eaed;
+            --c-text-2: #9ba1b0;
+            --c-text-3: #6b7185;
+            --c-accent: #3b82f6;
+            --c-accent-light: rgba(59,130,246,0.1);
+            --c-green: #10b981;
+            --c-orange: #f59e0b;
+            --c-red: #ef4444;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: 0.2s cubic-bezier(.4,0,.2,1);
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--c-bg);
             min-height: 100vh;
-            padding: 20px;
+            padding: 24px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--c-text);
+            -webkit-font-smoothing: antialiased;
         }
-        .container-fluid {
-            max-width: 1600px;
+
+        .container-fluid { max-width: 1600px; }
+
+        /* TOPBAR TITLE */
+        h1.text-white {
+            color: var(--c-text) !important;
+            font-size: 1.4rem;
+            font-weight: 700;
         }
-        .card {
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: none;
-            border-radius: 10px;
-        }
+
+        /* STAT CARDS */
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 10px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+            border-radius: var(--radius);
             padding: 20px;
             margin-bottom: 20px;
-            transition: transform 0.2s;
+            transition: all var(--transition);
         }
         .stat-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
+            border-color: var(--c-accent);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         }
         .stat-card h3 {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             margin: 0;
-            font-weight: bold;
+            font-weight: 700;
+            color: var(--c-accent);
         }
         .stat-card p {
             margin: 5px 0 0 0;
-            opacity: 0.9;
+            color: var(--c-text-2);
+            font-size: 0.85rem;
         }
-        .prospect-row {
-            cursor: pointer;
-            transition: background-color 0.2s;
+
+        /* CARDS */
+        .card {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border) !important;
+            border-radius: var(--radius);
         }
-        .prospect-row:hover {
-            background-color: #f8f9fa;
+        .card-header.bg-primary {
+            background: var(--c-surface-2) !important;
+            border-bottom: 1px solid var(--c-border);
+            color: var(--c-text) !important;
         }
-        .badge-type-parking {
-            background-color: #28a745;
-        }
-        .badge-type-toiture {
-            background-color: #007bff;
-        }
-        .badge-type-friche {
-            background-color: #6c757d;
-        }
-        .badge-statut-nouveau {
-            background-color: #17a2b8;
-        }
-        .badge-statut-contacte {
-            background-color: #ffc107;
-            color: #212529;
-        }
-        .badge-statut-qualifie {
-            background-color: #28a745;
-        }
-        .badge-statut-perdu {
-            background-color: #dc3545;
-        }
-        .badge-priorite-haute {
-            background-color: #dc3545;
-        }
-        .badge-priorite-moyenne {
-            background-color: #ffc107;
-            color: #212529;
-        }
-        .badge-priorite-basse {
-            background-color: #6c757d;
-        }
+        .card-header.bg-primary h5 { color: var(--c-text); }
+
+        /* FILTERS BOX */
         .filters {
-            background: white;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
             padding: 20px;
-            border-radius: 10px;
+            border-radius: var(--radius);
             margin-bottom: 20px;
         }
-        .modal-fullscreen-lg {
-            max-width: 90%;
+        .filters .form-label {
+            color: var(--c-text-2);
+            font-size: 0.8rem;
+            font-weight: 500;
         }
+        .form-select, .form-control {
+            background-color: var(--c-bg);
+            border-color: var(--c-border);
+            color: var(--c-text);
+            font-size: 0.85rem;
+        }
+        .form-select:focus, .form-control:focus {
+            background-color: var(--c-bg);
+            border-color: var(--c-accent);
+            color: var(--c-text);
+            box-shadow: 0 0 0 2px var(--c-accent-light);
+        }
+        .form-select option { background: var(--c-surface-2); }
+
+        /* TABLE */
+        .table {
+            color: var(--c-text);
+            --bs-table-bg: transparent;
+            --bs-table-hover-bg: var(--c-surface-2);
+            --bs-table-border-color: var(--c-border);
+        }
+        .table-light, .table thead.table-light th {
+            background: var(--c-surface-2) !important;
+            color: var(--c-text-2);
+            border-color: var(--c-border);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .table th, .table td { border-color: var(--c-border); }
+        .table small { color: var(--c-text-2); }
+        .text-muted { color: var(--c-text-3) !important; }
+        .text-danger { color: var(--c-red) !important; }
+
+        /* PROSPECT ROW */
+        .prospect-row {
+            cursor: pointer;
+            transition: background-color var(--transition);
+        }
+        .prospect-row:hover { background-color: var(--c-surface-2) !important; }
+
+        /* BADGES */
+        .badge-type-parking  { background-color: #059669; }
+        .badge-type-toiture  { background-color: var(--c-accent); }
+        .badge-type-friche   { background-color: #6b7280; }
+        .badge-statut-nouveau   { background-color: #0ea5e9; }
+        .badge-statut-contacte  { background-color: var(--c-orange); color: #111; }
+        .badge-statut-qualifie  { background-color: var(--c-green); }
+        .badge-statut-perdu     { background-color: var(--c-red); }
+        .badge-priorite-haute   { background-color: var(--c-red); }
+        .badge-priorite-moyenne { background-color: var(--c-orange); color: #111; }
+        .badge-priorite-basse   { background-color: #6b7280; }
+
+        /* BUTTONS */
+        .btn-light {
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+        }
+        .btn-light:hover {
+            background: var(--c-border-light);
+            color: var(--c-text);
+        }
+        .btn-warning { background-color: var(--c-orange); border-color: var(--c-orange); color: #111; }
+
+        /* MODAL */
+        .modal-content {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+        }
+        .modal-header {
+            border-bottom: 1px solid var(--c-border);
+        }
+        .modal-header.bg-primary {
+            background: var(--c-surface-2) !important;
+            color: var(--c-text) !important;
+        }
+        .modal-header.bg-primary h5 { color: var(--c-text); }
+        .modal-header .btn-close-white { filter: invert(0.7); }
+        .modal-footer {
+            border-top: 1px solid var(--c-border);
+        }
+        .modal-body .form-label { color: var(--c-text-2); font-size: 0.82rem; }
+        .modal-body .form-control[readonly],
+        .modal-body textarea[readonly] {
+            background: var(--c-bg);
+            border-color: var(--c-border);
+            color: var(--c-text-2);
+        }
+        .alert-success {
+            background: rgba(16,185,129,0.1);
+            border-color: rgba(16,185,129,0.3);
+            color: #6ee7b7;
+        }
+        .alert-primary {
+            background: var(--c-accent-light);
+            border-color: rgba(59,130,246,0.3);
+            color: #93c5fd;
+        }
+
+        /* SPINNER */
+        .spinner-border.text-primary { color: var(--c-accent) !important; }
+
+        /* MODAL RESPONSIVE */
+        .modal-fullscreen-lg { max-width: 90%; }
+
+        .icon-accent { color: var(--c-accent); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--c-border-light); border-radius: 4px; }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <!-- En-tête -->
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="text-white">
-                <i class="bi bi-building"></i> CRM Prospects
+            <h1>
+                <i class="bi bi-building me-2 icon-accent"></i> CRM Prospects
             </h1>
             <div>
                 <a href="/api/crm/parametrage" class="btn btn-warning me-2" target="_blank">

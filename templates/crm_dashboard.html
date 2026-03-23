@@ -4,111 +4,261 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard CRM - Statistiques & KPI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* ===== DARK MINIMAL — CRM DASHBOARD ===== */
+        :root {
+            --c-bg: #0f1117;
+            --c-surface: #1a1d27;
+            --c-surface-2: #22252f;
+            --c-border: #2a2d3a;
+            --c-border-light: #353849;
+            --c-text: #e8eaed;
+            --c-text-2: #9ba1b0;
+            --c-text-3: #6b7185;
+            --c-accent: #3b82f6;
+            --c-accent-light: rgba(59,130,246,0.1);
+            --c-green: #10b981;
+            --c-green-light: rgba(16,185,129,0.1);
+            --c-orange: #f59e0b;
+            --c-orange-light: rgba(245,158,11,0.1);
+            --c-red: #ef4444;
+            --c-red-light: rgba(239,68,68,0.1);
+            --c-purple: #a78bfa;
+            --c-purple-light: rgba(167,139,250,0.1);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: 0.2s cubic-bezier(.4,0,.2,1);
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--c-bg);
             min-height: 100vh;
-            padding: 20px;
-        }
-        .dashboard-container {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             padding: 0;
-            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--c-text);
+            -webkit-font-smoothing: antialiased;
         }
+
+        .container-fluid { padding: 0; }
+
+        .dashboard-container {
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        /* TOP BAR */
         .dashboard-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
+            color: var(--c-text);
+            padding: 20px 32px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
         }
+        .dashboard-header h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--c-text);
+        }
+        .dashboard-header p {
+            color: var(--c-text-2);
+            font-size: 0.82rem;
+            margin-bottom: 0;
+        }
+        .dashboard-header .btn-light,
+        .dashboard-header .btn-outline-light {
+            background: var(--c-bg);
+            border: 1px solid var(--c-border);
+            color: var(--c-text-2);
+            font-size: 0.8rem;
+            border-radius: 20px;
+            transition: all var(--transition);
+        }
+        .dashboard-header .btn-light:hover,
+        .dashboard-header .btn-outline-light:hover {
+            background: var(--c-accent-light);
+            border-color: var(--c-accent);
+            color: var(--c-accent);
+        }
+
+        /* KPI CARDS */
         .kpi-card {
-            background: white;
-            border-radius: 12px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
             padding: 25px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: all 0.3s;
+            transition: all var(--transition);
         }
         .kpi-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: translateY(-3px);
+            border-color: var(--c-border-light);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         }
         .kpi-value {
             font-size: 2.5rem;
-            font-weight: bold;
+            font-weight: 700;
             margin: 10px 0;
         }
         .kpi-label {
-            color: #6c757d;
-            font-size: 0.9rem;
+            color: var(--c-text-2);
+            font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
         .kpi-trend {
-            font-size: 0.9rem;
+            font-size: 0.82rem;
             margin-top: 10px;
+            color: var(--c-text-3);
         }
-        .trend-up { color: #10b981; }
-        .trend-down { color: #ef4444; }
+        .trend-up { color: var(--c-green) !important; }
+        .trend-down { color: var(--c-red) !important; }
+
+        /* CHART / STATS CONTAINERS */
         .chart-container {
-            background: white;
-            border-radius: 12px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
             padding: 25px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .chart-container h5 {
+            color: var(--c-text);
+            font-size: 0.95rem;
+            font-weight: 600;
         }
         .stats-table {
-            background: white;
-            border-radius: 12px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
             padding: 25px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stats-table h5,
+        .stats-table .d-flex h5 {
+            color: var(--c-text);
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        /* TABLES */
+        .table {
+            color: var(--c-text);
+            --bs-table-bg: transparent;
+            --bs-table-hover-bg: var(--c-surface-2);
+            --bs-table-border-color: var(--c-border);
         }
         .table th {
-            background: #f8f9fa;
+            background: var(--c-surface-2);
+            color: var(--c-text-2);
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             letter-spacing: 0.5px;
+            border-color: var(--c-border);
         }
-        .progress-thin {
-            height: 8px;
+        .table td {
+            border-color: var(--c-border);
+            color: var(--c-text);
         }
-        .badge-status {
-            padding: 5px 12px;
-            font-size: 0.85rem;
-        }
+        .table strong { color: var(--c-text); }
+        .text-muted { color: var(--c-text-3) !important; }
+
+        /* NAV TABS */
         .nav-pills .nav-link {
-            color: #667eea;
+            color: var(--c-text-2);
             font-weight: 500;
+            font-size: 0.82rem;
+            background: var(--c-bg);
+            border: 1px solid var(--c-border);
+            border-radius: 20px;
+            margin-right: 6px;
+            padding: 7px 16px;
+            transition: all var(--transition);
+        }
+        .nav-pills .nav-link:hover {
+            color: var(--c-accent);
+            border-color: var(--c-accent);
+            background: var(--c-accent-light);
         }
         .nav-pills .nav-link.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--c-accent);
+            border-color: var(--c-accent);
+            color: white;
         }
+
+        /* METRIC ICON */
         .metric-icon {
             font-size: 2.5rem;
-            opacity: 0.2;
+            opacity: 0.08;
             position: absolute;
             right: 20px;
             top: 20px;
         }
+
+        /* CONVERSION FUNNEL */
         .conversion-funnel {
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
             margin: 20px 0;
         }
+        .conversion-funnel h5 { color: var(--c-text); font-size: 0.95rem; font-weight: 600; }
         .funnel-step {
             position: relative;
             padding: 15px;
             margin: 10px 0;
-            background: white;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            border-left: 4px solid var(--c-accent);
         }
+        .funnel-step strong { color: var(--c-text); }
+        .funnel-step .text-muted { color: var(--c-text-3) !important; }
+
+        /* PROGRESS */
+        .progress-thin {
+            height: 6px;
+            background: var(--c-border);
+            border-radius: 3px;
+        }
+
+        /* SELECT */
+        .form-select {
+            background-color: var(--c-bg);
+            border-color: var(--c-border);
+            color: var(--c-text);
+            font-size: 0.85rem;
+        }
+        .form-select:focus {
+            background-color: var(--c-bg);
+            border-color: var(--c-accent);
+            color: var(--c-text);
+            box-shadow: 0 0 0 2px var(--c-accent-light);
+        }
+
+        /* BODY PADDING */
+        .p-4 { padding: 24px 32px !important; }
+
+        /* Bootstrap color overrides */
+        .text-primary { color: var(--c-accent) !important; }
+        .text-info    { color: #38bdf8 !important; }
+        .text-success { color: var(--c-green) !important; }
+        .text-warning { color: var(--c-orange) !important; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--c-border-light); border-radius: 4px; }
     </style>
 </head>
 <body>
