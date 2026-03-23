@@ -3239,10 +3239,14 @@ def register_crm_routes(app):
             
             # Ajouter les données de calpinage
             # Préserver les champs volumétriques existants (screenshots) si non fournis dans ce save
+            # AUSSI préserver autoconso_results, autoconso_params et pvgis_8760h qui sont stockés
+            # dans le calpinage mais jamais envoyés par le frontend lors d'un save calpinage,
+            # sinon chaque re-sauvegarde du calpinage efface l'étude autoconsommation.
             old_calp = current_data.get('calpinage', {}) if isinstance(current_data, dict) else {}
             for preserve_key in ('screenshot_map', 'screenshot_plan_masse', 'screenshot_3d',
                                  'screenshot_irradiation', 'screenshot_irradiation_bbox',
-                                 'map_metadata', 'plan_masse_metadata'):
+                                 'map_metadata', 'plan_masse_metadata',
+                                 'autoconso_results', 'autoconso_params', 'pvgis_8760h'):
                 if not data.get(preserve_key) and old_calp.get(preserve_key):
                     data[preserve_key] = old_calp[preserve_key]
             current_data['calpinage'] = data
