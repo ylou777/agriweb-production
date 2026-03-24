@@ -802,7 +802,7 @@ function showTab(tab) {
   document.getElementById('sidebar-mail').style.display     = isCalendar ? 'none' : '';
   document.getElementById('sidebar-calendar').style.display = isCalendar ? 'flex' : 'none';
   document.getElementById('msg-list-panel').style.display   = isCalendar ? 'none' : '';
-  document.getElementById('mail-view').style.display        = isCalendar ? 'none' : '';
+  document.getElementById('mail-view').style.display        = isCalendar ? 'none' : 'block';
   document.getElementById('compose-view').style.display     = 'none';
   document.getElementById('calendar-view').style.display    = isCalendar ? 'flex' : 'none';
 
@@ -827,7 +827,7 @@ function loadFolder(folder, search = '') {
   document.getElementById('folder-title').textContent = FOLDER_LABELS[folder] || folder;
   document.getElementById('msg-list').innerHTML = '<div class="msg-loading"><i class="bi bi-hourglass-split spin"></i><br>Chargement des emails…</div>';
 
-  document.getElementById('mail-view').style.display    = '';
+  document.getElementById('mail-view').style.display    = 'block';
   document.getElementById('compose-view').style.display = 'none';
 
   let url = `/mail/api/messages?folder=${encodeURIComponent(folder)}&limit=80`;
@@ -880,7 +880,7 @@ function openMessage(uid) {
   const view = document.getElementById('mail-view');
   view.innerHTML = '<div class="mail-view-empty"><i class="bi bi-hourglass-split spin"></i><br>Chargement…</div>';
   document.getElementById('compose-view').style.display = 'none';
-  view.style.display = '';
+  view.style.display = 'block';
 
   fetch(`/mail/api/message/${uid}?folder=${encodeURIComponent(currentFolder)}`)
     .then(r => r.json())
@@ -967,12 +967,12 @@ function openCompose(to = '', subject = '', body = '') {
   document.getElementById('compose-title').textContent = 'Nouveau message';
   attachedFiles = [];
   document.getElementById('mail-view').style.display    = 'none';
-  document.getElementById('compose-view').style.display = '';
+  document.getElementById('compose-view').style.display = 'block';
 }
 
 function closeCompose() {
   document.getElementById('compose-view').style.display = 'none';
-  document.getElementById('mail-view').style.display    = '';
+  document.getElementById('mail-view').style.display    = 'block';
 }
 
 function replyTo(from, subject) {
