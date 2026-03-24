@@ -28,9 +28,9 @@ mail_bp = Blueprint('mail_bp', __name__, url_prefix='/mail')
 
 def _mail_config():
     return {
-        'imap_server': os.environ.get('MAIL_SERVER', 'imap.mail.ovh.net').replace('smtp.', 'imap.'),
-        'smtp_server': os.environ.get('MAIL_SERVER', 'smtp.mail.ovh.net'),
-        'smtp_port':   int(os.environ.get('MAIL_PORT', 587)),
+        'imap_server': os.environ.get('MAIL_IMAP_SERVER', 'imap.mail.ovh.net'),
+        'smtp_server': os.environ.get('MAIL_SERVER', 'ssl0.ovh.net'),
+        'smtp_port':   int(os.environ.get('MAIL_PORT', 465)),
         'username':    os.environ.get('MAIL_USERNAME', ''),
         'password':    os.environ.get('MAIL_PASSWORD', ''),
     }

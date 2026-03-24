@@ -3,7 +3,8 @@ import os as _os
 GOOGLE_SOLAR_API_KEY = _os.environ.get('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
 
 # ── Email OVH (Flask-Mail) ────────────────────────────────────────────────────
-MAIL_SERVER   = _os.environ.get('MAIL_SERVER',   'ssl.mail.ovh.net')
+MAIL_SERVER   = _os.environ.get('MAIL_SERVER',   'ssl0.ovh.net')
+    MAIL_IMAP_SERVER = _os.environ.get('MAIL_IMAP_SERVER', 'imap.mail.ovh.net')
 MAIL_PORT     = int(_os.environ.get('MAIL_PORT', '465'))
 MAIL_USE_TLS  = False
 MAIL_USE_SSL  = True
