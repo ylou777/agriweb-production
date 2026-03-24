@@ -2,6 +2,15 @@
 import os as _os
 GOOGLE_SOLAR_API_KEY = _os.environ.get('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
 
+# ── Email OVH (Flask-Mail) ────────────────────────────────────────────────────
+MAIL_SERVER   = _os.environ.get('MAIL_SERVER',   'smtp.mail.ovh.net')
+MAIL_PORT     = int(_os.environ.get('MAIL_PORT', '587'))
+MAIL_USE_TLS  = True
+MAIL_USE_SSL  = False
+MAIL_USERNAME = _os.environ.get('MAIL_USERNAME', '')   # ex: contact@heliapv.fr
+MAIL_PASSWORD = _os.environ.get('MAIL_PASSWORD', '')
+MAIL_DEFAULT_SENDER = _os.environ.get('MAIL_DEFAULT_SENDER', MAIL_USERNAME)
+
 # ── Enedis Data Connect (OAuth 2.0 – courbes de charge Linky) ─────────────────
 # Inscription préalable sur https://datahub-enedis.fr/fournisseurs-de-services/
 # Les credentiels sont fournis par Enedis après validation de votre dossier.
