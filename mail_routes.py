@@ -232,11 +232,18 @@ def _send_smtp(to_list, subject, body_html, body_text='', attachments=None, repl
             msg.attach(part)
 
     recipients = to_list if isinstance(to_list, list) else [to_list]
-    with smtplib.SMTP(cfg['smtp_server'], cfg['smtp_port'], timeout=30) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(cfg['username'], cfg['password'])
-        server.sendmail(cfg['username'], recipients, msg.as_bytes())
+    port = cfg['smtp_port']
+    # Port 465 = SSL direct ; port 587/25 = STARTTLS
+    if port == 465:
+        with smtplib.SMTP_SSL(cfg['smtp_server'], port, timeout=30) as server:
+            server.login(cfg['username'], cfg['password'])
+            server.sendmail(cfg['username'], recipients, msg.as_bytes())
+    else:
+        with smtplib.SMTP(cfg['smtp_server'], port, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(cfg['username'], cfg['password'])
+            server.sendmail(cfg['username'], recipients, msg.as_bytes())
 
 # ─── Calendrier (JSON) ────────────────────────────────────────────────────────
 
