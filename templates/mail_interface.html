@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messagerie — HeliaPV</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<!-- FullCalendar v6 -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --surface2: #21253a;
+    --border:   #2a2d3a;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --gold:     #FFB700;
+    --blue:     #3b82f6;
+    --green:    #10b981;
+    --red:      #ef4444;
+    --radius:   12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .topbar-brand {
+    font-weight: 700;
+    font-size: 18px;
+    background: linear-gradient(135deg, var(--gold), #ff8c00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    white-space: nowrap;
+  }
+  .topbar-email {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+  .topbar-search {
+    flex: 1;
+    max-width: 440px;
+    position: relative;
+  }
+  .topbar-search input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px 7px 36px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+  }
+  .topbar-search input:focus { border-color: var(--blue); }
+  .topbar-search .bi {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .topbar-tabs {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--muted);
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s;
+  }
+  .tab-btn:hover { background: var(--surface2); color: var(--text); }
+  .tab-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .back-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .back-btn:hover { color: var(--text); }
+
+  /* ── Layout ── */
+  .mail-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .compose-btn {
+    margin: 16px 12px 8px;
+    background: linear-gradient(135deg, var(--gold), #ff8c00);
+    color: #000;
+    font-weight: 600;
+    font-size: 13px;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: opacity .15s;
+  }
+  .compose-btn:hover { opacity: .9; }
+  .folder-list { padding: 8px 0; }
+  .folder-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 0;
+    transition: all .12s;
+    position: relative;
+  }
+  .folder-item:hover { background: var(--surface2); color: var(--text); }
+  .folder-item.active { background: rgba(59,130,246,.15); color: var(--blue); }
+  .folder-item .badge {
+    margin-left: auto;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 10px;
+  }
+  .sidebar-section {
+    padding: 16px 16px 6px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  /* ── Message list ── */
+  .msg-list-panel {
+    width: 340px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .msg-list-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .msg-list-header h2 { font-size: 15px; font-weight: 600; }
+  .msg-list-header .count { font-size: 12px; color: var(--muted); }
+  .msg-list-scroll { overflow-y: auto; flex: 1; }
+  .msg-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .12s;
+    position: relative;
+  }
+  .msg-item:hover { background: var(--surface2); }
+  .msg-item.active { background: rgba(59,130,246,.12); border-left: 3px solid var(--blue); }
+  .msg-item.unread .msg-from { font-weight: 600; color: var(--text); }
+  .msg-item.unread::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background: var(--blue);
+    border-radius: 50%;
+  }
+  .msg-from { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg-subject { font-size: 13px; margin: 2px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg-date { font-size: 11px; color: var(--muted); }
+  .msg-loading, .msg-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ── Content panel ── */
+  .content-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Mail view ── */
+  #mail-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 36px;
+  }
+  .mail-view-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    gap: 12px;
+  }
+  .mail-view-empty .bi { font-size: 48px; color: var(--border); }
+  .mail-header-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mail-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue), #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .mail-subject { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .mail-meta { font-size: 12px; color: var(--muted); }
+  .mail-meta span { margin-right: 16px; }
+  .mail-actions { display: flex; gap: 8px; margin-bottom: 20px; }
+  .btn-mail {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s;
+  }
+  .btn-mail:hover { border-color: var(--blue); color: var(--blue); }
+  .btn-mail.danger:hover { border-color: var(--red); color: var(--red); }
+  .mail-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    line-height: 1.7;
+    font-size: 14px;
+  }
+  .mail-body a { color: var(--blue); }
+  .mail-attachments { margin-top: 20px; }
+  .attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    margin: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color .15s;
+  }
+  .attachment-chip:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ── Compose ── */
+  #compose-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 36px;
+    display: none;
+  }
+  .compose-form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    max-width: 800px;
+  }
+  .compose-form-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .compose-field {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+  }
+  .compose-field label {
+    font-size: 12px;
+    color: var(--muted);
+    width: 70px;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+  .compose-field input, .compose-field select {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 0;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+  }
+  .prospect-suggestions {
+    position: absolute;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    z-index: 999;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 400px;
+  }
+  .prospect-sug-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .prospect-sug-item:hover { background: var(--bg); }
+  .compose-body-area {
+    min-height: 260px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    padding: 16px 20px;
+    outline: none;
+    resize: none;
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.7;
+  }
+  .compose-toolbar {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-send {
+    background: var(--blue);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: opacity .15s;
+  }
+  .btn-send:hover { opacity: .88; }
+  .btn-attach {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s;
+  }
+  .btn-attach:hover { color: var(--text); border-color: var(--text); }
+  .attach-preview { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 12px; }
+  .attach-thumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .attach-rm { cursor: pointer; color: var(--red); margin-left: 4px; }
+
+  /* ── Calendar ── */
+  #calendar-view {
+    flex: 1;
+    overflow: hidden;
+    padding: 20px 28px;
+    display: none;
+    flex-direction: column;
+  }
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .calendar-header h2 { font-size: 18px; font-weight: 700; }
+  #fc-container {
+    flex: 1;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  /* FullCalendar dark overrides */
+  .fc { color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px; }
+  .fc .fc-button { background: var(--surface2) !important; border-color: var(--border) !important; color: var(--text) !important; font-size: 12px !important; }
+  .fc .fc-button-primary:not(:disabled).fc-button-active,
+  .fc .fc-button-primary:not(:disabled):active { background: var(--blue) !important; border-color: var(--blue) !important; }
+  .fc .fc-daygrid-day { background: transparent; }
+  .fc .fc-daygrid-day-frame { min-height: 70px; }
+  .fc .fc-col-header-cell { background: var(--surface2); }
+  .fc th, .fc td { border-color: var(--border) !important; }
+  .fc .fc-daygrid-day-number { color: var(--muted); font-size: 12px; }
+  .fc .fc-day-today .fc-daygrid-day-number { color: var(--gold) !important; font-weight: 700; }
+  .fc .fc-day-today { background: rgba(255,183,0,.04) !important; }
+  .fc .fc-toolbar-title { font-size: 16px; font-weight: 700; }
+
+  /* ── Modal événement ── */
+  .modal-dark { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.7); align-items: center; justify-content: center; }
+  .modal-dark.show { display: flex; }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 440px;
+    max-width: 95vw;
+  }
+  .modal-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+  .form-control-dark {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+  }
+  .form-control-dark:focus { border-color: var(--blue); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-cancel { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; }
+  .btn-confirm { background: var(--blue); border: none; color: #fff; font-weight: 600; border-radius: 8px; padding: 8px 20px; font-size: 13px; cursor: pointer; }
+  .btn-delete-ev { background: var(--red); border: none; color: #fff; font-weight: 600; border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; margin-right: auto; }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9998; display: flex; flex-direction: column; gap: 10px; }
+  .toast-msg {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn .2s ease;
+  }
+  .toast-msg.success { border-left: 3px solid var(--green); }
+  .toast-msg.error   { border-left: 3px solid var(--red); }
+  @keyframes slideIn { from { transform: translateX(60px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+  /* ── Spinner ── */
+  .spin { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Proposal modal ── */
+  #proposal-modal .modal-card { width: 520px; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ════════ TOP BAR ════════ -->
+<div class="topbar">
+  <a href="/" class="back-btn"><i class="bi bi-arrow-left"></i></a>
+  <span class="topbar-brand">HeliaPV</span>
+  <span class="topbar-email" id="topbar-email">Messagerie</span>
+  <div class="topbar-search">
+    <i class="bi bi-search"></i>
+    <input type="text" id="search-input" placeholder="Rechercher dans les emails…" oninput="debounceSearch(this.value)">
+  </div>
+  <div class="topbar-tabs ms-2">
+    <button class="tab-btn active" id="tab-mail" onclick="showTab('mail')"><i class="bi bi-envelope"></i> Emails</button>
+    <button class="tab-btn" id="tab-calendar" onclick="showTab('calendar')"><i class="bi bi-calendar3"></i> Calendrier</button>
+  </div>
+</div>
+
+<!-- ════════ LAYOUT ════════ -->
+<div class="mail-layout">
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar" id="sidebar-mail">
+    <button class="compose-btn" onclick="openCompose()"><i class="bi bi-pencil-square"></i> Nouveau message</button>
+    <div class="folder-list">
+      <div class="folder-item active" id="folder-INBOX" onclick="loadFolder('INBOX')">
+        <i class="bi bi-inbox"></i> Boîte de réception
+        <span class="badge" id="badge-unread" style="display:none"></span>
+      </div>
+      <div class="folder-item" id="folder-Sent" onclick="loadFolder('Sent')">
+        <i class="bi bi-send"></i> Envoyés
+      </div>
+      <div class="folder-item" id="folder-Drafts" onclick="loadFolder('Drafts')">
+        <i class="bi bi-file-earmark"></i> Brouillons
+      </div>
+      <div class="folder-item" id="folder-Trash" onclick="loadFolder('Trash')">
+        <i class="bi bi-trash"></i> Corbeille
+      </div>
+    </div>
+    <div class="sidebar-section">CRM</div>
+    <div class="folder-list">
+      <div class="folder-item" onclick="openProposalModal()">
+        <i class="bi bi-file-earmark-pdf" style="color:var(--gold)"></i> Envoyer proposition
+      </div>
+    </div>
+  </div>
+  <div class="sidebar" id="sidebar-calendar" style="display:none">
+    <div style="padding:16px;">
+      <button class="compose-btn" onclick="openEventModal(null)"><i class="bi bi-plus-lg"></i> Nouvel événement</button>
+      <div style="margin-top:20px;font-size:12px;color:var(--muted);">
+        <p style="margin-bottom:10px;">Cliquez sur un jour du calendrier ou sur le bouton ci-dessus pour ajouter un événement.</p>
+        <p>Cliquez sur un événement existant pour le modifier ou le supprimer.</p>
+      </div>
+      <div style="margin-top:24px;">
+        <div class="sidebar-section" style="padding:0 0 8px;">Légende</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="width:12px;height:12px;border-radius:50%;background:#3b82f6;display:inline-block"></span> Réunion
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="width:12px;height:12px;border-radius:50%;background:#10b981;display:inline-block"></span> Visite
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="width:12px;height:12px;border-radius:50%;background:#FFB700;display:inline-block"></span> Proposition
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="width:12px;height:12px;border-radius:50%;background:#ef4444;display:inline-block"></span> Urgent
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Message list (masquée en mode calendrier) ── -->
+  <div class="msg-list-panel" id="msg-list-panel">
+    <div class="msg-list-header">
+      <h2 id="folder-title">Boîte de réception</h2>
+      <span class="count" id="msg-count">—</span>
+    </div>
+    <div class="msg-list-scroll" id="msg-list">
+      <div class="msg-loading"><i class="bi bi-hourglass-split spin"></i><br>Chargement…</div>
+    </div>
+  </div>
+
+  <!-- ── Content panel ── -->
+  <div class="content-panel">
+
+    <!-- Vue email -->
+    <div id="mail-view">
+      <div class="mail-view-empty">
+        <i class="bi bi-envelope-open"></i>
+        <span>Sélectionnez un email pour le lire</span>
+      </div>
+    </div>
+
+    <!-- Vue composition -->
+    <div id="compose-view">
+      <div class="compose-form-card">
+        <div class="compose-form-header">
+          <i class="bi bi-pencil-square" style="color:var(--blue)"></i>
+          <span id="compose-title">Nouveau message</span>
+          <button onclick="closeCompose()" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <form id="compose-form" onsubmit="sendEmail(event)">
+          <div class="compose-field" style="position:relative">
+            <label>À</label>
+            <input type="text" id="compose-to" placeholder="destinataire@email.fr" autocomplete="off" oninput="searchProspects(this.value)" required>
+            <div id="prospect-suggestions" class="prospect-suggestions" style="display:none;position:absolute;top:100%;left:70px;"></div>
+          </div>
+          <div class="compose-field">
+            <label>Cc</label>
+            <input type="text" id="compose-cc" placeholder="(facultatif)">
+          </div>
+          <div class="compose-field">
+            <label>Objet</label>
+            <input type="text" id="compose-subject" placeholder="Objet du message" required>
+          </div>
+          <div class="attach-preview" id="attach-preview"></div>
+          <textarea class="compose-body-area" id="compose-body" placeholder="Rédigez votre message…"></textarea>
+          <div class="compose-toolbar">
+            <button type="submit" class="btn-send" id="send-btn">
+              <i class="bi bi-send"></i> Envoyer
+            </button>
+            <label class="btn-attach" for="attach-input">
+              <i class="bi bi-paperclip"></i> Joindre
+            </label>
+            <input type="file" id="attach-input" multiple style="display:none" onchange="previewAttachments(this)">
+            <div style="margin-left:auto;font-size:12px;color:var(--muted)" id="send-status"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Vue calendrier -->
+    <div id="calendar-view">
+      <div class="calendar-header">
+        <h2><i class="bi bi-calendar3" style="color:var(--blue);margin-right:10px"></i>Calendrier</h2>
+        <button class="btn-mail" onclick="openEventModal(null)"><i class="bi bi-plus-lg"></i> Événement</button>
+      </div>
+      <div id="fc-container"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════ MODAL ÉVÉNEMENT ════════ -->
+<div class="modal-dark" id="event-modal">
+  <div class="modal-card">
+    <h3><i class="bi bi-calendar-plus" style="color:var(--blue)"></i> <span id="event-modal-title">Nouvel événement</span></h3>
+    <input type="hidden" id="event-id">
+    <div class="form-group">
+      <label>Titre *</label>
+      <input class="form-control-dark" type="text" id="event-title" placeholder="Ex: Réunion prospect Martin">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label>Début *</label>
+        <input class="form-control-dark" type="datetime-local" id="event-start">
+      </div>
+      <div class="form-group">
+        <label>Fin</label>
+        <input class="form-control-dark" type="datetime-local" id="event-end">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Couleur</label>
+      <select class="form-control-dark" id="event-color">
+        <option value="#3b82f6">Réunion (bleu)</option>
+        <option value="#10b981">Visite terrain (vert)</option>
+        <option value="#FFB700">Proposition (or)</option>
+        <option value="#ef4444">Urgent (rouge)</option>
+        <option value="#8b5cf6">Autre (violet)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea class="form-control-dark" id="event-description" rows="3" placeholder="Notes, adresse, téléphone…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-delete-ev" id="event-delete-btn" style="display:none" onclick="deleteEvent()"><i class="bi bi-trash"></i> Supprimer</button>
+      <button class="btn-cancel" onclick="closeEventModal()">Annuler</button>
+      <button class="btn-confirm" onclick="saveEvent()"><i class="bi bi-check2"></i> Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ MODAL PROPOSITION ════════ -->
+<div class="modal-dark" id="proposal-modal">
+  <div class="modal-card" style="width:520px">
+    <h3><i class="bi bi-file-earmark-pdf" style="color:var(--gold)"></i> Envoyer une proposition</h3>
+    <div class="form-group">
+      <label>Prospect / Email destinataire *</label>
+      <div style="position:relative">
+        <input class="form-control-dark" type="text" id="prop-to" placeholder="nom@email.fr ou commencez à taper…" oninput="searchProspectsProposal(this.value)">
+        <div id="prop-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:999;max-height:180px;overflow-y:auto;"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Nom du prospect</label>
+      <input class="form-control-dark" type="text" id="prop-name" placeholder="Ex: EARL Dupont">
+    </div>
+    <div class="form-group">
+      <label>Objet</label>
+      <input class="form-control-dark" type="text" id="prop-subject" placeholder="Proposition solaire HeliaPV — …">
+    </div>
+    <div class="form-group">
+      <label>PDF de la proposition</label>
+      <input class="form-control-dark" type="file" accept=".pdf" id="prop-pdf" style="padding:6px">
+    </div>
+    <div class="form-group">
+      <label>Message personnalisé</label>
+      <textarea class="form-control-dark" id="prop-body" rows="5" placeholder="Bonjour,&#10;Veuillez trouver ci-joint notre proposition…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeProposalModal()">Annuler</button>
+      <button class="btn-confirm" onclick="sendProposal()"><i class="bi bi-send"></i> Envoyer la proposition</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ TOASTS ════════ -->
+<div class="toast-container" id="toast-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let currentFolder = 'INBOX';
+let currentUID    = null;
+let activeTab     = 'mail';
+let allProspects  = [];
+let calendarInstance = null;
+let searchTimer   = null;
+let attachedFiles = [];
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadFolder('INBOX');
+  loadProspects();
+});
+
+// ═══════════════════════════════════════════════════════════
+// ONGLETS
+// ═══════════════════════════════════════════════════════════
+function showTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-mail').classList.toggle('active', tab === 'mail');
+  document.getElementById('tab-calendar').classList.toggle('active', tab === 'calendar');
+
+  const isCalendar = tab === 'calendar';
+  document.getElementById('sidebar-mail').style.display     = isCalendar ? 'none' : '';
+  document.getElementById('sidebar-calendar').style.display = isCalendar ? 'flex' : 'none';
+  document.getElementById('msg-list-panel').style.display   = isCalendar ? 'none' : '';
+  document.getElementById('mail-view').style.display        = isCalendar ? 'none' : '';
+  document.getElementById('compose-view').style.display     = 'none';
+  document.getElementById('calendar-view').style.display    = isCalendar ? 'flex' : 'none';
+
+  if (isCalendar && !calendarInstance) {
+    initCalendar();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DOSSIERS / MESSAGES
+// ═══════════════════════════════════════════════════════════
+const FOLDER_LABELS = {
+  INBOX: 'Boîte de réception', Sent: 'Envoyés', Drafts: 'Brouillons', Trash: 'Corbeille',
+};
+
+function loadFolder(folder, search = '') {
+  currentFolder = folder;
+  document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('folder-' + folder);
+  if (el) el.classList.add('active');
+
+  document.getElementById('folder-title').textContent = FOLDER_LABELS[folder] || folder;
+  document.getElementById('msg-list').innerHTML = '<div class="msg-loading"><i class="bi bi-hourglass-split spin"></i><br>Chargement des emails…</div>';
+
+  document.getElementById('mail-view').style.display    = '';
+  document.getElementById('compose-view').style.display = 'none';
+
+  let url = `/mail/api/messages?folder=${encodeURIComponent(folder)}&limit=80`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      const msgs = data.messages || [];
+      document.getElementById('msg-count').textContent = msgs.length + ' messages';
+      renderMsgList(msgs);
+      // badge non-lus
+      const unread = msgs.filter(m => m.unread).length;
+      const badge = document.getElementById('badge-unread');
+      if (folder === 'INBOX' && unread > 0) {
+        badge.textContent = unread;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    })
+    .catch(err => {
+      document.getElementById('msg-list').innerHTML =
+        `<div class="msg-empty"><i class="bi bi-exclamation-triangle" style="color:var(--red)"></i><br>Erreur de chargement<br><small>${err.message}</small></div>`;
+    });
+}
+
+function renderMsgList(msgs) {
+  const el = document.getElementById('msg-list');
+  if (!msgs.length) {
+    el.innerHTML = '<div class="msg-empty"><i class="bi bi-inbox" style="font-size:32px"></i><br>Aucun message</div>';
+    return;
+  }
+  el.innerHTML = msgs.map(m => `
+    <div class="msg-item ${m.unread ? 'unread' : ''} ${m.uid === currentUID ? 'active' : ''}"
+         onclick="openMessage('${m.uid}')">
+      <div class="msg-from">${escHtml(extractName(m.from))}</div>
+      <div class="msg-subject">${escHtml(m.subject)}</div>
+      <div class="msg-date">${formatDate(m.date)}</div>
+    </div>
+  `).join('');
+}
+
+function openMessage(uid) {
+  currentUID = uid;
+  // Marquer actif dans la liste
+  document.querySelectorAll('.msg-item').forEach(el => el.classList.remove('active'));
+  event && event.currentTarget && event.currentTarget.classList.add('active');
+
+  const view = document.getElementById('mail-view');
+  view.innerHTML = '<div class="mail-view-empty"><i class="bi bi-hourglass-split spin"></i><br>Chargement…</div>';
+  document.getElementById('compose-view').style.display = 'none';
+  view.style.display = '';
+
+  fetch(`/mail/api/message/${uid}?folder=${encodeURIComponent(currentFolder)}`)
+    .then(r => r.json())
+    .then(msg => renderMessage(msg, view))
+    .catch(err => {
+      view.innerHTML = `<div class="mail-view-empty"><i class="bi bi-exclamation-triangle"></i><br>Erreur: ${err.message}</div>`;
+    });
+}
+
+function renderMessage(msg, container) {
+  const initials = (msg.from || '?').charAt(0).toUpperCase();
+  const attachHtml = (msg.attachments || []).map(a => `
+    <a class="attachment-chip" href="#" onclick="downloadAttachment('${escHtml(a.filename)}','${a.data_b64}','${a.mime}');return false">
+      <i class="bi bi-paperclip"></i>
+      ${escHtml(a.filename)} <small style="color:var(--muted)">(${formatSize(a.size)})</small>
+    </a>
+  `).join('');
+
+  const bodyContent = msg.body_html
+    ? `<iframe id="mail-iframe" onload="resizeIframe(this)" style="width:100%;border:none;min-height:300px;background:#fff;border-radius:8px;" sandbox="allow-same-origin"></iframe>`
+    : `<pre style="white-space:pre-wrap;font-family:'Inter',sans-serif;font-size:14px;line-height:1.7">${escHtml(msg.body_text || '(Message vide)')}</pre>`;
+
+  container.innerHTML = `
+    <div class="mail-actions">
+      <button class="btn-mail" onclick="replyTo('${escHtml(msg.from)}','${escHtml(msg.subject)}')">
+        <i class="bi bi-reply"></i> Répondre
+      </button>
+      <button class="btn-mail" onclick="forwardMsg('${escHtml(msg.subject)}')">
+        <i class="bi bi-forward"></i> Transférer
+      </button>
+      <button class="btn-mail danger" onclick="deleteMsg('${msg.uid}')">
+        <i class="bi bi-trash"></i> Supprimer
+      </button>
+    </div>
+    <div class="mail-header-row">
+      <div class="mail-avatar">${initials}</div>
+      <div style="flex:1;min-width:0">
+        <div class="mail-subject">${escHtml(msg.subject)}</div>
+        <div class="mail-meta">
+          <span><i class="bi bi-person"></i> ${escHtml(msg.from)}</span>
+          <span><i class="bi bi-calendar"></i> ${formatDate(msg.date)}</span>
+          <span><i class="bi bi-envelope"></i> À: ${escHtml(msg.to)}</span>
+        </div>
+      </div>
+    </div>
+    <div class="mail-body" id="mail-body-content">${bodyContent}</div>
+    ${attachHtml ? `<div class="mail-attachments"><div style="font-size:12px;color:var(--muted);margin-bottom:8px"><i class="bi bi-paperclip"></i> Pièces jointes</div>${attachHtml}</div>` : ''}
+  `;
+
+  // Injecter HTML dans l'iframe
+  if (msg.body_html) {
+    setTimeout(() => {
+      const iframe = document.getElementById('mail-iframe');
+      if (iframe) {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head>
+          <meta charset="UTF-8">
+          <style>body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a2e;padding:16px;margin:0;word-break:break-word;}a{color:#3b82f6;}</style>
+          </head><body>${msg.body_html}</body></html>`);
+        doc.close();
+        resizeIframe(iframe);
+      }
+    }, 100);
+  }
+}
+
+function resizeIframe(iframe) {
+  try {
+    const h = iframe.contentDocument.body.scrollHeight;
+    iframe.style.height = (h + 20) + 'px';
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// COMPOSITION
+// ═══════════════════════════════════════════════════════════
+function openCompose(to = '', subject = '', body = '') {
+  document.getElementById('compose-to').value      = to;
+  document.getElementById('compose-subject').value = subject;
+  document.getElementById('compose-body').value    = body;
+  document.getElementById('compose-cc').value      = '';
+  document.getElementById('attach-preview').innerHTML = '';
+  document.getElementById('compose-title').textContent = 'Nouveau message';
+  attachedFiles = [];
+  document.getElementById('mail-view').style.display    = 'none';
+  document.getElementById('compose-view').style.display = '';
+}
+
+function closeCompose() {
+  document.getElementById('compose-view').style.display = 'none';
+  document.getElementById('mail-view').style.display    = '';
+}
+
+function replyTo(from, subject) {
+  const cleanSubject = subject.startsWith('Re:') ? subject : 'Re: ' + subject;
+  openCompose(from, cleanSubject, '\n\n---\nMessage original de ' + from);
+  document.getElementById('compose-title').textContent = 'Répondre';
+}
+
+function forwardMsg(subject) {
+  openCompose('', 'Fwd: ' + subject, '\n\n---\nMessage transféré');
+  document.getElementById('compose-title').textContent = 'Transférer';
+}
+
+function previewAttachments(input) {
+  attachedFiles = Array.from(input.files);
+  const el = document.getElementById('attach-preview');
+  el.innerHTML = attachedFiles.map((f, i) => `
+    <div class="attach-thumb">
+      <i class="bi bi-paperclip"></i> ${escHtml(f.name)}
+      <span class="attach-rm" onclick="removeAttach(${i})"><i class="bi bi-x"></i></span>
+    </div>
+  `).join('');
+}
+
+function removeAttach(i) {
+  attachedFiles.splice(i, 1);
+  const el = document.getElementById('attach-preview');
+  el.innerHTML = attachedFiles.map((f, j) => `
+    <div class="attach-thumb">
+      <i class="bi bi-paperclip"></i> ${escHtml(f.name)}
+      <span class="attach-rm" onclick="removeAttach(${j})"><i class="bi bi-x"></i></span>
+    </div>
+  `).join('');
+}
+
+async function sendEmail(e) {
+  e.preventDefault();
+  const to      = document.getElementById('compose-to').value.trim();
+  const subject = document.getElementById('compose-subject').value.trim();
+  const body    = document.getElementById('compose-body').value;
+  const btn     = document.getElementById('send-btn');
+  const status  = document.getElementById('send-status');
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split spin"></i> Envoi…';
+
+  const fd = new FormData();
+  fd.append('to', to);
+  fd.append('subject', subject);
+  fd.append('body', body.replace(/\n/g, '<br>'));
+  attachedFiles.forEach(f => fd.append('attachments', f, f.name));
+
+  try {
+    const res = await fetch('/mail/api/send', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      toast('Email envoyé avec succès !', 'success');
+      closeCompose();
+    } else {
+      toast('Erreur : ' + data.error, 'error');
+    }
+  } catch(err) {
+    toast('Erreur réseau : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send"></i> Envoyer';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SUPPRESSION
+// ═══════════════════════════════════════════════════════════
+function deleteMsg(uid) {
+  if (!confirm('Supprimer ce message ?')) return;
+  fetch(`/mail/api/message/${uid}?folder=${encodeURIComponent(currentFolder)}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        toast('Message supprimé', 'success');
+        loadFolder(currentFolder);
+        document.getElementById('mail-view').innerHTML = '<div class="mail-view-empty"><i class="bi bi-envelope-open"></i><span>Sélectionnez un email pour le lire</span></div>';
+      }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTOCOMPLÉTION PROSPECTS
+// ═══════════════════════════════════════════════════════════
+function loadProspects() {
+  fetch('/mail/api/prospects')
+    .then(r => r.json())
+    .then(d => { allProspects = d.prospects || []; });
+}
+
+function searchProspects(val) {
+  const box = document.getElementById('prospect-suggestions');
+  if (!val || val.length < 2) { box.style.display = 'none'; return; }
+  const matches = allProspects.filter(p =>
+    p.email.toLowerCase().includes(val.toLowerCase()) ||
+    p.nom.toLowerCase().includes(val.toLowerCase())
+  ).slice(0, 8);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(p =>
+    `<div class="prospect-sug-item" onclick="selectProspect('${escHtml(p.email)}','${escHtml(p.nom)}')">
+      <strong>${escHtml(p.nom)}</strong> — ${escHtml(p.email)}
+    </div>`
+  ).join('');
+  box.style.display = '';
+}
+
+function selectProspect(email, nom) {
+  document.getElementById('compose-to').value = email;
+  document.getElementById('prospect-suggestions').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#compose-to') && !e.target.closest('#prospect-suggestions')) {
+    const el = document.getElementById('prospect-suggestions');
+    if (el) el.style.display = 'none';
+  }
+  if (!e.target.closest('#prop-to') && !e.target.closest('#prop-suggestions')) {
+    const el = document.getElementById('prop-suggestions');
+    if (el) el.style.display = 'none';
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// MODAL PROPOSITION
+// ═══════════════════════════════════════════════════════════
+function openProposalModal(email = '', name = '') {
+  document.getElementById('prop-to').value      = email;
+  document.getElementById('prop-name').value    = name;
+  document.getElementById('prop-subject').value = name ? `Proposition solaire HeliaPV — ${name}` : '';
+  document.getElementById('prop-body').value    = '';
+  document.getElementById('proposal-modal').classList.add('show');
+}
+
+function closeProposalModal() {
+  document.getElementById('proposal-modal').classList.remove('show');
+}
+
+function searchProspectsProposal(val) {
+  const box = document.getElementById('prop-suggestions');
+  if (!val || val.length < 2) { box.style.display = 'none'; return; }
+  const matches = allProspects.filter(p =>
+    p.email.toLowerCase().includes(val.toLowerCase()) ||
+    p.nom.toLowerCase().includes(val.toLowerCase())
+  ).slice(0, 8);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(p =>
+    `<div class="prospect-sug-item" onclick="selectProspectProp('${escHtml(p.email)}','${escHtml(p.nom)}')">
+      <strong>${escHtml(p.nom)}</strong> — ${escHtml(p.email)}
+    </div>`
+  ).join('');
+  box.style.display = '';
+}
+
+function selectProspectProp(email, nom) {
+  document.getElementById('prop-to').value = email;
+  document.getElementById('prop-name').value = nom;
+  document.getElementById('prop-subject').value = `Proposition solaire HeliaPV — ${nom}`;
+  document.getElementById('prop-suggestions').style.display = 'none';
+}
+
+async function sendProposal() {
+  const to      = document.getElementById('prop-to').value.trim();
+  const name    = document.getElementById('prop-name').value.trim();
+  const subject = document.getElementById('prop-subject').value.trim() || `Proposition HeliaPV — ${name}`;
+  const body    = document.getElementById('prop-body').value;
+  const pdfInput = document.getElementById('prop-pdf');
+
+  if (!to) { toast('Email destinataire requis', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('to', to);
+  fd.append('prospect_name', name);
+  fd.append('subject', subject);
+  fd.append('body', body.replace(/\n/g, '<br>') || '');
+  if (pdfInput.files[0]) fd.append('pdf', pdfInput.files[0]);
+
+  try {
+    const res = await fetch('/mail/api/send-proposal', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      toast('Proposition envoyée à ' + to, 'success');
+      closeProposalModal();
+    } else {
+      toast('Erreur : ' + data.error, 'error');
+    }
+  } catch(err) {
+    toast('Erreur réseau : ' + err.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CALENDRIER
+// ═══════════════════════════════════════════════════════════
+function initCalendar() {
+  const el = document.getElementById('fc-container');
+  calendarInstance = new FullCalendar.Calendar(el, {
+    initialView: 'dayGridMonth',
+    locale: 'fr',
+    height: '100%',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,listMonth'
+    },
+    buttonText: { today: "Aujourd'hui", month: 'Mois', week: 'Semaine', list: 'Liste' },
+    editable: true,
+    selectable: true,
+    events: '/mail/api/events',
+    eventClick: info => openEventModal(info.event),
+    select: info => {
+      document.getElementById('event-start').value = info.startStr.substring(0,16);
+      document.getElementById('event-end').value   = info.endStr ? info.endStr.substring(0,16) : '';
+      openEventModal(null);
+    },
+    eventDrop: info => {
+      const ev = info.event;
+      fetch(`/mail/api/events/${ev.id}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ start: ev.startStr, end: ev.endStr || '' })
+      });
+    },
+  });
+  calendarInstance.render();
+}
+
+let editingEventId = null;
+
+function openEventModal(fcEvent) {
+  editingEventId = null;
+  document.getElementById('event-modal-title').textContent = 'Nouvel événement';
+  document.getElementById('event-delete-btn').style.display = 'none';
+  document.getElementById('event-id').value          = '';
+  document.getElementById('event-title').value       = '';
+  document.getElementById('event-description').value = '';
+
+  if (fcEvent) {
+    editingEventId = fcEvent.id;
+    document.getElementById('event-modal-title').textContent = 'Modifier l\'événement';
+    document.getElementById('event-delete-btn').style.display = '';
+    document.getElementById('event-id').value          = fcEvent.id;
+    document.getElementById('event-title').value       = fcEvent.title || '';
+    document.getElementById('event-description').value = fcEvent.extendedProps?.description || '';
+    document.getElementById('event-color').value       = fcEvent.backgroundColor || '#3b82f6';
+    const s = fcEvent.startStr; const en = fcEvent.endStr;
+    document.getElementById('event-start').value = s ? s.substring(0,16) : '';
+    document.getElementById('event-end').value   = en ? en.substring(0,16) : '';
+  } else if (!document.getElementById('event-start').value) {
+    // Pré-remplir avec maintenant
+    const now = new Date(); now.setMinutes(0,0,0);
+    document.getElementById('event-start').value = now.toISOString().substring(0,16);
+    const later = new Date(now.getTime() + 3600000);
+    document.getElementById('event-end').value   = later.toISOString().substring(0,16);
+  }
+  document.getElementById('event-modal').classList.add('show');
+}
+
+function closeEventModal() {
+  document.getElementById('event-modal').classList.remove('show');
+  document.getElementById('event-start').value = '';
+  document.getElementById('event-end').value   = '';
+}
+
+async function saveEvent() {
+  const title = document.getElementById('event-title').value.trim();
+  if (!title) { toast('Le titre est requis', 'error'); return; }
+
+  const payload = {
+    title,
+    start:       document.getElementById('event-start').value,
+    end:         document.getElementById('event-end').value,
+    color:       document.getElementById('event-color').value,
+    description: document.getElementById('event-description').value,
+  };
+
+  const id = document.getElementById('event-id').value;
+  const url    = id ? `/mail/api/events/${id}` : '/mail/api/events';
+  const method = id ? 'PUT' : 'POST';
+
+  try {
+    const res  = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    closeEventModal();
+    calendarInstance && calendarInstance.refetchEvents();
+    toast(id ? 'Événement mis à jour' : 'Événement créé', 'success');
+  } catch(err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+}
+
+async function deleteEvent() {
+  const id = document.getElementById('event-id').value;
+  if (!id || !confirm('Supprimer cet événement ?')) return;
+  await fetch(`/mail/api/events/${id}`, { method: 'DELETE' });
+  closeEventModal();
+  calendarInstance && calendarInstance.refetchEvents();
+  toast('Événement supprimé', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════
+// RECHERCHE
+// ═══════════════════════════════════════════════════════════
+function debounceSearch(val) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    if (activeTab === 'mail') loadFolder(currentFolder, val);
+  }, 500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TÉLÉCHARGEMENT PIÈCE JOINTE
+// ═══════════════════════════════════════════════════════════
+function downloadAttachment(filename, b64, mime) {
+  const bytes = atob(b64);
+  const arr   = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  const blob = new Blob([arr], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function extractName(from) {
+  const m = from.match(/^"?([^"<]+)"?\s*</);
+  return m ? m[1].trim() : from.split('@')[0];
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 86400000 && d.getDate() === now.getDate()) {
+      return d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+    }
+    if (diff < 7 * 86400000) {
+      return d.toLocaleDateString('fr-FR', {weekday:'short', hour:'2-digit', minute:'2-digit'});
+    }
+    return d.toLocaleDateString('fr-FR', {day:'2-digit',month:'short',year:'numeric'});
+  } catch(e) { return dateStr; }
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' o';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' Ko';
+  return (bytes/1024/1024).toFixed(1) + ' Mo';
+}
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast-msg ${type}`;
+  el.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}" style="color:var(--${type === 'success' ? 'green' : 'red'})"></i> ${escHtml(msg)}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+</script>
+</body>
+</html>

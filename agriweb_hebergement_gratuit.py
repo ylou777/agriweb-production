@@ -609,6 +609,24 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # Force pas de cache pour les templates
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
+# ── Configuration Flask-Mail (OVH SMTP) ──────────────────────────────────────
+import config as _cfg
+app.config['MAIL_SERVER']         = os.getenv('MAIL_SERVER',         _cfg.MAIL_SERVER)
+app.config['MAIL_PORT']           = int(os.getenv('MAIL_PORT',       str(_cfg.MAIL_PORT)))
+app.config['MAIL_USE_TLS']        = _cfg.MAIL_USE_TLS
+app.config['MAIL_USE_SSL']        = _cfg.MAIL_USE_SSL
+app.config['MAIL_USERNAME']       = os.getenv('MAIL_USERNAME',       _cfg.MAIL_USERNAME)
+app.config['MAIL_PASSWORD']       = os.getenv('MAIL_PASSWORD',       _cfg.MAIL_PASSWORD)
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', _cfg.MAIL_DEFAULT_SENDER)
+
+try:
+    from flask_mail import Mail
+    mail = Mail(app)
+    print(f"📧 [MAIL] Flask-Mail initialisé — serveur: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
+except ImportError:
+    mail = None
+    print("⚠️ [MAIL] flask_mail non installé — pip install flask-mail")
+
 # ProxyFix : Railway/Gunicorn est derrière un reverse proxy HTTPS.
 # Sans ça, Flask génère des URLs en http:// → "Non sécurisé" dans le navigateur.
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -692,6 +710,14 @@ try:
     print("🌞 [NEWS-SOLAR] Blueprint démo investisseurs enregistré (/newssolar)")
 except Exception as e:
     print(f"⚠️ [NEWS-SOLAR] Impossible d'enregistrer le blueprint démo: {e}")
+
+# Interface messagerie OVH (IMAP/SMTP) + Calendrier
+try:
+    from mail_routes import mail_bp
+    app.register_blueprint(mail_bp)
+    print("📧 [MAIL] Blueprint messagerie enregistré (/mail)")
+except Exception as e:
+    print(f"⚠️ [MAIL] Impossible d'enregistrer le blueprint messagerie: {e}")
 
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])

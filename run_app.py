@@ -3,6 +3,10 @@
 # Import du serveur unifié final
 import sys
 import os
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement depuis .env
+load_dotenv()
 
 # Ajouter le chemin du projet
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
