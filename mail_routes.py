@@ -245,6 +245,19 @@ def _send_smtp(to_list, subject, body_html, body_text='', attachments=None, repl
     if reply_to:
         msg['Reply-To'] = reply_to
 
+    # Signature HTML
+    signature_html = '''
+<br><br>
+<div style="color:#888;font-size:13px;border-top:1px solid #ddd;padding-top:10px;margin-top:10px">
+  <strong>Yann Laurent</strong><br>
+  HeliaPV — Solutions photovoltaïques<br>
+  📧 info@heliapv.fr &nbsp;|&nbsp; 🌐 www.heliapv.fr
+</div>'''
+
+    # Ajoute la signature seulement si pas déjà présente
+    if 'info@heliapv.fr' not in body_html:
+        body_html = body_html + signature_html
+
     # Corps alternatif (text + html)
     alt = MIMEMultipart('alternative')
     if body_text:

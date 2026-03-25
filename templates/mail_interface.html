@@ -958,10 +958,19 @@ function resizeIframe(iframe) {
 // ═══════════════════════════════════════════════════════════
 // COMPOSITION
 // ═══════════════════════════════════════════════════════════
+const SIGNATURE = `
+
+--
+Yann Laurent
+HeliaPV — Solutions photovoltaïques
+📧 info@heliapv.fr
+🌐 www.heliapv.fr
+📞 +33 (0)...`;
+
 function openCompose(to = '', subject = '', body = '') {
   document.getElementById('compose-to').value      = to;
   document.getElementById('compose-subject').value = subject;
-  document.getElementById('compose-body').value    = body;
+  document.getElementById('compose-body').value    = (body || '') + SIGNATURE;
   document.getElementById('compose-cc').value      = '';
   document.getElementById('attach-preview').innerHTML = '';
   document.getElementById('compose-title').textContent = 'Nouveau message';
