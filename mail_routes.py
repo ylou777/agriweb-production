@@ -18,7 +18,7 @@ from email.header import decode_header, make_header
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import parsedate_to_datetime, formataddr
+from email.utils import parsedate_to_datetime, formataddr, formatdate, make_msgid
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, jsonify, request, session, redirect, url_for
 
@@ -198,9 +198,27 @@ def _list_folders():
 
 # ─── SMTP helpers ─────────────────────────────────────────────────────────────
 
+def _imap_save_sent(raw_bytes):
+    """Sauvegarde une copie dans le dossier Sent IMAP."""
+    cfg = _mail_config()
+    try:
+        imap = imaplib.IMAP4_SSL(cfg['imap_server'], 993)
+        imap.login(cfg['username'], cfg['password'])
+        # Essaye plusieurs noms courants de dossier Envoyés OVH
+        for folder in ['Sent', 'Sent Messages', 'Envoyés', 'INBOX.Sent']:
+            try:
+                result = imap.append(folder, '\\Seen', imaplib.Time2Internaldate(datetime.now()), raw_bytes)
+                if result[0] == 'OK':
+                    break
+            except Exception:
+                continue
+        imap.logout()
+    except Exception as e:
+        print(f"⚠️ [MAIL SENT] Impossible de sauvegarder dans Sent: {e}")
+
 def _send_smtp(to_list, subject, body_html, body_text='', attachments=None, reply_to=None):
     """
-    Envoie un email via SMTP OVH.
+    Envoie un email via SMTP OVH et sauvegarde dans le dossier Sent IMAP.
     attachments: liste de (filename, bytes_content, mime_type)
     """
     cfg = _mail_config()
@@ -208,9 +226,11 @@ def _send_smtp(to_list, subject, body_html, body_text='', attachments=None, repl
         raise ValueError("Identifiants SMTP non configurés")
 
     msg = MIMEMultipart('mixed')
-    msg['From']    = formataddr(('HeliaPV', cfg['username']))
-    msg['To']      = ', '.join(to_list) if isinstance(to_list, list) else to_list
-    msg['Subject'] = subject
+    msg['From']       = formataddr(('HeliaPV', cfg['username']))
+    msg['To']         = ', '.join(to_list) if isinstance(to_list, list) else to_list
+    msg['Subject']    = subject
+    msg['Date']       = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid(domain='heliapv.fr')
     if reply_to:
         msg['Reply-To'] = reply_to
 
@@ -232,18 +252,22 @@ def _send_smtp(to_list, subject, body_html, body_text='', attachments=None, repl
             msg.attach(part)
 
     recipients = to_list if isinstance(to_list, list) else [to_list]
+    raw = msg.as_bytes()
     port = cfg['smtp_port']
     # Port 465 = SSL direct ; port 587/25 = STARTTLS
     if port == 465:
         with smtplib.SMTP_SSL(cfg['smtp_server'], port, timeout=30) as server:
             server.login(cfg['username'], cfg['password'])
-            server.sendmail(cfg['username'], recipients, msg.as_bytes())
+            server.sendmail(cfg['username'], recipients, raw)
     else:
         with smtplib.SMTP(cfg['smtp_server'], port, timeout=30) as server:
             server.ehlo()
             server.starttls()
             server.login(cfg['username'], cfg['password'])
-            server.sendmail(cfg['username'], recipients, msg.as_bytes())
+            server.sendmail(cfg['username'], recipients, raw)
+
+    # Sauvegarde dans dossier Sent IMAP
+    _imap_save_sent(raw)
 
 # ─── Calendrier (JSON) ────────────────────────────────────────────────────────
 
