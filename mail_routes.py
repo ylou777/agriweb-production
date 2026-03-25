@@ -198,20 +198,31 @@ def _list_folders():
 
 # ─── SMTP helpers ─────────────────────────────────────────────────────────────
 
+def _find_sent_folder(imap):
+    """Trouve le dossier Envoyés en listant les dossiers IMAP réels."""
+    try:
+        _, folders = imap.list()
+        for f in folders:
+            decoded = f.decode('utf-8', errors='replace') if isinstance(f, bytes) else f
+            # Extrait le nom du dossier (après le dernier séparateur)
+            name = decoded.split('"')[-1].strip().strip('/')
+            name_lower = name.lower()
+            if any(k in name_lower for k in ['sent', 'envoy', 'gesendete']):
+                return name
+    except Exception:
+        pass
+    return 'Sent'  # fallback
+
 def _imap_save_sent(raw_bytes):
     """Sauvegarde une copie dans le dossier Sent IMAP."""
     cfg = _mail_config()
     try:
         imap = imaplib.IMAP4_SSL(cfg['imap_server'], 993)
         imap.login(cfg['username'], cfg['password'])
-        # Essaye plusieurs noms courants de dossier Envoyés OVH
-        for folder in ['Sent', 'Sent Messages', 'Envoyés', 'INBOX.Sent']:
-            try:
-                result = imap.append(folder, '\\Seen', imaplib.Time2Internaldate(datetime.now()), raw_bytes)
-                if result[0] == 'OK':
-                    break
-            except Exception:
-                continue
+        folder = _find_sent_folder(imap)
+        result = imap.append(folder, '\\Seen', imaplib.Time2Internaldate(datetime.now()), raw_bytes)
+        if result[0] != 'OK':
+            print(f"⚠️ [MAIL SENT] append retourné: {result} pour dossier '{folder}'")
         imap.logout()
     except Exception as e:
         print(f"⚠️ [MAIL SENT] Impossible de sauvegarder dans Sent: {e}")
