@@ -11721,7 +11721,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _acChartEco        = null;
         let _acDailyData       = null;   // mémorise daily_profiles après calcul
         let _acCurrentSeason   = 'summer';
-        let _acLastData        = null;   // Résultats de la dernière simulation
+        var _acLastData        = null;   // Résultats de la dernière simulation (var évite TDZ)
 
         /**
          * Sauvegarde les données 8760h d'une zone via Railway (proxy PVGIS).
