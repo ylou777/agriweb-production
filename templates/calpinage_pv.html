@@ -11721,6 +11721,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _acChartEco        = null;
         let _acDailyData       = null;   // mémorise daily_profiles après calcul
         let _acCurrentSeason   = 'summer';
+        let _acLastData        = null;   // Résultats de la dernière simulation
 
         /**
          * Sauvegarde les données 8760h d'une zone via Railway (proxy PVGIS).
@@ -12183,8 +12184,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         }
 
         // ── Rendre tous les résultats ──────────────────────────────────────
-        let _acLastData = null;  // Résultats de la dernière simulation
-
         function _acRenderResultats(data) {
             const { kpis, monthly, daily_profiles, economics, zones_traitees, profil_label } = data;
             _acLastData = data;  // Mémoriser pour la proposition
@@ -12563,7 +12562,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
             // ── Données depuis la simulation autoconsommation ─────────────
             // Résultats sauvegardés dans _acLastData (variable globale de l'autoconso)
-            const acRes = (typeof _acLastData !== 'undefined') ? _acLastData : null;
+            const acRes = _acLastData;  // initialisée en haut de section autoconso
             if (acRes) {
                 const kpis = acRes.kpis || {};
                 const eco  = acRes.economics || {};
