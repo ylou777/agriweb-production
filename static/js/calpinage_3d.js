@@ -7047,6 +7047,7 @@ class Calpinage3DViewer {
      * Ajuste la caméra pour voir toute la scène
      */
     _fitCamera(radiusM) {
+        this._lastFitRadius = radiusM;
         const dist = radiusM * 1.5;
         this.camera.position.set(dist * 0.7, dist * 0.9, dist * 0.7);
         if (this.controls) {
@@ -7240,12 +7241,29 @@ class Calpinage3DViewer {
         }
     }
 
-    /** Retourne un dataURL PNG de la vue 3D courante (null si renderer indisponible) */
+    /** Retourne un dataURL JPEG de la vue 3D zoomée (null si renderer ou données LiDAR indisponibles) */
     getScreenshot() {
         if (!this.renderer || !this.scene || !this.camera) return null;
+        // Pas de données LiDAR chargées → ne pas capturer un rendu vide
+        if (!this.lidarData) return null;
         try {
+            // Zoom in : rapprocher la caméra du bâtiment pour la capture
+            const savedFitRadius = this._lastFitRadius;
+            const savedPos       = this.camera.position.clone();
+            const savedTarget    = this.controls ? this.controls.target.clone() : null;
+            const snapRadius     = Math.max(8, (this._lastFitRadius || 50) * 0.5);
+            this._fitCamera(snapRadius);
+            if (this.controls) this.controls.update();
             this.renderer.render(this.scene, this.camera);
-            return this.renderer.domElement.toDataURL('image/jpeg', 0.92);
+            const dataURL = this.renderer.domElement.toDataURL('image/jpeg', 0.92);
+            // Restaurer la vue interactive
+            this._lastFitRadius = savedFitRadius;
+            this.camera.position.copy(savedPos);
+            if (this.controls && savedTarget) {
+                this.controls.target.copy(savedTarget);
+                this.controls.update();
+            }
+            return dataURL;
         } catch(e) {
             console.warn('[3D] getScreenshot error:', e);
             return null;

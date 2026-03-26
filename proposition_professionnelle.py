@@ -238,6 +238,10 @@ class PropositionProfessionnelle:
         _screenshot_masse = _ss('screenshot_plan_masse')
         _s3d  = _ss('screenshot_3d')
         _sirr = _ss('screenshot_irradiation')
+        # Filtrer les dataURLs trop courtes (rendu vide / LiDAR absent → ~35 chars "data:image/jpeg;base64,")
+        _MIN_SS = 500
+        _s3d  = _s3d  if len(_s3d)  > _MIN_SS else ''
+        _sirr = _sirr if len(_sirr) > _MIN_SS else ''
 
         if _lat and _lon:
             c.showPage()
@@ -2560,6 +2564,8 @@ class PropositionProfessionnelle:
                           "🏠  VUE 3D — MODÉLISATION WEBGL",
                           "Rendu 3D temps réel — terrain LiDAR IGN + modules inclinés")
         else:
+            if not img_irr:
+                return  # Ni 3D ni irradiation décodable — ne pas générer de page vide
             _draw_img_box(img_irr, 1.5 * cm, y, box_w, img_h,
                           "☀️  IRRADIATION SOLAIRE — ANALYSE SITE",
                           "Flux solaire reçu (kWh/m²/an) — source Google Solar / PVGIS")
