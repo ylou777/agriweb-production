@@ -7036,12 +7036,20 @@
             const controls = document.querySelectorAll('.leaflet-control');
             controls.forEach(ctrl => ctrl.style.display = 'none');
 
+            // ── SWITCH VERS ESRI (CORS valide) avant html2canvas ────────────────
+            // Les tuiles Google (mt1.google.com) n'ont pas de CORS headers →
+            // canvas tainted → toDataURL() lève SecurityError → screenshot vide.
+            // Solution : basculer temporairement vers Esri le temps de la capture.
+            const isGoogleActive = tileLayerGoogle && map.hasLayer(tileLayerGoogle);
+            if (isGoogleActive) {
+                map.removeLayer(tileLayerGoogle);
+                tileLayerSatellite.addTo(map);
+                // Attendre que les tuiles Esri se chargent
+                await new Promise(resolve => setTimeout(resolve, 600));
+            }
+
             // ── FIX DÉCALAGE MODULES ────────────────────────────────────────────
-            // Leaflet accumule un offset pixel interne (_pixelOrigin + mapPane transform).
-            // map.setView() avec animate:false force Leaflet à tout recalculer depuis
-            // zéro → tiles et polygones SVG sont cohérents pour html2canvas.
-            // NOTE: On garde Esri comme fond (CORS valide) pour éviter SecurityError
-            // sur toDataURL() — les tuiles Google (sans CORS) taintent le canvas.
+            // map.setView() avec animate:false force Leaflet à tout recalculer.
             const savedCenter = map.getCenter();
             const savedZoom   = map.getZoom();
 
@@ -7054,10 +7062,12 @@
             // Attendre rendu complet des tuiles + SVG
             await new Promise(resolve => setTimeout(resolve, 400));
             
+            let screenshot = null;
+            let boundsData = null;
             try {
                 const canvas = await html2canvas(mapContainer, {
                     useCORS: true,
-                    allowTaint: true,
+                    allowTaint: false,
                     backgroundColor: '#1a1a2e',
                     scrollX: -window.scrollX,
                     scrollY: -window.scrollY,
@@ -7065,13 +7075,11 @@
                     scale: 1
                 });
                 
-                controls.forEach(ctrl => ctrl.style.display = '');
-                
-                const screenshot = canvas.toDataURL('image/png');
+                screenshot = canvas.toDataURL('image/png');
                 console.log('✅ Screenshot:', canvas.width + 'x' + canvas.height + 'px');
                 
                 const bounds = map.getBounds();
-                return {
+                boundsData = {
                     screenshot: screenshot,
                     bounds: {
                         north: bounds.getNorth(),
@@ -7090,10 +7098,17 @@
                     }
                 };
             } catch (err) {
-                controls.forEach(ctrl => ctrl.style.display = '');
                 console.error('❌ Erreur capture:', err);
-                throw err;
+            } finally {
+                controls.forEach(ctrl => ctrl.style.display = '');
+                // Restaurer le fond Google si c'était actif
+                if (isGoogleActive) {
+                    map.removeLayer(tileLayerSatellite);
+                    tileLayerGoogle.addTo(map);
+                }
             }
+            if (!boundsData) throw new Error('Capture échouée');
+            return boundsData;
         }
         
         /**
@@ -7671,6 +7686,14 @@
                             hiddenLayers.push(_flux2DOverlay);
                         }
 
+                        // Switch vers Esri si Google est actif (CORS)
+                        const _pmGoogleActive = tileLayerGoogle && map.hasLayer(tileLayerGoogle);
+                        if (_pmGoogleActive) {
+                            map.removeLayer(tileLayerGoogle);
+                            tileLayerSatellite.addTo(map);
+                            await new Promise(r => setTimeout(r, 600));
+                        }
+
                         // Reset Leaflet _pixelOrigin avant capture
                         await new Promise(resolve => {
                             map.once('moveend', resolve);
@@ -7680,7 +7703,7 @@
                         await new Promise(r => setTimeout(r, 400));
 
                         const canvas = await html2canvas(mapContainer, {
-                            useCORS: true, allowTaint: true,
+                            useCORS: true, allowTaint: false,
                             backgroundColor: '#ffffff',
                             scrollX: -window.scrollX, scrollY: -window.scrollY,
                             logging: false, scale: 1
@@ -7688,6 +7711,10 @@
 
                         // ── Restaurer les couches masquées ──────────────────────────────
                         hiddenLayers.forEach(layer => layer.addTo(map));
+                        if (_pmGoogleActive) {
+                            map.removeLayer(tileLayerSatellite);
+                            tileLayerGoogle.addTo(map);
+                        }
 
                         calData.screenshot_plan_masse = canvas.toDataURL('image/png');
                         console.log('✅ Screenshot plan masse (tuiles seules) capturé:', canvas.width + 'x' + canvas.height + 'px');
@@ -12606,6 +12633,14 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     if (viewer3D && viewer3D.isActive) {
                         const s3d = viewer3D.getScreenshot();
                         if (s3d) body.screenshot_3d = s3d;
+                    }
+                    // Screenshot irradiation si heatmap active
+                    if (typeof _fluxCanvas !== 'undefined' && _fluxCanvas && _fluxBbox) {
+                        const _irrSS = captureHeatmapStandalone();
+                        if (_irrSS) {
+                            body.screenshot_irradiation      = _irrSS;
+                            body.screenshot_irradiation_bbox = _fluxBbox;
+                        }
                     }
                     load.textContent = '⚙️ Génération du PDF...';
                 } catch(eSS) {
