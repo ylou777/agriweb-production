@@ -11716,11 +11716,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         // ============================================================
         //  AUTOCONSOMMATION
         // ============================================================
-        let _acChartMensuel    = null;
-        let _acChartJournalier = null;
-        let _acChartEco        = null;
-        let _acDailyData       = null;   // mémorise daily_profiles après calcul
-        let _acCurrentSeason   = 'summer';
+        var _acChartMensuel    = null;
+        var _acChartJournalier = null;
+        var _acChartEco        = null;
+        var _acDailyData       = null;   // mémorise daily_profiles après calcul
+        var _acCurrentSeason   = 'summer';
         var _acLastData        = null;   // Résultats de la dernière simulation (var évite TDZ)
 
         /**
@@ -11836,7 +11836,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         setTimeout(_acUpdateTariffInfo, 100);
 
         // ── PDL Enedis : toggle / fetch / apply ────────────────────────────────
-        let _acPdlFoundKwh = null;
+        var _acPdlFoundKwh = null;
 
         function _acTogglePdl() {
             const box = document.getElementById('acPdlBox');
