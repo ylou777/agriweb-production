@@ -6183,6 +6183,9 @@
                 const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
                 zone.puissanceKw = (_nbDrawn * modulePuissance) / 1000;
                 updateZoneDisplay(zone);
+                // Recalculer le productible PVGIS avec la nouvelle puissance (après filtrage irradiation)
+                // sinon ratio = productible_ancien / puissance_réduite → valeur délirante
+                calculerProductibleZone(zone.id);
                 calculerTotaux();
             }
 
