@@ -3058,8 +3058,9 @@ class PropositionProfessionnelle:
         if not isinstance(sismo_list, list):
             sismo_list = [sismo_list] if sismo_list else []
         sismo = sismo_list[0] if sismo_list else {}
-        sismo_zone = str(sismo.get('niv_zone', sismo.get('zone', sismo.get('niveau', '—'))))
-        sismo_desc = sismo.get('codtxt', sismo.get('description', ''))
+        # API GéoRisques retourne 'code_zone' (ex: "3") et 'zone_sismicite' (ex: "Zone de sismicité 3")
+        sismo_zone = str(sismo.get('code_zone', sismo.get('zone_sismicite', sismo.get('niv_zone', sismo.get('zone', '—')))))
+        sismo_desc = sismo.get('zone_sismicite', sismo.get('codtxt', sismo.get('description', '')))
 
         # Argile — clé réelle : 'argiles' (liste de risques gaspar)
         argile_list = georisques.get('argiles', [])
@@ -3075,7 +3076,8 @@ class PropositionProfessionnelle:
         if not isinstance(radon_list, list):
             radon_list = [radon_list] if radon_list else []
         radon = radon_list[0] if radon_list else {}
-        radon_cls = str(radon.get('classePotentiel', radon.get('classe', radon.get('potentiel', '—'))))
+        # API GéoRisques retourne 'classe_potentiel' (underscore) — fallback camelCase pour anciens enregistrements
+        radon_cls = str(radon.get('classe_potentiel', radon.get('classePotentiel', radon.get('classe', radon.get('potentiel', '—')))))
 
         # PPRI
         ppri = rapport.get('ppri', {})
@@ -3113,24 +3115,49 @@ class PropositionProfessionnelle:
             c.drawString(1.5 * cm, y, f"Sismicité : {sismo_desc[:100]}")
             y -= 0.45 * cm
 
-        # CatNat
+        # PPRI détail des zones si présent
+        if ppri_present:
+            ppri_features = ppri.get('features', [])
+            if ppri_features:
+                c.setFillColor(colors.HexColor('#E53935'))
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(1.5 * cm, y, f"PPRI — {len(ppri_features)} zone(s) inondable(s) identifiée(s) :")
+                y -= 0.4 * cm
+                for feat in ppri_features[:3]:
+                    fp = feat.get('properties', feat) if isinstance(feat, dict) else {}
+                    nom_ppri  = fp.get('libelle', fp.get('nom', fp.get('code', fp.get('nomPPR', '—'))))
+                    type_alea = fp.get('typeAlea', fp.get('type_alea', fp.get('niveauAlea', '')))
+                    c.setFont("Helvetica", 7.5)
+                    c.setFillColor(colors.HexColor('#B71C1C'))
+                    detail = f" — Aléa: {type_alea}" if type_alea else ""
+                    c.drawString(1.7 * cm, y, f"• {str(nom_ppri)[:60]}{detail}"[:90])
+                    y -= 0.38 * cm
+                y -= 0.1 * cm
+
+
         if catnat:
             c.setFillColor(self.COLOR_PRIMARY)
             c.setFont("Helvetica-Bold", 8)
             c.drawString(1.5 * cm, y, f"Arrêtés de catastrophe naturelle ({len(catnat)} événement(s) recensé(s)) :")
             y -= 0.45 * cm
-            for ev in catnat[:4]:
-                lib = ev.get('libRisqueJo', ev.get('type_risque_long', ev.get('libelle', '—')))
-                dd  = ev.get('datDebutEvt', ev.get('date_debut', ''))[:10]
-                df  = ev.get('datFinEvt',   ev.get('date_fin', ''))[:10]
+            for ev in catnat[:5]:
+                # API GéoRisques GASPAR retourne snake_case : libelle_risque_jo, date_debut_evt, date_fin_evt
+                lib = ev.get('libelle_risque_jo', ev.get('libelle_risque_long',
+                      ev.get('libRisqueJo', ev.get('type_risque_long', ev.get('libelle', '—')))))
+                dd  = (ev.get('date_debut_evt') or ev.get('datDebutEvt') or ev.get('date_debut') or '')[:10]
+                df  = (ev.get('date_fin_evt')   or ev.get('datFinEvt')   or ev.get('date_fin', ''))[:10]
+                pub = (ev.get('date_publication_arrete') or '')[:10]
+                suffix = f" (arr. {pub})" if pub else ""
+                date_str = f"du {dd} au {df}" if (dd and df) else (f"le {dd}" if dd else "date inconnue")
                 c.setFont("Helvetica", 7.5)
                 c.setFillColor(self.COLOR_DARK)
-                c.drawString(1.7 * cm, y, f"• {lib} — du {dd} au {df}")
+                line_txt = f"• {str(lib)[:55]} — {date_str}{suffix}"
+                c.drawString(1.7 * cm, y, line_txt[:95])
                 y -= 0.4 * cm
-            if len(catnat) > 4:
+            if len(catnat) > 5:
                 c.setFont("Helvetica-Oblique", 7.5)
                 c.setFillColor(colors.HexColor('#777777'))
-                c.drawString(1.7 * cm, y, f"  … et {len(catnat) - 4} autre(s) événement(s)")
+                c.drawString(1.7 * cm, y, f"  … et {len(catnat) - 5} autre(s) événement(s)")
                 y -= 0.4 * cm
 
         y -= 0.3 * cm
@@ -3148,22 +3175,30 @@ class PropositionProfessionnelle:
         # BT
         c.setFillColor(self.COLOR_HEADER_BG)
         hw = (self.width - 3 * cm) / 2 - 0.2 * cm
-        c.rect(1.5 * cm, y - 3.5 * cm, hw, 3.5 * cm, fill=1, stroke=0)
+        c.rect(1.5 * cm, y - 4.5 * cm, hw, 4.5 * cm, fill=1, stroke=0)
         c.setFillColor(self.COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(1.7 * cm, y - 0.3 * cm, "Poste Source BT (plus proche)")
         ky2 = y - 0.75 * cm
-        for lbl, key in [("Nom :", 'nom'), ("Distance :", 'distance_m'), ("Puissance :", 'puissance'), ("État :", 'etat')]:
-            val = poste_bt.get(key, '—')
+        bt_fields = [
+            ("Nom :",       'nom'),
+            ("Distance :",  'distance_m'),
+            ("Puissance :", 'puissance'),
+            ("État :",      'etat'),
+            ("Commune :",   'commune'),
+            ("Département :","departement"),
+        ]
+        for lbl, key in bt_fields:
+            val = poste_bt.get(key, '—') if poste_bt else '—'
+            if not val or val in (None, 'None', ''):
+                val = '—'
             if key == 'distance_m' and val != '—':
                 try:
                     val = f"{int(float(val))} m"
                 except (ValueError, TypeError):
                     val = str(val)
-            if key == 'puissance' and val not in ('—', None, 'None', ''):
+            if key == 'puissance' and val not in ('—',):
                 val = f"{val} kVA"
-            elif key == 'puissance':
-                val = '—'
             c.setFont("Helvetica-Bold", 7.5)
             c.setFillColor(colors.HexColor('#555555'))
             c.drawString(1.7 * cm, ky2, lbl)
@@ -3179,23 +3214,28 @@ class PropositionProfessionnelle:
         # HTA
         hta_x = 1.5 * cm + hw + 0.4 * cm
         c.setFillColor(self.COLOR_HEADER_BG)
-        c.rect(hta_x, y - 3.5 * cm, hw, 3.5 * cm, fill=1, stroke=0)
+        c.rect(hta_x, y - 4.5 * cm, hw, 4.5 * cm, fill=1, stroke=0)
         c.setFillColor(self.COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(hta_x + 0.2 * cm, y - 0.3 * cm, "Poste Source HTA (plus proche)")
         ky3 = y - 0.75 * cm
-        for lbl, key in [("Nom :", 'nom'), ("Distance :", 'distance_m'), ("Puissance :", 'puissance'), ("État :", 'etat')]:
-            val = poste_hta.get(key, '—')
-            if val is None: val = '—'
+        hta_fields = [
+            ("Nom :",       'nom'),
+            ("Distance :",  'distance_m'),
+            ("Tension :",   'tension'),
+            ("Fonction :",  'fonction'),
+            ("État :",      'etat'),
+            ("Commune :",   'commune'),
+        ]
+        for lbl, key in hta_fields:
+            val = poste_hta.get(key, '—') if poste_hta else '—'
+            if val is None or val in ('None', ''):
+                val = '—'
             if key == 'distance_m' and val != '—':
                 try:
                     val = f"{int(float(val))} m"
-                except:
+                except (ValueError, TypeError):
                     pass
-            if key == 'puissance' and val not in ('—', None, 'None', ''):
-                val = f"{val} kVA"
-            elif key == 'puissance':
-                val = '—'
             c.setFont("Helvetica-Bold", 7.5)
             c.setFillColor(colors.HexColor('#555555'))
             c.drawString(hta_x + 0.2 * cm, ky3, lbl)
@@ -3208,7 +3248,7 @@ class PropositionProfessionnelle:
             c.setFillColor(colors.HexColor('#777777'))
             c.drawString(hta_x + 0.2 * cm, y - 0.9 * cm, "Données non disponibles")
 
-        y -= 3.8 * cm
+        y -= 4.8 * cm
 
         # ─────────────────────────────────────────────────────────────────────
         # SECTION 4 : Installations classées ICPE
@@ -3219,19 +3259,24 @@ class PropositionProfessionnelle:
 
         if installations:
             y = self._draw_section_title(c, y, "Installations Classées (ICPE) à proximité", number="D")
-            for inst in installations[:4]:
-                nom_inst = inst.get('nomEts', inst.get('nom', inst.get('name', '—')))
-                dist_inst = inst.get('distance', inst.get('dist', '—'))
-                act_inst  = inst.get('activitePrincipale', inst.get('activite', ''))
+            for inst in installations[:5]:
+                # API GéoRisques retourne 'raisonsociale' (pas 'nomEts')
+                nom_inst  = inst.get('raisonsociale', inst.get('nomEts', inst.get('nom', inst.get('name', '—'))))
+                dist_inst = inst.get('distance', inst.get('dist', ''))
+                regime    = inst.get('regime', '')
+                etat      = inst.get('etatactivite', inst.get('activiteEtat', ''))
+                seveso    = inst.get('statutseveso', '')
                 c.setFont("Helvetica", 7.5)
                 c.setFillColor(self.COLOR_DARK)
-                label_dist = f"— {int(float(dist_inst))} m" if dist_inst and dist_inst != '—' else ''
-                c.drawString(1.7 * cm, y, f"• {nom_inst}{label_dist}" + (f" ({act_inst[:40]})" if act_inst else ""))
+                dist_str = f" — {int(float(dist_inst))} m" if dist_inst and str(dist_inst) != '—' else ''
+                detail_parts = [p for p in [regime, etat, seveso] if p and p.strip() and p.strip() not in ('N/A', 'Non Seveso', 'Aucun')]
+                detail_str = f" ({', '.join(detail_parts[:2])})" if detail_parts else ""
+                c.drawString(1.7 * cm, y, f"• {str(nom_inst)[:50]}{dist_str}{detail_str}"[:95])
                 y -= 0.4 * cm
-            if len(installations) > 4:
+            if len(installations) > 5:
                 c.setFont("Helvetica-Oblique", 7.5)
                 c.setFillColor(colors.HexColor('#777777'))
-                c.drawString(1.7 * cm, y, f"  … et {len(installations) - 4} autre(s) installation(s)")
+                c.drawString(1.7 * cm, y, f"  … et {len(installations) - 5} autre(s) installation(s)")
                 y -= 0.4 * cm
 
         # ─────────────────────────────────────────────────────────────────────
