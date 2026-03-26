@@ -3257,26 +3257,37 @@ class PropositionProfessionnelle:
         if not isinstance(installations, list):
             installations = []
 
-        if installations:
+        # Filtrer les vrais ICPE (exclure 'Non ICPE' = sites sans régime ICPE renvoyés par l'API)
+        real_icpe = [inst for inst in installations
+                     if str(inst.get('regime', '')).strip().lower() not in ('non icpe', 'non classé', '')]
+        if real_icpe:
             y = self._draw_section_title(c, y, "Installations Classées (ICPE) à proximité", number="D")
-            for inst in installations[:5]:
-                # API GéoRisques retourne 'raisonsociale' (pas 'nomEts')
-                nom_inst  = inst.get('raisonsociale', inst.get('nomEts', inst.get('nom', inst.get('name', '—'))))
-                dist_inst = inst.get('distance', inst.get('dist', ''))
-                regime    = inst.get('regime', '')
-                etat      = inst.get('etatactivite', inst.get('activiteEtat', ''))
-                seveso    = inst.get('statutseveso', '')
+            for inst in real_icpe[:5]:
+                # API GéoRisques retourne camelCase : raisonSociale, statutSeveso, etatActivite
+                nom_inst  = (inst.get('raisonSociale') or inst.get('raisonsociale')
+                             or inst.get('nomEts') or inst.get('nom') or '')
+                if not nom_inst.strip():
+                    nom_inst = inst.get('commune', 'Établissement non nommé')
+                dist_inst  = inst.get('distance', '')
+                regime     = inst.get('regime', '')
+                etat       = inst.get('etatActivite', inst.get('etatactivite', ''))
+                seveso     = inst.get('statutSeveso', inst.get('statutseveso', ''))
+                commune    = inst.get('commune', '')
                 c.setFont("Helvetica", 7.5)
                 c.setFillColor(self.COLOR_DARK)
-                dist_str = f" — {int(float(dist_inst))} m" if dist_inst and str(dist_inst) != '—' else ''
-                detail_parts = [p for p in [regime, etat, seveso] if p and p.strip() and p.strip() not in ('N/A', 'Non Seveso', 'Aucun')]
+                dist_str = f" — {int(float(dist_inst))} m" if dist_inst and str(dist_inst) not in ('—', '') else ''
+                detail_parts = [p for p in [regime, etat] if p and p.strip() not in ('N/A', '')]
+                if seveso and 'non' not in str(seveso).lower():
+                    detail_parts.append(f"Seveso: {seveso}")
+                if commune:
+                    detail_parts.append(commune)
                 detail_str = f" ({', '.join(detail_parts[:2])})" if detail_parts else ""
-                c.drawString(1.7 * cm, y, f"• {str(nom_inst)[:50]}{dist_str}{detail_str}"[:95])
+                c.drawString(1.7 * cm, y, f"• {str(nom_inst)[:48]}{dist_str}{detail_str}"[:95])
                 y -= 0.4 * cm
-            if len(installations) > 5:
+            if len(real_icpe) > 5:
                 c.setFont("Helvetica-Oblique", 7.5)
                 c.setFillColor(colors.HexColor('#777777'))
-                c.drawString(1.7 * cm, y, f"  … et {len(installations) - 5} autre(s) installation(s)")
+                c.drawString(1.7 * cm, y, f"  … et {len(real_icpe) - 5} autre(s) installation(s)")
                 y -= 0.4 * cm
 
         # ─────────────────────────────────────────────────────────────────────
@@ -3321,14 +3332,30 @@ class PropositionProfessionnelle:
                     c.setFillColor(self.COLOR_DARK)
                     c.setFont("Helvetica", 7.5)
                     c.drawString(2.2 * cm, row_y - 0.28 * cm, name_fr)
-                    # Première feature (valeur principale)
+                    # Première feature — afficher des champs lisibles, pas des UUIDs
                     feats = layer_info.get('features', [])
                     if feats:
                         f0 = feats[0]
-                        sample = ', '.join(f"{v}" for k, v in list(f0.items())[:2] if v)[:50]
-                        c.setFont("Helvetica-Oblique", 7)
-                        c.setFillColor(colors.HexColor('#555555'))
-                        c.drawString(9.5 * cm, row_y - 0.28 * cm, sample)
+                        # Priorité aux champs sémantiques connus
+                        _PRIO_KEYS = ['typezone', 'libelong', 'libelle', 'destdomi', 'txt',
+                                      'label', 'lib_idzone', 'idurba', 'datappro', 'type',
+                                      'categorie', 'nature', 'nomfic', 'partition']
+                        import re as _re
+                        _uuid_re = _re.compile(r'^[0-9a-f\-]{20,}$', _re.I)
+                        prio_vals = [str(v) for k, v in f0.items()
+                                     if v and k.lower() in _PRIO_KEYS
+                                     and not _uuid_re.match(str(v))][:2]
+                        if not prio_vals:
+                            prio_vals = [str(v) for k, v in f0.items()
+                                         if v and not _uuid_re.match(str(v))
+                                         and not str(v).isdigit()
+                                         and k.lower() not in ('gid', 'gpu_doc_id', 'gpu_status',
+                                                                'gpu_timestamp')][:2]
+                        sample = ', '.join(prio_vals)[:50]
+                        if sample:
+                            c.setFont("Helvetica-Oblique", 7)
+                            c.setFillColor(colors.HexColor('#555555'))
+                            c.drawString(9.5 * cm, row_y - 0.28 * cm, sample)
                     row_y -= 0.5 * cm
                 y = row_y
                 if len(non_empty_layers) > 8:
