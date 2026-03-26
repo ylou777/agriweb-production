@@ -260,12 +260,6 @@ class PropositionProfessionnelle:
             self.page_number += 1
             self._draw_visuels_calpinage(c)
 
-        # Page 4d : Plan de calpinage (si screenshot disponible)
-        if _screenshot:
-            c.showPage()
-            self.page_number += 1
-            self._draw_plan_calpinage(c)
-
         # Page 4c2 : Analyse irradiance Google Solar (si données disponibles)
         if self.data_json.get('calpinage', {}).get('solar_analysis'):
             c.showPage()

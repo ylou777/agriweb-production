@@ -7119,14 +7119,17 @@
          */
         function captureHeatmapStandalone() {
             if (!_fluxCanvas || !_fluxBbox) return null;
-            const W = _fluxCanvas.width, H = _fluxCanvas.height;
+            // Utiliser le canvas brut non filtré (_fluxOrigCanvas) pour montrer
+            // l'irradiation complète sur toute la surface, quel que soit le filtre actif
+            const _srcCanvas = _fluxOrigCanvas || _fluxCanvas;
+            const W = _srcCanvas.width, H = _srcCanvas.height;
             const out = document.createElement('canvas');
             out.width  = W;
             out.height = H;
             const ctx = out.getContext('2d');
 
-            // 1. Fond = heatmap irradiation (canvas pur, pas de CORS)
-            ctx.drawImage(_fluxCanvas, 0, 0);
+            // 1. Fond = heatmap irradiation complète (canvas pur, pas de CORS)
+            ctx.drawImage(_srcCanvas, 0, 0);
 
             // 2. Projection GPS → pixels via la bbox de la heatmap
             const {north, south, east, west} = _fluxBbox;

@@ -7247,13 +7247,18 @@ class Calpinage3DViewer {
         // Pas de données LiDAR chargées → ne pas capturer un rendu vide
         if (!this.lidarData) return null;
         try {
-            // Zoom in : rapprocher la caméra du bâtiment pour la capture
+            // Zoom in : 30% du radius pour serrer sur le bâtiment
             const savedFitRadius = this._lastFitRadius;
             const savedPos       = this.camera.position.clone();
             const savedTarget    = this.controls ? this.controls.target.clone() : null;
-            const snapRadius     = Math.max(8, (this._lastFitRadius || 50) * 0.5);
-            this._fitCamera(snapRadius);
-            if (this.controls) this.controls.update();
+            const snapRadius = Math.max(6, (this._lastFitRadius || 50) * 0.3);
+            const snapDist   = snapRadius * 1.5;
+            // Angle oblique (moins top-down) : Y/XZ ratio ~0.55 pour vue isométrique
+            this.camera.position.set(snapDist * 1.0, snapDist * 0.55, snapDist * 1.0);
+            if (this.controls) {
+                this.controls.target.set(0, 3, 0);
+                this.controls.update();
+            }
             this.renderer.render(this.scene, this.camera);
             const dataURL = this.renderer.domElement.toDataURL('image/jpeg', 0.92);
             // Restaurer la vue interactive
