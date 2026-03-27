@@ -6481,3 +6481,190 @@ def register_autoconso_routes(app):
             print(f"  ⚠ OSM: {e}")
         
         return jsonify(result)
+
+    # ============================================================================
+    # ROUTES - RECHERCHE PROPRIÉTAIRE PAR SIREN (MAJIC)
+    # ============================================================================
+
+    @app.route('/api/crm/proprietaire/search')
+    def search_proprietaire_parcelles():
+        """Recherche toutes les parcelles d'un propriétaire par SIREN sur toute la France (base MAJIC)"""
+        import re as _re
+        import requests as _req
+        from proprietaires_utils import get_parcelles_by_siren
+
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+
+        siren = request.args.get('siren', '').strip()
+        if not siren:
+            return jsonify({'success': False, 'error': 'SIREN requis'}), 400
+        if not _re.match(r'^\d{9}$', siren):
+            return jsonify({'success': False, 'error': 'SIREN invalide (9 chiffres attendus)'}), 400
+
+        parcelles = get_parcelles_by_siren(siren, limit=500)
+        if not parcelles:
+            return jsonify({'success': True, 'siren': siren, 'denomination': '', 'total_parcelles': 0, 'communes': []})
+
+        denomination = parcelles[0].get('denomination', '')
+        forme_juridique = parcelles[0].get('forme_juridique', '')
+
+        # Grouper par code_insee
+        communes_map = {}
+        for p in parcelles:
+            ci = p['code_insee']
+            if ci not in communes_map:
+                communes_map[ci] = {
+                    'code_insee': ci,
+                    'commune_nom': ci,
+                    'departement': '',
+                    'parcelles': [],
+                    'surface_totale_m2': 0,
+                    'nb_parcelles': 0,
+                    'surface_ha': 0.0
+                }
+            communes_map[ci]['parcelles'].append({
+                'section': p['section'],
+                'numero': p['numero'],
+                'contenance': p['contenance'] or 0
+            })
+            communes_map[ci]['surface_totale_m2'] += (p['contenance'] or 0)
+            communes_map[ci]['nb_parcelles'] += 1
+
+        # Enrichir les communes via geo.api.gouv.fr
+        for c in communes_map.values():
+            c['surface_ha'] = round(c['surface_totale_m2'] / 10000, 2)
+            try:
+                r = _req.get(
+                    f"https://geo.api.gouv.fr/communes/{c['code_insee']}",
+                    params={'fields': 'nom,departement'},
+                    timeout=4
+                )
+                if r.ok:
+                    geo = r.json()
+                    c['commune_nom'] = geo.get('nom', c['code_insee'])
+                    c['departement'] = geo.get('departement', {}).get('nom', '')
+            except Exception:
+                pass
+
+        result_list = sorted(communes_map.values(), key=lambda x: x['surface_totale_m2'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'siren': siren,
+            'denomination': denomination,
+            'forme_juridique': forme_juridique,
+            'total_parcelles': len(parcelles),
+            'total_communes': len(result_list),
+            'communes': result_list
+        })
+
+    @app.route('/api/crm/proprietaire/import-parcelles', methods=['POST'])
+    def import_proprietaire_parcelles():
+        """Importe des communes/parcelles d'un propriétaire MAJIC dans le CRM comme prospects"""
+        import requests as _req
+
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'JSON requis'}), 400
+
+        siren = data.get('siren', '').strip()
+        denomination = data.get('denomination', '')
+        forme_juridique = data.get('forme_juridique', '')
+        selected_communes = data.get('communes', [])
+
+        if not siren or not selected_communes:
+            return jsonify({'success': False, 'error': 'SIREN et communes requis'}), 400
+
+        imported = 0
+        errors = []
+
+        for commune_data in selected_communes:
+            code_insee = commune_data.get('code_insee', '')
+            commune_nom = commune_data.get('commune_nom', code_insee)
+            departement = commune_data.get('departement', '')
+            parcelles = commune_data.get('parcelles', [])
+            surface_m2 = commune_data.get('surface_totale_m2', 0)
+
+            # Géocodage : centroïde de la première parcelle via apicarto IGN
+            lat, lon = None, None
+            for p in parcelles[:5]:
+                try:
+                    section = (p.get('section') or '').strip()
+                    numero = (p.get('numero') or '').strip()
+                    r = _req.get(
+                        'https://apicarto.ign.fr/api/cadastre/parcelle',
+                        params={'code_insee': code_insee, 'section': section, 'numero': numero},
+                        timeout=6
+                    )
+                    if r.ok:
+                        features = r.json().get('features', [])
+                        if features:
+                            geom = features[0].get('geometry', {})
+                            coords = None
+                            if geom.get('type') == 'MultiPolygon':
+                                coords = geom['coordinates'][0][0]
+                            elif geom.get('type') == 'Polygon':
+                                coords = geom['coordinates'][0]
+                            if coords:
+                                lon = sum(c[0] for c in coords) / len(coords)
+                                lat = sum(c[1] for c in coords) / len(coords)
+                                break
+                except Exception as e:
+                    print(f"⚠️ Géocodage {code_insee}/{section}/{numero}: {e}")
+
+            parcelles_str = ', '.join([
+                f"{(p.get('section') or '').strip()}{(p.get('numero') or '').strip()}"
+                for p in parcelles
+            ])
+
+            data_json_blob = {
+                'proprietaire_siren': siren,
+                'proprietaire_denomination': denomination,
+                'proprietaire_forme_juridique': forme_juridique,
+                'source': 'majic_import',
+                'code_insee': code_insee
+            }
+
+            try:
+                result = execute_query('''
+                    INSERT INTO agriweb_prospects (
+                        type, commune, departement, adresse,
+                        latitude, longitude,
+                        surface_m2, surface_ha, parcelles_cadastrales,
+                        proprietaire_siren, proprietaire_denomination, proprietaire_forme_juridique,
+                        data_json, user_id, statut, priorite
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                ''', (
+                    'toiture',
+                    commune_nom,
+                    departement,
+                    f"{commune_nom} ({code_insee})",
+                    lat, lon,
+                    surface_m2,
+                    round(surface_m2 / 10000, 4) if surface_m2 else None,
+                    parcelles_str,
+                    siren, denomination, forme_juridique,
+                    json.dumps(data_json_blob),
+                    str(user_id) if user_id is not None else None,
+                    'nouveau', 'moyenne'
+                ), fetch_one=True)
+
+                if result and result.get('id'):
+                    imported += 1
+            except Exception as e:
+                errors.append(f"{commune_nom}: {str(e)}")
+                print(f"❌ Import parcelle {code_insee}: {e}")
+
+        return jsonify({
+            'success': True,
+            'imported': imported,
+            'errors': errors,
+            'message': f'{imported} commune(s) importée(s) dans le CRM'
+        })

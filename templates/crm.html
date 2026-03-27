@@ -558,6 +558,12 @@
                                             SIREN: ${p.proprietaire_siren}<br>
                                             ${p.proprietaire_forme_juridique ? 'Forme juridique: ' + p.proprietaire_forme_juridique : ''}
                                         </small>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-success"
+                                                onclick="searchProprietaireNational('${p.proprietaire_siren}', '${(p.proprietaire_denomination || '').replace(/'/g, "\\'")}', '${(p.proprietaire_forme_juridique || '').replace(/'/g, "\\'")}')">
+                                                <i class="bi bi-search"></i> Toutes ses propriétés en France
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 ` : ''}
@@ -756,5 +762,200 @@
             a.click();
         }
     </script>
+
+<!-- =====================================================================
+     MODAL : RECHERCHE TOUTES PROPRIÉTÉS D'UN PROPRIÉTAIRE (MAJIC)
+     ===================================================================== -->
+<div class="modal fade" id="modalProprietaireNational" tabindex="-1" aria-labelledby="modalProprietaireNationalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content bg-dark text-light border border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="modalProprietaireNationalLabel">
+          <i class="bi bi-search"></i> Propriétés de <span id="pnLabel"></span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Stats -->
+        <div id="pnStats" class="alert alert-info mb-3" style="display:none">
+          <i class="bi bi-info-circle"></i>
+          <span id="pnStatsText"></span>
+        </div>
+        <!-- Loader -->
+        <div id="pnLoader" class="text-center py-4" style="display:none">
+          <div class="spinner-border text-success" role="status"></div>
+          <div class="mt-2 text-muted">Recherche en base MAJIC…</div>
+        </div>
+        <!-- Résultats -->
+        <div id="pnResults" style="display:none">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <button class="btn btn-sm btn-outline-light me-1" onclick="pnSelectAll(true)">
+                <i class="bi bi-check-all"></i> Tout sélectionner
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="pnSelectAll(false)">
+                <i class="bi bi-x-square"></i> Tout désélectionner
+              </button>
+            </div>
+            <small class="text-muted"><span id="pnSelectedCount">0</span> commune(s) sélectionnée(s)</small>
+          </div>
+          <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+            <table class="table table-dark table-hover table-sm align-middle">
+              <thead class="sticky-top" style="background:#212529">
+                <tr>
+                  <th style="width:36px"><input type="checkbox" id="pnCheckAll" onchange="pnSelectAll(this.checked)"></th>
+                  <th>Commune</th>
+                  <th>Département</th>
+                  <th>Parcelles</th>
+                  <th>Surface</th>
+                </tr>
+              </thead>
+              <tbody id="pnTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Erreur -->
+        <div id="pnError" class="alert alert-danger" style="display:none"></div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+        <button type="button" class="btn btn-success" id="pnImportBtn" onclick="pnImportSelected()" style="display:none">
+          <i class="bi bi-cloud-download"></i> Importer dans le CRM
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =========================================================
+// RECHERCHE PROPRIÉTAIRE NATIONAL (MAJIC)
+// =========================================================
+let _pnData = null;   // résultats de dernière recherche
+let _pnSiren = '';
+let _pnDenomination = '';
+let _pnFormeJuridique = '';
+
+function searchProprietaireNational(siren, denomination, formeJuridique) {
+    _pnSiren = siren;
+    _pnDenomination = denomination;
+    _pnFormeJuridique = formeJuridique;
+    _pnData = null;
+
+    document.getElementById('pnLabel').textContent = denomination + ' (SIREN ' + siren + ')';
+    document.getElementById('pnStats').style.display = 'none';
+    document.getElementById('pnResults').style.display = 'none';
+    document.getElementById('pnError').style.display = 'none';
+    document.getElementById('pnImportBtn').style.display = 'none';
+    document.getElementById('pnLoader').style.display = 'block';
+    document.getElementById('pnTableBody').innerHTML = '';
+    document.getElementById('pnSelectedCount').textContent = '0';
+
+    const modal = new bootstrap.Modal(document.getElementById('modalProprietaireNational'));
+    modal.show();
+
+    fetch('/api/crm/proprietaire/search?siren=' + encodeURIComponent(siren))
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('pnLoader').style.display = 'none';
+            if (!data.success) {
+                document.getElementById('pnError').textContent = data.error || 'Erreur lors de la recherche';
+                document.getElementById('pnError').style.display = 'block';
+                return;
+            }
+            _pnData = data;
+            if (!data.communes || data.communes.length === 0) {
+                document.getElementById('pnError').textContent = 'Aucune parcelle trouvée pour ce SIREN dans la base MAJIC.';
+                document.getElementById('pnError').style.display = 'block';
+                return;
+            }
+            document.getElementById('pnStatsText').innerHTML =
+                '<strong>' + data.total_parcelles + '</strong> parcelles dans <strong>' +
+                data.total_communes + '</strong> commune(s) — ' + data.denomination;
+            document.getElementById('pnStats').style.display = 'block';
+            document.getElementById('pnResults').style.display = 'block';
+            document.getElementById('pnImportBtn').style.display = 'inline-block';
+
+            const tbody = document.getElementById('pnTableBody');
+            tbody.innerHTML = '';
+            data.communes.forEach((c, i) => {
+                const parcSample = c.parcelles.slice(0, 3).map(p => p.section + p.numero).join(', ');
+                const more = c.nb_parcelles > 3 ? ' +' + (c.nb_parcelles - 3) + '…' : '';
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="checkbox" class="pn-check" data-idx="${i}" checked onchange="pnUpdateCount()"></td>
+                    <td><strong>${c.commune_nom}</strong></td>
+                    <td><small class="text-muted">${c.departement || c.code_insee}</small></td>
+                    <td><small>${c.nb_parcelles} parc. (${parcSample}${more})</small></td>
+                    <td><span class="badge bg-success">${c.surface_ha} ha</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+            pnUpdateCount();
+        })
+        .catch(err => {
+            document.getElementById('pnLoader').style.display = 'none';
+            document.getElementById('pnError').textContent = 'Erreur réseau : ' + err.message;
+            document.getElementById('pnError').style.display = 'block';
+        });
+}
+
+function pnSelectAll(checked) {
+    document.querySelectorAll('.pn-check').forEach(cb => cb.checked = checked);
+    document.getElementById('pnCheckAll').checked = checked;
+    pnUpdateCount();
+}
+
+function pnUpdateCount() {
+    const n = document.querySelectorAll('.pn-check:checked').length;
+    document.getElementById('pnSelectedCount').textContent = n;
+}
+
+function pnImportSelected() {
+    if (!_pnData) return;
+    const checks = document.querySelectorAll('.pn-check:checked');
+    if (checks.length === 0) {
+        alert('Aucune commune sélectionnée.');
+        return;
+    }
+    const selectedCommunes = [];
+    checks.forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        selectedCommunes.push(_pnData.communes[idx]);
+    });
+
+    const btn = document.getElementById('pnImportBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Import en cours…';
+
+    fetch('/api/crm/proprietaire/import-parcelles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            siren: _pnSiren,
+            denomination: _pnDenomination,
+            forme_juridique: _pnFormeJuridique,
+            communes: selectedCommunes
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cloud-download"></i> Importer dans le CRM';
+        if (data.success) {
+            alert('✅ ' + data.message + (data.errors && data.errors.length ? '\n\nErreurs:\n' + data.errors.join('\n') : ''));
+            bootstrap.Modal.getInstance(document.getElementById('modalProprietaireNational')).hide();
+            if (typeof loadProspects === 'function') loadProspects();
+        } else {
+            alert('❌ ' + (data.error || 'Erreur lors de l\'import'));
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cloud-download"></i> Importer dans le CRM';
+        alert('Erreur réseau : ' + err.message);
+    });
+}
+</script>
 </body>
 </html>

@@ -147,6 +147,48 @@ def get_proprietaires_by_commune(code_insee, limit=100):
         return []
 
 
+def get_parcelles_by_siren(siren, limit=500):
+    """
+    Récupère toutes les parcelles d'un propriétaire par SIREN sur toute la France.
+
+    Args:
+        siren: Numéro SIREN (9 chiffres)
+        limit: Nombre max de parcelles à retourner
+
+    Returns:
+        Liste de dict {code_insee, section, numero, contenance, denomination, forme_juridique}
+    """
+    if not DB_CONFIG:
+        return []
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG, connect_timeout=10)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT
+                code_insee,
+                section,
+                numero,
+                contenance,
+                denomination,
+                forme_juridique
+            FROM proprietaires_parcelles
+            WHERE siren = %s
+              AND denomination IS NOT NULL
+            ORDER BY code_insee, section, numero
+            LIMIT %s
+        """, (siren, limit))
+
+        rows = cur.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    except Exception as e:
+        print(f"❌ Erreur get_parcelles_by_siren: {e}")
+        return []
+
+
 # Exemple d'utilisation
 if __name__ == "__main__":
     # Test avec une parcelle
