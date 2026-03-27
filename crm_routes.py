@@ -6643,32 +6643,81 @@ def register_autoconso_routes(app):
             parcelles = commune_data.get('parcelles', [])
             surface_m2 = commune_data.get('surface_totale_m2', 0)
 
-            # Géocodage : centroïde de la première parcelle via apicarto IGN
+            # Géocodage : centroïde des parcelles via apicarto IGN (plusieurs stratégies)
             lat, lon = None, None
-            for p in parcelles[:5]:
+
+            # Stratégie 1 : apicarto par section+numero en essayant différents formats
+            for p in parcelles[:10]:
+                if lat is not None:
+                    break
                 try:
-                    section = (p.get('section') or '').strip()
-                    numero = (p.get('numero') or '').strip()
-                    r = _req.get(
-                        'https://apicarto.ign.fr/api/cadastre/parcelle',
-                        params={'code_insee': code_insee, 'section': section, 'numero': numero},
-                        timeout=6
-                    )
-                    if r.ok:
-                        features = r.json().get('features', [])
-                        if features:
-                            geom = features[0].get('geometry', {})
-                            coords = None
-                            if geom.get('type') == 'MultiPolygon':
-                                coords = geom['coordinates'][0][0]
-                            elif geom.get('type') == 'Polygon':
-                                coords = geom['coordinates'][0]
-                            if coords:
-                                lon = sum(c[0] for c in coords) / len(coords)
-                                lat = sum(c[1] for c in coords) / len(coords)
-                                break
+                    section = (p.get('section') or '').strip().upper()
+                    numero_raw = (p.get('numero') or '').strip()
+                    # Essayer les deux formats : avec et sans zero-padding
+                    numero_padded = numero_raw.zfill(4)
+                    for num_try in [numero_padded, numero_raw, numero_raw.lstrip('0') or '0']:
+                        r = _req.get(
+                            'https://apicarto.ign.fr/api/cadastre/parcelle',
+                            params={'code_insee': code_insee, 'section': section, 'numero': num_try},
+                            timeout=6
+                        )
+                        if r.ok:
+                            features = r.json().get('features', [])
+                            if features:
+                                geom = features[0].get('geometry', {})
+                                coords = None
+                                if geom.get('type') == 'MultiPolygon':
+                                    coords = geom['coordinates'][0][0]
+                                elif geom.get('type') == 'Polygon':
+                                    coords = geom['coordinates'][0]
+                                if coords:
+                                    lon = sum(c[0] for c in coords) / len(coords)
+                                    lat = sum(c[1] for c in coords) / len(coords)
+                                    break
+                    if lat is not None:
+                        break
                 except Exception as e:
-                    print(f"⚠️ Géocodage {code_insee}/{section}/{numero}: {e}")
+                    print(f"⚠️ Géocodage stratégie 1 {code_insee}/{section}: {e}")
+
+            # Stratégie 2 : apicarto par section uniquement (prend la 1ère parcelle de la section)
+            if lat is None and parcelles:
+                try:
+                    section = (parcelles[0].get('section') or '').strip().upper()
+                    r2 = _req.get(
+                        'https://apicarto.ign.fr/api/cadastre/parcelle',
+                        params={'code_insee': code_insee, 'section': section, '_limit': 1},
+                        timeout=8
+                    )
+                    if r2.ok:
+                        features2 = r2.json().get('features', [])
+                        if features2:
+                            geom2 = features2[0].get('geometry', {})
+                            coords2 = None
+                            if geom2.get('type') == 'MultiPolygon':
+                                coords2 = geom2['coordinates'][0][0]
+                            elif geom2.get('type') == 'Polygon':
+                                coords2 = geom2['coordinates'][0]
+                            if coords2:
+                                lon = sum(c[0] for c in coords2) / len(coords2)
+                                lat = sum(c[1] for c in coords2) / len(coords2)
+                except Exception as e2:
+                    print(f"⚠️ Géocodage stratégie 2 {code_insee}: {e2}")
+
+            # Stratégie 3 : centroïde de la commune via geo.api.gouv.fr
+            if lat is None and code_insee:
+                try:
+                    r3 = _req.get(
+                        f'https://geo.api.gouv.fr/communes/{code_insee}',
+                        params={'fields': 'centre'},
+                        timeout=5
+                    )
+                    if r3.ok:
+                        centre = r3.json().get('centre', {})
+                        if centre.get('coordinates'):
+                            lon = centre['coordinates'][0]
+                            lat = centre['coordinates'][1]
+                except Exception as e3:
+                    print(f"⚠️ Géocodage stratégie 3 (commune) {code_insee}: {e3}")
 
             parcelles_str = ', '.join([
                 f"{(p.get('section') or '').strip()}{(p.get('numero') or '').strip()}"
