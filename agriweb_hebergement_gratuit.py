@@ -15539,9 +15539,13 @@ def rapport_map_point():
                     from database_adapter import execute_query as _eq
                     import re as _re
                     row = _eq(
-                        "SELECT parcelles_cadastrales, data_json FROM agriweb_prospects WHERE id = %s",
+                        "SELECT parcelles_cadastrales, data_json, adresse FROM agriweb_prospects WHERE id = %s",
                         (int(prospect_id),), fetch_one=True
                     )
+                    print(f"🔍 [MAJIC DEBUG] prospect_id={prospect_id}, row found={bool(row)}")
+                    if row:
+                        print(f"🔍 [MAJIC DEBUG] parcelles_cadastrales={repr(row.get('parcelles_cadastrales',''))[:100]}")
+                        print(f"🔍 [MAJIC DEBUG] data_json type={type(row.get('data_json'))}, adresse={row.get('adresse','')}")
                     if row and row.get('parcelles_cadastrales'):
                         crm_refs_str = row['parcelles_cadastrales']
                         dj = row.get('data_json') or {}
@@ -15550,9 +15554,16 @@ def rapport_map_point():
                                 dj = json.loads(dj)
                             except Exception:
                                 dj = {}
-                        code_insee_crm = dj.get('code_insee', '')
+                        # code_insee : data_json → fallback : extraire de adresse "NomCommune (12345)"
+                        code_insee_crm = dj.get('code_insee', '') if isinstance(dj, dict) else ''
+                        if not code_insee_crm:
+                            adresse_str = row.get('adresse', '') or ''
+                            m_cp = _re.search(r'\((\d{5})\)', adresse_str)
+                            if m_cp:
+                                code_insee_crm = m_cp.group(1)
+                        print(f"🔍 [MAJIC DEBUG] code_insee_crm={code_insee_crm!r}")
 
-                        # Parser "KR0046, KR0048, KS0040" → {section: {numeros}}
+                        # Parser "ZM0023, ZM0024, KR0046" → {section: {numeros}}
                         refs = [r.strip() for r in crm_refs_str.split(',') if r.strip()]
                         sections_map = {}
                         for ref in refs:
@@ -15561,6 +15572,7 @@ def rapport_map_point():
                                 sec = m.group(1)
                                 num = m.group(2).zfill(4)
                                 sections_map.setdefault(sec, set()).add(num)
+                        print(f"🔍 [MAJIC DEBUG] sections_map keys={list(sections_map.keys())}, total refs={len(refs)}")
 
                         if code_insee_crm and sections_map:
                             all_features = []
@@ -15571,13 +15583,21 @@ def rapport_map_point():
                                         params={'code_insee': code_insee_crm, 'section': sec, '_limit': 500},
                                         timeout=10
                                     )
+                                    print(f"🔍 [MAJIC DEBUG] section={sec} status={r_sec.status_code} feats_total={len(r_sec.json().get('features',[]))} nums_wanted={len(nums)}")
                                     if r_sec.ok:
                                         for feat in r_sec.json().get('features', []):
                                             fp = feat.get('properties', {})
-                                            if fp.get('numero', '').zfill(4) in nums:
+                                            # Compare en ignorant les zéros (apicarto peut retourner '23' ou '0023')
+                                            feat_num = fp.get('numero', '')
+                                            try:
+                                                feat_num_norm = str(int(feat_num)).zfill(4)
+                                            except Exception:
+                                                feat_num_norm = feat_num.zfill(4)
+                                            if feat_num_norm in nums or feat_num in nums:
                                                 all_features.append(feat)
                                 except Exception as sec_e:
                                     log_step("MAJIC", f"Section {sec}: {sec_e}", "WARNING")
+                            print(f"🔍 [MAJIC DEBUG] all_features found={len(all_features)}")
 
                             if all_features:
                                 enriched_fc = {"type": "FeatureCollection", "features": all_features}
