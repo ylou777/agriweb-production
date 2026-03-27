@@ -1876,8 +1876,11 @@
                                 <strong>${prospect.proprietaire_denomination || 'N/A'}</strong>
                                 ${prospect.proprietaire_siren ? ` <small class="text-muted font-monospace">(SIREN: ${prospect.proprietaire_siren})</small>` : ''}
                                 ${prospect.proprietaire_forme_juridique ? ` <span class="badge bg-success">${prospect.proprietaire_forme_juridique}</span>` : ''}
-                                <button class="btn btn-sm btn-outline-success ms-2"
-                                    onclick="event.stopPropagation(); searchProprietaireNational('${prospect.proprietaire_siren}', '${(prospect.proprietaire_denomination||'').replace(/'/g,"\\'")}'  , '${(prospect.proprietaire_forme_juridique||'').replace(/'/g,"\\'")}')"
+                                <button class="btn btn-sm btn-outline-success ms-2 btn-search-proprio"
+                                    data-siren="${prospect.proprietaire_siren}"
+                                    data-denomination="${(prospect.proprietaire_denomination||'').replace(/"/g,'&quot;')}"
+                                    data-forme="${(prospect.proprietaire_forme_juridique||'').replace(/"/g,'&quot;')}"
+                                    onclick="event.stopPropagation(); var b=this; searchProprietaireNational(b.dataset.siren, b.dataset.denomination, b.dataset.forme)"
                                     title="Rechercher toutes les propriétés de cette société en France">
                                     <i class="bi bi-search"></i> Toutes ses propriétés en France
                                 </button>
