@@ -190,7 +190,67 @@ def get_parcelles_by_siren(siren, limit=500):
 
 
 # Exemple d'utilisation
+def search_proprietaires_by_name(query, limit=20):
+    """
+    Recherche des propriétaires dans la base MAJIC par nom (ILIKE) — toute la France.
+    Retourne une liste de propriétaires distincts correspondant au motif.
+
+    Args:
+        query: Chaîne recherchée (ex: 'carrefour', 'immochan')
+        limit: Nombre max de résultats (distinct par siren+denomination)
+
+    Returns:
+        Liste de dict {siren, denomination, forme_juridique, nb_parcelles, surface_ha,
+                       nb_communes, source='name_match'}
+    """
+    if not DB_CONFIG or not query or len(query.strip()) < 2:
+        return []
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG, connect_timeout=10)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        pattern = '%' + query.strip().upper() + '%'
+
+        cur.execute("""
+            SELECT
+                siren,
+                denomination,
+                forme_juridique,
+                COUNT(DISTINCT section || '-' || numero) AS nb_parcelles,
+                COUNT(DISTINCT code_insee)               AS nb_communes,
+                SUM(contenance)                          AS surface_totale_m2
+            FROM proprietaires_parcelles
+            WHERE UPPER(denomination) LIKE %s
+              AND denomination IS NOT NULL
+            GROUP BY siren, denomination, forme_juridique
+            ORDER BY surface_totale_m2 DESC NULLS LAST
+            LIMIT %s
+        """, (pattern, limit))
+
+        rows = cur.fetchall()
+        conn.close()
+
+        results = []
+        for row in rows:
+            results.append({
+                'siren': row['siren'],
+                'denomination': row['denomination'],
+                'forme_juridique': row['forme_juridique'],
+                'nb_parcelles': row['nb_parcelles'],
+                'nb_communes': row['nb_communes'],
+                'surface_ha': round((row['surface_totale_m2'] or 0) / 10000, 2),
+                'source': 'name_match'
+            })
+        return results
+
+    except Exception as e:
+        print(f"❌ Erreur search_proprietaires_by_name: {e}")
+        return []
+
+
 if __name__ == "__main__":
+
     # Test avec une parcelle
     print("Test 1: Propriétaires de la parcelle 01001-A-0061")
     proprios = get_proprietaires_by_parcelle("01001", "A", "0061")

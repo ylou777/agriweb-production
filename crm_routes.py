@@ -6486,6 +6486,22 @@ def register_autoconso_routes(app):
     # ROUTES - RECHERCHE PROPRIÉTAIRE PAR SIREN (MAJIC)
     # ============================================================================
 
+    @app.route('/api/crm/proprietaire/search-by-name')
+    def search_proprietaire_by_name():
+        """Recherche des propriétaires dans la base MAJIC par nom (ILIKE)"""
+        from proprietaires_utils import search_proprietaires_by_name
+
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+
+        q = request.args.get('q', '').strip()
+        if not q or len(q) < 2:
+            return jsonify({'success': False, 'error': 'Requête trop courte'}), 400
+
+        results = search_proprietaires_by_name(q, limit=20)
+        return jsonify({'success': True, 'query': q, 'results': results})
+
     @app.route('/api/crm/proprietaire/search')
     def search_proprietaire_parcelles():
         """Recherche toutes les parcelles d'un propriétaire par SIREN sur toute la France (base MAJIC)"""
@@ -6505,7 +6521,32 @@ def register_autoconso_routes(app):
 
         parcelles = get_parcelles_by_siren(siren, limit=500)
         if not parcelles:
-            return jsonify({'success': True, 'siren': siren, 'denomination': '', 'total_parcelles': 0, 'communes': []})
+            # Fallback : essayer de trouver ce propriétaire par son nom dans MAJIC
+            # (SIRENE et MAJIC peuvent avoir des SIRENs légèrement différents pour le même groupe)
+            from proprietaires_utils import search_proprietaires_by_name
+            import requests as _req2
+            denomination_hint = ''
+            try:
+                r2 = _req.get(
+                    'https://recherche-entreprises.api.gouv.fr/search',
+                    params={'q': siren, 'page': 1, 'per_page': 1},
+                    timeout=4
+                )
+                if r2.ok:
+                    results2 = r2.json().get('results', [])
+                    if results2:
+                        denomination_hint = results2[0].get('nom_complet', '')
+            except Exception:
+                pass
+            return jsonify({
+                'success': True,
+                'siren': siren,
+                'denomination': denomination_hint,
+                'total_parcelles': 0,
+                'communes': [],
+                'not_in_majic': True,
+                'denomination_hint': denomination_hint
+            })
 
         denomination = parcelles[0].get('denomination', '')
         forme_juridique = parcelles[0].get('forme_juridique', '')
