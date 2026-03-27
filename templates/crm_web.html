@@ -627,7 +627,7 @@
                                         <i class="bi bi-building-fill"></i>
                                     </span>
                                     <input type="text" id="sirenSearchInput" class="form-control bg-dark border-secondary text-light"
-                                           placeholder="Recherche propriétaire : SIREN (9 chiffres) ou nom entreprise…"
+                                           placeholder="Recherche propriétaire dans MAJIC : SIREN (9 chiffres) ou nom…"
                                            onkeydown="if(event.key==='Enter') lancerRechercheProprio()">
                                     <button class="btn btn-outline-success" onclick="lancerRechercheProprio()">
                                         <i class="bi bi-search"></i> Toutes ses propriétés en France
@@ -3945,107 +3945,60 @@ Cordialement,`
 let _pnData = null;
 let _pnSirenPickResults = [];
 
-// Recherche lancée depuis la barre de filtres (SIREN ou nom)
+// Recherche lancée depuis la barre de filtres (SIREN ou nom — uniquement dans MAJIC)
 async function lancerRechercheProprio() {
     const raw = document.getElementById('sirenSearchInput').value.trim();
     if (!raw) return;
 
-    // Si c'est un SIREN (9 chiffres) → recherche directe dans MAJIC
+    // Si c'est un SIREN (9 chiffres) → recherche directe par SIREN dans MAJIC
     if (/^\d{9}$/.test(raw)) {
         searchProprietaireNational(raw, '', '');
         return;
     }
 
-    // Sinon : proposer les deux modes de recherche
-    // 1) SIRENE (registre entreprises - suggestions)
-    // 2) MAJIC direct par nom (parcelles foncières)
-    // On lance les deux en parallèle si le nom est assez long
+    // Sinon : recherche par nom dans MAJIC uniquement
     const sirenInput = document.getElementById('sirenSearchInput');
     sirenInput.disabled = true;
     sirenInput.placeholder = 'Recherche en cours…';
 
     try {
-        // Recherche parallèle : SIRENE + MAJIC par nom
-        const [sireneResp, majicResp] = await Promise.allSettled([
-            fetch('https://recherche-entreprises.api.gouv.fr/search?q=' + encodeURIComponent(raw) + '&page=1&per_page=8',
-                  { headers: { 'Accept': 'application/json' } }).then(r => r.json()),
-            fetch('/api/crm/proprietaire/search-by-name?q=' + encodeURIComponent(raw)).then(r => r.json())
-        ]);
+        const r = await fetch('/api/crm/proprietaire/search-by-name?q=' + encodeURIComponent(raw));
+        const data = await r.json();
 
-        const sireneResults = (sireneResp.status === 'fulfilled' ? sireneResp.value.results || [] : []).filter(e => e.siren);
-        const majicResults  = (majicResp.status  === 'fulfilled' && majicResp.value.success ? majicResp.value.results || [] : []);
+        if (!data.success || !data.results || data.results.length === 0) {
+            alert('Aucun propriétaire trouvé dans MAJIC pour "' + raw + '".\nEssayez un nom plus court ou le SIREN à 9 chiffres.');
+            return;
+        }
 
-        // Si MAJIC a un résultat unique et SIRENE rien → aller direct
-        if (majicResults.length === 1 && sireneResults.length === 0) {
-            const m = majicResults[0];
+        // 1 résultat → direct
+        if (data.results.length === 1) {
+            const m = data.results[0];
             searchProprietaireNational(m.siren || '', m.denomination, m.forme_juridique || '');
             return;
         }
 
-        // Si combiné → montrer sélecteur unifié
-        if (sireneResults.length + majicResults.length === 0) {
-            alert('Aucun résultat trouvé pour "' + raw + '".\nEssayez avec le SIREN à 9 chiffres ou un nom plus précis.');
-            return;
-        }
-        if (sireneResults.length === 1 && majicResults.length === 0) {
-            const e = sireneResults[0];
-            searchProprietaireNational(e.siren, e.nom_complet || e.siren, '');
-            return;
-        }
-
-        // Afficher sélecteur fusionné
-        _pnSirenPickResults = [];
+        // Plusieurs → sélecteur
         const tbody = document.getElementById('pnPickBody');
         tbody.innerHTML = '';
-
-        if (majicResults.length > 0) {
-            // En-tête MAJIC
-            const hdr = document.createElement('tr');
-            hdr.innerHTML = '<td colspan="4" class="table-success text-success small fw-bold py-1 px-2"><i class="bi bi-database-fill"></i> Trouvé directement dans MAJIC (propriétaires fonciers confirmés)</td>';
-            tbody.appendChild(hdr);
-            majicResults.forEach((m, i) => {
-                const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
-                tr.className = 'table-success bg-opacity-10';
-                tr.innerHTML = `
-                    <td>${m.siren || '—'}</td>
-                    <td><strong>${m.denomination}</strong> ${m.forme_juridique ? '<small class="badge bg-success ms-1">' + m.forme_juridique + '</small>' : ''}</td>
-                    <td><small class="text-muted">${m.nb_communes} commune(s)</small></td>
-                    <td><span class="badge bg-success">${m.surface_ha} ha</span></td>
-                `;
-                tr.onclick = () => {
-                    bootstrap.Modal.getInstance(document.getElementById('modalSirenPick')).hide();
-                    searchProprietaireNational(m.siren || '', m.denomination, m.forme_juridique || '');
-                };
-                tbody.appendChild(tr);
-            });
-        }
-
-        if (sireneResults.length > 0) {
-            const hdr2 = document.createElement('tr');
-            hdr2.innerHTML = '<td colspan="4" class="table-secondary small fw-bold py-1 px-2"><i class="bi bi-building"></i> Registre SIRENE (existence légale — parcelles MAJIC à vérifier)</td>';
-            tbody.appendChild(hdr2);
-            sireneResults.forEach((e, i) => {
-                const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
-                tr.innerHTML = `
-                    <td>${e.siren}</td>
-                    <td><strong>${e.nom_complet || '—'}</strong></td>
-                    <td><small class="text-muted">${e.siege ? (e.siege.code_postal || '') + ' ' + (e.siege.libelle_commune || '') : ''}</small></td>
-                    <td><small>${e.activite_principale || ''}</small></td>
-                `;
-                tr.onclick = () => {
-                    bootstrap.Modal.getInstance(document.getElementById('modalSirenPick')).hide();
-                    searchProprietaireNational(e.siren, e.nom_complet || e.siren, '');
-                };
-                tbody.appendChild(tr);
-            });
-        }
-
+        data.results.forEach(m => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.innerHTML = `
+                <td>${m.siren || '—'}</td>
+                <td><strong>${m.denomination}</strong> ${m.forme_juridique ? '<small class="badge bg-success ms-1">' + m.forme_juridique + '</small>' : ''}</td>
+                <td><small class="text-muted">${m.nb_communes} commune(s)</small></td>
+                <td><span class="badge bg-success">${m.surface_ha} ha</span></td>
+            `;
+            tr.onclick = () => {
+                bootstrap.Modal.getInstance(document.getElementById('modalSirenPick')).hide();
+                searchProprietaireNational(m.siren || '', m.denomination, m.forme_juridique || '');
+            };
+            tbody.appendChild(tr);
+        });
         new bootstrap.Modal(document.getElementById('modalSirenPick')).show();
 
     } catch(err) {
-        alert('Erreur lors de la recherche : ' + err.message);
+        alert('Erreur : ' + err.message);
     } finally {
         sirenInput.disabled = false;
         sirenInput.placeholder = 'Recherche propriétaire : SIREN (9 chiffres) ou nom entreprise…';
