@@ -15533,203 +15533,6 @@ def rapport_map_point():
                 report_data["parcelles_cadastrales"] = []
                 log_step("CONTEXT", f"❌ Erreur API Cadastre: {e}", "ERROR")
 
-            # === ENRICHISSEMENT MAJIC : si prospect_id donné, charger TOUTES les parcelles du CRM ===
-            if prospect_id:
-                try:
-                    from database_adapter import execute_query as _eq
-                    import re as _re
-                    row = _eq(
-                        "SELECT parcelles_cadastrales, data_json, adresse FROM agriweb_prospects WHERE id = %s",
-                        (int(prospect_id),), fetch_one=True
-                    )
-                    print(f"🔍 [MAJIC DEBUG] prospect_id={prospect_id}, row found={bool(row)}")
-                    if row:
-                        print(f"🔍 [MAJIC DEBUG] parcelles_cadastrales={repr(row.get('parcelles_cadastrales',''))[:100]}")
-                        print(f"🔍 [MAJIC DEBUG] data_json type={type(row.get('data_json'))}, adresse={row.get('adresse','')}")
-                    if row and row.get('parcelles_cadastrales'):
-                        crm_refs_str = row['parcelles_cadastrales']
-                        dj = row.get('data_json') or {}
-                        if isinstance(dj, str):
-                            try:
-                                dj = json.loads(dj)
-                            except Exception:
-                                dj = {}
-                        # code_insee : data_json → fallback : extraire de adresse "NomCommune (12345)"
-                        code_insee_crm = dj.get('code_insee', '') if isinstance(dj, dict) else ''
-                        if not code_insee_crm:
-                            adresse_str = row.get('adresse', '') or ''
-                            m_cp = _re.search(r'\((\d{5})\)', adresse_str)
-                            if m_cp:
-                                code_insee_crm = m_cp.group(1)
-                        print(f"🔍 [MAJIC DEBUG] code_insee_crm={code_insee_crm!r}")
-
-                        # Parser "ZM0023, ZM0024, KR0046" → {section: {numeros}}
-                        refs = [r.strip() for r in crm_refs_str.split(',') if r.strip()]
-                        sections_map = {}
-                        for ref in refs:
-                            m = _re.match(r'^([A-Z]+)(\d+)$', ref.upper().replace(' ', ''))
-                            if m:
-                                sec = m.group(1)
-                                num = m.group(2).zfill(4)
-                                sections_map.setdefault(sec, set()).add(num)
-                        print(f"🔍 [MAJIC DEBUG] sections_map keys={list(sections_map.keys())}, total refs={len(refs)}")
-
-                        if code_insee_crm and sections_map:
-                            all_features = []
-                            for sec, nums in sections_map.items():
-                                try:
-                                    r_sec = requests.get(
-                                        'https://apicarto.ign.fr/api/cadastre/parcelle',
-                                        params={'code_insee': code_insee_crm, 'section': sec, '_limit': 500},
-                                        timeout=10
-                                    )
-                                    print(f"🔍 [MAJIC DEBUG] section={sec} status={r_sec.status_code} feats_total={len(r_sec.json().get('features',[]))} nums_wanted={len(nums)}")
-                                    if r_sec.ok:
-                                        for feat in r_sec.json().get('features', []):
-                                            fp = feat.get('properties', {})
-                                            # Compare en ignorant les zéros (apicarto peut retourner '23' ou '0023')
-                                            feat_num = fp.get('numero', '')
-                                            try:
-                                                feat_num_norm = str(int(feat_num)).zfill(4)
-                                            except Exception:
-                                                feat_num_norm = feat_num.zfill(4)
-                                            if feat_num_norm in nums or feat_num in nums:
-                                                all_features.append(feat)
-                                except Exception as sec_e:
-                                    log_step("MAJIC", f"Section {sec}: {sec_e}", "WARNING")
-                            print(f"🔍 [MAJIC DEBUG] all_features found={len(all_features)}")
-
-                            if all_features:
-                                enriched_fc = {"type": "FeatureCollection", "features": all_features}
-                                report_data["api_cadastre"] = enriched_fc
-                                first_fp = all_features[0].get('properties', {})
-                                api_details["cadastre"]["success"] = True
-                                api_details["cadastre"]["details"] = {
-                                    "parcelle_numero": f"{len(all_features)} parcelles",
-                                    "section": ', '.join(sorted(sections_map.keys())),
-                                    "commune": first_fp.get('nom_com', report_data.get('commune_name', 'N/A')),
-                                    "code_insee": code_insee_crm,
-                                    "departement": first_fp.get('code_dep', 'N/A'),
-                                    "contenance": f"{sum(f.get('properties',{}).get('contenance',0) or 0 for f in all_features)} m²",
-                                    "contenance_m2": sum(f.get('properties',{}).get('contenance',0) or 0 for f in all_features),
-                                    "idu": f"{len(all_features)} parcelles MAJIC"
-                                }
-                                parcelles_majic = []
-                                for feat in all_features:
-                                    fp = feat.get('properties', {})
-                                    parcelles_majic.append({
-                                        "section": fp.get('section', ''),
-                                        "numero": fp.get('numero', ''),
-                                        "surface": fp.get('contenance', 0),
-                                        "commune": fp.get('nom_com', ''),
-                                        "code_insee": fp.get('code_insee', ''),
-                                        "geometry": feat.get('geometry', {}),
-                                        "geojson": feat
-                                    })
-                                report_data["parcelles_cadastrales"] = parcelles_majic
-                                report_data["api_externe"]["cadastre"] = first_fp
-                                log_step("MAJIC", f"✅ {len(all_features)} parcelles enrichies depuis CRM (MAJIC)", "SUCCESS")
-
-                                # === ANALYSE AGRÉGÉE PLU / PPRI / ZAER sur l'ensemble des parcelles ===
-                                # 1. Centroides par parcelle et par section
-                                section_cents = {}
-                                all_cents = []
-                                for feat_a in all_features:
-                                    fp_a = feat_a.get('properties', {})
-                                    sec_a = fp_a.get('section', 'XX')
-                                    geom_a = feat_a.get('geometry', {})
-                                    coords_a = []
-                                    if geom_a.get('type') == 'Polygon':
-                                        coords_a = geom_a['coordinates'][0]
-                                    elif geom_a.get('type') == 'MultiPolygon':
-                                        coords_a = geom_a['coordinates'][0][0]
-                                    if coords_a:
-                                        clat_a = sum(c[1] for c in coords_a) / len(coords_a)
-                                        clon_a = sum(c[0] for c in coords_a) / len(coords_a)
-                                        all_cents.append((clat_a, clon_a))
-                                        section_cents.setdefault(sec_a, []).append((clat_a, clon_a))
-
-                                if all_cents:
-                                    # 2. Centroïde global + bounding box
-                                    true_lat_m = sum(p[0] for p in all_cents) / len(all_cents)
-                                    true_lon_m = sum(p[1] for p in all_cents) / len(all_cents)
-                                    report_data["lat"] = true_lat_m
-                                    report_data["lon"] = true_lon_m
-                                    min_lat_m = min(p[0] for p in all_cents)
-                                    max_lat_m = max(p[0] for p in all_cents)
-                                    min_lon_m = min(p[1] for p in all_cents)
-                                    max_lon_m = max(p[1] for p in all_cents)
-                                    lat_span_m = (max_lat_m - min_lat_m) * 111.0
-                                    lon_span_m = (max_lon_m - min_lon_m) * 85.0
-                                    site_r_km = max(1.0, math.sqrt(lat_span_m**2 + lon_span_m**2) / 2 + 0.5)
-
-                                    # 3. PLU agrégé — 1 appel par section
-                                    plu_agg = []
-                                    plu_agg_seen = set()
-                                    for sec_k, sec_pts in section_cents.items():
-                                        sec_lat_k = sum(p[0] for p in sec_pts) / len(sec_pts)
-                                        sec_lon_k = sum(p[1] for p in sec_pts) / len(sec_pts)
-                                        try:
-                                            plu_sec = get_plu_info(sec_lat_k, sec_lon_k, radius=0.005) or []
-                                            for pf in plu_sec:
-                                                pf_lib = pf.get('libelle', '') or ''
-                                                key_plu = pf_lib or str(id(pf))
-                                                if key_plu not in plu_agg_seen:
-                                                    plu_agg_seen.add(key_plu)
-                                                    plu_agg.append({
-                                                        "type": "Feature",
-                                                        "properties": pf,
-                                                        "geometry": pf.get('geometry')
-                                                    })
-                                        except Exception as plu_sec_e:
-                                            log_step("MAJIC", f"PLU section {sec_k}: {plu_sec_e}", "WARNING")
-                                    if plu_agg:
-                                        report_data["plu_info"] = plu_agg
-                                        log_step("MAJIC", f"✅ PLU agrégé: {len(plu_agg)} zones ({len(section_cents)} sections)", "SUCCESS")
-
-                                    # 4. PPRI étendu à la bounding box du site
-                                    try:
-                                        resp_ppri_m = requests.get(
-                                            "https://www.georisques.gouv.fr/api/v1/zonage/pprn",
-                                            params={"lat": true_lat_m, "lon": true_lon_m,
-                                                    "rayon": int(site_r_km * 1000), "format": "geojson"},
-                                            timeout=15
-                                        )
-                                        if resp_ppri_m.status_code == 200:
-                                            from shapely.geometry import box as _sbox, shape as _sshape
-                                            bbox_site = _sbox(min_lon_m, min_lat_m, max_lon_m, max_lat_m)
-                                            feats_ppri_m = [
-                                                f for f in resp_ppri_m.json().get("features", [])
-                                                if f.get("geometry") and _sshape(f["geometry"]).intersects(bbox_site)
-                                            ]
-                                            report_data["ppri"] = {"type": "FeatureCollection", "features": feats_ppri_m}
-                                            log_step("MAJIC", f"✅ PPRI étendu: {len(feats_ppri_m)} zones à {site_r_km:.1f}km", "SUCCESS")
-                                    except Exception as ppri_m_e:
-                                        log_step("MAJIC", f"⚠️ PPRI étendu: {ppri_m_e}", "WARNING")
-
-                                    # 5. ZAER étendu au rayon du site
-                                    try:
-                                        zaer_ext = get_zaer_info(true_lat_m, true_lon_m,
-                                                                  radius=max(0.05, site_r_km / 111.0)) or []
-                                        if zaer_ext:
-                                            report_data["zaer"] = [
-                                                {"type": "Feature",
-                                                 "properties": z if not isinstance(z, dict) or not z.get('properties') else z['properties'],
-                                                 "geometry": z.get('geometry') if isinstance(z, dict) else None}
-                                                for z in zaer_ext
-                                            ]
-                                            log_step("MAJIC", f"✅ ZAER étendu: {len(zaer_ext)} zones", "SUCCESS")
-                                    except Exception as zaer_m_e:
-                                        log_step("MAJIC", f"⚠️ ZAER étendu: {zaer_m_e}", "WARNING")
-
-                                    report_data["is_majic_analysis"] = True
-                                    report_data["majic_nb_parcelles"] = len(all_features)
-                                    report_data["majic_nb_sections"] = len(section_cents)
-                                    log_step("MAJIC", f"✅ Analyse agrégée terminée — {len(all_features)} parcelles, {len(section_cents)} sections, rayon site {site_r_km:.1f}km", "SUCCESS")
-
-                except Exception as enrich_e:
-                    log_step("MAJIC", f"⚠️ Enrichissement parcelles MAJIC: {enrich_e}", "WARNING")
-
             # API GPU
             log_step("CONTEXT", "Appel API GPU Urbanisme...")
             try:
@@ -16165,6 +15968,147 @@ def rapport_map_point():
             log_step("EXEC", f"❌ Erreur collecte contexte: {e}", "ERROR")
             import traceback
             traceback.print_exc()
+
+        # 3b. ENRICHISSEMENT MAJIC — hors de collect_context_data pour éviter les closures/swallowed exceptions
+        print(f"🔍 [MAJIC] Vérification prospect_id={prospect_id!r}")
+        if prospect_id:
+            try:
+                import re as _re
+                from database_adapter import execute_query as _eq
+                _row = _eq(
+                    "SELECT parcelles_cadastrales, data_json, adresse FROM agriweb_prospects WHERE id = %s",
+                    (int(prospect_id),), fetch_one=True
+                )
+                print(f"🔍 [MAJIC] row found={bool(_row)}, parcelles={repr((_row or {}).get('parcelles_cadastrales',''))[:120]}")
+                if _row and _row.get('parcelles_cadastrales'):
+                    _refs_str = _row['parcelles_cadastrales']
+                    _dj = _row.get('data_json') or {}
+                    if isinstance(_dj, str):
+                        try: _dj = json.loads(_dj)
+                        except Exception: _dj = {}
+                    _code_insee = (_dj.get('code_insee', '') if isinstance(_dj, dict) else '') or ''
+                    if not _code_insee:
+                        _m = _re.search(r'\((\d{5})\)', _row.get('adresse', '') or '')
+                        if _m: _code_insee = _m.group(1)
+                    print(f"🔍 [MAJIC] code_insee={_code_insee!r}")
+
+                    _refs = [r.strip() for r in _refs_str.split(',') if r.strip()]
+                    _sections_map = {}
+                    for _ref in _refs:
+                        _m2 = _re.match(r'^([A-Z]+)(\d+)$', _ref.upper().replace(' ', ''))
+                        if _m2:
+                            _sec = _m2.group(1)
+                            _num = _m2.group(2).zfill(4)
+                            _sections_map.setdefault(_sec, set()).add(_num)
+                    print(f"🔍 [MAJIC] sections={list(_sections_map.keys())}, refs={len(_refs)}")
+
+                    if _code_insee and _sections_map:
+                        _all_feats = []
+                        for _sec, _nums in _sections_map.items():
+                            try:
+                                _r = requests.get(
+                                    'https://apicarto.ign.fr/api/cadastre/parcelle',
+                                    params={'code_insee': _code_insee, 'section': _sec, '_limit': 500},
+                                    timeout=12
+                                )
+                                _feats_returned = _r.json().get('features', []) if _r.ok else []
+                                print(f"🔍 [MAJIC] sec={_sec} status={_r.status_code} total_returned={len(_feats_returned)} wanted={len(_nums)}")
+                                for _f in _feats_returned:
+                                    _fp = _f.get('properties', {})
+                                    _fn = _fp.get('numero', '')
+                                    try: _fn_n = str(int(_fn)).zfill(4)
+                                    except Exception: _fn_n = _fn.zfill(4) if _fn else ''
+                                    if _fn_n in _nums or _fn in _nums:
+                                        _all_feats.append(_f)
+                            except Exception as _se:
+                                print(f"⚠️ [MAJIC] Section {_sec} error: {_se}")
+                        print(f"🔍 [MAJIC] all_features matched={len(_all_feats)}")
+
+                        if _all_feats:
+                            report_data['api_cadastre'] = {'type': 'FeatureCollection', 'features': _all_feats}
+                            _fp0 = _all_feats[0].get('properties', {})
+                            report_data.setdefault('api_details', {}).setdefault('cadastre', {}).update({
+                                'success': True,
+                                'details': {
+                                    'parcelle_numero': f"{len(_all_feats)} parcelles",
+                                    'section': ', '.join(sorted(_sections_map.keys())),
+                                    'commune': _fp0.get('nom_com', report_data.get('commune_name', 'N/A')),
+                                    'code_insee': _code_insee,
+                                    'departement': _fp0.get('code_dep', 'N/A'),
+                                    'contenance': f"{sum(f.get('properties',{}).get('contenance',0) or 0 for f in _all_feats)} m²",
+                                    'contenance_m2': sum(f.get('properties',{}).get('contenance',0) or 0 for f in _all_feats),
+                                    'idu': f"{len(_all_feats)} parcelles MAJIC"
+                                }
+                            })
+                            report_data['parcelles_cadastrales'] = [
+                                {'section': f.get('properties',{}).get('section',''),
+                                 'numero': f.get('properties',{}).get('numero',''),
+                                 'surface': f.get('properties',{}).get('contenance',0),
+                                 'commune': f.get('properties',{}).get('nom_com',''),
+                                 'code_insee': f.get('properties',{}).get('code_insee',''),
+                                 'geometry': f.get('geometry',{}), 'geojson': f}
+                                for f in _all_feats
+                            ]
+                            print(f"✅ [MAJIC] {len(_all_feats)} parcelles chargées")
+
+                            # Centroides → PLU/PPRI/ZAER agrégés
+                            _cents = []
+                            _sec_cents = {}
+                            for _f in _all_feats:
+                                _g = _f.get('geometry', {})
+                                _co = (_g.get('coordinates', [[]])[0][0] if _g.get('type') == 'MultiPolygon'
+                                       else _g.get('coordinates', [[]])[0]) if _g else []
+                                if _co:
+                                    _clat = sum(c[1] for c in _co) / len(_co)
+                                    _clon = sum(c[0] for c in _co) / len(_co)
+                                    _cents.append((_clat, _clon))
+                                    _s = _f.get('properties', {}).get('section', 'X')
+                                    _sec_cents.setdefault(_s, []).append((_clat, _clon))
+
+                            if _cents:
+                                _tlat = sum(p[0] for p in _cents) / len(_cents)
+                                _tlon = sum(p[1] for p in _cents) / len(_cents)
+                                report_data['lat'] = _tlat; report_data['lon'] = _tlon
+                                _bbox = (min(p[0] for p in _cents), max(p[0] for p in _cents),
+                                         min(p[1] for p in _cents), max(p[1] for p in _cents))
+                                _rkm = max(1.0, math.sqrt(((_bbox[1]-_bbox[0])*111)**2 + ((_bbox[3]-_bbox[2])*85)**2)/2 + 0.5)
+
+                                # PLU par section
+                                _plu_seen = set(); _plu_agg = []
+                                for _s, _pts in _sec_cents.items():
+                                    _slat = sum(p[0] for p in _pts)/len(_pts)
+                                    _slon = sum(p[1] for p in _pts)/len(_pts)
+                                    try:
+                                        for _pf in (get_plu_info(_slat, _slon, radius=0.005) or []):
+                                            _k = _pf.get('libelle','') or str(id(_pf))
+                                            if _k not in _plu_seen:
+                                                _plu_seen.add(_k)
+                                                _plu_agg.append({'type':'Feature','properties':_pf,'geometry':_pf.get('geometry')})
+                                    except Exception: pass
+                                if _plu_agg:
+                                    report_data['plu_info'] = _plu_agg
+                                    print(f"✅ [MAJIC] PLU agrégé: {len(_plu_agg)} zones")
+
+                                # PPRI étendu
+                                try:
+                                    _rp = requests.get('https://www.georisques.gouv.fr/api/v1/zonage/pprn',
+                                        params={'lat':_tlat,'lon':_tlon,'rayon':int(_rkm*1000),'format':'geojson'}, timeout=15)
+                                    if _rp.status_code == 200:
+                                        from shapely.geometry import box as _sbox, shape as _sshape
+                                        _bb = _sbox(_bbox[2],_bbox[0],_bbox[3],_bbox[1])
+                                        report_data['ppri'] = {'type':'FeatureCollection','features':[
+                                            f for f in _rp.json().get('features',[])
+                                            if f.get('geometry') and _sshape(f['geometry']).intersects(_bb)]}
+                                except Exception: pass
+
+                                report_data['is_majic_analysis'] = True
+                                report_data['majic_nb_parcelles'] = len(_all_feats)
+                                report_data['majic_nb_sections'] = len(_sec_cents)
+                                print(f"✅ [MAJIC] Analyse agrégée ok — {len(_all_feats)} parcelles, rayon {_rkm:.1f}km")
+            except Exception as _me:
+                import traceback as _tb
+                print(f"❌ [MAJIC] Exception: {_me}")
+                _tb.print_exc()
         
         # 4. Génération carte
         log_step("EXEC", "🚀 Génération de la carte")
