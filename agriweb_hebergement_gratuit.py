@@ -16100,6 +16100,41 @@ def rapport_map_point():
                                     report_data['plu_info'] = _plu_agg
                                     print(f"✅ [MAJIC] PLU agrégé: {len(_plu_agg)} zones")
 
+                                    # Spatial join : zone PLU pour chaque parcelle
+                                    try:
+                                        from shapely.geometry import Point as _SPoint, shape as _sshape2
+                                        _plu_shapes = []
+                                        for _pf in _plu_agg:
+                                            _pg = _pf.get('geometry')
+                                            if _pg:
+                                                try:
+                                                    _plu_shapes.append((
+                                                        _sshape2(_pg),
+                                                        _pf.get('properties', {}).get('typezone', ''),
+                                                        _pf.get('properties', {}).get('libelle', '')
+                                                    ))
+                                                except Exception: pass
+                                        _new_pc = []
+                                        for _pc in report_data['parcelles_cadastrales']:
+                                            _g2 = _pc.get('geojson', {}).get('geometry', {})
+                                            _co2 = (_g2.get('coordinates', [[]])[0][0] if _g2.get('type') == 'MultiPolygon'
+                                                    else _g2.get('coordinates', [[]])[0]) if _g2 else []
+                                            _zone_urba = ''
+                                            if _co2:
+                                                _cx = sum(c[0] for c in _co2) / len(_co2)
+                                                _cy = sum(c[1] for c in _co2) / len(_co2)
+                                                _pt = _SPoint(_cx, _cy)
+                                                for _pshp, _ptz, _ptl in _plu_shapes:
+                                                    if _pshp.contains(_pt):
+                                                        _zone_urba = f"{_ptz} — {_ptl}" if _ptl and _ptl != _ptz else _ptz
+                                                        break
+                                            _pc['zone_urba'] = _zone_urba
+                                            _new_pc.append(_pc)
+                                        report_data['parcelles_cadastrales'] = _new_pc
+                                        print(f"✅ [MAJIC] Zone urba assignée sur {sum(1 for p in _new_pc if p.get('zone_urba'))} / {len(_new_pc)} parcelles")
+                                    except Exception as _pj_e:
+                                        print(f"⚠️ [MAJIC] Spatial join PLU: {_pj_e}")
+
                                 # PPRI étendu
                                 try:
                                     _rp = requests.get('https://www.georisques.gouv.fr/api/v1/zonage/pprn',

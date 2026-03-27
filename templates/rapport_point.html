@@ -1369,6 +1369,7 @@
                                         <th>Surface (m²)</th>
                                         <th>Surface (ha)</th>
                                         <th>Commune</th>
+                                        <th>Zone Urba</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1383,6 +1384,13 @@
                                         <td>{{ p.surface or 'N/A' }}</td>
                                         <td>{{ "%.4f"|format((p.surface or 0) / 10000) }}</td>
                                         <td>{{ p.commune }}</td>
+                                        <td>
+                                            {% if p.zone_urba %}
+                                            <span class="badge bg-info text-dark">{{ p.zone_urba }}</span>
+                                            {% else %}
+                                            <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -1391,6 +1399,7 @@
                                         <td colspan="4">Total</td>
                                         <td>{{ total_m2.v }}</td>
                                         <td>{{ "%.4f"|format(total_m2.v / 10000) }}</td>
+                                        <td></td>
                                         <td></td>
                                     </tr>
                                 </tfoot>
