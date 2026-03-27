@@ -6514,10 +6514,18 @@ def register_autoconso_routes(app):
             return jsonify({'success': False, 'error': 'Authentification requise'}), 401
 
         siren = request.args.get('siren', '').strip()
-        if not siren:
-            return jsonify({'success': False, 'error': 'SIREN requis'}), 400
-        if not _re.match(r'^\d{9}$', siren):
-            return jsonify({'success': False, 'error': 'SIREN invalide (9 chiffres attendus)'}), 400
+        denomination_param = request.args.get('denomination', '').strip()
+        if not siren and not denomination_param:
+            return jsonify({'success': False, 'error': 'SIREN ou denomination requis'}), 400
+        # Accepter les identifiants MAJIC alphanumériques (ex: U13516091 pour entités publiques)
+        # Seule contrainte : pas vide et pas trop long
+        if siren and len(siren) > 20:
+            return jsonify({'success': False, 'error': 'Identifiant invalide'}), 400
+        # Si pas de siren valide mais une denomination → recherche par nom directement
+        if not siren and denomination_param:
+            from proprietaires_utils import search_proprietaires_by_name
+            results = search_proprietaires_by_name(denomination_param, limit=20)
+            return jsonify({'success': True, 'results': results, 'redirect_to_name_search': True})
 
         parcelles = get_parcelles_by_siren(siren, limit=500)
         if not parcelles:

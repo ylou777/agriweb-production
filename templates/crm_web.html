@@ -4070,7 +4070,11 @@ function searchProprietaireNational(siren, denomination, formeJuridique) {
     _pnFormeJuridique = formeJuridique;
     _pnData = null;
 
-    document.getElementById('pnLabel').textContent = denomination + ' (SIREN ' + siren + ')';
+    // Identifier valide = SIREN numérique 9 chiffres OU identifiant MAJIC alphanumérique (entités publiques)
+    // Pas valide = vide ou tiret
+    const sirenValide = siren && siren !== '—' && siren !== '';
+
+    document.getElementById('pnLabel').textContent = denomination + (sirenValide ? ' (SIREN ' + siren + ')' : '');
     document.getElementById('pnStats').style.display = 'none';
     document.getElementById('pnResults').style.display = 'none';
     document.getElementById('pnError').style.display = 'none';
@@ -4082,13 +4086,50 @@ function searchProprietaireNational(siren, denomination, formeJuridique) {
     const modal = new bootstrap.Modal(document.getElementById('modalProprietaireNational'));
     modal.show();
 
-    fetch('/api/crm/proprietaire/search?siren=' + encodeURIComponent(siren))
+    // Construire l'URL : par SIREN si disponible, sinon par dénomination
+    const url = sirenValide
+        ? '/api/crm/proprietaire/search?siren=' + encodeURIComponent(siren)
+        : '/api/crm/proprietaire/search?denomination=' + encodeURIComponent(denomination);
+
+    fetch(url)
         .then(r => r.json())
         .then(data => {
             document.getElementById('pnLoader').style.display = 'none';
             if (!data.success) {
                 document.getElementById('pnError').textContent = data.error || 'Erreur lors de la recherche';
                 document.getElementById('pnError').style.display = 'block';
+                return;
+            }
+            // Cas recherche par dénomination → liste de propriétaires
+            if (data.redirect_to_name_search) {
+                bootstrap.Modal.getInstance(document.getElementById('modalProprietaireNational')).hide();
+                if (!data.results || data.results.length === 0) {
+                    alert('Aucun propriétaire trouvé dans MAJIC pour "' + denomination + '".');
+                    return;
+                }
+                if (data.results.length === 1) {
+                    const m = data.results[0];
+                    searchProprietaireNational(m.siren || '', m.denomination, m.forme_juridique || '');
+                    return;
+                }
+                const tbody = document.getElementById('pnPickBody');
+                tbody.innerHTML = '';
+                data.results.forEach(m => {
+                    const tr = document.createElement('tr');
+                    tr.style.cursor = 'pointer';
+                    tr.innerHTML = `
+                        <td>${m.siren || '—'}</td>
+                        <td><strong>${m.denomination}</strong> ${m.forme_juridique ? '<small class="badge bg-success ms-1">' + m.forme_juridique + '</small>' : ''}</td>
+                        <td><small class="text-muted">${m.nb_communes} commune(s)</small></td>
+                        <td><span class="badge bg-success">${m.surface_ha} ha</span></td>
+                    `;
+                    tr.onclick = () => {
+                        bootstrap.Modal.getInstance(document.getElementById('modalSirenPick')).hide();
+                        searchProprietaireNational(m.siren || '', m.denomination, m.forme_juridique || '');
+                    };
+                    tbody.appendChild(tr);
+                });
+                new bootstrap.Modal(document.getElementById('modalSirenPick')).show();
                 return;
             }
             _pnData = data;
