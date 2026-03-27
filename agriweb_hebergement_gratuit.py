@@ -16058,6 +16058,9 @@ def rapport_map_point():
                                 for f in _all_feats
                             ]
                             print(f"✅ [MAJIC] {len(_all_feats)} parcelles chargées")
+                            # Surface totale en ha pour le KPI
+                            _total_m2 = sum(f.get('properties',{}).get('contenance',0) or 0 for f in _all_feats)
+                            report_data['surface_parcelle'] = round(_total_m2 / 10000, 4)
 
                             # Centroides → PLU/PPRI/ZAER agrégés
                             _cents = []
