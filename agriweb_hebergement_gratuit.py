@@ -15608,6 +15608,104 @@ def rapport_map_point():
                                 report_data["parcelles_cadastrales"] = parcelles_majic
                                 report_data["api_externe"]["cadastre"] = first_fp
                                 log_step("MAJIC", f"✅ {len(all_features)} parcelles enrichies depuis CRM (MAJIC)", "SUCCESS")
+
+                                # === ANALYSE AGRÉGÉE PLU / PPRI / ZAER sur l'ensemble des parcelles ===
+                                # 1. Centroides par parcelle et par section
+                                section_cents = {}
+                                all_cents = []
+                                for feat_a in all_features:
+                                    fp_a = feat_a.get('properties', {})
+                                    sec_a = fp_a.get('section', 'XX')
+                                    geom_a = feat_a.get('geometry', {})
+                                    coords_a = []
+                                    if geom_a.get('type') == 'Polygon':
+                                        coords_a = geom_a['coordinates'][0]
+                                    elif geom_a.get('type') == 'MultiPolygon':
+                                        coords_a = geom_a['coordinates'][0][0]
+                                    if coords_a:
+                                        clat_a = sum(c[1] for c in coords_a) / len(coords_a)
+                                        clon_a = sum(c[0] for c in coords_a) / len(coords_a)
+                                        all_cents.append((clat_a, clon_a))
+                                        section_cents.setdefault(sec_a, []).append((clat_a, clon_a))
+
+                                if all_cents:
+                                    # 2. Centroïde global + bounding box
+                                    true_lat_m = sum(p[0] for p in all_cents) / len(all_cents)
+                                    true_lon_m = sum(p[1] for p in all_cents) / len(all_cents)
+                                    report_data["lat"] = true_lat_m
+                                    report_data["lon"] = true_lon_m
+                                    min_lat_m = min(p[0] for p in all_cents)
+                                    max_lat_m = max(p[0] for p in all_cents)
+                                    min_lon_m = min(p[1] for p in all_cents)
+                                    max_lon_m = max(p[1] for p in all_cents)
+                                    lat_span_m = (max_lat_m - min_lat_m) * 111.0
+                                    lon_span_m = (max_lon_m - min_lon_m) * 85.0
+                                    site_r_km = max(1.0, math.sqrt(lat_span_m**2 + lon_span_m**2) / 2 + 0.5)
+
+                                    # 3. PLU agrégé — 1 appel par section
+                                    plu_agg = []
+                                    plu_agg_seen = set()
+                                    for sec_k, sec_pts in section_cents.items():
+                                        sec_lat_k = sum(p[0] for p in sec_pts) / len(sec_pts)
+                                        sec_lon_k = sum(p[1] for p in sec_pts) / len(sec_pts)
+                                        try:
+                                            plu_sec = get_plu_info(sec_lat_k, sec_lon_k, radius=0.005) or []
+                                            for pf in plu_sec:
+                                                pf_lib = pf.get('libelle', '') or ''
+                                                key_plu = pf_lib or str(id(pf))
+                                                if key_plu not in plu_agg_seen:
+                                                    plu_agg_seen.add(key_plu)
+                                                    plu_agg.append({
+                                                        "type": "Feature",
+                                                        "properties": pf,
+                                                        "geometry": pf.get('geometry')
+                                                    })
+                                        except Exception as plu_sec_e:
+                                            log_step("MAJIC", f"PLU section {sec_k}: {plu_sec_e}", "WARNING")
+                                    if plu_agg:
+                                        report_data["plu_info"] = plu_agg
+                                        log_step("MAJIC", f"✅ PLU agrégé: {len(plu_agg)} zones ({len(section_cents)} sections)", "SUCCESS")
+
+                                    # 4. PPRI étendu à la bounding box du site
+                                    try:
+                                        resp_ppri_m = requests.get(
+                                            "https://www.georisques.gouv.fr/api/v1/zonage/pprn",
+                                            params={"lat": true_lat_m, "lon": true_lon_m,
+                                                    "rayon": int(site_r_km * 1000), "format": "geojson"},
+                                            timeout=15
+                                        )
+                                        if resp_ppri_m.status_code == 200:
+                                            from shapely.geometry import box as _sbox, shape as _sshape
+                                            bbox_site = _sbox(min_lon_m, min_lat_m, max_lon_m, max_lat_m)
+                                            feats_ppri_m = [
+                                                f for f in resp_ppri_m.json().get("features", [])
+                                                if f.get("geometry") and _sshape(f["geometry"]).intersects(bbox_site)
+                                            ]
+                                            report_data["ppri"] = {"type": "FeatureCollection", "features": feats_ppri_m}
+                                            log_step("MAJIC", f"✅ PPRI étendu: {len(feats_ppri_m)} zones à {site_r_km:.1f}km", "SUCCESS")
+                                    except Exception as ppri_m_e:
+                                        log_step("MAJIC", f"⚠️ PPRI étendu: {ppri_m_e}", "WARNING")
+
+                                    # 5. ZAER étendu au rayon du site
+                                    try:
+                                        zaer_ext = get_zaer_info(true_lat_m, true_lon_m,
+                                                                  radius=max(0.05, site_r_km / 111.0)) or []
+                                        if zaer_ext:
+                                            report_data["zaer"] = [
+                                                {"type": "Feature",
+                                                 "properties": z if not isinstance(z, dict) or not z.get('properties') else z['properties'],
+                                                 "geometry": z.get('geometry') if isinstance(z, dict) else None}
+                                                for z in zaer_ext
+                                            ]
+                                            log_step("MAJIC", f"✅ ZAER étendu: {len(zaer_ext)} zones", "SUCCESS")
+                                    except Exception as zaer_m_e:
+                                        log_step("MAJIC", f"⚠️ ZAER étendu: {zaer_m_e}", "WARNING")
+
+                                    report_data["is_majic_analysis"] = True
+                                    report_data["majic_nb_parcelles"] = len(all_features)
+                                    report_data["majic_nb_sections"] = len(section_cents)
+                                    log_step("MAJIC", f"✅ Analyse agrégée terminée — {len(all_features)} parcelles, {len(section_cents)} sections, rayon site {site_r_km:.1f}km", "SUCCESS")
+
                 except Exception as enrich_e:
                     log_step("MAJIC", f"⚠️ Enrichissement parcelles MAJIC: {enrich_e}", "WARNING")
 

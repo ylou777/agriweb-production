@@ -425,6 +425,11 @@
                         <i class="bi bi-geo-alt-fill"></i> Rapport Géospatial
                     </h1>
                     <p class="mb-0 opacity-75">Analyse complète du point sélectionné - HeliaPVfessional v{{ report.version or '3.2.1' }}</p>
+                    {% if report.is_majic_analysis %}
+                    <div class="mt-1">
+                        <span class="badge bg-success fs-6"><i class="bi bi-database-fill"></i> Analyse MAJIC agrégée — {{ report.majic_nb_parcelles }} parcelles · {{ report.majic_nb_sections }} section(s) · PLU/PPRI/ZAER calculés sur l'ensemble du site</span>
+                    </div>
+                    {% endif %}
                     {% if report.adresse and report.adresse != '' and not report.adresse.startswith(report.lat|string) %}
                     <div class="mt-1" style="font-size: 1.05em;">
                         <i class="bi bi-house-door-fill" style="color: #f59e0b;"></i>
