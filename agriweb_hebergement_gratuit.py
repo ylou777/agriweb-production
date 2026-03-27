@@ -15532,7 +15532,85 @@ def rapport_map_point():
                 api_details["cadastre"]["error"] = str(e)
                 report_data["parcelles_cadastrales"] = []
                 log_step("CONTEXT", f"❌ Erreur API Cadastre: {e}", "ERROR")
-            
+
+            # === ENRICHISSEMENT MAJIC : si prospect_id donné, charger TOUTES les parcelles du CRM ===
+            if prospect_id:
+                try:
+                    from database_adapter import execute_query as _eq
+                    import re as _re
+                    row = _eq(
+                        "SELECT parcelles_cadastrales, data_json FROM agriweb_prospects WHERE id = %s",
+                        (int(prospect_id),), fetch_one=True
+                    )
+                    if row and row.get('parcelles_cadastrales'):
+                        crm_refs_str = row['parcelles_cadastrales']
+                        dj = {}
+                        try:
+                            dj = json.loads(row.get('data_json') or '{}')
+                        except Exception:
+                            pass
+                        code_insee_crm = dj.get('code_insee', '')
+
+                        # Parser "KR0046, KR0048, KS0040" → {section: {numeros}}
+                        refs = [r.strip() for r in crm_refs_str.split(',') if r.strip()]
+                        sections_map = {}
+                        for ref in refs:
+                            m = _re.match(r'^([A-Z]+)(\d+)$', ref.upper().replace(' ', ''))
+                            if m:
+                                sec = m.group(1)
+                                num = m.group(2).zfill(4)
+                                sections_map.setdefault(sec, set()).add(num)
+
+                        if code_insee_crm and sections_map:
+                            all_features = []
+                            for sec, nums in sections_map.items():
+                                try:
+                                    r_sec = requests.get(
+                                        'https://apicarto.ign.fr/api/cadastre/parcelle',
+                                        params={'code_insee': code_insee_crm, 'section': sec, '_limit': 500},
+                                        timeout=10
+                                    )
+                                    if r_sec.ok:
+                                        for feat in r_sec.json().get('features', []):
+                                            fp = feat.get('properties', {})
+                                            if fp.get('numero', '').zfill(4) in nums:
+                                                all_features.append(feat)
+                                except Exception as sec_e:
+                                    log_step("MAJIC", f"Section {sec}: {sec_e}", "WARNING")
+
+                            if all_features:
+                                enriched_fc = {"type": "FeatureCollection", "features": all_features}
+                                report_data["api_cadastre"] = enriched_fc
+                                first_fp = all_features[0].get('properties', {})
+                                api_details["cadastre"]["success"] = True
+                                api_details["cadastre"]["details"] = {
+                                    "parcelle_numero": f"{len(all_features)} parcelles",
+                                    "section": ', '.join(sorted(sections_map.keys())),
+                                    "commune": first_fp.get('nom_com', report_data.get('commune_name', 'N/A')),
+                                    "code_insee": code_insee_crm,
+                                    "departement": first_fp.get('code_dep', 'N/A'),
+                                    "contenance": f"{sum(f.get('properties',{}).get('contenance',0) or 0 for f in all_features)} m²",
+                                    "contenance_m2": sum(f.get('properties',{}).get('contenance',0) or 0 for f in all_features),
+                                    "idu": f"{len(all_features)} parcelles MAJIC"
+                                }
+                                parcelles_majic = []
+                                for feat in all_features:
+                                    fp = feat.get('properties', {})
+                                    parcelles_majic.append({
+                                        "section": fp.get('section', ''),
+                                        "numero": fp.get('numero', ''),
+                                        "surface": fp.get('contenance', 0),
+                                        "commune": fp.get('nom_com', ''),
+                                        "code_insee": fp.get('code_insee', ''),
+                                        "geometry": feat.get('geometry', {}),
+                                        "geojson": feat
+                                    })
+                                report_data["parcelles_cadastrales"] = parcelles_majic
+                                report_data["api_externe"]["cadastre"] = first_fp
+                                log_step("MAJIC", f"✅ {len(all_features)} parcelles enrichies depuis CRM (MAJIC)", "SUCCESS")
+                except Exception as enrich_e:
+                    log_step("MAJIC", f"⚠️ Enrichissement parcelles MAJIC: {enrich_e}", "WARNING")
+
             # API GPU
             log_step("CONTEXT", "Appel API GPU Urbanisme...")
             try:
