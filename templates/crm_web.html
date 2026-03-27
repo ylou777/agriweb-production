@@ -629,8 +629,8 @@
                                     <input type="text" id="sirenSearchInput" class="form-control bg-dark border-secondary text-light"
                                            placeholder="Recherche propriétaire dans MAJIC : SIREN (9 chiffres) ou nom…"
                                            onkeydown="if(event.key==='Enter') lancerRechercheProprio()">
-                                    <button class="btn btn-outline-success" onclick="lancerRechercheProprio()">
-                                        <i class="bi bi-search"></i> Toutes ses propriétés en France
+                                    <button class="btn btn-outline-success" id="sirenSearchBtn" onclick="lancerRechercheProprio()">
+                                        <i class="bi bi-search" id="sirenSearchIcon"></i> <span id="sirenSearchLabel">Toutes ses propriétés en France</span>
                                     </button>
                                 </div>
                             </div>
@@ -3950,8 +3950,9 @@ let _pnSirenPickResults = [];
 function _setPickStats(results) {
     const n = results.length;
     const totalHa = results.reduce((s, m) => s + (parseFloat(m.surface_ha) || 0), 0);
-    document.getElementById('pnPickStats').textContent =
-        n + ' résultat' + (n > 1 ? 's' : '') + ' · ' + totalHa.toFixed(2) + ' ha au total';
+    const el = document.getElementById('pnPickStats');
+    el.textContent = n + ' résultat' + (n > 1 ? 's' : '') + ' · ' + totalHa.toFixed(2) + ' ha';
+    el.className = 'badge bg-success ms-2';
 }
 
 // Recherche lancée depuis la barre de filtres (SIREN ou nom — uniquement dans MAJIC)
@@ -3959,8 +3960,23 @@ async function lancerRechercheProprio() {
     const raw = document.getElementById('sirenSearchInput').value.trim();
     if (!raw) return;
 
+    // Feedback visuel sur le bouton
+    const btn = document.getElementById('sirenSearchBtn');
+    const icon = document.getElementById('sirenSearchIcon');
+    const lbl = document.getElementById('sirenSearchLabel');
+    btn.disabled = true;
+    icon.className = 'spinner-border spinner-border-sm';
+    lbl.textContent = 'Recherche…';
+
+    const restore = () => {
+        btn.disabled = false;
+        icon.className = 'bi bi-search';
+        lbl.textContent = 'Toutes ses propriétés en France';
+    };
+
     // Si c'est un SIREN (9 chiffres) → recherche directe par SIREN dans MAJIC
     if (/^\d{9}$/.test(raw)) {
+        restore();
         searchProprietaireNational(raw, '', '');
         return;
     }
@@ -3968,7 +3984,6 @@ async function lancerRechercheProprio() {
     // Sinon : recherche par nom dans MAJIC uniquement
     const sirenInput = document.getElementById('sirenSearchInput');
     sirenInput.disabled = true;
-    sirenInput.placeholder = 'Recherche en cours…';
 
     try {
         const r = await fetch('/api/crm/proprietaire/search-by-name?q=' + encodeURIComponent(raw));
@@ -4010,6 +4025,7 @@ async function lancerRechercheProprio() {
     } catch(err) {
         alert('Erreur : ' + err.message);
     } finally {
+        restore();
         sirenInput.disabled = false;
         sirenInput.placeholder = 'Recherche propriétaire : SIREN (9 chiffres) ou nom entreprise…';
     }
