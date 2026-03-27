@@ -16027,11 +16027,19 @@ def rapport_map_point():
                         if _all_feats:
                             report_data['api_cadastre'] = {'type': 'FeatureCollection', 'features': _all_feats}
                             _fp0 = _all_feats[0].get('properties', {})
+                            # Construire la liste des références réelles ex: "ZE0001, ZE0002, ZE0005"
+                            _refs_display = sorted(set(
+                                f.get('properties',{}).get('section','') + f.get('properties',{}).get('numero','').zfill(4)
+                                for f in _all_feats
+                            ))
+                            _refs_short = ', '.join(_refs_display[:5])
+                            if len(_refs_display) > 5:
+                                _refs_short += f' +{len(_refs_display)-5}'
                             report_data.setdefault('api_details', {}).setdefault('cadastre', {}).update({
                                 'success': True,
                                 'details': {
-                                    'parcelle_numero': f"{len(_all_feats)} parcelles",
-                                    'section': ', '.join(sorted(_sections_map.keys())),
+                                    'parcelle_numero': _refs_short,
+                                    'section': '',  # vide car section incluse dans parcelle_numero
                                     'commune': _fp0.get('nom_com', report_data.get('commune_name', 'N/A')),
                                     'code_insee': _code_insee,
                                     'departement': _fp0.get('code_dep', 'N/A'),
