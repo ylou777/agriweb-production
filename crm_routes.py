@@ -6599,6 +6599,8 @@ def register_autoconso_routes(app):
 
         result_list = sorted(communes_map.values(), key=lambda x: x['surface_totale_m2'], reverse=True)
 
+        total_surface_ha = round(sum(c.get('surface_totale_m2', 0) for c in result_list) / 10000, 2)
+
         return jsonify({
             'success': True,
             'siren': siren,
@@ -6606,6 +6608,7 @@ def register_autoconso_routes(app):
             'forme_juridique': forme_juridique,
             'total_parcelles': len(parcelles),
             'total_communes': len(result_list),
+            'total_surface_ha': total_surface_ha,
             'communes': result_list
         })
 

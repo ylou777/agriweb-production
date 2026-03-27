@@ -3858,7 +3858,10 @@ Cordialement,`
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content bg-dark text-light border border-secondary">
       <div class="modal-header border-secondary">
-        <h5 class="modal-title"><i class="bi bi-list-ul"></i> Choisir une entreprise</h5>
+        <div>
+          <h5 class="modal-title"><i class="bi bi-list-ul"></i> Choisir une entreprise</h5>
+          <small id="pnPickStats" class="text-muted"></small>
+        </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-0">
@@ -3945,6 +3948,13 @@ Cordialement,`
 let _pnData = null;
 let _pnSirenPickResults = [];
 
+function _setPickStats(results) {
+    const n = results.length;
+    const totalHa = results.reduce((s, m) => s + (parseFloat(m.surface_ha) || 0), 0);
+    document.getElementById('pnPickStats').textContent =
+        n + ' résultat' + (n > 1 ? 's' : '') + ' · ' + totalHa.toFixed(2) + ' ha au total';
+}
+
 // Recherche lancée depuis la barre de filtres (SIREN ou nom — uniquement dans MAJIC)
 async function lancerRechercheProprio() {
     const raw = document.getElementById('sirenSearchInput').value.trim();
@@ -3995,6 +4005,7 @@ async function lancerRechercheProprio() {
             };
             tbody.appendChild(tr);
         });
+        _setPickStats(data.results);
         new bootstrap.Modal(document.getElementById('modalSirenPick')).show();
 
     } catch(err) {
@@ -4052,6 +4063,7 @@ async function pnSearchByName(name) {
             tbody.appendChild(tr);
         });
         bootstrap.Modal.getInstance(document.getElementById('modalProprietaireNational')).hide();
+        _setPickStats(data.results);
         new bootstrap.Modal(document.getElementById('modalSirenPick')).show();
 
     } catch(err) {
@@ -4129,6 +4141,7 @@ function searchProprietaireNational(siren, denomination, formeJuridique) {
                     };
                     tbody.appendChild(tr);
                 });
+                _setPickStats(data.results);
                 new bootstrap.Modal(document.getElementById('modalSirenPick')).show();
                 return;
             }
@@ -4158,7 +4171,8 @@ function searchProprietaireNational(siren, denomination, formeJuridique) {
             }
             document.getElementById('pnStatsText').innerHTML =
                 '<strong>' + data.total_parcelles + '</strong> parcelles dans <strong>' +
-                data.total_communes + '</strong> commune(s) — ' + data.denomination;
+                data.total_communes + '</strong> commune(s) · <strong>' +
+                data.total_surface_ha + ' ha</strong> au total — ' + data.denomination;
             document.getElementById('pnStats').style.display = 'block';
             document.getElementById('pnResults').style.display = 'block';
             document.getElementById('pnImportBtn').style.display = 'inline-block';
