@@ -6499,7 +6499,7 @@ def register_autoconso_routes(app):
         if not q or len(q) < 2:
             return jsonify({'success': False, 'error': 'Requête trop courte'}), 400
 
-        results = search_proprietaires_by_name(q, limit=20)
+        results = search_proprietaires_by_name(q)
         return jsonify({'success': True, 'query': q, 'results': results})
 
     @app.route('/api/crm/proprietaire/search')
@@ -6524,7 +6524,7 @@ def register_autoconso_routes(app):
         # Si pas de siren valide mais une denomination → recherche par nom directement
         if not siren and denomination_param:
             from proprietaires_utils import search_proprietaires_by_name
-            results = search_proprietaires_by_name(denomination_param, limit=20)
+            results = search_proprietaires_by_name(denomination_param)
             return jsonify({'success': True, 'results': results, 'redirect_to_name_search': True})
 
         parcelles = get_parcelles_by_siren(siren, limit=500)

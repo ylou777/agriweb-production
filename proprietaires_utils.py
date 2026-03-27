@@ -190,14 +190,13 @@ def get_parcelles_by_siren(siren, limit=500):
 
 
 # Exemple d'utilisation
-def search_proprietaires_by_name(query, limit=20):
+def search_proprietaires_by_name(query):
     """
     Recherche des propriétaires dans la base MAJIC par nom (ILIKE) — toute la France.
-    Retourne une liste de propriétaires distincts correspondant au motif.
+    Retourne tous les propriétaires distincts correspondant au motif, sans limite.
 
     Args:
-        query: Chaîne recherchée (ex: 'carrefour', 'immochan')
-        limit: Nombre max de résultats (distinct par siren+denomination)
+        query: Chaîne recherchée (ex: 'carrefour', 'mairie')
 
     Returns:
         Liste de dict {siren, denomination, forme_juridique, nb_parcelles, surface_ha,
@@ -225,8 +224,7 @@ def search_proprietaires_by_name(query, limit=20):
               AND denomination IS NOT NULL
             GROUP BY siren, denomination, forme_juridique
             ORDER BY surface_totale_m2 DESC NULLS LAST
-            LIMIT %s
-        """, (pattern, limit))
+        """, (pattern,))
 
         rows = cur.fetchall()
         conn.close()
