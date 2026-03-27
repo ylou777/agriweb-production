@@ -15544,11 +15544,12 @@ def rapport_map_point():
                     )
                     if row and row.get('parcelles_cadastrales'):
                         crm_refs_str = row['parcelles_cadastrales']
-                        dj = {}
-                        try:
-                            dj = json.loads(row.get('data_json') or '{}')
-                        except Exception:
-                            pass
+                        dj = row.get('data_json') or {}
+                        if isinstance(dj, str):
+                            try:
+                                dj = json.loads(dj)
+                            except Exception:
+                                dj = {}
                         code_insee_crm = dj.get('code_insee', '')
 
                         # Parser "KR0046, KR0048, KS0040" → {section: {numeros}}
