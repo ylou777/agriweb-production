@@ -16100,40 +16100,47 @@ def rapport_map_point():
                                     report_data['plu_info'] = _plu_agg
                                     print(f"✅ [MAJIC] PLU agrégé: {len(_plu_agg)} zones")
 
-                                    # Spatial join : zone PLU pour chaque parcelle
-                                    try:
-                                        from shapely.geometry import Point as _SPoint, shape as _sshape2
-                                        _plu_shapes = []
-                                        for _pf in _plu_agg:
-                                            _pg = _pf.get('geometry')
-                                            if _pg:
+                                # Spatial join zone urba (GPU) pour chaque parcelle
+                                # Utilise les features GPU zone-urba déjà chargées (avec géométries)
+                                try:
+                                    from shapely.geometry import Point as _SPoint, shape as _sshape2
+                                    _gpu_zu = report_data.get('api_urbanisme', {})
+                                    _zu_layer = (_gpu_zu.get('zone-urba') or _gpu_zu.get('Zone Urba') or
+                                                 _gpu_zu.get('Zone_Urba') or {})
+                                    _zu_feats = _zu_layer.get('features', []) if isinstance(_zu_layer, dict) else []
+                                    print(f"🔍 [MAJIC] GPU zone-urba features={len(_zu_feats)}")
+                                    _zu_shapes = []
+                                    for _zf in _zu_feats:
+                                        _zg = _zf.get('geometry')
+                                        if _zg:
+                                            try:
+                                                _zp = _zf.get('properties', {})
+                                                _tz = _zp.get('Typezone', _zp.get('typezone', ''))
+                                                _lb = _zp.get('libelle', _zp.get('Libelle', ''))
+                                                _zu_shapes.append((_sshape2(_zg), _tz, _lb))
+                                            except Exception: pass
+                                    _new_pc = []
+                                    for _pc in report_data['parcelles_cadastrales']:
+                                        _g2 = _pc.get('geojson', {}).get('geometry', {})
+                                        _co2 = (_g2.get('coordinates', [[]])[0][0] if _g2.get('type') == 'MultiPolygon'
+                                                else _g2.get('coordinates', [[]])[0]) if _g2 else []
+                                        _zone_urba = ''
+                                        if _co2 and _zu_shapes:
+                                            _cx = sum(c[0] for c in _co2) / len(_co2)
+                                            _cy = sum(c[1] for c in _co2) / len(_co2)
+                                            _pt = _SPoint(_cx, _cy)
+                                            for _zshp, _ptz, _ptl in _zu_shapes:
                                                 try:
-                                                    _plu_shapes.append((
-                                                        _sshape2(_pg),
-                                                        _pf.get('properties', {}).get('typezone', ''),
-                                                        _pf.get('properties', {}).get('libelle', '')
-                                                    ))
-                                                except Exception: pass
-                                        _new_pc = []
-                                        for _pc in report_data['parcelles_cadastrales']:
-                                            _g2 = _pc.get('geojson', {}).get('geometry', {})
-                                            _co2 = (_g2.get('coordinates', [[]])[0][0] if _g2.get('type') == 'MultiPolygon'
-                                                    else _g2.get('coordinates', [[]])[0]) if _g2 else []
-                                            _zone_urba = ''
-                                            if _co2:
-                                                _cx = sum(c[0] for c in _co2) / len(_co2)
-                                                _cy = sum(c[1] for c in _co2) / len(_co2)
-                                                _pt = _SPoint(_cx, _cy)
-                                                for _pshp, _ptz, _ptl in _plu_shapes:
-                                                    if _pshp.contains(_pt):
+                                                    if _zshp.contains(_pt) or _zshp.intersects(_pt.buffer(0.00001)):
                                                         _zone_urba = f"{_ptz} — {_ptl}" if _ptl and _ptl != _ptz else _ptz
                                                         break
-                                            _pc['zone_urba'] = _zone_urba
-                                            _new_pc.append(_pc)
-                                        report_data['parcelles_cadastrales'] = _new_pc
-                                        print(f"✅ [MAJIC] Zone urba assignée sur {sum(1 for p in _new_pc if p.get('zone_urba'))} / {len(_new_pc)} parcelles")
-                                    except Exception as _pj_e:
-                                        print(f"⚠️ [MAJIC] Spatial join PLU: {_pj_e}")
+                                                except Exception: pass
+                                        _pc['zone_urba'] = _zone_urba
+                                        _new_pc.append(_pc)
+                                    report_data['parcelles_cadastrales'] = _new_pc
+                                    print(f"✅ [MAJIC] Zone urba assignée: {sum(1 for p in _new_pc if p.get('zone_urba'))} / {len(_new_pc)} parcelles")
+                                except Exception as _pj_e:
+                                    print(f"⚠️ [MAJIC] Spatial join zone-urba: {_pj_e}")
 
                                 # PPRI étendu
                                 try:
