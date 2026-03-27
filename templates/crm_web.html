@@ -621,6 +621,19 @@
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
                             </div>
+                            <div class="col-12 mt-1">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-secondary text-success">
+                                        <i class="bi bi-building-fill"></i>
+                                    </span>
+                                    <input type="text" id="sirenSearchInput" class="form-control bg-dark border-secondary text-light"
+                                           placeholder="Recherche propriétaire : SIREN (9 chiffres) ou nom entreprise…"
+                                           onkeydown="if(event.key==='Enter') lancerRechercheProprio()">
+                                    <button class="btn btn-outline-success" onclick="lancerRechercheProprio()">
+                                        <i class="bi bi-search"></i> Toutes ses propriétés en France
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -3839,6 +3852,36 @@ Cordialement,`
     </script>
 
 <!-- =====================================================================
+     MODAL : SÉLECTION ENTREPRISE (résultats ambigus SIRENE)
+     ===================================================================== -->
+<div class="modal fade" id="modalSirenPick" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content bg-dark text-light border border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title"><i class="bi bi-list-ul"></i> Choisir une entreprise</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <table class="table table-dark table-hover table-sm mb-0">
+          <thead class="sticky-top" style="background:#212529">
+            <tr>
+              <th>SIREN</th>
+              <th>Nom</th>
+              <th>Siège</th>
+              <th>Activité</th>
+            </tr>
+          </thead>
+          <tbody id="pnPickBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
      MODAL : RECHERCHE TOUTES PROPRIÉTÉS D'UN PROPRIÉTAIRE (MAJIC)
      ===================================================================== -->
 <div class="modal fade" id="modalProprietaireNational" tabindex="-1" aria-labelledby="modalProprietaireNationalLabel" aria-hidden="true">
@@ -3900,6 +3943,72 @@ Cordialement,`
 
 <script>
 let _pnData = null;
+
+// Recherche lancée depuis la barre de filtres (SIREN ou nom)
+async function lancerRechercheProprio() {
+    const raw = document.getElementById('sirenSearchInput').value.trim();
+    if (!raw) return;
+
+    // Si c'est un SIREN (9 chiffres) → recherche directe
+    if (/^\d{9}$/.test(raw)) {
+        searchProprietaireNational(raw, '', '');
+        return;
+    }
+
+    // Sinon : recherche par nom via API SIRENE publique
+    const sirenInput = document.getElementById('sirenSearchInput');
+    sirenInput.disabled = true;
+    sirenInput.placeholder = 'Recherche en cours…';
+
+    try {
+        const r = await fetch(
+            'https://recherche-entreprises.api.gouv.fr/search?q=' + encodeURIComponent(raw) +
+            '&page=1&per_page=8',
+            { headers: { 'Accept': 'application/json' } }
+        );
+        const data = await r.json();
+        const results = (data.results || []).filter(e => e.siren);
+
+        if (!results.length) {
+            alert('Aucune entreprise trouvée pour "' + raw + '".\nEssayez avec le SIREN à 9 chiffres.');
+            return;
+        }
+
+        if (results.length === 1) {
+            const e = results[0];
+            searchProprietaireNational(e.siren, e.nom_complet || e.siren, '');
+            return;
+        }
+
+        // Plusieurs résultats → afficher le sélecteur
+        _pnSirenPickResults = results;
+        const tbody = document.getElementById('pnPickBody');
+        tbody.innerHTML = '';
+        results.forEach((e, i) => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.innerHTML = `
+                <td>${e.siren}</td>
+                <td><strong>${e.nom_complet || '—'}</strong></td>
+                <td><small class="text-muted">${e.siege ? (e.siege.code_postal || '') + ' ' + (e.siege.libelle_commune || '') : ''}</small></td>
+                <td><small>${e.activite_principale || ''}</small></td>
+            `;
+            tr.onclick = () => {
+                bootstrap.Modal.getInstance(document.getElementById('modalSirenPick')).hide();
+                searchProprietaireNational(e.siren, e.nom_complet || e.siren, '');
+            };
+            tbody.appendChild(tr);
+        });
+        new bootstrap.Modal(document.getElementById('modalSirenPick')).show();
+
+    } catch(err) {
+        alert('Erreur lors de la recherche : ' + err.message);
+    } finally {
+        sirenInput.disabled = false;
+        sirenInput.placeholder = 'Recherche propriétaire : SIREN (9 chiffres) ou nom entreprise…';
+    }
+}
+let _pnSirenPickResults = [];
 let _pnSiren = '';
 let _pnDenomination = '';
 let _pnFormeJuridique = '';
