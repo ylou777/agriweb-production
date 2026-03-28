@@ -9741,9 +9741,25 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 // Préparer le fond satellite avant les tuiles
                 _switchTileForHeatmap(true);
 
-                // Requêtes Solar en parallèle
+                // Requêtes Solar avec concurrence limitée (max 4 en parallèle)
+                // → évite de saturer Flask avec N requêtes simultanées qui timeoutent
+                async function _pooledSolar(tasks, concurrency) {
+                    const results = [];
+                    let idx = 0;
+                    async function worker() {
+                        while (idx < tasks.length) {
+                            const i = idx++;
+                            try { results[i] = await tasks[i](); }
+                            catch(e) { results[i] = { error: e }; }
+                        }
+                    }
+                    const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, worker);
+                    await Promise.all(workers);
+                    return results;
+                }
+
                 let successCount = 0;
-                await Promise.allSettled(clusters.map(async (cl, i) => {
+                await _pooledSolar(clusters.map((cl, i) => async () => {
                     try {
                         const resp = await fetch('/api/solar/flux-heatmap', {
                             method: 'POST',
@@ -9778,7 +9794,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         successCount++;
                         console.log(`✅ [MAJIC tile ${i+1}/${clusters.length}] (${cl.lat.toFixed(5)},${cl.lon.toFixed(5)}) r=${cl.radius_m}m drift=${Math.round(_driftM)}m flux=${data.flux_min}–${data.flux_max}`);
                     } catch(e) { console.warn(`[MAJIC tile ${i}] ${e.message}`); }
-                }));
+                }), 4);
 
                 if (successCount === 0) {
                     _switchTileForHeatmap(false);
