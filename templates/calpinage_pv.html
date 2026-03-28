@@ -9608,18 +9608,81 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                              coords };
                 }
 
-                const centroids = feats.map(_featCentroid).filter(Boolean);
-                if (!centroids.length) throw new Error('Aucune géométrie MAJIC disponible');
+                const parcelCentroids = feats.map(_featCentroid).filter(Boolean);
+                if (!parcelCentroids.length) throw new Error('Aucune géométrie MAJIC disponible');
+
+                // ── Croisement BD TOPO : ne prendre que les centroïdes de bâtiments ──────────
+                // Ray-casting point-in-polygon (pas de dépendance Turf.js)
+                function _pip([x, y], ring) {
+                    let inside = false;
+                    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+                        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi))
+                            inside = !inside;
+                    }
+                    return inside;
+                }
+                function _firstRing(geom) {
+                    if (geom?.type === 'Polygon') return geom.coordinates[0];
+                    if (geom?.type === 'MultiPolygon') return geom.coordinates[0]?.[0];
+                    return null;
+                }
+                function _geomCentroid(geom) {
+                    const ring = _firstRing(geom);
+                    if (!ring?.length) return null;
+                    const lons = ring.map(c => c[0]), lats = ring.map(c => c[1]);
+                    return [lons.reduce((a,b)=>a+b,0)/lons.length, lats.reduce((a,b)=>a+b,0)/lats.length];
+                }
+
+                // Bbox globale des parcelles MAJIC
+                let minLat=90, maxLat=-90, minLon=180, maxLon=-180;
+                feats.forEach(f => {
+                    const ring = _firstRing(f.geometry);
+                    if (ring) ring.forEach(([lon, lat]) => {
+                        if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+                        if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+                    });
+                });
+
+                // Rings de toutes les parcelles (pour le PIP)
+                const parcelRings = feats.map(f => _firstRing(f.geometry)).filter(Boolean);
+
+                // Requête BD TOPO bâtiments (WFS IGN public, EPSG:4326)
+                let centroids = parcelCentroids; // fallback par défaut
+                try {
+                    const buf = 0.001; // ~100m de marge
+                    const wfsUrl = `https://wxs.ign.fr/essentiels/geoportail/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:batiment&outputFormat=application/json&COUNT=2000&SRSNAME=EPSG:4326&bbox=${minLon-buf},${minLat-buf},${maxLon+buf},${maxLat+buf},EPSG:4326`;
+                    const bdResp = await fetch(wfsUrl, { signal: AbortSignal.timeout(20000) });
+                    if (bdResp.ok) {
+                        const bdGj = await bdResp.json();
+                        const buildings = bdGj.features || [];
+                        const bdCentroids = [];
+                        buildings.forEach(bld => {
+                            const c = _geomCentroid(bld.geometry);
+                            if (!c) return;
+                            const inParcel = parcelRings.some(ring => _pip(c, ring));
+                            if (inParcel) {
+                                const ring = _firstRing(bld.geometry) || [];
+                                bdCentroids.push({ lat: c[1], lon: c[0], coords: ring });
+                            }
+                        });
+                        console.log(`🏗️ [BD TOPO] ${buildings.length} bâtiments → ${bdCentroids.length} dans les parcelles MAJIC`);
+                        if (bdCentroids.length > 0) {
+                            centroids = bdCentroids;
+                        } else {
+                            console.warn('⚠️ Aucun bâtiment BD TOPO dans les parcelles → fallback centroïdes parcelles');
+                        }
+                    }
+                } catch(bdErr) {
+                    console.warn('⚠️ BD TOPO indisponible → fallback centroïdes parcelles:', bdErr.message);
+                }
 
                 // Déduplication par proximité : on regroupe les centroïdes < MERGE_M entre eux.
                 // Chaque groupe donne UN appel Solar centré sur son centroïde + rayon couvrant tout le groupe.
-                // Contrairement à la grille fixe, cette approche garantit qu'un bâtiment isolé
-                // obtient toujours son propre appel Solar même s'il est loin des autres.
-                const MERGE_M = 60; // distance max pour fusionner deux parcelles (= ~un bâtiment)
+                const MERGE_M = 60; // distance max pour fusionner deux points (= ~un bâtiment)
                 const MAX_CALLS = 50;
 
-                // Greedy merge : parcourir les centroïdes dans l'ordre et les rattacher
-                // au groupe existant le plus proche si < MERGE_M, sinon créer un nouveau groupe.
+                // Greedy merge
                 const groups = [];
                 centroids.forEach(p => {
                     const mLat = 111320, mLon = 111320 * Math.cos(p.lat * Math.PI / 180);
