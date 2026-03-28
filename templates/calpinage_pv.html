@@ -3415,8 +3415,10 @@
                 const r = await fetch(`/api/crm/prospects/${prospectId}/repair-majic-parcelles`, { method: 'POST' });
                 const d = await r.json();
                 if (d.success) {
-                    alert(`✅ ${d.nb_parcelles} parcelles restaurées depuis MAJIC.\nRechargement de la carte...`);
+                    const warnEl = document.getElementById('majicTruncWarning');
+                    if (warnEl) warnEl.remove();
                     if (parcellesLayer) { map.removeLayer(parcellesLayer); parcellesLayer = null; }
+                    alert(`✅ ${d.nb_parcelles} parcelles restaurées depuis MAJIC.\nRechargement de la carte...`);
                     await loadParcelles();
                 } else {
                     alert('❌ Erreur: ' + d.error);
@@ -3430,7 +3432,12 @@
         
         async function loadParcelles() {
             try {
-                const response = await fetch(`/api/crm/prospects/${prospectId}`);
+                // Nettoyage bannière précédente
+                const oldWarn = document.getElementById('majicTruncWarning');
+                if (oldWarn) oldWarn.remove();
+
+                // Cache-bust pour éviter de lire l'ancienne valeur tronquée
+                const response = await fetch(`/api/crm/prospects/${prospectId}?_t=${Date.now()}`);
                 const data = await response.json();
                 const prospect = data.prospect || data; // compatibilité
 
