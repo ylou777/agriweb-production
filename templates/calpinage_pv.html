@@ -7200,6 +7200,48 @@
         }
         
         /**
+         * Composite toutes les tuiles MAJIC en une seule image PNG et la stocke
+         * dans window._majicFluxComposite pour inclusion dans la proposition commerciale.
+         * Appelée automatiquement après la fin du pool Solar multi-tile.
+         */
+        function _compositeMajicFluxTiles() {
+            const tiles = window._majicFluxTiles || [];
+            if (!tiles.length) return;
+            let north = -90, south = 90, east = -180, west = 180;
+            tiles.forEach(t => {
+                north = Math.max(north, t.bbox.north);
+                south = Math.min(south, t.bbox.south);
+                east  = Math.max(east,  t.bbox.east);
+                west  = Math.min(west,  t.bbox.west);
+            });
+            const W = 2048;
+            const H = Math.max(1, Math.round(W * (north - south) / (east - west)));
+            const canvas = document.createElement('canvas');
+            canvas.width = W; canvas.height = H;
+            const ctx = canvas.getContext('2d');
+            let loaded = 0;
+            tiles.forEach(t => {
+                const img = new Image();
+                img.onload = () => {
+                    const b = t.bbox;
+                    const x = Math.round((b.west  - west)  / (east - west)  * W);
+                    const y = Math.round((north   - b.north) / (north - south) * H);
+                    const w = Math.max(1, Math.round((b.east  - b.west)  / (east - west)  * W));
+                    const h = Math.max(1, Math.round((b.north - b.south) / (north - south) * H));
+                    ctx.drawImage(img, x, y, w, h);
+                    loaded++;
+                    if (loaded === tiles.length) {
+                        const b64 = canvas.toDataURL('image/png');
+                        window._majicFluxComposite = { image_b64: b64, bbox: {north, south, east, west} };
+                        console.log(`💾 [MAJIC] Composite irradiation prêt pour la proposition (${tiles.length} tuiles)`);
+                    }
+                };
+                img.onerror = () => { loaded++; };
+                img.src = `data:image/png;base64,${t.image_base64}`;
+            });
+        }
+
+        /**
          * Génère une image standalone de la heatmap irradiation avec les modules
          * dessinés par-dessus, en utilisant uniquement _fluxCanvas + _fluxBbox.
          * Aucune dépendance aux tuiles satellite → pas de problème CORS, alignement
@@ -8867,6 +8909,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         window._majicParcelsBounds = null;  // Bbox L.LatLngBounds des parcelles MAJIC chargées
         window._majicLoadedFeats   = null;  // GeoJSON features des parcelles MAJIC chargées
         window._majicFluxOverlays  = [];    // L.imageOverlay[] tuiles irradiation multi-site
+        window._majicFluxTiles     = [];    // {image_base64, bbox} de chaque tuile → composite
+        window._majicFluxComposite = null;  // {image_b64, bbox} composite pour la proposition
         let _fluxActive           = false;
         let _flux2DOverlay        = null;
         let _prevMapView          = null;  // zoom/centre avant activation heatmap
@@ -9091,7 +9135,19 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
         /** Affiche/masque la heatmap irradiation depuis la checkbox du panneau calques */
         function toggleHeatmapVisibility(checked) {
-            if (!_flux2DOverlay || typeof map === 'undefined' || !map) return;
+            if (typeof map === 'undefined' || !map) return;
+            // Mode MAJIC multi-tile
+            if (window._majicFluxOverlays?.length) {
+                window._majicFluxOverlays.forEach(ov => {
+                    try {
+                        if (checked) { if (!map.hasLayer(ov)) ov.addTo(map); }
+                        else         { if (map.hasLayer(ov))  map.removeLayer(ov); }
+                    } catch(e) {}
+                });
+                return;
+            }
+            // Mode mono-tuile classique
+            if (!_flux2DOverlay) return;
             if (checked) {
                 if (!map.hasLayer(_flux2DOverlay)) _flux2DOverlay.addTo(map);
                 map.on('mousemove', _fluxPipetteMove);
@@ -9830,6 +9886,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             [[b.south, b.west], [b.north, b.east]],
                             { opacity: 0.85, interactive: false, zIndex: 201 }
                         ).addTo(map);
+                        window._majicFluxTiles.push({ image_base64: data.image_base64, bbox: data.bbox });
                         window._majicFluxOverlays.push(ov);
                         successCount++;
                         console.log(`✅ [MAJIC tile ${i+1}/${clusters.length}] (${cl.lat.toFixed(5)},${cl.lon.toFixed(5)}) r=${cl.radius_m}m drift=${Math.round(_driftM)}m flux=${data.flux_min}–${data.flux_max}`);
@@ -9844,6 +9901,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _fluxActive = true;
                 _syncFluxBtns(true, false);
                 if (legend) { legend.style.display = 'block'; }
+                // Activer la checkbox calques
+                const _chkHM = document.getElementById('chkHeatmapVisible');
+                const _sldHM = document.getElementById('sliderHeatOpacity');
+                if (_chkHM) { _chkHM.disabled = false; _chkHM.checked = true; }
+                if (_sldHM) _sldHM.disabled = false;
+                // Composite auto-sauvegardé pour la proposition commerciale
+                _compositeMajicFluxTiles();
                 console.log(`🌡️ [MAJIC Multi-tile] ${successCount}/${clusters.length} tuiles affichées`);
 
             } catch(e) {
@@ -9879,6 +9943,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     window._majicFluxOverlays.forEach(ov => { try { map.removeLayer(ov); } catch(e) {} });
                     window._majicFluxOverlays = [];
                 }
+                window._majicFluxTiles     = [];
+                window._majicFluxComposite = null;
                 // ── Pipette : nettoyer canvas + listeners ─────────────────────────────────
                 _fluxCanvas = null; _fluxOrigCanvas = null; _fluxBbox = null;
                 if (_fluxMaskRafId) { cancelAnimationFrame(_fluxMaskRafId); _fluxMaskRafId = null; }
@@ -13048,7 +13114,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             if (s3d) body.screenshot_3d = s3d;
                         }
                         // Screenshot irradiation si heatmap active
-                        if (typeof _fluxCanvas !== 'undefined' && _fluxCanvas && _fluxBbox) {
+                        if (window._majicFluxComposite?.image_b64) {
+                            // Mode MAJIC multi-tile : composite pré-calculé
+                            body.screenshot_irradiation      = window._majicFluxComposite.image_b64;
+                            body.screenshot_irradiation_bbox = window._majicFluxComposite.bbox;
+                        } else if (typeof _fluxCanvas !== 'undefined' && _fluxCanvas && _fluxBbox) {
+                            // Mode mono-tuile classique
                             const _irrSS = captureHeatmapStandalone();
                             if (_irrSS) { body.screenshot_irradiation = _irrSS; body.screenshot_irradiation_bbox = _fluxBbox; }
                         }
