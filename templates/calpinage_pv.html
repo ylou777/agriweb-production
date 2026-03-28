@@ -3421,7 +3421,7 @@
                 const dataJson = prospect.data_json || {};
                 const codeInsee = (dataJson.code_insee) || '';
                 if (majicRefs && codeInsee) {
-                    console.log('🗺️ [MAJIC] Chargement parcelles MAJIC, code_insee=', codeInsee, 'refs=', majicRefs);
+                    console.log('🗺️ [MAJIC] code_insee=', codeInsee);
                     // Parser les refs "ZM0023, ZM0024" → {section: Set<numero>}
                     const sectionsMap = {};
                     majicRefs.split(',').forEach(r => {
@@ -3431,38 +3431,61 @@
                             sectionsMap[m[1]].add(m[2].padStart(4, '0'));
                         }
                     });
-                    const allBounds = [];
-                    for (const [sec, nums] of Object.entries(sectionsMap)) {
-                        try {
+                    const totalParcels = Object.values(sectionsMap).reduce((s, v) => s + v.size, 0);
+                    const bigSite = totalParcels > 50;
+                    console.log(`🗺️ [MAJIC] ${Object.keys(sectionsMap).length} sections, ${totalParcels} parcelles, bigSite=${bigSite}`);
+
+                    // Appels PARALLÈLES (1 par section) — évite les timeouts séquentiels
+                    const sectionResults = await Promise.allSettled(
+                        Object.entries(sectionsMap).map(async ([sec, nums]) => {
                             const url = `https://apicarto.ign.fr/api/cadastre/parcelle?code_insee=${codeInsee}&section=${sec}&_limit=500`;
-                            const r = await fetch(url);
+                            const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
                             const gj = await r.json();
-                            for (const feat of (gj.features || [])) {
+                            const matched = (gj.features || []).filter(feat => {
                                 const fn = (feat.properties.numero || '').padStart(4, '0');
-                                const fnRaw = feat.properties.numero || '';
-                                if (nums.has(fn) || nums.has(fnRaw)) {
-                                    const ref = sec + parseInt(fnRaw, 10);
-                                    const layer = L.geoJSON(feat, {
-                                        style: { color: '#00e5ff', weight: 3, opacity: 1, fillColor: '#00e5ff', fillOpacity: 0.08 }
-                                    });
-                                    layer.bindTooltip(`<strong>${ref}</strong><br>${feat.properties.contenance || ''} m²`, {
-                                        permanent: true, direction: 'center', className: 'parcelle-tooltip', opacity: 0.9
-                                    });
-                                    parcellesLayer.addLayer(layer);
-                                    if (feat.geometry && feat.geometry.coordinates) {
-                                        try { allBounds.push(L.geoJSON(feat).getBounds()); } catch(e){}
-                                    }
-                                }
+                                return nums.has(fn) || nums.has(feat.properties.numero || '');
+                            });
+                            console.log(`  sec=${sec} retourné=${(gj.features||[]).length} matchés=${matched.length}`);
+                            return matched;
+                        })
+                    );
+
+                    const allFeats = sectionResults
+                        .filter(r => r.status === 'fulfilled')
+                        .flatMap(r => r.value);
+                    console.log(`✅ [MAJIC] ${allFeats.length} / ${totalParcels} géométries chargées`);
+
+                    // Ajouter toutes les features d'un coup (plus rapide que feature par feature)
+                    const allBounds = [];
+                    if (allFeats.length > 0) {
+                        // Pour les grands sites : style simplifié sans tooltip permanent
+                        const geoLayer = L.geoJSON({ type: 'FeatureCollection', features: allFeats }, {
+                            style: { color: '#00e5ff', weight: bigSite ? 2 : 3, opacity: 0.9,
+                                     fillColor: '#00e5ff', fillOpacity: 0.07 },
+                            onEachFeature: bigSite ? function(feat, layer) {
+                                // Tooltip au survol uniquement pour les grands sites
+                                const p = feat.properties;
+                                const ref = (p.section || '') + parseInt(p.numero || '0', 10);
+                                layer.bindTooltip(`<strong>${ref}</strong> · ${p.contenance || '?'} m²`,
+                                    { sticky: true, className: 'parcelle-tooltip', opacity: 0.9 });
+                            } : function(feat, layer) {
+                                const p = feat.properties;
+                                const ref = (p.section || '') + parseInt(p.numero || '0', 10);
+                                layer.bindTooltip(`<strong>${ref}</strong><br>${p.contenance || ''} m²`,
+                                    { permanent: true, direction: 'center', className: 'parcelle-tooltip', opacity: 0.9 });
                             }
-                        } catch(e) { console.warn('⚠️ apicarto section', sec, e); }
+                        });
+                        parcellesLayer.addLayer(geoLayer);
+                        try { allBounds.push(geoLayer.getBounds()); } catch(e) {}
                     }
+
                     if (allBounds.length > 0) {
                         const combined = allBounds.reduce((acc, b) => acc.extend(b), allBounds[0]);
                         map.fitBounds(combined, { padding: [40, 40] });
                     }
                     parcellesLayer.addTo(map);
-                    L.control.layers(null, { "📐 Parcelles MAJIC": parcellesLayer }, { position: 'topright', collapsed: true }).addTo(map);
-                    console.log('✅ [MAJIC] Parcelles chargées');
+                    L.control.layers(null, { [`📐 Parcelles MAJIC (${allFeats.length})`]: parcellesLayer },
+                        { position: 'topright', collapsed: true }).addTo(map);
                     return;
                 }
 
