@@ -9669,8 +9669,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 let clusters = [];
                 try {
                     const buf = 0.001; // ~100m de marge
-                    const wfsUrl = `https://wxs.ign.fr/essentiels/geoportail/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:batiment&outputFormat=application/json&COUNT=2000&SRSNAME=EPSG:4326&bbox=${minLon-buf},${minLat-buf},${maxLon+buf},${maxLat+buf},EPSG:4326`;
-                    const bdResp = await fetch(wfsUrl, { signal: AbortSignal.timeout(20000) });
+                    // Proxy backend → évite CORS (data.geopf.fr/wfs/ows)
+                    const wfsUrl = `/api/bdtopo/batiments?min_lat=${minLat-buf}&min_lon=${minLon-buf}&max_lat=${maxLat+buf}&max_lon=${maxLon+buf}&count=2000`;
+                    const bdResp = await fetch(wfsUrl, { signal: AbortSignal.timeout(25000) });
                     if (bdResp.ok) {
                         const bdGj = await bdResp.json();
                         const buildings = bdGj.features || [];

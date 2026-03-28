@@ -5176,6 +5176,48 @@ Pour la direction du faîtage, indique l'orientation géographique approximative
         })  # 200 — erreur controlée, le frontend se rabat sur l'analyse LiDAR
 
 
+# API: Proxy BD TOPO bâtiments (évite CORS pour le calpinage frontend)
+# ──────────────────────────────────────────────────────────────────────
+@app.route('/api/bdtopo/batiments', methods=['GET'])
+def api_bdtopo_batiments():
+    """Proxy WFS IGN BD TOPO bâtiments — évite les problèmes CORS du navigateur.
+    Paramètres: min_lat, min_lon, max_lat, max_lon (EPSG:4326), count (défaut 2000)
+    """
+    try:
+        min_lat = request.args.get('min_lat', type=float)
+        min_lon = request.args.get('min_lon', type=float)
+        max_lat = request.args.get('max_lat', type=float)
+        max_lon = request.args.get('max_lon', type=float)
+        count   = request.args.get('count', default=2000, type=int)
+        if None in (min_lat, min_lon, max_lat, max_lon):
+            return jsonify({"error": "Paramètres min_lat, min_lon, max_lat, max_lon requis"}), 400
+        count = min(max(1, count), 5000)  # borne 1..5000
+
+        url_wfs = "https://data.geopf.fr/wfs/ows"
+        params = {
+            "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
+            "TYPENAMES": "BDTOPO_V3:batiment",
+            "outputFormat": "application/json",
+            "COUNT": str(count),
+            "SRSNAME": "EPSG:4326",
+            "bbox": f"{min_lon},{min_lat},{max_lon},{max_lat},EPSG:4326"
+        }
+        r = requests.get(url_wfs, params=params, timeout=20)
+        if r.status_code == 200:
+            resp = app.response_class(
+                response=r.content,
+                status=200,
+                mimetype='application/json'
+            )
+            resp.headers['Cache-Control'] = 'public, max-age=300'
+            return resp
+        else:
+            return jsonify({"error": f"WFS returned {r.status_code}"}), 502
+    except Exception as e:
+        print(f"⚠ BD TOPO proxy error: {e}")
+        return jsonify({"error": str(e)}), 502
+
+
 # API: Proxy satellite IGN (évite CORS pour Three.js)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/satellite-tile', methods=['GET'])
