@@ -2399,7 +2399,9 @@
                     commune: {{ (report.commune_name|default(""))|tojson }},
                     adresse: {{ (report.adresse|default(""))|tojson }},
                     {% if report.api_details and report.api_details.cadastre.success %}
+                    {% if not report.is_majic_analysis %}
                     parcelle_cadastrale: {{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }},
+                    {% endif %}
                     surface_parcelle: {{ (report.api_details.cadastre.details.contenance|default(""))|tojson }},
                     {% endif %}
                     {% if report.poste_bt %}

@@ -1022,9 +1022,12 @@ def register_crm_routes(app):
                 update_fields.append('adresse = %s')
                 params.append(data['adresse'])
             
-            if 'parcelle_cadastrale' in data:
-                update_fields.append('parcelles_cadastrales = %s')
-                params.append(data['parcelle_cadastrale'])
+            if 'parcelle_cadastrale' in data and data['parcelle_cadastrale']:
+                # Ne pas écraser si la valeur contient '+N' (format tronqué d'analyse MAJIC)
+                import re as _re
+                if not _re.search(r'\+\d+$', str(data['parcelle_cadastrale']).strip()):
+                    update_fields.append('parcelles_cadastrales = %s')
+                    params.append(data['parcelle_cadastrale'])
             
             if 'surface_parcelle' in data:
                 update_fields.append('surface_m2 = %s')
@@ -6769,3 +6772,55 @@ def register_autoconso_routes(app):
             'errors': errors,
             'message': f'{imported} commune(s) importée(s) dans le CRM'
         })
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/repair-majic-parcelles', methods=['POST'])
+    def repair_majic_parcelles(prospect_id):
+        """Répare le champ parcelles_cadastrales tronqué en relisant depuis proprietaires_parcelles"""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+            prospect = execute_query(
+                'SELECT data_json, parcelles_cadastrales FROM agriweb_prospects WHERE id = %s',
+                (prospect_id,), fetch_one=True
+            )
+            if not prospect:
+                return jsonify({'success': False, 'error': 'Prospect non trouvé'}), 404
+
+            dj = prospect.get('data_json') or {}
+            if isinstance(dj, str):
+                try: dj = json.loads(dj)
+                except: dj = {}
+
+            siren = dj.get('proprietaire_siren', '')
+            code_insee = dj.get('code_insee', '')
+            if not siren or not code_insee:
+                return jsonify({'success': False, 'error': 'Pas de SIREN ou code_insee dans data_json'}), 400
+
+            from proprietaires_utils import get_parcelles_by_siren
+            parcelles = get_parcelles_by_siren(siren, limit=5000) or []
+            # Filtrer sur ce code_insee
+            parcelles_commune = [p for p in parcelles if str(p.get('code_insee', '')) == str(code_insee)]
+            if not parcelles_commune:
+                return jsonify({'success': False, 'error': f'Aucune parcelle MAJIC pour SIREN={siren} code_insee={code_insee}'}), 404
+
+            parcelles_str = ', '.join([
+                f"{(p.get('section') or '').strip()}{(p.get('numero') or '').strip()}"
+                for p in parcelles_commune
+            ])
+            execute_query(
+                'UPDATE agriweb_prospects SET parcelles_cadastrales = %s WHERE id = %s',
+                (parcelles_str, prospect_id)
+            )
+            print(f"✅ [REPAIR MAJIC] prospect {prospect_id}: {len(parcelles_commune)} parcelles restaurées")
+            return jsonify({
+                'success': True,
+                'nb_parcelles': len(parcelles_commune),
+                'message': f'{len(parcelles_commune)} parcelles restaurées depuis MAJIC'
+            })
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500

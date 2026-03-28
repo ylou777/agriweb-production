@@ -3407,6 +3407,26 @@
         // ============================================
         
         let parcellesLayer = null;
+
+        async function repairMajicParcelles() {
+            const btn = document.getElementById('repairMajicBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Réparation…'; }
+            try {
+                const r = await fetch(`/api/crm/prospects/${prospectId}/repair-majic-parcelles`, { method: 'POST' });
+                const d = await r.json();
+                if (d.success) {
+                    alert(`✅ ${d.nb_parcelles} parcelles restaurées depuis MAJIC.\nRechargement de la carte...`);
+                    if (parcellesLayer) { map.removeLayer(parcellesLayer); parcellesLayer = null; }
+                    await loadParcelles();
+                } else {
+                    alert('❌ Erreur: ' + d.error);
+                    if (btn) { btn.disabled = false; btn.textContent = '🔧 Réparer parcelles MAJIC'; }
+                }
+            } catch(e) {
+                alert('❌ Erreur réseau: ' + e);
+                if (btn) { btn.disabled = false; btn.textContent = '🔧 Réparer parcelles MAJIC'; }
+            }
+        }
         
         async function loadParcelles() {
             try {
@@ -3420,6 +3440,20 @@
                 const majicRefs = prospect.parcelles_cadastrales || '';
                 const dataJson = prospect.data_json || {};
                 const codeInsee = (dataJson.code_insee) || '';
+
+                // Détecter si les refs sont tronquées (contient "+N")
+                const truncatedMatch = majicRefs.match(/\+(\d+)$/);
+                if (truncatedMatch) {
+                    const nbManquants = parseInt(truncatedMatch[1]);
+                    // Afficher un avertissement avec bouton de réparation
+                    const warnDiv = document.createElement('div');
+                    warnDiv.id = 'majicTruncWarning';
+                    warnDiv.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:#ff9800;color:#000;padding:8px 14px;border-radius:6px;font-size:0.85rem;text-align:center;max-width:380px;';
+                    warnDiv.innerHTML = `⚠️ Seulement 5 parcelles affichées sur ${5 + nbManquants} — données tronquées.<br>
+                        <button id="repairMajicBtn" onclick="repairMajicParcelles()" style="margin-top:5px;padding:3px 10px;border:none;background:#333;color:#fff;border-radius:4px;cursor:pointer;">🔧 Réparer parcelles MAJIC</button>`;
+                    document.getElementById('map').appendChild(warnDiv);
+                }
+
                 if (majicRefs && codeInsee) {
                     console.log('🗺️ [MAJIC] code_insee=', codeInsee);
                     // Parser les refs "ZM0023, ZM0024" → {section: Set<numero>}
