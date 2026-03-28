@@ -2161,8 +2161,14 @@ class PropositionProfessionnelle:
         map_x  = bx + bw + 0.5 * cm
         map_w  = self.width - map_x - 1.5 * cm
         map_h  = 7.5 * cm
+        # Priorité : screenshot_situation_z14 capturé côté client par l'agent
+        # Fallback : fetch serveur-side OSM tiles (peut échouer si hors-ligne)
         img14 = None
-        if lat and lon:
+        _ss_z14 = (self.data_json.get('calpinage', {}).get('screenshot_situation_z14', '')
+                   or self.calpinage.get('screenshot_situation_z14', ''))
+        if _ss_z14:
+            img14 = self._decode_base64_image(_ss_z14)
+        if not img14 and lat and lon:
             img14 = self._fetch_static_map_image(float(lat), float(lon), zoom=14, width=500, height=330)
         if img14:
             c.drawImage(img14, map_x, y - map_h, width=map_w, height=map_h,
@@ -2190,8 +2196,14 @@ class PropositionProfessionnelle:
         map2_h = 8.0 * cm
 
         # Tuile OSM zoom 18 — vue satellite pure, sans modules
+        # Priorité : screenshot_map (capturé côté client au zoom de travail ~17-19)
+        # Fallback : fetch serveur-side OSM tiles
         img17 = None
-        if lat and lon:
+        _ss_map_vue = (self.data_json.get('calpinage', {}).get('screenshot_map', '')
+                       or self.calpinage.get('screenshot_map', ''))
+        if _ss_map_vue:
+            img17 = self._decode_base64_image(_ss_map_vue)
+        if not img17 and lat and lon:
             img17 = self._fetch_static_map_image(float(lat), float(lon), zoom=18, width=700, height=380)
 
         if img17:

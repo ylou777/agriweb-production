@@ -12300,37 +12300,52 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 } catch(e) { _upd(s1, 'Carte satellite — erreur (ignorée)', 'warn'); }
 
                 // ── 2. Plan de masse cadastral ──────────────────────────────────
+                // FIX: utilise captureMapScreenshot() = bascule vers ESRI (CORS OK, canvas non tainted)
+                // L'ancien html2canvas+allowTaint:true sur tuiles Google levait SecurityError sur toDataURL().
                 const s2 = _step('Capture plan de masse cadastral…');
                 try {
-                    const mapContainer = document.getElementById('map');
-                    if (typeof html2canvas !== 'undefined') {
-                        const b = map.getBounds();
-                        const sz = map.getSize();
-                        calData.plan_masse_metadata = {
-                            bounds: { north:b.getNorth(), south:b.getSouth(), east:b.getEast(), west:b.getWest() },
-                            center: { lat:map.getCenter().lat, lng:map.getCenter().lng },
-                            zoom: map.getZoom(), size: { width:sz.x, height:sz.y }
-                        };
-                        const _hidden2 = [];
-                        zones.forEach(z => {
-                            if (z.moduleGroup && map.hasLayer(z.moduleGroup)) {
-                                map.removeLayer(z.moduleGroup); _hidden2.push(z.moduleGroup);
-                            }
-                        });
-                        if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
-                            map.removeLayer(_flux2DOverlay); _hidden2.push(_flux2DOverlay);
+                    const _hidden2 = [];
+                    zones.forEach(z => {
+                        if (z.moduleGroup && map.hasLayer(z.moduleGroup)) {
+                            map.removeLayer(z.moduleGroup); _hidden2.push(z.moduleGroup);
                         }
-                        await new Promise(r => { map.once('moveend', r); map.setView(map.getCenter(), map.getZoom(), {animate:false}); setTimeout(r, 120); });
-                        await new Promise(r => setTimeout(r, 400));
-                        const canvas = await html2canvas(mapContainer, {
-                            useCORS:true, allowTaint:true, backgroundColor:'#ffffff',
-                            scrollX:-window.scrollX, scrollY:-window.scrollY, logging:false, scale:1
-                        });
-                        _hidden2.forEach(l => l.addTo(map));
-                        calData.screenshot_plan_masse = canvas.toDataURL('image/png');
+                    });
+                    if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
+                        map.removeLayer(_flux2DOverlay); _hidden2.push(_flux2DOverlay);
+                    }
+                    const _b2 = map.getBounds(), _sz2 = map.getSize();
+                    calData.plan_masse_metadata = {
+                        bounds: { north:_b2.getNorth(), south:_b2.getSouth(), east:_b2.getEast(), west:_b2.getWest() },
+                        center: { lat:map.getCenter().lat, lng:map.getCenter().lng },
+                        zoom: map.getZoom(), size: { width:_sz2.x, height:_sz2.y }
+                    };
+                    const cap2 = await captureMapScreenshot();
+                    _hidden2.forEach(l => l.addTo(map));
+                    if (typeof cap2 === 'object' && cap2.screenshot) {
+                        calData.screenshot_plan_masse = cap2.screenshot;
                         _upd(s2, 'Plan de masse capturé', 'ok');
-                    } else { _upd(s2, 'html2canvas non disponible', 'skip'); }
-                } catch(e) { _upd(s2, 'Plan de masse — erreur (ignorée)', 'warn'); }
+                    } else { _upd(s2, 'Plan de masse — capture vide (ignorée)', 'warn'); }
+                } catch(e) { _upd(s2, 'Plan de masse — erreur (ignorée)', 'warn'); console.warn('[Agent] Plan masse:', e); }
+
+                // ── 2b. Plan de situation — vue d'ensemble (zoom 14) ────────────
+                // Capture côté client pour éviter la dépendance au fetch OSM serveur-side
+                const s2b = _step('Capture plan de situation (vue d\'ensemble)…');
+                try {
+                    const _origCenter2b = map.getCenter(), _origZoom2b = map.getZoom();
+                    await new Promise(r => { map.once('zoomend', r); map.setZoom(14, {animate:false}); setTimeout(r, 600); });
+                    await new Promise(r => setTimeout(r, 900));
+                    const _hiddenZ14 = [];
+                    zones.forEach(z => { if (z.moduleGroup && map.hasLayer(z.moduleGroup)) { map.removeLayer(z.moduleGroup); _hiddenZ14.push(z.moduleGroup); } });
+                    if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) { map.removeLayer(_flux2DOverlay); _hiddenZ14.push(_flux2DOverlay); }
+                    const capZ14 = await captureMapScreenshot();
+                    _hiddenZ14.forEach(l => l.addTo(map));
+                    await new Promise(r => { map.once('zoomend', r); map.setView(_origCenter2b, _origZoom2b, {animate:false}); setTimeout(r, 400); });
+                    await new Promise(r => setTimeout(r, 500));
+                    if (typeof capZ14 === 'object' && capZ14.screenshot) {
+                        calData.screenshot_situation_z14 = capZ14.screenshot;
+                        _upd(s2b, 'Vue d\'ensemble z14 capturée', 'ok');
+                    } else { _upd(s2b, 'Vue d\'ensemble z14 — vide (ignoré)', 'warn'); }
+                } catch(e) { _upd(s2b, 'Vue d\'ensemble z14 — erreur (ignorée)', 'warn'); console.warn('[Agent] Situation z14:', e); }
 
                 // ── 3. Irradiation heatmap (si active) ─────────────────────────
                 const s3 = _step('Irradiation heatmap…');
@@ -12363,6 +12378,19 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 });
                 if (!saveResp.ok) throw new Error('Erreur sauvegarde calpinage (HTTP ' + saveResp.status + ')');
                 _upd(s5, 'Données sauvegardées en BDD', 'ok');
+
+                // Stocker tous les screenshots capturés pour les passer directement
+                // dans la requête PDF (évite toute dépendance à la lecture DB)
+                window._pendingPropoScreenshots = {
+                    screenshot_map              : calData.screenshot_map              || '',
+                    screenshot_plan_masse       : calData.screenshot_plan_masse       || '',
+                    screenshot_situation_z14    : calData.screenshot_situation_z14    || '',
+                    screenshot_3d               : calData.screenshot_3d               || '',
+                    screenshot_irradiation      : calData.screenshot_irradiation      || '',
+                    screenshot_irradiation_bbox : calData.screenshot_irradiation_bbox || '',
+                    map_metadata                : calData.map_metadata                || {},
+                    plan_masse_metadata         : calData.plan_masse_metadata         || {},
+                };
 
                 // ── 6. Ouverture de la proposition ──────────────────────────────
                 const s6 = _step('Ouverture de la proposition…');
@@ -12828,34 +12856,40 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     tarif_revente_kwh        : parseFloat(document.getElementById('propoTarifRevente').value) || getS21TarifRevente(parseFloat(document.getElementById('propoPuissance')?.value || 0)),
                 };
 
-                // Capturer le screenshot de la carte au moment de la génération
-                // (évite toute dépendance à la DB pour les screenshots)
-                try {
-                    load.textContent = '📸 Capture de la carte en cours...';
-                    const _propoCapture = await captureMapScreenshot();
-                    if (typeof _propoCapture === 'object' && _propoCapture.screenshot) {
-                        body.screenshot_map = _propoCapture.screenshot;
-                        body.map_metadata   = { bounds: _propoCapture.bounds, center: _propoCapture.center, zoom: _propoCapture.zoom, dimensions: _propoCapture.dimensions };
-                    } else if (typeof _propoCapture === 'string' && _propoCapture.length > 100) {
-                        body.screenshot_map = _propoCapture;
-                    }
-                    // Screenshot 3D si vue active
-                    if (viewer3D && viewer3D.isActive) {
-                        const s3d = viewer3D.getScreenshot();
-                        if (s3d) body.screenshot_3d = s3d;
-                    }
-                    // Screenshot irradiation si heatmap active
-                    if (typeof _fluxCanvas !== 'undefined' && _fluxCanvas && _fluxBbox) {
-                        const _irrSS = captureHeatmapStandalone();
-                        if (_irrSS) {
-                            body.screenshot_irradiation      = _irrSS;
-                            body.screenshot_irradiation_bbox = _fluxBbox;
-                        }
-                    }
+                // Injecter les screenshots capturés par l'agent (preparerPropositionComplete)
+                // Ils sont stockés dans window._pendingPropoScreenshots et envoyés directement
+                // dans la requête PDF — plus fiable que la lecture DB (pas d'aller-retour).
+                if (window._pendingPropoScreenshots && Object.keys(window._pendingPropoScreenshots).length) {
+                    Object.entries(window._pendingPropoScreenshots).forEach(([k, v]) => { if (v) body[k] = v; });
                     load.textContent = '⚙️ Génération du PDF...';
-                } catch(eSS) {
-                    console.warn('⚠️ Screenshot proposition impossible:', eSS);
-                    load.textContent = '⚙️ Génération du PDF (sans capture)...';
+                } else {
+                    // Fallback : recapturer si l'agent n'a pas été utilisé
+                    try {
+                        load.textContent = '📸 Capture de la carte en cours...';
+                        const _hidden = [];
+                        zones.forEach(z => { if (z.moduleGroup && map.hasLayer(z.moduleGroup)) { map.removeLayer(z.moduleGroup); _hidden.push(z.moduleGroup); } });
+                        if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) { map.removeLayer(_flux2DOverlay); _hidden.push(_flux2DOverlay); }
+                        const _propoCapture = await captureMapScreenshot();
+                        _hidden.forEach(l => l.addTo(map));
+                        if (typeof _propoCapture === 'object' && _propoCapture.screenshot) {
+                            body.screenshot_map = _propoCapture.screenshot;
+                            body.map_metadata   = { bounds: _propoCapture.bounds, center: _propoCapture.center, zoom: _propoCapture.zoom, dimensions: _propoCapture.dimensions };
+                        }
+                        // Screenshot 3D si vue active
+                        if (typeof viewer3D !== 'undefined' && viewer3D && viewer3D.isActive) {
+                            const s3d = viewer3D.getScreenshot();
+                            if (s3d) body.screenshot_3d = s3d;
+                        }
+                        // Screenshot irradiation si heatmap active
+                        if (typeof _fluxCanvas !== 'undefined' && _fluxCanvas && _fluxBbox) {
+                            const _irrSS = captureHeatmapStandalone();
+                            if (_irrSS) { body.screenshot_irradiation = _irrSS; body.screenshot_irradiation_bbox = _fluxBbox; }
+                        }
+                        load.textContent = '⚙️ Génération du PDF...';
+                    } catch(eSS) {
+                        console.warn('⚠️ Screenshot proposition impossible:', eSS);
+                        load.textContent = '⚙️ Génération du PDF (sans capture)...';
+                    }
                 }
 
                 const resp = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
