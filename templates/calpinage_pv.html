@@ -9611,34 +9611,53 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const centroids = feats.map(_featCentroid).filter(Boolean);
                 if (!centroids.length) throw new Error('Aucune géométrie MAJIC disponible');
 
-                // Clusterisation spatiale (grille 200 m)
-                const GRID_M = 200;
-                const cells = {};
+                // Déduplication par proximité : on regroupe les centroïdes < MERGE_M entre eux.
+                // Chaque groupe donne UN appel Solar centré sur son centroïde + rayon couvrant tout le groupe.
+                // Contrairement à la grille fixe, cette approche garantit qu'un bâtiment isolé
+                // obtient toujours son propre appel Solar même s'il est loin des autres.
+                const MERGE_M = 60; // distance max pour fusionner deux parcelles (= ~un bâtiment)
+                const MAX_CALLS = 50;
+
+                // Greedy merge : parcourir les centroïdes dans l'ordre et les rattacher
+                // au groupe existant le plus proche si < MERGE_M, sinon créer un nouveau groupe.
+                const groups = [];
                 centroids.forEach(p => {
-                    const mLat = 111320, mLon = 111320 * Math.cos(p.lat * Math.PI/180);
-                    const key  = `${Math.floor(p.lon * mLon / GRID_M)}_${Math.floor(p.lat * mLat / GRID_M)}`;
-                    if (!cells[key]) cells[key] = [];
-                    cells[key].push(p);
+                    const mLat = 111320, mLon = 111320 * Math.cos(p.lat * Math.PI / 180);
+                    let bestG = null, bestD = Infinity;
+                    groups.forEach(g => {
+                        const dy = (p.lat - g.lat) * mLat;
+                        const dx = (p.lon - g.lon) * mLon;
+                        const d  = Math.hypot(dx, dy);
+                        if (d < bestD) { bestD = d; bestG = g; }
+                    });
+                    if (bestG && bestD < MERGE_M) {
+                        // Rattacher au groupe existant + recalculer centroïde incrémental
+                        bestG.n++;
+                        bestG.lat += (p.lat - bestG.lat) / bestG.n;
+                        bestG.lon += (p.lon - bestG.lon) / bestG.n;
+                        bestG.pts.push(p);
+                    } else {
+                        groups.push({ lat: p.lat, lon: p.lon, n: 1, pts: [p] });
+                    }
                 });
 
-                let clusters = Object.values(cells).map(pts => {
-                    const lat = pts.reduce((s,p)=>s+p.lat,0) / pts.length;
-                    const lon = pts.reduce((s,p)=>s+p.lon,0) / pts.length;
-                    const mLat = 111320, mLon = 111320 * Math.cos(lat * Math.PI/180);
+                // Calculer le rayon adaptatif de chaque groupe
+                let clusters = groups.map(g => {
+                    const mLat = 111320, mLon = 111320 * Math.cos(g.lat * Math.PI / 180);
                     let maxD = 0;
-                    pts.forEach(p => {
-                        const dy = (p.lat - lat) * mLat, dx = (p.lon - lon) * mLon;
+                    g.pts.forEach(p => {
+                        const dy = (p.lat - g.lat) * mLat, dx = (p.lon - g.lon) * mLon;
                         maxD = Math.max(maxD, Math.hypot(dx, dy));
                     });
-                    const radius_m  = Math.max(40, Math.min(Math.ceil(maxD) + 40, 350));
-                    const allCoords = pts.flatMap(p => p.coords || []);
-                    return { lat, lon, radius_m, allCoords, n: pts.length };
+                    const radius_m  = Math.max(45, Math.min(Math.ceil(maxD) + 45, 350));
+                    const allCoords = g.pts.flatMap(p => p.coords || []);
+                    return { lat: g.lat, lon: g.lon, radius_m, allCoords, n: g.n };
                 });
 
-                // Limiter à 20 clusters (les plus peuplés d'abord pour prioriser les gros sites)
+                // Trier par surface (nombre de parcelles) décroissant, cap à MAX_CALLS
                 clusters.sort((a, b) => b.n - a.n);
-                if (clusters.length > 20) clusters = clusters.slice(0, 20);
-                console.log(`🌡️ [MAJIC Multi-tile] ${centroids.length} parcelles → ${clusters.length} grappes (max 20)`);
+                if (clusters.length > MAX_CALLS) clusters = clusters.slice(0, MAX_CALLS);
+                console.log(`🌡️ [MAJIC Multi-tile] ${centroids.length} parcelles → ${clusters.length} appels Solar (merge ${MERGE_M}m, max ${MAX_CALLS})`);
 
                 // Préparer le fond satellite avant les tuiles
                 _switchTileForHeatmap(true);
