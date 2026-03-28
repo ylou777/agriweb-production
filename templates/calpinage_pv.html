@@ -8070,16 +8070,38 @@
                 mapCard.style.display = 'none';
                 viewer3D.toggle();
                 
-                // Calculer le centre et rayon depuis la bbox des modules PV
+                // Calculer le centre et rayon :
+                // Priorité 1 — bbox des parcelles MAJIC (mode multi-bâtiments)
+                // Priorité 2 — bbox des modules PV dessinés
+                // Fallback    — point prospect + 60m
                 let centerLat3D = prospectLat;
                 let centerLon3D = prospectLon;
-                let radius3D = 60; // Défaut si pas de zones (assez pour un bâtiment moyen)
-                
-                if (zones && zones.length > 0) {
+                let radius3D = 60;
+
+                const _majicFeats3D = window._majicLoadedFeats;
+                if (_majicFeats3D?.length) {
+                    let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+                    _majicFeats3D.forEach(f => {
+                        const coords = f.geometry?.type === 'Polygon'
+                            ? f.geometry.coordinates[0]
+                            : f.geometry?.type === 'MultiPolygon'
+                                ? f.geometry.coordinates.flat(2)
+                                : [];
+                        coords.forEach(([lon, lat]) => {
+                            if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+                            if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+                        });
+                    });
+                    centerLat3D = (minLat + maxLat) / 2;
+                    centerLon3D = (minLon + maxLon) / 2;
+                    const dLat = (maxLat - minLat) * 111320;
+                    const dLon = (maxLon - minLon) * 111320 * Math.cos(centerLat3D * Math.PI / 180);
+                    radius3D = Math.max(80, Math.ceil(Math.sqrt(dLat*dLat + dLon*dLon) / 2 + 40));
+                    console.log(`🗺️ [3D] Centrage sur bbox MAJIC: r=${radius3D}m`);
+                } else if (zones && zones.length > 0) {
                     let minLat = Infinity, maxLat = -Infinity;
                     let minLon = Infinity, maxLon = -Infinity;
                     let hasModules = false;
-                    
                     zones.forEach(zone => {
                         if (zone.layer) {
                             const bounds = zone.layer.getBounds();
@@ -8090,21 +8112,17 @@
                             hasModules = true;
                         }
                     });
-                    
                     if (hasModules) {
                         centerLat3D = (minLat + maxLat) / 2;
                         centerLon3D = (minLon + maxLon) / 2;
-                        // Rayon = demi-diagonale de la bbox des modules + 30m de marge
                         const dLat = (maxLat - minLat) * 111320;
                         const dLon = (maxLon - minLon) * 111320 * Math.cos(centerLat3D * Math.PI / 180);
-                        const halfDiag = Math.sqrt(dLat * dLat + dLon * dLon) / 2;
-                        radius3D = Math.max(60, Math.ceil(halfDiag + 30));
+                        radius3D = Math.max(60, Math.ceil(Math.sqrt(dLat*dLat + dLon*dLon) / 2 + 30));
                     }
                 }
-                
-                // Pour les grands bâtiments (>80m), élargir davantage
-                // pour que la carte satellite couvre l'ensemble du bâtiment + contexte
-                radius3D = Math.min(radius3D, 250); // Cap à 250m pour limiter le temps de chargement
+
+                // Cap élargi à 500m pour les grands sites multi-bâtiments MAJIC
+                radius3D = Math.min(radius3D, 500);
                 
                 console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
                 viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {

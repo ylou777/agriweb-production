@@ -3990,7 +3990,7 @@ def api_lidar_3d_data():
             "outputFormat": "application/json",
             "bbox": f"{x_l93 - radius},{y_l93 - radius},{x_l93 + radius},{y_l93 + radius},EPSG:2154",
             "srsName": "EPSG:4326",
-            "count": "100"
+            "count": "500"
         }
         r_bdtopo = requests.get(url_wfs, params=params_wfs, timeout=15)
         if r_bdtopo.status_code == 200:
