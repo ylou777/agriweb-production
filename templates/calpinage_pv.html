@@ -9191,22 +9191,50 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         /**
          * Masque les pixels de l'overlay heatmap dont l'irradiance est hors de la plage
          * sélectionnée par le double-curseur (_fluxDrag.vMin / vMax).
-         * Met à jour _fluxCanvas pour que la pipette reste cohérente.
+         * Gère les deux modes : mono-tuile (_flux2DOverlay) et MAJIC multi-tuile (_majicFluxTiles).
          */
         function _applyFluxRangeMask() {
-            if (!_fluxOrigCanvas) return;
             const {vMin, vMax, rMin, rMax} = _fluxDrag;
+            const needsMask = vMin > rMin || vMax < rMax;
+
+            // ── Mode MAJIC multi-tuile ─────────────────────────────────────────────────
+            if (window._majicFluxTiles?.length) {
+                window._majicFluxTiles.forEach(tile => {
+                    if (!tile.canvas || !tile.overlay) return;
+                    const src = tile.canvas;
+                    const W = src.width, H = src.height;
+                    const out = document.createElement('canvas');
+                    out.width = W; out.height = H;
+                    const ctx = out.getContext('2d');
+                    ctx.drawImage(src, 0, 0);
+                    if (needsMask) {
+                        const imgData = ctx.getImageData(0, 0, W, H);
+                        const d = imgData.data;
+                        for (let i = 0; i < d.length; i += 4) {
+                            if (d[i+3] < 10) continue;
+                            const irr = _colorToIrr(d[i], d[i+1], d[i+2]);
+                            if (irr < vMin || irr > vMax) d[i+3] = 0;
+                        }
+                        ctx.putImageData(imgData, 0, 0);
+                    }
+                    tile.overlay.setUrl(out.toDataURL('image/png'));
+                });
+                return;
+            }
+
+            // ── Mode mono-tuile classique ────────────────────────────────────────────
+            if (!_fluxOrigCanvas) return;
             const src = _fluxOrigCanvas;
             const W = src.width, H = src.height;
             const masked = document.createElement('canvas');
             masked.width = W; masked.height = H;
             const ctx = masked.getContext('2d');
             ctx.drawImage(src, 0, 0);
-            if (vMin > rMin || vMax < rMax) {
+            if (needsMask) {
                 const imgData = ctx.getImageData(0, 0, W, H);
                 const d = imgData.data;
                 for (let i = 0; i < d.length; i += 4) {
-                    if (d[i+3] < 10) continue; // pixel hors toiture → déjà transparent
+                    if (d[i+3] < 10) continue;
                     const irr = _colorToIrr(d[i], d[i+1], d[i+2]);
                     if (irr < vMin || irr > vMax) d[i+3] = 0;
                 }
@@ -9899,12 +9927,20 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             }
                         }
 
+                        // Décoder le PNG dans un canvas pour le filtre par plage d'irradiance
+                        const _tileCanvas = document.createElement('canvas');
+                        await new Promise(res => {
+                            const _img = new Image();
+                            _img.onload = () => { _tileCanvas.width = _img.width; _tileCanvas.height = _img.height; _tileCanvas.getContext('2d').drawImage(_img, 0, 0); res(); };
+                            _img.onerror = res;
+                            _img.src = `data:image/png;base64,${data.image_base64}`;
+                        });
                         const ov = L.imageOverlay(
                             `data:image/png;base64,${data.image_base64}`,
                             [[b.south, b.west], [b.north, b.east]],
                             { opacity: 0.85, interactive: false, zIndex: 201 }
                         ).addTo(map);
-                        window._majicFluxTiles.push({ image_base64: data.image_base64, bbox: data.bbox });
+                        window._majicFluxTiles.push({ image_base64: data.image_base64, bbox: data.bbox, canvas: _tileCanvas, overlay: ov });
                         window._majicFluxOverlays.push(ov);
                         successCount++;
                         console.log(`✅ [MAJIC tile ${i+1}/${clusters.length}] (${cl.lat.toFixed(5)},${cl.lon.toFixed(5)}) r=${cl.radius_m}m drift=${Math.round(_driftM)}m flux=${data.flux_min}–${data.flux_max}`);
