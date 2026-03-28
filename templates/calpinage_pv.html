@@ -3495,6 +3495,8 @@
                         .filter(r => r.status === 'fulfilled')
                         .flatMap(r => r.value);
                     console.log(`✅ [MAJIC] ${allFeats.length} / ${totalParcels} géométries chargées`);
+                    // Stocker pour l'irradiation multi-centroïde
+                    window._majicLoadedFeats = allFeats;
 
                     // Ajouter toutes les features d'un coup (plus rapide que feature par feature)
                     const allBounds = [];
@@ -8863,6 +8865,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
         // ── Carte d'irradiation solaire (Google Solar annualFlux heatmap) ──
         window._majicParcelsBounds = null;  // Bbox L.LatLngBounds des parcelles MAJIC chargées
+        window._majicLoadedFeats   = null;  // GeoJSON features des parcelles MAJIC chargées
+        window._majicFluxOverlays  = [];    // L.imageOverlay[] tuiles irradiation multi-site
         let _fluxActive           = false;
         let _flux2DOverlay        = null;
         let _prevMapView          = null;  // zoom/centre avant activation heatmap
@@ -9585,6 +9589,112 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             console.log('💾 [Irradiation] Restauré depuis le cache BDD (pas d\'appel API Google Solar)');
         }
 
+        /** Irradiation multi-Site MAJIC : un tile Google Solar par centroïde de parcelle */
+        async function _toggleFluxHeatmapMajic() {
+            const legend = document.getElementById('fluxLegendPanel');
+            try {
+                const feats = window._majicLoadedFeats || [];
+
+                // Centroïde géographique d'une feature GeoJSON Polygon/MultiPolygon
+                function _featCentroid(feat) {
+                    let coords;
+                    if      (feat.geometry?.type === 'Polygon')      coords = feat.geometry.coordinates[0];
+                    else if (feat.geometry?.type === 'MultiPolygon') coords = feat.geometry.coordinates[0][0];
+                    else return null;
+                    const lats = coords.map(c => c[1]);
+                    const lons = coords.map(c => c[0]);
+                    return { lat: lats.reduce((a,b)=>a+b,0)/lats.length,
+                             lon: lons.reduce((a,b)=>a+b,0)/lons.length,
+                             coords };
+                }
+
+                const centroids = feats.map(_featCentroid).filter(Boolean);
+                if (!centroids.length) throw new Error('Aucune géométrie MAJIC disponible');
+
+                // Clusterisation spatiale (grille 200 m)
+                const GRID_M = 200;
+                const cells = {};
+                centroids.forEach(p => {
+                    const mLat = 111320, mLon = 111320 * Math.cos(p.lat * Math.PI/180);
+                    const key  = `${Math.floor(p.lon * mLon / GRID_M)}_${Math.floor(p.lat * mLat / GRID_M)}`;
+                    if (!cells[key]) cells[key] = [];
+                    cells[key].push(p);
+                });
+
+                let clusters = Object.values(cells).map(pts => {
+                    const lat = pts.reduce((s,p)=>s+p.lat,0) / pts.length;
+                    const lon = pts.reduce((s,p)=>s+p.lon,0) / pts.length;
+                    const mLat = 111320, mLon = 111320 * Math.cos(lat * Math.PI/180);
+                    let maxD = 0;
+                    pts.forEach(p => {
+                        const dy = (p.lat - lat) * mLat, dx = (p.lon - lon) * mLon;
+                        maxD = Math.max(maxD, Math.hypot(dx, dy));
+                    });
+                    const radius_m  = Math.max(40, Math.min(Math.ceil(maxD) + 40, 350));
+                    const allCoords = pts.flatMap(p => p.coords || []);
+                    return { lat, lon, radius_m, allCoords, n: pts.length };
+                });
+
+                // Limiter à 20 clusters (les plus peuplés d'abord pour prioriser les gros sites)
+                clusters.sort((a, b) => b.n - a.n);
+                if (clusters.length > 20) clusters = clusters.slice(0, 20);
+                console.log(`🌡️ [MAJIC Multi-tile] ${centroids.length} parcelles → ${clusters.length} grappes (max 20)`);
+
+                // Préparer le fond satellite avant les tuiles
+                _switchTileForHeatmap(true);
+
+                // Requêtes Solar en parallèle
+                let successCount = 0;
+                await Promise.allSettled(clusters.map(async (cl, i) => {
+                    try {
+                        const resp = await fetch('/api/solar/flux-heatmap', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ lat: cl.lat, lon: cl.lon,
+                                                   radius_m: cl.radius_m,
+                                                   building_coords: cl.allCoords }),
+                            signal: AbortSignal.timeout(60000)
+                        });
+                        if (!resp.ok) { console.warn(`[MAJIC tile ${i}] HTTP ${resp.status}`); return; }
+                        const data = await resp.json();
+                        if (!data.image_base64 || !data.bbox) return;
+                        const b = data.bbox;
+                        const ov = L.imageOverlay(
+                            `data:image/png;base64,${data.image_base64}`,
+                            [[b.south, b.west], [b.north, b.east]],
+                            { opacity: 0.85, interactive: false, zIndex: 201 }
+                        ).addTo(map);
+                        window._majicFluxOverlays.push(ov);
+                        successCount++;
+                        console.log(`✅ [MAJIC tile ${i+1}/${clusters.length}] (${cl.lat.toFixed(5)},${cl.lon.toFixed(5)}) r=${cl.radius_m}m flux=${data.flux_min}–${data.flux_max}`);
+                    } catch(e) { console.warn(`[MAJIC tile ${i}] ${e.message}`); }
+                }));
+
+                if (successCount === 0) {
+                    _switchTileForHeatmap(false);
+                    throw new Error('NO_COVERAGE');
+                }
+
+                _fluxActive = true;
+                _syncFluxBtns(true, false);
+                if (legend) { legend.style.display = 'block'; }
+                console.log(`🌡️ [MAJIC Multi-tile] ${successCount}/${clusters.length} tuiles affichées`);
+
+            } catch(e) {
+                console.error('[MAJIC irradiation]', e);
+                _syncFluxBtns(false, false);
+                const msg = (e.message?.includes('NO_COVERAGE') || e.message?.includes('indisponible'))
+                    ? '⚠️ Irradiation indisponible pour cette zone (aucune couverture Google Solar)'
+                    : `⚠️ Erreur irradiation MAJIC : ${e.message}`;
+                const _nt = document.createElement('div');
+                _nt.className = 'alert alert-warning';
+                _nt.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:420px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                _nt.textContent = msg;
+                document.body.appendChild(_nt);
+                setTimeout(() => _nt.remove(), 7000);
+            }
+        }
+
         async function toggleFluxHeatmap() {
             const legend = document.getElementById('fluxLegendPanel');
             if (_fluxActive) {
@@ -9597,6 +9707,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
+                }
+                // ── Tuiles irradiation multi-MAJIC : nettoyer ────────────────────────────
+                if (window._majicFluxOverlays?.length && typeof map !== 'undefined' && map) {
+                    window._majicFluxOverlays.forEach(ov => { try { map.removeLayer(ov); } catch(e) {} });
+                    window._majicFluxOverlays = [];
                 }
                 // ── Pipette : nettoyer canvas + listeners ─────────────────────────────────
                 _fluxCanvas = null; _fluxOrigCanvas = null; _fluxBbox = null;
@@ -9647,6 +9762,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }
 
             _syncFluxBtns(false, true);
+            // ── MAJIC multi-tile : un appel Solar par centroïde de parcelle ────────────
+            if (window._majicLoadedFeats?.length > 0 && !(viewer3D?.isActive)
+                    && (!zones || !zones.length)) {
+                await _toggleFluxHeatmapMajic();
+                return;
+            }
             try {
                 // ── Centre & rayon de la requête Google Solar ─────────────────────────────────
                 // En vue 3D : on utilise OBLIGATOIREMENT viewer3D.centerLat/centerLon.
@@ -9740,28 +9861,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             [maxLon + bufLon, maxLat + bufLat],
                             [minLon - bufLon, maxLat + bufLat]
                         ];
-                    } else if (window._majicParcelsBounds) {
-                        // ── Fallback MAJIC : utiliser le bbox de toutes les parcelles du prospect ──
-                        const mb = window._majicParcelsBounds;
-                        const minLat = mb.getSouth(), maxLat = mb.getNorth();
-                        const minLon = mb.getWest(),  maxLon = mb.getEast();
-                        heatLat = (minLat + maxLat) / 2;
-                        heatLon = (minLon + maxLon) / 2;
-                        const _mpdLatM = 111320;
-                        const _mpdLonM = 111320 * Math.cos(heatLat * Math.PI / 180);
-                        const dyM = ((maxLat - minLat) / 2) * _mpdLatM;
-                        const dxM = ((maxLon - minLon) / 2) * _mpdLonM;
-                        radius_m = Math.max(50, Math.min(Math.ceil(Math.hypot(dxM, dyM)) + 30, 350));
-                        // Polygone rectangulaire englobant toutes les parcelles (+ léger buffer 5%)
-                        const bufLatM = (maxLat - minLat) * 0.05;
-                        const bufLonM = (maxLon - minLon) * 0.05;
-                        bCoords = [
-                            [minLon - bufLonM, minLat - bufLatM],
-                            [maxLon + bufLonM, minLat - bufLatM],
-                            [maxLon + bufLonM, maxLat + bufLatM],
-                            [minLon - bufLonM, maxLat + bufLatM]
-                        ];
-                        console.log(`🗺️ [MAJIC fallback] bbox parcelles → (${heatLat.toFixed(5)}, ${heatLon.toFixed(5)}) r=${radius_m}m`);
                     } else {
                         heatLat = prospectLat;
                         heatLon = prospectLon;
