@@ -9756,6 +9756,18 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const data = await resp.json();
                         if (!data.image_base64 || !data.bbox) return;
                         const b = data.bbox;
+
+                        // Vérifier que Google Solar n'a pas "snapé" sur un bâtiment étranger :
+                        // si le centre du bbox retourné est à > 300m du centre demandé, on discard.
+                        const bCenterLat = (b.north + b.south) / 2;
+                        const bCenterLon = (b.east  + b.west)  / 2;
+                        const _mL = 111320, _mO = 111320 * Math.cos(cl.lat * Math.PI / 180);
+                        const _driftM = Math.hypot((bCenterLat - cl.lat) * _mL, (bCenterLon - cl.lon) * _mO);
+                        if (_driftM > 300) {
+                            console.warn(`[MAJIC tile ${i}] discarded — bbox center drifted ${Math.round(_driftM)}m from request (Google Solar snapped to foreign building)`);
+                            return;
+                        }
+
                         const ov = L.imageOverlay(
                             `data:image/png;base64,${data.image_base64}`,
                             [[b.south, b.west], [b.north, b.east]],
@@ -9763,7 +9775,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         ).addTo(map);
                         window._majicFluxOverlays.push(ov);
                         successCount++;
-                        console.log(`✅ [MAJIC tile ${i+1}/${clusters.length}] (${cl.lat.toFixed(5)},${cl.lon.toFixed(5)}) r=${cl.radius_m}m flux=${data.flux_min}–${data.flux_max}`);
+                        console.log(`✅ [MAJIC tile ${i+1}/${clusters.length}] (${cl.lat.toFixed(5)},${cl.lon.toFixed(5)}) r=${cl.radius_m}m drift=${Math.round(_driftM)}m flux=${data.flux_min}–${data.flux_max}`);
                     } catch(e) { console.warn(`[MAJIC tile ${i}] ${e.message}`); }
                 }));
 
