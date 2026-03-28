@@ -9852,7 +9852,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 return;
             }
             // ── Utiliser le cache BDD si disponible (0 token Google Solar consommé) ──────────
-            if (_cachedIrradiationData) {
+            // En mode MAJIC multi-site : le cache mono-tuile ne couvre pas tous les bâtiments → ignorer
+            const _isMajicMode = window._majicLoadedFeats?.length > 0 && !(viewer3D?.isActive) && (!zones || !zones.length);
+            if (_cachedIrradiationData && !_isMajicMode) {
                 _fluxActive = true;
                 await _restoreIrradiationFromCache(_cachedIrradiationData);
                 return;
@@ -9860,8 +9862,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
             _syncFluxBtns(false, true);
             // ── MAJIC multi-tile : un appel Solar par centroïde de parcelle ────────────
-            if (window._majicLoadedFeats?.length > 0 && !(viewer3D?.isActive)
-                    && (!zones || !zones.length)) {
+            if (_isMajicMode) {
                 await _toggleFluxHeatmapMajic();
                 return;
             }
