@@ -9703,7 +9703,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 // Déduplication légère : fusionner les bâtiments strictement contigus (<15m)
                 // pour éviter deux appels Solar sur le même bâtiment découpé en deux polygones BD TOPO.
                 const MERGE_M = 15;
-                const MAX_CALLS = 50;
                 const merged = [];
                 clusters.forEach(cl => {
                     const mLat = 111320, mLon = 111320 * Math.cos(cl.lat * Math.PI / 180);
@@ -9735,11 +9734,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     }
                 });
 
-                // Priorité : clusters BD TOPO d'abord (n>0), fallbacks ensuite ; cap MAX_CALLS
-                clusters.sort((a, b) => b.n - a.n);
-                if (clusters.length > MAX_CALLS) clusters = clusters.slice(0, MAX_CALLS);
                 const bdCount = clusters.filter(c => c.n > 0).length;
-                console.log(`🌡️ [MAJIC Multi-tile] → ${clusters.length} appels Solar (${bdCount} BD TOPO + ${clusters.length - bdCount} fallbacks parcelles, merge <${MERGE_M}m, max ${MAX_CALLS})`);
+                console.log(`🌡️ [MAJIC Multi-tile] → ${clusters.length} appels Solar (${bdCount} BD TOPO + ${clusters.length - bdCount} fallbacks parcelles, merge <${MERGE_M}m)`);
 
                 // Préparer le fond satellite avant les tuiles
                 _switchTileForHeatmap(true);
