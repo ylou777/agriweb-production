@@ -9675,6 +9675,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     if (bdResp.ok) {
                         const bdGj = await bdResp.json();
                         const buildings = bdGj.features || [];
+                        // parcelRings et parcelCentroids sont co-indexés (même filtre Boolean sur feats)
                         buildings.forEach(bld => {
                             const ring = _firstRing(bld.geometry);
                             if (!ring?.length) return;
@@ -9682,18 +9683,30 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             if (!c) return;
                             const [cLon, cLat] = c;
 
-                            // Test intersection robuste (centroïde OU sommet du bâtiment dans une parcelle)
-                            const intersects = parcelRings.some(pr =>
-                                _pip(c, pr) ||                           // centroïde bâtiment → parcelle
-                                ring.some(v => _pip(v, pr)) ||           // un sommet bâtiment → parcelle
-                                _pip([cLon, cLat], pr)                   // (redondant mais clair)
+                            // Test intersection robuste :
+                            // 1) centroïde bâtiment dans la parcelle (cas nominal)
+                            // 2) un sommet du bâtiment dans la parcelle (bâtiment à cheval)
+                            // 3) centroïde parcelle dans le bâtiment (grande halle couvrant toute la parcelle)
+                            const matchIdx = parcelRings.findIndex((pr, idx) =>
+                                _pip(c, pr) ||
+                                ring.some(v => _pip(v, pr)) ||
+                                (parcelCentroids[idx] && _pip([parcelCentroids[idx].lon, parcelCentroids[idx].lat], ring))
                             );
-                            if (!intersects) return;
+                            if (matchIdx < 0) return;
+
+                            // Si le centroïde bâtiment est hors-parcelle (cas 2 ou 3),
+                            // ancrer la requête Solar sur le centroïde de la parcelle matchée
+                            // → la tuile reste à l'intérieur du site, pas sur la rue voisine
+                            let tileLat = cLat, tileLon = cLon;
+                            if (!_pip(c, parcelRings[matchIdx])) {
+                                tileLat = parcelCentroids[matchIdx].lat;
+                                tileLon = parcelCentroids[matchIdx].lon;
+                            }
 
                             // Rayon = demi-diagonale du bâtiment lui-même + 15m (tuile serrée)
                             const hd = _halfDiag(ring, cLon, cLat);
                             const radius_m = Math.max(35, Math.min(Math.ceil(hd) + 15, 300));
-                            clusters.push({ lat: cLat, lon: cLon, radius_m, allCoords: ring, n: 1 });
+                            clusters.push({ lat: tileLat, lon: tileLon, radius_m, allCoords: ring, n: 1 });
                         });
                         console.log(`🏗️ [BD TOPO] ${buildings.length} bâtiments → ${clusters.length} dans les parcelles MAJIC`);
                     }
