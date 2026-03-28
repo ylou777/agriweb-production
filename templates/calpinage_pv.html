@@ -3410,55 +3410,75 @@
         
         async function loadParcelles() {
             try {
-                // Récupérer les données du prospect (rapport)
                 const response = await fetch(`/api/crm/prospects/${prospectId}`);
                 const data = await response.json();
-                
-                if (!data.data_json || !data.data_json.rapport) {
-                    console.log('Pas de rapport disponible pour charger les parcelles');
-                    return;
-                }
-                
-                const rapport = data.data_json.rapport;
-                
-                // Vérifier s'il y a des parcelles
-                if (!rapport.parcelles || rapport.parcelles.length === 0) {
-                    console.log('Aucune parcelle trouvée dans le rapport');
-                    return;
-                }
-                
-                console.log('🗺️ Chargement des parcelles cadastrales:', rapport.parcelles);
-                
-                // Créer un layer group pour les parcelles
+                const prospect = data.prospect || data; // compatibilité
+
                 parcellesLayer = L.layerGroup();
-                
-                // Pour chaque parcelle, récupérer sa géométrie depuis l'API cadastre
+
+                // --- Source 1 : Import MAJIC (parcelles_cadastrales = "ZM0023, ZM0024, ...")
+                const majicRefs = prospect.parcelles_cadastrales || '';
+                const dataJson = prospect.data_json || {};
+                const codeInsee = (dataJson.code_insee) || '';
+                if (majicRefs && codeInsee) {
+                    console.log('🗺️ [MAJIC] Chargement parcelles MAJIC, code_insee=', codeInsee, 'refs=', majicRefs);
+                    // Parser les refs "ZM0023, ZM0024" → {section: Set<numero>}
+                    const sectionsMap = {};
+                    majicRefs.split(',').forEach(r => {
+                        const m = r.trim().toUpperCase().match(/^([A-Z]+)(\d+)$/);
+                        if (m) {
+                            if (!sectionsMap[m[1]]) sectionsMap[m[1]] = new Set();
+                            sectionsMap[m[1]].add(m[2].padStart(4, '0'));
+                        }
+                    });
+                    const allBounds = [];
+                    for (const [sec, nums] of Object.entries(sectionsMap)) {
+                        try {
+                            const url = `https://apicarto.ign.fr/api/cadastre/parcelle?code_insee=${codeInsee}&section=${sec}&_limit=500`;
+                            const r = await fetch(url);
+                            const gj = await r.json();
+                            for (const feat of (gj.features || [])) {
+                                const fn = (feat.properties.numero || '').padStart(4, '0');
+                                const fnRaw = feat.properties.numero || '';
+                                if (nums.has(fn) || nums.has(fnRaw)) {
+                                    const ref = sec + parseInt(fnRaw, 10);
+                                    const layer = L.geoJSON(feat, {
+                                        style: { color: '#00e5ff', weight: 3, opacity: 1, fillColor: '#00e5ff', fillOpacity: 0.08 }
+                                    });
+                                    layer.bindTooltip(`<strong>${ref}</strong><br>${feat.properties.contenance || ''} m²`, {
+                                        permanent: true, direction: 'center', className: 'parcelle-tooltip', opacity: 0.9
+                                    });
+                                    parcellesLayer.addLayer(layer);
+                                    if (feat.geometry && feat.geometry.coordinates) {
+                                        try { allBounds.push(L.geoJSON(feat).getBounds()); } catch(e){}
+                                    }
+                                }
+                            }
+                        } catch(e) { console.warn('⚠️ apicarto section', sec, e); }
+                    }
+                    if (allBounds.length > 0) {
+                        const combined = allBounds.reduce((acc, b) => acc.extend(b), allBounds[0]);
+                        map.fitBounds(combined, { padding: [40, 40] });
+                    }
+                    parcellesLayer.addTo(map);
+                    L.control.layers(null, { "📐 Parcelles MAJIC": parcellesLayer }, { position: 'topright', collapsed: true }).addTo(map);
+                    console.log('✅ [MAJIC] Parcelles chargées');
+                    return;
+                }
+
+                // --- Source 2 : rapport.parcelles classique (format "23123 000 AE 0123")
+                const rapport = (dataJson.rapport) || {};
+                if (!rapport.parcelles || rapport.parcelles.length === 0) {
+                    console.log('Aucune parcelle trouvée');
+                    return;
+                }
+                console.log('🗺️ Chargement des parcelles cadastrales:', rapport.parcelles);
                 for (const parcelleRef of rapport.parcelles) {
                     await loadParcelle(parcelleRef);
                 }
-                
-                // Ajouter le layer au contrôle de couches
-                const layersControl = document.querySelector('.leaflet-control-layers');
-                if (layersControl && map._layers) {
-                    // Trouver le contrôle de couches existant
-                    map.eachLayer(function(layer) {
-                        if (layer._layers && layer._url) {
-                            // C'est un basemap
-                        }
-                    });
-                    
-                    // Ajouter comme overlay
-                    L.control.layers(null, {
-                        "📐 Parcelles cadastrales": parcellesLayer
-                    }, {
-                        position: 'topright',
-                        collapsed: true
-                    }).addTo(map);
-                }
-                
-                // Ajouter à la carte par défaut
+                L.control.layers(null, { "📐 Parcelles cadastrales": parcellesLayer }, { position: 'topright', collapsed: true }).addTo(map);
                 parcellesLayer.addTo(map);
-                
+
             } catch (error) {
                 console.error('Erreur lors du chargement des parcelles:', error);
             }
