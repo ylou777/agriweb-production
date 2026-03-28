@@ -3523,6 +3523,8 @@
                     if (allBounds.length > 0) {
                         const combined = allBounds.reduce((acc, b) => acc.extend(b), allBounds[0]);
                         map.fitBounds(combined, { padding: [40, 40] });
+                        // Stocker pour l'irradiation (fallback si aucune zone dessinée)
+                        window._majicParcelsBounds = combined;
                     }
                     parcellesLayer.addTo(map);
                     L.control.layers(null, { [`📐 Parcelles MAJIC (${allFeats.length})`]: parcellesLayer },
@@ -8860,6 +8862,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         }
 
         // ── Carte d'irradiation solaire (Google Solar annualFlux heatmap) ──
+        window._majicParcelsBounds = null;  // Bbox L.LatLngBounds des parcelles MAJIC chargées
         let _fluxActive           = false;
         let _flux2DOverlay        = null;
         let _prevMapView          = null;  // zoom/centre avant activation heatmap
@@ -9737,6 +9740,28 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             [maxLon + bufLon, maxLat + bufLat],
                             [minLon - bufLon, maxLat + bufLat]
                         ];
+                    } else if (window._majicParcelsBounds) {
+                        // ── Fallback MAJIC : utiliser le bbox de toutes les parcelles du prospect ──
+                        const mb = window._majicParcelsBounds;
+                        const minLat = mb.getSouth(), maxLat = mb.getNorth();
+                        const minLon = mb.getWest(),  maxLon = mb.getEast();
+                        heatLat = (minLat + maxLat) / 2;
+                        heatLon = (minLon + maxLon) / 2;
+                        const _mpdLatM = 111320;
+                        const _mpdLonM = 111320 * Math.cos(heatLat * Math.PI / 180);
+                        const dyM = ((maxLat - minLat) / 2) * _mpdLatM;
+                        const dxM = ((maxLon - minLon) / 2) * _mpdLonM;
+                        radius_m = Math.max(50, Math.min(Math.ceil(Math.hypot(dxM, dyM)) + 30, 350));
+                        // Polygone rectangulaire englobant toutes les parcelles (+ léger buffer 5%)
+                        const bufLatM = (maxLat - minLat) * 0.05;
+                        const bufLonM = (maxLon - minLon) * 0.05;
+                        bCoords = [
+                            [minLon - bufLonM, minLat - bufLatM],
+                            [maxLon + bufLonM, minLat - bufLatM],
+                            [maxLon + bufLonM, maxLat + bufLatM],
+                            [minLon - bufLonM, maxLat + bufLatM]
+                        ];
+                        console.log(`🗺️ [MAJIC fallback] bbox parcelles → (${heatLat.toFixed(5)}, ${heatLon.toFixed(5)}) r=${radius_m}m`);
                     } else {
                         heatLat = prospectLat;
                         heatLon = prospectLon;
