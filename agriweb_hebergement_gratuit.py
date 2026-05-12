@@ -711,6 +711,22 @@ try:
 except Exception as e:
     print(f"⚠️ [NEWS-SOLAR] Impossible d'enregistrer le blueprint démo: {e}")
 
+# Campagne email mairies (36 000 communes)
+try:
+    from routes.mairies_campaign_routes import campaign_bp
+    app.register_blueprint(campaign_bp)
+    print("📬 [CAMPAIGN] Blueprint campagne mairies enregistré (/campaign/...)")
+except Exception as e:
+    print(f"⚠️ [CAMPAIGN] Impossible d'enregistrer le blueprint campagne: {e}")
+
+# Marketplace AO solaire municipal (/ao)
+try:
+    from routes.commune_ao_routes import commune_ao_bp
+    app.register_blueprint(commune_ao_bp)
+    print("🔌 [AO MAIRIES] Blueprint marketplace AO municipal enregistré (/ao/...)")
+except Exception as e:
+    print(f"⚠️ [AO MAIRIES] Impossible d'enregistrer le blueprint AO: {e}")
+
 # Interface messagerie OVH (IMAP/SMTP) + Calendrier
 try:
     from mail_routes import mail_bp
