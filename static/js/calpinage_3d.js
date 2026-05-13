@@ -4159,6 +4159,8 @@ class Calpinage3DViewer {
      * Supprime tous les overlays Google Solar (panneaux + segments de toit).
      * Appelé quand RANSAC arrive ou quand on relance Solar : évite les
      * panneaux fantômes flottants au-dessus du toit reconstruit.
+     * Garantit que _solarPanelMeshes / _solarRoofMeshes sont des tableaux
+     * vides en sortie (jamais undefined) — les call-sites font .push() dessus.
      */
     _disposeSolarOverlays() {
         const _disposeMesh = m => {
@@ -4168,14 +4170,14 @@ class Calpinage3DViewer {
             if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
             else m.material?.dispose();
         };
-        if (this._solarPanelMeshes?.length) {
+        if (Array.isArray(this._solarPanelMeshes)) {
             this._solarPanelMeshes.forEach(_disposeMesh);
-            this._solarPanelMeshes = [];
         }
-        if (this._solarRoofMeshes?.length) {
+        this._solarPanelMeshes = [];
+        if (Array.isArray(this._solarRoofMeshes)) {
             this._solarRoofMeshes.forEach(_disposeMesh);
-            this._solarRoofMeshes = [];
         }
+        this._solarRoofMeshes = [];
     }
 
     /**
