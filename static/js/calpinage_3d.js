@@ -4156,6 +4156,29 @@ class Calpinage3DViewer {
     }
 
     /**
+     * Supprime tous les overlays Google Solar (panneaux + segments de toit).
+     * Appelé quand RANSAC arrive ou quand on relance Solar : évite les
+     * panneaux fantômes flottants au-dessus du toit reconstruit.
+     */
+    _disposeSolarOverlays() {
+        const _disposeMesh = m => {
+            if (!m) return;
+            this.scene.remove(m);
+            m.geometry?.dispose();
+            if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+            else m.material?.dispose();
+        };
+        if (this._solarPanelMeshes?.length) {
+            this._solarPanelMeshes.forEach(_disposeMesh);
+            this._solarPanelMeshes = [];
+        }
+        if (this._solarRoofMeshes?.length) {
+            this._solarRoofMeshes.forEach(_disposeMesh);
+            this._solarRoofMeshes = [];
+        }
+    }
+
+    /**
      * Lance en arrière-plan un appel POST /api/lidar/copc-grid (~15-35 s).
      * Rebuilt le toit depuis la grille Z brute LiDAR (pixel-perfect) :
      *   - chaque cellule = médiane des points LiDAR dans 1 carré de 0.5m
@@ -4197,6 +4220,14 @@ class Calpinage3DViewer {
             this.lidarData.building_hd.roof_planes = data.roof_planes;
         if (data.center)
             this.lidarData.building_hd.building_center = data.center;
+
+        // RANSAC arrivé : purger les fantômes Google Solar éventuellement créés
+        // pendant la phase d'attente (altitude approximative → flottent au-dessus du toit HD).
+        if (this._solarPanelMeshes?.length || this._solarRoofMeshes?.length) {
+            const _n = (this._solarPanelMeshes?.length || 0) + (this._solarRoofMeshes?.length || 0);
+            console.log(`🧹 [COPC] Purge de ${_n} overlay(s) Google Solar (RANSAC disponible)`);
+            this._disposeSolarOverlays();
+        }
 
         // Supprimer le toit MNH et reconstruire depuis la grille brute
         this._removePVRoofMeshes();
@@ -5311,22 +5342,17 @@ class Calpinage3DViewer {
      * @param {Object} bldgCenter    – {lat, lon} (this._solarBldgCenter si absent)
      */
     applyBuildingInsightsPanels3D(solarPanels, roofSegments, bldgCenter) {
+        // Nettoyage systématique des anciens overlays Solar (panels + segments),
+        // même si on early-return ci-dessous : sinon des fantômes flotteraient
+        // au-dessus du toit RANSAC reconstruit.
+        this._disposeSolarOverlays();
+
         // Quand LiDAR/RANSAC est disponible : les modules sont positionnés depuis les plans RANSAC
         // → les panneaux Google Solar individuels seraient un doublon flottant (mauvaise altitude).
         if (this.lidarData?.building_hd?.roof_planes?.length > 0) {
             console.info('ℹ️ applyBuildingInsightsPanels3D: ignoré — données RANSAC disponibles (évite le masque Solar parasite)');
             return;
         }
-        // Nettoyage
-        if (this._solarPanelMeshes) {
-            this._solarPanelMeshes.forEach(m => {
-                this.scene.remove(m);
-                m.geometry?.dispose();
-                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
-                else m.material?.dispose();
-            });
-        }
-        this._solarPanelMeshes = [];
 
         const center = bldgCenter ?? this._solarBldgCenter;
         const segs   = roofSegments ?? this._solarSegments ?? [];
@@ -6454,14 +6480,7 @@ class Calpinage3DViewer {
             if (m.material) m.material.dispose();
         });
         this.modules3D = [];
-        
-        // Si des panneaux Google Solar sont affichés, ne PAS ajouter les modules
-        // zones (rouges) pour éviter la superposition avec les panneaux colorés.
-        if (this._hasSolarRoof && this._solarPanelMeshes && this._solarPanelMeshes.length > 0) {
-            console.log(`⚡ ${this._solarPanelMeshes.length} panneaux Google Solar actifs → modules zones 3D non affichés`);
-            return;
-        }
-        
+
         if (!zones) return;
 
         // Offset bâtiment → monde pour équation de plan RANSAC (partagé toutes zones)
