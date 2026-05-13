@@ -727,6 +727,14 @@ try:
 except Exception as e:
     print(f"⚠️ [AO MAIRIES] Impossible d'enregistrer le blueprint AO: {e}")
 
+# LinkedIn auto-poster (/admin/linkedin)
+try:
+    from routes.linkedin_routes import linkedin_bp
+    app.register_blueprint(linkedin_bp)
+    print("💼 [LINKEDIN] Blueprint LinkedIn auto-poster enregistré (/admin/linkedin/...)")
+except Exception as e:
+    print(f"⚠️ [LINKEDIN] Impossible d'enregistrer le blueprint LinkedIn: {e}")
+
 # Interface messagerie OVH (IMAP/SMTP) + Calendrier
 try:
     from mail_routes import mail_bp
