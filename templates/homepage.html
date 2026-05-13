@@ -771,9 +771,20 @@
                         <a href="/bureaux-etudes" class="nav-commune-link d-none d-md-inline-flex me-1">
                             <i class="bi bi-buildings"></i> BET
                         </a>
-                        <a href="/actualites-solaires" class="nav-commune-link d-none d-md-inline-flex me-2">
+                        <a href="/actualites-solaires" class="nav-commune-link d-none d-md-inline-flex me-1">
                             <i class="bi bi-newspaper"></i> Actualités
                         </a>
+                        {% if is_admin %}
+                        <a href="/campaign/" class="nav-commune-link d-none d-md-inline-flex me-1" title="Campagnes email mairies">
+                            <i class="bi bi-envelope-paper"></i> Campagnes
+                        </a>
+                        <a href="/ao/admin" class="nav-commune-link d-none d-md-inline-flex me-1" title="Marketplace AO mairies">
+                            <i class="bi bi-bank"></i> AO Mairies
+                        </a>
+                        <a href="/admin/linkedin/" class="nav-commune-link d-none d-md-inline-flex me-2" title="Auto-poster LinkedIn">
+                            <i class="bi bi-linkedin"></i>
+                        </a>
+                        {% endif %}
                         <span class="user-info me-2">Bienvenue, {{ current_user.get('email', '') }}</span>
                         <a href="/admin" class="btn btn-warning">Administration</a>
                         <a href="/app" class="btn btn-primary">Application</a>
@@ -1262,11 +1273,12 @@
     function launchCommune() {
         const val = communeInput ? communeInput.value.trim() : '';
         if (!val) { if (communeInput) communeInput.focus(); return; }
-        if (selectedCommune) {
-            window.location.href = '/app?address=' + encodeURIComponent(selectedCommune.nom + ', France') +
-                                   '&commune=' + selectedCommune.code;
+        if (selectedCommune && selectedCommune.code) {
+            window.location.href = '/ao/commune/' + selectedCommune.code;
+        } else if (/^\d{5}$/.test(val)) {
+            window.location.href = '/ao/commune/' + val;
         } else {
-            window.location.href = '/app?address=' + encodeURIComponent(val + ', France');
+            window.location.href = '/ao/';
         }
     }
     </script>
