@@ -5349,6 +5349,14 @@ class Calpinage3DViewer {
         // au-dessus du toit RANSAC reconstruit.
         this._disposeSolarOverlays();
 
+        // Si l'utilisateur a déjà placé des zones 2D : les modules sont rendus
+        // depuis addModules3D — les panneaux Google Solar feraient doublon
+        // (souvent à mauvaise altitude car le bldgCenter Solar ≠ COPC).
+        if (this._lastZones?.length > 0) {
+            console.info(`ℹ️ applyBuildingInsightsPanels3D: ignoré — ${this._lastZones.length} zone(s) 2D placée(s)`);
+            return;
+        }
+
         // Quand LiDAR/RANSAC est disponible : les modules sont positionnés depuis les plans RANSAC
         // → les panneaux Google Solar individuels seraient un doublon flottant (mauvaise altitude).
         if (this.lidarData?.building_hd?.roof_planes?.length > 0) {
@@ -6468,6 +6476,14 @@ class Calpinage3DViewer {
         const _dbgHasRansac = (this.roofPanelsInfo?.panels || []).some(p => p.mnh_a !== undefined);
         const _dbgHasCOPC   = !!(this.lidarData?.building_hd?.copc_grid?.grid);
         console.log(`🔧 [addModules3D] RANSAC:${_dbgHasRansac} COPC:${_dbgHasCOPC} zones:${zones?.length} bWH:${this.roofPanelsInfo?.buildingWallH ?? '?'} terrainH:${this.roofPanelsInfo?.buildingTerrainH ?? '?'}`);
+
+        // Si l'utilisateur place des zones et que des Solar phantoms existent
+        // (cas où Google Solar a fire avant le placement des zones), purger.
+        if (zones?.length && (this._solarPanelMeshes?.length || this._solarRoofMeshes?.length)) {
+            const _n = (this._solarPanelMeshes?.length || 0) + (this._solarRoofMeshes?.length || 0);
+            console.log(`🧹 [addModules3D] Purge de ${_n} overlay(s) Google Solar (zones 2D prioritaires)`);
+            this._disposeSolarOverlays();
+        }
 
         // Supprimer les anciens modules (groupes ou meshes individuels)
         this.modules3D.forEach(m => {
