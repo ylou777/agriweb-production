@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 120" width="440" height="120">
+  <defs>
+    <!-- Gradient or: doré -->
+    <linearGradient id="gGoldA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#FF8C00"/>
+    </linearGradient>
+    <!-- Gradient fond nuit -->
+    <linearGradient id="gBgA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0e27"/>
+      <stop offset="100%" stop-color="#1a1f3a"/>
+    </linearGradient>
+    <!-- Halo doux autour du soleil -->
+    <radialGradient id="gHaloA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ─── Fond ──────────────────────────────────────────────── -->
+  <rect width="440" height="120" rx="14" fill="url(#gBgA)"/>
+
+  <!-- ─── Icône : hexagone solaire (centre 60,60 r=36) ──────── -->
+  <!--  Pointy-top hex : Top(60,24) TR(91,42) BR(91,78) Bot(60,96) BL(29,78) TL(29,42) -->
+  <polygon points="60,24 91,42 91,78 60,96 29,78 29,42"
+           fill="none" stroke="url(#gGoldA)" stroke-width="2.5"/>
+  <!-- 3 lignes de grille intérieures (panneau PV) -->
+  <line x1="29" y1="60" x2="91" y2="60" stroke="url(#gGoldA)" stroke-width="1.2" opacity="0.5"/>
+  <line x1="29" y1="42" x2="91" y2="78" stroke="url(#gGoldA)" stroke-width="1.2" opacity="0.5"/>
+  <line x1="91" y1="42" x2="29" y2="78" stroke="url(#gGoldA)" stroke-width="1.2" opacity="0.5"/>
+  <!-- Halo soleil central -->
+  <circle cx="60" cy="60" r="18" fill="url(#gHaloA)"/>
+  <!-- Soleil central -->
+  <circle cx="60" cy="60" r="9" fill="url(#gGoldA)"/>
+
+  <!-- ─── Wordmark ───────────────────────────────────────────── -->
+  <text x="115" y="70"
+        font-family="'Arial Black', 'Franklin Gothic Heavy', Impact, sans-serif"
+        font-size="42" font-weight="900" letter-spacing="-1.5">
+    <tspan fill="#FFFFFF">HELIA</tspan><tspan fill="#FFB700">PV</tspan>
+  </text>
+
+  <!-- Filet séparateur -->
+  <line x1="115" y1="80" x2="390" y2="80" stroke="#FFB700" stroke-width="0.8" opacity="0.4"/>
+
+  <!-- Tagline -->
+  <text x="116" y="96"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="9.5" fill="#8892b0" letter-spacing="2.8">
+    SOLUTION PHOTOVOLTAÏQUE INTELLIGENTE
+  </text>
+
+  <!-- Site web -->
+  <text x="390" y="112"
+        text-anchor="end"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="7.5" fill="#4a5568" letter-spacing="1">
+    heliapv.fr
+  </text>
+</svg>

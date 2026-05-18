@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="gGoldC" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FF8C00"/>
+    </linearGradient>
+    <linearGradient id="gDarkC" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0e27"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <radialGradient id="gHaloC" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ─── Fond cercle ──────────────────────────────────────── -->
+  <circle cx="50" cy="50" r="50" fill="url(#gDarkC)"/>
+
+  <!-- ─── Hexagone cadre or (anneau extérieur) ─────────────── -->
+  <!-- Pointy-top, centre (50,50), r=44 -->
+  <!-- Top(50,6) TR(88,28) BR(88,72) Bot(50,94) BL(12,72) TL(12,28) -->
+  <polygon points="50,6 88,28 88,72 50,94 12,72 12,28"
+           fill="none" stroke="url(#gGoldC)" stroke-width="2" opacity="0.7"/>
+
+  <!-- ─── Lettre H stylisée ─────────────────────────────────── -->
+  <!-- Jambe gauche -->
+  <rect x="20" y="25" width="11" height="50" rx="3" fill="url(#gGoldC)"/>
+  <!-- Jambe droite -->
+  <rect x="69" y="25" width="11" height="50" rx="3" fill="url(#gGoldC)"/>
+  <!-- Connecteurs horizontaux de la barre du H vers le soleil -->
+  <rect x="31" y="46" width="10" height="8" rx="2" fill="url(#gGoldC)"/>
+  <rect x="59" y="46" width="10" height="8" rx="2" fill="url(#gGoldC)"/>
+
+  <!-- ─── Soleil (barre du H) ───────────────────────────────── -->
+  <!-- Halo -->
+  <circle cx="50" cy="50" r="16" fill="url(#gHaloC)"/>
+  <!-- 8 rayons autour du soleil central -->
+  <line x1="50" y1="32" x2="50" y2="37" stroke="url(#gGoldC)" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="50" y1="63" x2="50" y2="68" stroke="url(#gGoldC)" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="42" y1="34" x2="44.5" y2="39" stroke="url(#gGoldC)" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="58" y1="34" x2="55.5" y2="39" stroke="url(#gGoldC)" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="42" y1="66" x2="44.5" y2="61" stroke="url(#gGoldC)" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="58" y1="66" x2="55.5" y2="61" stroke="url(#gGoldC)" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Soleil central -->
+  <circle cx="50" cy="50" r="9" fill="url(#gGoldC)"/>
+  <!-- Éclat intérieur blanc -->
+  <circle cx="50" cy="50" r="4" fill="white" opacity="0.35"/>
+</svg>

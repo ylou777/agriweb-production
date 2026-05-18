@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeliaPV — Pipeline Complet Projet PV</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --gold:        #FFB700;
+            --gold-light:  #FFD060;
+            --gold-dark:   #E09400;
+            --navy:        #0a0e27;
+            --navy-mid:    #1a1f3a;
+            --navy-light:  #2d1b4e;
+            --purple:      #3d2070;
+            --glass-bg:    rgba(255,255,255,0.04);
+            --glass-border:rgba(255,183,0,0.18);
+            --text:        rgba(255,255,255,0.92);
+            --text-muted:  rgba(255,255,255,0.55);
+
+            /* Phase accent colors */
+            --c1: #FF8C42;   /* Prospection – orange */
+            --c2: #3BC4F2;   /* Analyse – bleu ciel */
+            --c3: #A78BFA;   /* Commercial – violet */
+            --c4: #34D399;   /* Administratif – vert */
+            --c5: #F472B6;   /* Chantier – rose */
+            --c6: #FFB700;   /* Mise en service – or */
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--navy);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── ANIMATED BACKGROUND ── */
+        .anim-bg {
+            position: fixed; inset: 0; z-index: 0;
+            background: linear-gradient(135deg,
+                var(--navy) 0%, var(--navy-mid) 30%,
+                var(--navy-light) 60%, var(--navy-mid) 80%, var(--navy) 100%);
+            background-size: 400% 400%;
+            animation: bgShift 18s ease infinite;
+        }
+        @keyframes bgShift {
+            0%,100% { background-position: 0% 50%; }
+            50%      { background-position: 100% 50%; }
+        }
+
+        /* ── GRID LINES ── */
+        .grid-lines {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255,183,0,0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,183,0,0.035) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        /* ── PARTICLES ── */
+        .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .particle {
+            position: absolute; width: 2px; height: 2px;
+            background: rgba(255,183,0,0.5); border-radius: 50%;
+            animation: particleFloat linear infinite;
+        }
+        @keyframes particleFloat {
+            0%   { transform: translateY(100vh) translateX(0) scale(0); opacity: 0; }
+            5%   { opacity: 1; }
+            95%  { opacity: 0.8; }
+            100% { transform: translateY(-10vh) translateX(120px) scale(1.4); opacity: 0; }
+        }
+
+        /* ── CONTENT ── */
+        .content { position: relative; z-index: 1; padding: 48px 24px 80px; max-width: 1400px; margin: 0 auto; }
+
+        /* ── HEADER ── */
+        .header { text-align: center; margin-bottom: 64px; }
+        .logo-badge {
+            display: inline-flex; align-items: center; gap: 10px;
+            background: rgba(255,183,0,0.08);
+            border: 1px solid rgba(255,183,0,0.3);
+            border-radius: 100px; padding: 8px 20px;
+            margin-bottom: 24px; font-size: 0.8rem; font-weight: 600;
+            color: var(--gold); letter-spacing: 0.12em; text-transform: uppercase;
+        }
+        .logo-badge i { font-size: 1rem; }
+
+        .header h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900;
+            background: linear-gradient(135deg, #FFD060 0%, #FFB700 50%, #E09400 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.15; margin-bottom: 18px;
+            letter-spacing: -1px;
+        }
+        .header .subtitle {
+            font-size: clamp(0.95rem, 2vw, 1.15rem);
+            color: var(--text-muted); max-width: 700px; margin: 0 auto; line-height: 1.7;
+        }
+        .header .subtitle strong { color: var(--gold); font-weight: 600; }
+
+        /* ── PROGRESS BAR ── */
+        .progress-track {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; margin: 48px 0 64px; flex-wrap: nowrap; overflow-x: auto;
+            padding-bottom: 8px;
+        }
+        .progress-step {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; min-width: 110px; flex-shrink: 0;
+        }
+        .progress-dot {
+            width: 48px; height: 48px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; font-weight: 700;
+            border: 2px solid; transition: transform 0.3s;
+            cursor: default; position: relative; z-index: 1;
+        }
+        .progress-dot:hover { transform: scale(1.15); }
+        .progress-dot::after {
+            content: ''; position: absolute; inset: -6px;
+            border-radius: 50%; z-index: -1; opacity: 0.15;
+        }
+        .progress-label {
+            font-size: 0.7rem; font-weight: 600; text-align: center;
+            letter-spacing: 0.05em; text-transform: uppercase; max-width: 90px;
+            line-height: 1.3;
+        }
+        .progress-connector {
+            flex: 1; height: 2px; min-width: 24px; max-width: 80px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            position: relative; top: -18px;
+        }
+
+        /* ── PHASE CARDS ── */
+        .phases-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 28px;
+        }
+
+        .phase-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 32px 28px 28px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: relative; overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .phase-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+        }
+        .phase-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0;
+            height: 3px; border-radius: 20px 20px 0 0;
+        }
+        .phase-card::after {
+            content: ''; position: absolute;
+            top: -80px; right: -80px;
+            width: 200px; height: 200px;
+            border-radius: 50%; opacity: 0.06;
+            pointer-events: none;
+        }
+
+        /* Per-phase accent colors */
+        .phase-1::before { background: var(--c1); }
+        .phase-1::after  { background: var(--c1); }
+        .phase-2::before { background: var(--c2); }
+        .phase-2::after  { background: var(--c2); }
+        .phase-3::before { background: var(--c3); }
+        .phase-3::after  { background: var(--c3); }
+        .phase-4::before { background: var(--c4); }
+        .phase-4::after  { background: var(--c4); }
+        .phase-5::before { background: var(--c5); }
+        .phase-5::after  { background: var(--c5); }
+        .phase-6::before { background: var(--c6); }
+        .phase-6::after  { background: var(--c6); }
+
+        .phase-header {
+            display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;
+        }
+        .phase-icon {
+            width: 52px; height: 52px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; flex-shrink: 0;
+        }
+        .phase-1 .phase-icon { background: rgba(255,140,66,0.15); color: var(--c1); }
+        .phase-2 .phase-icon { background: rgba(59,196,242,0.15); color: var(--c2); }
+        .phase-3 .phase-icon { background: rgba(167,139,250,0.15); color: var(--c3); }
+        .phase-4 .phase-icon { background: rgba(52,211,153,0.15); color: var(--c4); }
+        .phase-5 .phase-icon { background: rgba(244,114,182,0.15); color: var(--c5); }
+        .phase-6 .phase-icon { background: rgba(255,183,0,0.15);  color: var(--c6); }
+
+        .phase-meta { flex: 1; }
+        .phase-num {
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+            text-transform: uppercase; margin-bottom: 4px; opacity: 0.6;
+        }
+        .phase-title {
+            font-size: 1.2rem; font-weight: 800; line-height: 1.25;
+            margin-bottom: 4px;
+        }
+        .phase-tagline { font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+
+        /* Feature list */
+        .feature-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .feature-list li {
+            display: flex; align-items: flex-start; gap: 10px;
+            font-size: 0.82rem; line-height: 1.5;
+        }
+        .feat-icon {
+            width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; margin-top: 1px;
+        }
+        .phase-1 .feat-icon { background: rgba(255,140,66,0.12); color: var(--c1); }
+        .phase-2 .feat-icon { background: rgba(59,196,242,0.12); color: var(--c2); }
+        .phase-3 .feat-icon { background: rgba(167,139,250,0.12); color: var(--c3); }
+        .phase-4 .feat-icon { background: rgba(52,211,153,0.12); color: var(--c4); }
+        .phase-5 .feat-icon { background: rgba(244,114,182,0.12); color: var(--c5); }
+        .phase-6 .feat-icon { background: rgba(255,183,0,0.12);  color: var(--c6); }
+
+        .feat-text strong { font-weight: 600; color: var(--text); }
+        .feat-text span   { color: var(--text-muted); }
+
+        /* Tags */
+        .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; }
+        .tag {
+            font-size: 0.67rem; font-weight: 600; padding: 3px 9px;
+            border-radius: 100px; border: 1px solid; letter-spacing: 0.07em;
+        }
+        .phase-1 .tag { border-color: rgba(255,140,66,0.4); color: var(--c1); background: rgba(255,140,66,0.07); }
+        .phase-2 .tag { border-color: rgba(59,196,242,0.4); color: var(--c2); background: rgba(59,196,242,0.07); }
+        .phase-3 .tag { border-color: rgba(167,139,250,0.4); color: var(--c3); background: rgba(167,139,250,0.07); }
+        .phase-4 .tag { border-color: rgba(52,211,153,0.4); color: var(--c4); background: rgba(52,211,153,0.07); }
+        .phase-5 .tag { border-color: rgba(244,114,182,0.4); color: var(--c5); background: rgba(244,114,182,0.07); }
+        .phase-6 .tag { border-color: rgba(255,183,0,0.4);  color: var(--c6); background: rgba(255,183,0,0.07); }
+
+        /* ── CENTRAL FLOW ARROW ── */
+        .flow-section {
+            margin: 64px 0;
+            text-align: center;
+        }
+        .flow-title {
+            font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em;
+            text-transform: uppercase; color: var(--text-muted); margin-bottom: 32px;
+        }
+        .flow-track {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; flex-wrap: wrap; gap: 0;
+        }
+        .flow-node {
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+        }
+        .flow-bubble {
+            width: 64px; height: 64px; border-radius: 18px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; border: 1px solid;
+            position: relative; transition: transform 0.3s;
+        }
+        .flow-bubble:hover { transform: scale(1.1); }
+        .flow-node-label {
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.07em;
+            text-transform: uppercase; text-align: center; max-width: 72px;
+            line-height: 1.3;
+        }
+        .flow-arrow {
+            font-size: 1.3rem; color: rgba(255,255,255,0.2);
+            padding: 0 4px; margin-bottom: 22px;
+        }
+
+        /* ── STATS STRIP ── */
+        .stats-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px; margin: 64px 0 48px;
+        }
+        .stat-card {
+            background: rgba(255,183,0,0.05);
+            border: 1px solid rgba(255,183,0,0.15);
+            border-radius: 16px; padding: 20px 16px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem; font-weight: 900;
+            background: linear-gradient(135deg, #FFD060 0%, #FFB700 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; line-height: 1;
+        }
+        .stat-label {
+            font-size: 0.72rem; color: var(--text-muted); font-weight: 500;
+            margin-top: 6px; line-height: 1.4;
+        }
+
+        /* ── FOOTER ── */
+        .footer {
+            text-align: center; margin-top: 64px;
+            border-top: 1px solid rgba(255,183,0,0.1);
+            padding-top: 28px;
+        }
+        .footer .brand {
+            font-size: 1.4rem; font-weight: 900;
+            background: linear-gradient(135deg, #FFD060 0%, #FFB700 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 6px;
+        }
+        .footer p { font-size: 0.8rem; color: var(--text-muted); }
+
+        @media (max-width: 800px) {
+            .phases-grid { grid-template-columns: 1fr; }
+            .progress-track { justify-content: flex-start; }
+            .flow-arrow { display: none; }
+            .flow-track { gap: 8px; }
+        }
+
+        /* ── ENTRANCE ANIMATIONS ── */
+        .phase-card { opacity: 0; transform: translateY(30px); }
+        .phase-card.visible {
+            animation: cardIn 0.6s ease forwards;
+        }
+        @keyframes cardIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stat-card { opacity: 0; transform: translateY(16px); }
+        .stat-card.visible {
+            animation: cardIn 0.5s ease forwards;
+        }
+    </style>
+</head>
+<body>
+
+<div class="anim-bg"></div>
+<div class="grid-lines"></div>
+<div class="particles" id="particles"></div>
+
+<div class="content">
+
+    <!-- HEADER -->
+    <div class="header">
+        <div class="logo-badge">
+            <i class="bi bi-sun-fill"></i>
+            HeliaPV · Solution Intégrée
+        </div>
+        <h1>Du Terrain à la Mise en Service<br>Une Seule Plateforme</h1>
+        <p class="subtitle">
+            HeliaPV couvre <strong>la totalité du cycle de vie</strong> d'un projet photovoltaïque :
+            de la prospection cartographique jusqu'au suivi de chantier et la mise en service,
+            en passant par les études techniques, le pipeline commercial et les dossiers administratifs.
+        </p>
+    </div>
+
+    <!-- PROGRESS TRACK -->
+    <div class="progress-track">
+        <div class="progress-step">
+            <div class="progress-dot" style="background:rgba(255,140,66,0.12);border-color:var(--c1);color:var(--c1);">
+                <i class="bi bi-search-heart-fill"></i>
+            </div>
+            <span class="progress-label" style="color:var(--c1);">Prospection</span>
+        </div>
+        <div class="progress-connector"></div>
+        <div class="progress-step">
+            <div class="progress-dot" style="background:rgba(59,196,242,0.12);border-color:var(--c2);color:var(--c2);">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+            <span class="progress-label" style="color:var(--c2);">Études Tech.</span>
+        </div>
+        <div class="progress-connector"></div>
+        <div class="progress-step">
+            <div class="progress-dot" style="background:rgba(167,139,250,0.12);border-color:var(--c3);color:var(--c3);">
+                <i class="bi bi-briefcase-fill"></i>
+            </div>
+            <span class="progress-label" style="color:var(--c3);">Pipeline CRM</span>
+        </div>
+        <div class="progress-connector"></div>
+        <div class="progress-step">
+            <div class="progress-dot" style="background:rgba(52,211,153,0.12);border-color:var(--c4);color:var(--c4);">
+                <i class="bi bi-file-earmark-check-fill"></i>
+            </div>
+            <span class="progress-label" style="color:var(--c4);">Dossiers Admin.</span>
+        </div>
+        <div class="progress-connector"></div>
+        <div class="progress-step">
+            <div class="progress-dot" style="background:rgba(244,114,182,0.12);border-color:var(--c5);color:var(--c5);">
+                <i class="bi bi-building-fill-gear"></i>
+            </div>
+            <span class="progress-label" style="color:var(--c5);">Chantier</span>
+        </div>
+        <div class="progress-connector"></div>
+        <div class="progress-step">
+            <div class="progress-dot" style="background:rgba(255,183,0,0.15);border-color:var(--c6);color:var(--c6);">
+                <i class="bi bi-lightning-charge-fill"></i>
+            </div>
+            <span class="progress-label" style="color:var(--c6);">Mise en Service</span>
+        </div>
+    </div>
+
+    <!-- STATS STRIP -->
+    <div class="stats-strip">
+        <div class="stat-card">
+            <div class="stat-value">6</div>
+            <div class="stat-label">Phases de projet couvertes de A à Z</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">8760</div>
+            <div class="stat-label">Heures de simulation PVGIS par projet</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">80+</div>
+            <div class="stat-label">Modules & onduleurs dans la BDD équipements</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">7</div>
+            <div class="stat-label">Sous-phases de suivi chantier normalisées</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">IGN</div>
+            <div class="stat-label">LiDAR HD COPC natif pour analyse toiture</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">NFC</div>
+            <div class="stat-label">15-712 · IEC 62446 · CERFA 16702</div>
+        </div>
+    </div>
+
+    <!-- PHASE CARDS -->
+    <div class="phases-grid">
+
+        <!-- PHASE 1 : PROSPECTION -->
+        <div class="phase-card phase-1">
+            <div class="phase-header">
+                <div class="phase-icon"><i class="bi bi-pin-map-fill"></i></div>
+                <div class="phase-meta">
+                    <div class="phase-num">Phase 01</div>
+                    <div class="phase-title">Prospection &amp; Détection</div>
+                    <div class="phase-tagline">Identifier les gisements PV avant vos concurrents</div>
+                </div>
+            </div>
+            <ul class="feature-list">
+                <li>
+                    <div class="feat-icon"><i class="bi bi-layers-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Cartographie GIS multi-couches</strong><br>
+                        <span>RPG agricole, PLU/PLUi, parkings, friches, toitures — visualisation simultanée via GeoServer WMS/WFS</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-cloud-haze2-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>LiDAR HD IGN (COPC)</strong><br>
+                        <span>Extraction automatique des plans toiture, pente, orientation et masques d'ombrage depuis les nuages de points 3D</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-cpu-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>IA Helia — classification de toiture</strong><br>
+                        <span>Groq LLM classifie le matériau et la faisabilité PV, crée automatiquement le prospect dans le CRM</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-lightning-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Réseau HTA/BT Enedis</strong><br>
+                        <span>Visualisation aérien/souterrain, mesure de distance au raccordement, faisabilité réseau instantanée</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-google"></i></div>
+                    <div class="feat-text">
+                        <strong>Google Solar Building Insights</strong><br>
+                        <span>Empreinte bâtiment pré-calculée, DNI/GHI, ombres projetées, arbres environnants</span>
+                    </div>
+                </li>
+            </ul>
+            <div class="tag-row">
+                <span class="tag">GeoServer WMS</span>
+                <span class="tag">IGN LiDAR HD</span>
+                <span class="tag">Groq LLM</span>
+                <span class="tag">Enedis HTA</span>
+                <span class="tag">Google Solar API</span>
+            </div>
+        </div>
+
+        <!-- PHASE 2 : ÉTUDES TECHNIQUES -->
+        <div class="phase-card phase-2">
+            <div class="phase-header">
+                <div class="phase-icon"><i class="bi bi-bar-chart-line-fill"></i></div>
+                <div class="phase-meta">
+                    <div class="phase-num">Phase 02</div>
+                    <div class="phase-title">Études &amp; Simulations</div>
+                    <div class="phase-tagline">Dimensionner avec précision, documenter aux normes</div>
+                </div>
+            </div>
+            <ul class="feature-list">
+                <li>
+                    <div class="feat-icon"><i class="bi bi-sun-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Simulation PVGIS 8 760 h</strong><br>
+                        <span>3 simulateurs EU Science Hub, enveloppes P50/P90, décomposition mensuelle/saisonnière, PR ajustable</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-grid-3x3-gap-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Calpinage &amp; plan masse</strong><br>
+                        <span>Multi-zones, comptage automatique des modules, export plan cadastral avec superposition des cadrages</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-diagram-2-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Schéma unifilaire (NF C 15-712)</strong><br>
+                        <span>Configuration DC strings, 3 types de raccordement, stockage batterie, export PDF normalisé</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-house-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Autoconsommation &amp; tarifs</strong><br>
+                        <span>6 profils Enedis (RES, PRO, AGR), 5 structures tarifaires (BASE, HPHC, TEMPO 3 couleurs, EJP, C4)</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-database-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>BDD équipements CertISolis</strong><br>
+                        <span>50+ modules (Canadian Solar, Jinko, Q Cells…), 30+ onduleurs (Fronius, Huawei, SMA…), paramètres électriques complets</span>
+                    </div>
+                </li>
+            </ul>
+            <div class="tag-row">
+                <span class="tag">PVGIS API</span>
+                <span class="tag">NF C 15-712</span>
+                <span class="tag">CertISolis</span>
+                <span class="tag">Enedis Data Connect</span>
+                <span class="tag">P50/P90</span>
+            </div>
+        </div>
+
+        <!-- PHASE 3 : PIPELINE COMMERCIAL -->
+        <div class="phase-card phase-3">
+            <div class="phase-header">
+                <div class="phase-icon"><i class="bi bi-briefcase-fill"></i></div>
+                <div class="phase-meta">
+                    <div class="phase-num">Phase 03</div>
+                    <div class="phase-title">Pipeline Commercial CRM</div>
+                    <div class="phase-tagline">Piloter le portefeuille, convertir les leads</div>
+                </div>
+            </div>
+            <ul class="feature-list">
+                <li>
+                    <div class="feat-icon"><i class="bi bi-funnel-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>CRM multi-rôles &amp; pipeline</strong><br>
+                        <span>Prospect → Proposition → Contrat, rôles (admin / directeur commercial / commercial), isolation multi-tenant</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Génération de proposition complète</strong><br>
+                        <span>Rapport auto-rempli : prévision 8 760 h, photos, calpinage, schéma électrique, ROI/payback</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-graph-up-arrow"></i></div>
+                    <div class="feat-text">
+                        <strong>KPI &amp; tableaux de bord</strong><br>
+                        <span>Taux de conversion, valeur du pipeline, agenda commercial, historique interactions</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-calendar2-check-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Visite technique intégrée</strong><br>
+                        <span>Checklist pré-visite, capture photos on-site, relevé de mesures, évaluation structurelle</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-search"></i></div>
+                    <div class="feat-text">
+                        <strong>Recherches sauvegardées &amp; auto-import</strong><br>
+                        <span>Critères de filtrage persistants, création automatique de prospects depuis les résultats de carte</span>
+                    </div>
+                </li>
+            </ul>
+            <div class="tag-row">
+                <span class="tag">CRM Pipeline</span>
+                <span class="tag">Multi-tenant</span>
+                <span class="tag">RBAC</span>
+                <span class="tag">Rapport PDF</span>
+                <span class="tag">KPI</span>
+            </div>
+        </div>
+
+        <!-- PHASE 4 : ADMINISTRATIF -->
+        <div class="phase-card phase-4">
+            <div class="phase-header">
+                <div class="phase-icon"><i class="bi bi-file-earmark-check-fill"></i></div>
+                <div class="phase-meta">
+                    <div class="phase-num">Phase 04</div>
+                    <div class="phase-title">Dossiers Administratifs</div>
+                    <div class="phase-tagline">Dépôt DP, CERFA, raccordement Enedis</div>
+                </div>
+            </div>
+            <ul class="feature-list">
+                <li>
+                    <div class="feat-icon"><i class="bi bi-buildings-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Déclaration Préalable complète (CERFA 13703)</strong><br>
+                        <span>DP1 plan de situation, DP2 plan cadastral, DP3 coupe, DP4/DP5 façades, DP6 insertion paysagère, photomontage satellite</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-plug-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>CERFA Enedis 16702-01 pré-rempli</strong><br>
+                        <span>Demande de raccordement, classification autoconsommation/injection, acheminement câbles, champs signature</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-folder2-open"></i></div>
+                    <div class="feat-text">
+                        <strong>GED — Gestion documentaire</strong><br>
+                        <span>Versioning, prévisualisation PDF, export ZIP de tout le dossier, OCR pour archivage contrats</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-map-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Coordonnées cadastrales automatiques</strong><br>
+                        <span>Transformation IGN API → Lambert 93, extraction emprise parcelle, superposition modules sur extrait cadastral</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-shield-check-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>DICT, assurances &amp; PPSPS</strong><br>
+                        <span>Déclaration réseaux, TRC, RC chantier, plan de prévention PPSPS pour chantiers &gt;600 m²</span>
+                    </div>
+                </li>
+            </ul>
+            <div class="tag-row">
+                <span class="tag">CERFA 13703</span>
+                <span class="tag">CERFA 16702</span>
+                <span class="tag">IGN Cadastre API</span>
+                <span class="tag">GED</span>
+                <span class="tag">PPSPS</span>
+            </div>
+        </div>
+
+        <!-- PHASE 5 : SUIVI DE CHANTIER -->
+        <div class="phase-card phase-5">
+            <div class="phase-header">
+                <div class="phase-icon"><i class="bi bi-building-fill-gear"></i></div>
+                <div class="phase-meta">
+                    <div class="phase-num">Phase 05</div>
+                    <div class="phase-title">Suivi de Chantier</div>
+                    <div class="phase-tagline">7 sous-phases de l'étude à la livraison</div>
+                </div>
+            </div>
+            <ul class="feature-list">
+                <li>
+                    <div class="feat-icon"><i class="bi bi-pencil-square"></i></div>
+                    <div class="feat-text">
+                        <strong>Études &amp; Ingénierie (ENG)</strong><br>
+                        <span>Validation PVsyst P50/P90, note de calcul DC/AC, plans IFC, CCTP/DPGF, câblage strings</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-truck-flatbed"></i></div>
+                    <div class="feat-text">
+                        <strong>Approvisionnement (APPRO)</strong><br>
+                        <span>Bons de commande, réception modules (flashlisting I-V), tracking numéros de série en base</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-house-add-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Génie Civil &amp; charpente (GC)</strong><br>
+                        <span>Préparation toiture, renfort chevrons, anticorrosion, pose rails, réception nivellement</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-tools"></i></div>
+                    <div class="feat-text">
+                        <strong>Installation électrique (INST)</strong><br>
+                        <span>Pose modules, tests strings DC, coffrets AC, disjoncteur principal, mise à la terre, cheminement câbles</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-activity"></i></div>
+                    <div class="feat-text">
+                        <strong>Mise en service &amp; tests (COMMI)</strong><br>
+                        <span>Mégohmmétrie 1 000 V DC, test de polarité, impédance boucle AC, anti-îlotage, analyse harmoniques</span>
+                    </div>
+                </li>
+            </ul>
+            <div class="tag-row">
+                <span class="tag">IEC 62446-1</span>
+                <span class="tag">PPSPS</span>
+                <span class="tag">NCF/DOE</span>
+                <span class="tag">Flash I-V</span>
+                <span class="tag">Mégohmètre</span>
+            </div>
+        </div>
+
+        <!-- PHASE 6 : MISE EN SERVICE -->
+        <div class="phase-card phase-6">
+            <div class="phase-header">
+                <div class="phase-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+                <div class="phase-meta">
+                    <div class="phase-num">Phase 06</div>
+                    <div class="phase-title">Livraison &amp; Mise en Service</div>
+                    <div class="phase-tagline">DOE, contrôle Enedis, monitoring activé</div>
+                </div>
+            </div>
+            <ul class="feature-list">
+                <li>
+                    <div class="feat-icon"><i class="bi bi-file-earmark-medical-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>DOE &amp; réception préfecture</strong><br>
+                        <span>Déclaration de fin de travaux, dépôt préfecture, rapport IEC 62446-1 complet généré automatiquement</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-check2-circle"></i></div>
+                    <div class="feat-text">
+                        <strong>Inspection finale Enedis</strong><br>
+                        <span>Dossier technique de consignation, attestation de conformité CONSUEL, mise en service réseau</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-bar-chart-fill"></i></div>
+                    <div class="feat-text">
+                        <strong>Rapport IEC 62446 &amp; suivi production</strong><br>
+                        <span>Rapport de mise en service normé, activation monitoring, comparaison production réelle vs PVGIS</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-shield-fill-check"></i></div>
+                    <div class="feat-text">
+                        <strong>Remise O&amp;M &amp; garanties</strong><br>
+                        <span>Manuels d'exploitation, enregistrement garanties fabricants, contrat de maintenance préventive</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="feat-icon"><i class="bi bi-bank2"></i></div>
+                    <div class="feat-text">
+                        <strong>Documentation bancaire &amp; investisseurs</strong><br>
+                        <span>Dossier complet lender pack (Due Diligence), contrat PPA, rapports de performance pour financement</span>
+                    </div>
+                </li>
+            </ul>
+            <div class="tag-row">
+                <span class="tag">IEC 62446</span>
+                <span class="tag">CONSUEL</span>
+                <span class="tag">DOE Préfecture</span>
+                <span class="tag">Monitoring</span>
+                <span class="tag">Lender Pack</span>
+            </div>
+        </div>
+
+    </div><!-- /phases-grid -->
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <div class="brand">☀ HeliaPV</div>
+        <p>Solution SaaS — Développeurs photovoltaïques &amp; bureaux d'études · Version 3.1</p>
+    </div>
+
+</div><!-- /content -->
+
+<script>
+    // --- PARTICLES ---
+    const pContainer = document.getElementById('particles');
+    for (let i = 0; i < 40; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.cssText = `
+            left: ${Math.random() * 100}%;
+            animation-duration: ${14 + Math.random() * 18}s;
+            animation-delay: ${Math.random() * 20}s;
+            width: ${1 + Math.random() * 2.5}px;
+            height: ${1 + Math.random() * 2.5}px;
+            opacity: ${0.3 + Math.random() * 0.5};
+        `;
+        pContainer.appendChild(p);
+    }
+
+    // --- INTERSECTION OBSERVER (entrance animation) ---
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((e, idx) => {
+            if (e.isIntersecting) {
+                const delay = e.target.dataset.delay || 0;
+                setTimeout(() => e.target.classList.add('visible'), delay);
+                observer.unobserve(e.target);
+            }
+        });
+    }, { threshold: 0.08 });
+
+    document.querySelectorAll('.phase-card').forEach((el, i) => {
+        el.dataset.delay = i * 80;
+        observer.observe(el);
+    });
+    document.querySelectorAll('.stat-card').forEach((el, i) => {
+        el.dataset.delay = i * 60;
+        observer.observe(el);
+    });
+</script>
+</body>
+</html>

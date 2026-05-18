@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeliaPV — Propositions de logo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: 4px;
+      color: #8892b0;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 12px;
+      color: #4a5568;
+      letter-spacing: 2px;
+      margin-bottom: 50px;
+    }
+    .proposals {
+      display: flex;
+      flex-direction: column;
+      gap: 50px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .proposal {
+      border: 1px solid #21262d;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .proposal-header {
+      background: #161b22;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #21262d;
+    }
+    .proposal-badge {
+      background: #FFB700;
+      color: #0a0e27;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 1.5px;
+    }
+    .proposal-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e6edf3;
+    }
+    .proposal-desc {
+      font-size: 11px;
+      color: #6e7681;
+      margin-left: auto;
+    }
+
+    /* ── Aperçu sur fond sombre ── */
+    .preview-dark {
+      background: #0a0e27;
+      padding: 36px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 160px;
+    }
+    /* ── Aperçu sur fond clair ── */
+    .preview-light {
+      background: #f8fafc;
+      padding: 36px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 160px;
+    }
+    /* ── Aperçu split (dark + light) ── */
+    .preview-split {
+      display: flex;
+    }
+    .preview-split .half {
+      flex: 1;
+      padding: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .preview-split .half-dark  { background: #0a0e27; }
+    .preview-split .half-light { background: #f1f5f9; border-left: 1px solid #21262d; }
+
+    .preview-icon-grid {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 30px;
+    }
+    .icon-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-label {
+      font-size: 10px;
+      color: #6e7681;
+      letter-spacing: 1px;
+    }
+
+    /* ── Tailles de l'icône ── */
+    .icon-lg  img, .icon-lg  svg  { width: 100px; height: 100px; }
+    .icon-md  img, .icon-md  svg  { width:  64px; height:  64px; }
+    .icon-sm  img, .icon-sm  svg  { width:  32px; height:  32px; }
+
+    /* ── Infos couleurs ── */
+    .palette {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px;
+      background: #0d1117;
+      border-top: 1px solid #21262d;
+      flex-wrap: wrap;
+    }
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #8892b0;
+    }
+    .swatch-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid #21262d;
+    }
+    .use-case {
+      padding: 12px 24px;
+      background: #0d1117;
+      border-top: 1px solid #21262d;
+      font-size: 11px;
+      color: #6e7681;
+    }
+    .use-case span { color: #FFB700; }
+    img { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+
+  <h1>HeliaPV — Propositions de logo</h1>
+  <p class="subtitle">HeliaPV · 3 concepts · SVG vectoriel</p>
+
+  <div class="proposals">
+
+    <!-- ───────────────────────────────────────── LOGO A -->
+    <div class="proposal">
+      <div class="proposal-header">
+        <span class="proposal-badge">A</span>
+        <span class="proposal-title">Solar Hex — Thème sombre</span>
+        <span class="proposal-desc">SaaS / Application web / En-tête</span>
+      </div>
+
+      <div class="preview-dark">
+        <img src="logo_heliapv_A_dark.svg" alt="HeliaPV Logo A — Dark">
+      </div>
+
+      <!-- Aussi visible sur blanc -->
+      <div class="preview-light" style="border-top:1px solid #21262d;">
+        <img src="logo_heliapv_A_dark.svg" alt="HeliaPV Logo A sur fond clair">
+      </div>
+
+      <div class="palette">
+        <div class="swatch"><div class="swatch-dot" style="background:#0a0e27;"></div> #0a0e27 Fond nuit</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#1a1f3a;"></div> #1a1f3a Fond dégradé</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FFD700;"></div> #FFD700 Or vif</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FF8C00;"></div> #FF8C00 Or profond</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FFFFFF;"></div> #FFFFFF Texte</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#8892b0;"></div> #8892b0 Tagline</div>
+      </div>
+      <div class="use-case">
+        <span>Idéal pour :</span> interface web (header), fond sombre, email en dark mode, LinkedIn banner, pitch deck fond bleu nuit.
+      </div>
+    </div>
+
+    <!-- ───────────────────────────────────────── LOGO B -->
+    <div class="proposal">
+      <div class="proposal-header">
+        <span class="proposal-badge" style="background:#FF7A00;">B</span>
+        <span class="proposal-title">Aurora Rise — Thème clair</span>
+        <span class="proposal-desc">Documents / Propositions clients / Factures</span>
+      </div>
+
+      <div class="preview-light">
+        <img src="logo_heliapv_B_light.svg" alt="HeliaPV Logo B — Light">
+      </div>
+
+      <!-- Aussi visible sur noir -->
+      <div class="preview-dark" style="border-top:1px solid #21262d;" >
+        <img src="logo_heliapv_B_light.svg" alt="HeliaPV Logo B sur fond sombre">
+      </div>
+
+      <div class="palette">
+        <div class="swatch"><div class="swatch-dot" style="background:#FFFFFF; border:1px solid #ccc;"></div> #FFFFFF Fond blanc</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#0F172A;"></div> #0F172A Texte Helia</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FFBA00;"></div> #FFBA00 Ambre clair</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FF7A00;"></div> #FF7A00 Ambre profond (PV)</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#64748B;"></div> #64748B Tagline gris</div>
+      </div>
+      <div class="use-case">
+        <span>Idéal pour :</span> propositions commerciales Word/PDF, site avec fond blanc, cartes de visite, plaquettes imprimées, email Outlook fond blanc.
+      </div>
+    </div>
+
+    <!-- ───────────────────────────────────────── LOGO C -->
+    <div class="proposal">
+      <div class="proposal-header">
+        <span class="proposal-badge" style="background:#764ba2;">C</span>
+        <span class="proposal-title">H·Sun — Icône &amp; Badge carré</span>
+        <span class="proposal-desc">Favicon / App icon / Profil réseaux sociaux</span>
+      </div>
+
+      <!-- Grid de tailles -->
+      <div class="preview-icon-grid" style="background:#0a0e27;">
+        <div class="icon-cell">
+          <div class="icon-lg"><img src="logo_heliapv_C_icon.svg" alt="100px"></div>
+          <div class="icon-label">100 px</div>
+        </div>
+        <div class="icon-cell">
+          <div class="icon-md"><img src="logo_heliapv_C_icon.svg" alt="64px"></div>
+          <div class="icon-label">64 px</div>
+        </div>
+        <div class="icon-cell">
+          <div class="icon-sm"><img src="logo_heliapv_C_icon.svg" alt="32px"></div>
+          <div class="icon-label">32 px</div>
+        </div>
+        <div class="icon-cell">
+          <div style="width:16px;height:16px;"><img src="logo_heliapv_C_icon.svg" alt="16px" style="width:16px;height:16px;"></div>
+          <div class="icon-label">16 px (favicon)</div>
+        </div>
+      </div>
+
+      <!-- Aperçu en contexte lockup : icône + nom -->
+      <div class="preview-dark">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <img src="logo_heliapv_C_icon.svg" alt="icon" style="width:52px;height:52px;">
+          <div>
+            <div style="font-family:'Arial Black',sans-serif; font-size:28px; font-weight:900; color:#fff; line-height:1;">
+              HELIA<span style="color:#FFB700;">PV</span>
+            </div>
+            <div style="font-size:9px; letter-spacing:2.5px; color:#8892b0; margin-top:4px;">SOLUTION PHOTOVOLTAÏQUE INTELLIGENTE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette">
+        <div class="swatch"><div class="swatch-dot" style="background:#0a0e27;"></div> #0a0e27 Fond nuit</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#1e1b4b;"></div> #1e1b4b Indigo profond</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FFE066;"></div> #FFE066 Or vif</div>
+        <div class="swatch"><div class="swatch-dot" style="background:#FF8C00;"></div> #FF8C00 Ambre</div>
+      </div>
+      <div class="use-case">
+        <span>Idéal pour :</span> favicon (à exporter en .ico), icône d'application mobile/PWA, avatar LinkedIn/Twitter, vignette YouTube, tampon/cachet.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center; margin-top:60px; font-size:10px; color:#2d333b; letter-spacing:1.5px;">
+    HELIAPV · FICHIERS SVG VECTORIELS — static/images/
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 105" width="400" height="105">
+  <defs>
+    <linearGradient id="gAmberB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFBA00"/>
+      <stop offset="100%" stop-color="#FF7A00"/>
+    </linearGradient>
+    <linearGradient id="gSkyB" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#E0EEFF"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ─── Fond blanc ───────────────────────────────────────── -->
+  <rect width="400" height="105" rx="10" fill="#FFFFFF"/>
+  <rect width="398" height="103" x="1" y="1" rx="9" fill="none" stroke="#E5E7EB" stroke-width="1"/>
+
+  <!-- ─── Icône : soleil levant ────────────────────────────── -->
+  <!-- Centre : (52, 45) -->
+
+  <!-- Rayons solaires (8 rayons) -->
+  <!-- Top -->
+  <line x1="52" y1="14" x2="52" y2="23" stroke="#FFBA00" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- TR -->
+  <line x1="73" y1="19" x2="67" y2="26" stroke="#FFBA00" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Right -->
+  <line x1="83" y1="40" x2="74" y2="43" stroke="#FFBA00" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- TL -->
+  <line x1="31" y1="19" x2="37" y2="26" stroke="#FFBA00" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Left -->
+  <line x1="21" y1="40" x2="30" y2="43" stroke="#FFBA00" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- Arc horizon gris fin -->
+  <path d="M 17,65 A 35,35 0 0 1 87,65" fill="none" stroke="#CBD5E1" stroke-width="1.5"/>
+
+  <!-- Soleil (cercle orange doré) -->
+  <circle cx="52" cy="46" r="16" fill="url(#gAmberB)" opacity="0.25"/>
+  <circle cx="52" cy="46" r="11" fill="url(#gAmberB)"/>
+
+  <!-- Ligne horizon -->
+  <line x1="15" y1="68" x2="89" y2="68" stroke="#CBD5E1" stroke-width="1.8"/>
+
+  <!-- 3 panneaux PV stylisés en silhouette -->
+  <rect x="19" y="62" width="15" height="6" rx="1" fill="#1E293B" opacity="0.30"/>
+  <rect x="45" y="62" width="15" height="6" rx="1" fill="#1E293B" opacity="0.30"/>
+  <rect x="71" y="62" width="15" height="6" rx="1" fill="#1E293B" opacity="0.30"/>
+  <!-- Lignes internes panneaux -->
+  <line x1="27" y1="62" x2="27" y2="68" stroke="white" stroke-width="0.7" opacity="0.8"/>
+  <line x1="53" y1="62" x2="53" y2="68" stroke="white" stroke-width="0.7" opacity="0.8"/>
+  <line x1="79" y1="62" x2="79" y2="68" stroke="white" stroke-width="0.7" opacity="0.8"/>
+
+  <!-- ─── Wordmark ─────────────────────────────────────────── -->
+  <text x="110" y="54"
+        font-family="'Arial Black', 'Franklin Gothic Heavy', Impact, sans-serif"
+        font-size="40" font-weight="900" letter-spacing="-1">
+    <tspan fill="#0F172A">Helia</tspan><tspan fill="#FF7A00">PV</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="111" y="72"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="9.5" fill="#64748B" letter-spacing="2">
+    Solution pour développeurs PV
+  </text>
+
+  <!-- Trait de séparation + footer -->
+  <line x1="111" y1="80" x2="370" y2="80" stroke="#E5E7EB" stroke-width="0.8"/>
+  <text x="111" y="93"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="8" fill="#94A3B8" letter-spacing="1.2">
+    heliapv.fr
+  </text>
+</svg>

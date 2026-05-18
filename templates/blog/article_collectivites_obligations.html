@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.titre }} | Blog HeliaPV</title>
+<meta name="description" content="{{ meta.description }}">
+<meta property="og:title" content="{{ meta.titre }}">
+<meta property="og:description" content="{{ meta.description }}">
+<meta property="og:type" content="article">
+<meta name="keywords" content="L.171-4 CCH, L.171-5 CCH, L.111-19-1 CU, Loi APER, solarisation obligatoire, collectivités, bâtiments publics, parkings solaires, obligations mairies, diagnostic MAJIC, autoconsommation collective, L315-2 Code énergie, PMO, compétitivité énergétique entreprises">
+<link rel="canonical" href="https://app.heliapv.fr/blog/solarisation-obligatoire-collectivites-2028">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="/static/css/blog.css">
+<style>
+  .obligations-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: .92rem;
+  }
+  .obligations-table th {
+    background: rgba(74,222,128,0.12);
+    color: #4ade80;
+    font-weight: 700;
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid rgba(74,222,128,0.2);
+  }
+  .obligations-table td {
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.82);
+    vertical-align: top;
+  }
+  .obligations-table tr:hover td {
+    background: rgba(74,222,128,0.04);
+  }
+  .badge-urgence {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: .78rem;
+    font-weight: 700;
+    background: rgba(239,68,68,.15);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,.3);
+  }
+  .badge-normal {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: .78rem;
+    font-weight: 700;
+    background: rgba(74,222,128,.12);
+    color: #4ade80;
+    border: 1px solid rgba(74,222,128,.3);
+  }
+  .accomp-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .accomp-step {
+    background: rgba(74,222,128,0.05);
+    border: 1px solid rgba(74,222,128,0.2);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .accomp-step .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid #4ade80;
+    background: rgba(74,222,128,.12);
+    color: #4ade80;
+    font-weight: 900;
+    font-size: .9rem;
+    margin: 0 auto 10px;
+  }
+  .accomp-step h5 {
+    color: white;
+    font-weight: 800;
+    font-size: .92rem;
+    margin-bottom: 6px;
+  }
+  .accomp-step p {
+    color: rgba(255,255,255,.55);
+    font-size: .82rem;
+    margin: 0;
+  }
+  .cta-diagnostic {
+    background: linear-gradient(135deg, rgba(34,197,94,.15) 0%, rgba(16,163,74,.1) 100%);
+    border: 1px solid rgba(74,222,128,.35);
+    border-radius: 16px;
+    padding: 36px 40px;
+    text-align: center;
+    margin: 32px 0;
+  }
+  .cta-diagnostic h3 {
+    color: white;
+    font-weight: 900;
+    font-size: 1.35rem;
+    margin-bottom: 10px;
+  }
+  .cta-diagnostic p {
+    color: rgba(255,255,255,.6);
+    font-size: .95rem;
+    margin-bottom: 22px;
+  }
+  .btn-cta-green {
+    display: inline-block;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white !important;
+    text-decoration: none !important;
+    padding: 14px 32px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: .95rem;
+    box-shadow: 0 6px 20px rgba(34,197,94,.3);
+    transition: transform .2s, box-shadow .2s;
+  }
+  .btn-cta-green:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(34,197,94,.45);
+  }
+  .financement-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .financement-item {
+    background: rgba(255,183,0,.07);
+    border: 1px solid rgba(255,183,0,.2);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .financement-item strong {
+    color: #FFB700;
+    display: block;
+    font-size: .95rem;
+    margin-bottom: 4px;
+  }
+  .financement-item span {
+    color: rgba(255,255,255,.55);
+    font-size: .82rem;
+  }
+</style>
+</head>
+<body class="blog-body">
+
+<nav class="top-nav">
+  <div class="container">
+    <a href="/" class="navbar-brand">☀️ HeliaPV</a>
+    <div class="nav-links">
+      <a href="/blog" class="nav-commune-link"><i class="bi bi-arrow-left"></i> Blog</a>
+      <a href="/#communes" class="nav-commune-link"><i class="bi bi-building"></i> Communes</a>
+      <a href="/app" class="btn btn-primary">Application →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="blog-hero">
+  <div class="blog-hero-inner">
+    <div class="category-tag">⚖️ {{ meta.categorie }}</div>
+    <h1>Solarisation obligatoire des bâtiments publics :<br><em>ce que la loi impose</em> aux collectivités d'ici 2028</h1>
+    <p class="lead">
+      Loi Énergie-Climat, Loi APER, Art. L.171-5 CCH, L.111-19-1 CU : depuis 2023, les collectivités territoriales
+      ont des obligations légales précises pour équiper leurs bâtiments publics et leurs parkings en panneaux solaires.
+      Voici tout ce que vous devez savoir — et comment vous y préparer.
+    </p>
+    <div class="blog-hero-meta">
+      <span>📅 {{ meta.date }}</span>
+      <span>⏱ {{ meta.lecture }} de lecture</span>
+      {% for tag in meta.tags %}<span class="tag-pill">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+</header>
+
+<div class="blog-layout">
+  <main class="article-content">
+
+    <h2 id="contexte">Pourquoi les collectivités sont désormais dans l'obligation d'agir</h2>
+    <p>
+      Depuis la <strong>loi Énergie-Climat de 2019</strong> et surtout la <strong>loi APER (Accélération des Énergies Renouvelables)
+      promulguée le 10 mars 2023</strong>, la France a inscrit dans le droit positif des obligations concrètes de déploiement
+      du solaire photovoltaïque pour les propriétaires de grands bâtiments et de parkings extérieurs.
+    </p>
+    <p>
+      Ces obligations touchent directement les <strong>communes, intercommunalités, départements et régions</strong>
+      qui sont propriétaires de bâtiments publics (mairies, écoles, gymnases, salles polyvalentes…) et de
+      parkings extérieurs ouverts au public. Les échéances courent de <strong>2026 à 2028</strong> selon la taille des sites.
+    </p>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">⚠️ Des sanctions financières possibles</div>
+      Le non-respect des obligations de solarisation expose les collectivités à des contrôles par les
+      préfectures et des mise en demeure. Si à terme les textes d'application précisent des sanctions,
+      le risque réputationnel et politique est déjà réel pour les élus qui n'auront pas anticipé.
+    </div>
+
+    <h2 id="batiments">Bâtiments publics — Art. L.171-4 &amp; L.171-5 du Code de la Construction et de l'Habitation</h2>
+    <p>
+      Deux articles du CCH encadrent l'obligation de solarisation des bâtiments :
+      l'article <strong>L.171-4</strong> (bâtiments neufs, extensions et rénovations lourdes — en vigueur depuis 2024/2025)
+      et l'article <strong>L.171-5</strong> (bâtiments existants — obligation au <strong>1er janvier 2028</strong>).
+      Ces deux obligations se cumulent : un bâtiment neuf sera soumis dès la construction, puis à nouveau en 2028 en tant que bâtiment existant.
+    </p>
+    <p>
+      L'obligation porte sur une <strong>emprise au sol supérieure à 500 m²</strong> et impose la couverture d'au minimum
+      <strong>30 % de la surface de toiture</strong> par des panneaux solaires ou une toiture végétalisée
+      (ce taux passe à 40 % au 1er juillet 2026 pour les constructions neuves, puis 50 % au 1er juillet 2027).
+    </p>
+
+    <table class="obligations-table">
+      <thead>
+        <tr>
+          <th>Catégorie de bâtiment</th>
+          <th>Seuil de surface</th>
+          <th>Échéance</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Bâtiments existants non résidentiels (mairies, écoles, gymnases, hôpitaux, bureaux…)</td>
+          <td><strong>≥ 500 m²</strong> d'emprise au sol</td>
+          <td><strong>1er janvier 2028</strong></td>
+          <td><span class="badge-normal">2028</span></td>
+        </tr>
+        <tr>
+          <td>Bâtiments neufs / rénovation lourde (bureaux, administratif, scolaire, sportif)</td>
+          <td><strong>≥ 500 m²</strong> d'emprise au sol</td>
+          <td><strong>Depuis jan. 2025</strong></td>
+          <td><span class="badge-urgence">En vigueur</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-info">
+      <div class="callout-title">ℹ️ Constructions neuves et rénovations lourdes</div>
+      L'obligation s'applique aussi aux nouvelles constructions et aux rénovations importantes de toiture
+      (remplacement d'étanchéité, restructuration charpente). En pratique, toute intervention
+      de plus de 10 % de la valeur de la toiture déclenche l'obligation.
+    </div>
+
+    <h2 id="parkings">Parkings extérieurs — Art. L.111-19-1 du Code de l'Urbanisme (Loi APER art. 40)</h2>
+    <p>
+      L'article <strong>40 de la loi APER</strong> a créé l'article <strong>L.111-19-1 du Code de l'Urbanisme</strong>,
+      qui impose la couverture partielle en ombrières photovoltaïques des parkings extérieurs ouverts au public
+      d'une certaine superficie. Cette obligation concerne directement les <strong>parkings des équipements publics</strong>
+      (piscines, gymnases, médiathèques, places de marché…).
+    </p>
+    <p>
+      La couverture requise est d'au moins <strong>50 % de la superficie du parking</strong> en ombrières PV.
+    </p>
+
+    <table class="obligations-table">
+      <thead>
+        <tr>
+          <th>Type de parking</th>
+          <th>Superficie</th>
+          <th>Échéance</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Parking extérieur ouvert au public (existants)</td>
+          <td><strong>&gt; 10 000 m²</strong></td>
+          <td><strong>1er juillet 2026</strong></td>
+          <td><span class="badge-urgence">Très urgent</span></td>
+        </tr>
+        <tr>
+          <td>Parking extérieur ouvert au public (existants)</td>
+          <td><strong>&gt; 1 500 m²</strong></td>
+          <td><strong>1er juillet 2028</strong></td>
+          <td><span class="badge-normal">2028</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">⚠️ Échéance 2026 — moins de 12 mois</div>
+      Les parkings de plus de <strong>10 000 m²</strong> sont soumis à une obligation dès le <strong>1er juillet 2026</strong>.
+      Ceux de plus de <strong>1 500 m²</strong> ont jusqu'au <strong>1er juillet 2028</strong>.
+      Compte tenu des délais d'instruction des dossiers (déclaration préalable : 1 à 2 mois, permis de construire : 2 à 3 mois)
+      et des délais de réalisation des travaux (3 à 6 mois), les collectivités concernées doivent
+      <strong>engager la démarche dès maintenant</strong>.
+    </div>
+
+    <h2 id="zaer">Zones d'Accélération des Énergies Renouvelables — Loi APER art. 15</h2>
+    <p>
+      Au-delà des obligations spécifiques aux bâtiments et parkings, la loi APER impose aux communes de
+      définir des <strong>Zones d'Accélération des Énergies Renouvelables (ZAER)</strong> sur leur territoire,
+      après concertation publique et validation par la Conférence Régionale de l'Énergie.
+    </p>
+    <p>
+      Ces zones sont intégrées au PLU et facilitent l'instruction des dossiers de permis de construire
+      pour les installations ENR. Les communes n'ayant pas défini leurs ZAER risquent de voir des projets
+      éoliens ou solaires imposés par le préfet hors de tout zonage.
+    </p>
+
+    <h2 id="diagnostic">Comment identifier les sites concernés dans votre commune ?</h2>
+    <p>
+      La première étape est l'<strong>inventaire de vos bâtiments publics et parkings</strong> avec leurs surfaces exactes.
+      En pratique, beaucoup de collectivités ne disposent pas d'un cadastre précis de leur patrimoine bâti —
+      et les données communiquées aux services de l'État sont souvent approximatives.
+    </p>
+    <p>
+      HeliaPV propose un <strong>diagnostic communal gratuit</strong> basé sur la <strong>base cadastrale MAJIC</strong>
+      (Mise À Jour de l'Information Cadastrale) tenue par la DGFiP. Ce diagnostic permet en quelques minutes de :
+    </p>
+    <ul>
+      <li>Identifier tous les <strong>bâtiments publics ≥ 500 m²</strong> de la commune et leurs surfaces réelles</li>
+      <li>Repérer tous les <strong>parkings extérieurs ≥ 1 500 m²</strong></li>
+      <li>Qualifier chaque site selon les <strong>seuils légaux applicables</strong> et les échéances</li>
+      <li>Estimer la <strong>puissance installable (kWc)</strong>, la production annuelle et les <strong>économies €/an</strong></li>
+      <li>Générer une <strong>carte interactive</strong> des sites à traiter en priorité</li>
+    </ul>
+
+    <div class="cta-diagnostic">
+      <h3>🗺️ Votre diagnostic communal MAJIC — offert</h3>
+      <p>
+        Recevez en 48h la carte de vos bâtiments et parkings concernés par les obligations légales,
+        avec les estimations de production et d'économies. Sans engagement, réservé aux élus et agents des collectivités.
+      </p>
+      <a href="/register?plan=commune_gratuit" class="btn-cta-green">
+        <i class="bi bi-building-fill-add"></i> Demander mon diagnostic — Gratuit
+      </a>
+    </div>
+
+    <h2 id="financement">Financer vos projets solaires : les aides disponibles</h2>
+    <p>
+      La solarisation des équipements publics peut être largement financée par des aides nationales et européennes.
+      Un projet bien monté peut atteindre <strong>70 à 90 % de subventionnement</strong> sur le coût total.
+    </p>
+
+    <div class="financement-grid">
+      <div class="financement-item">
+        <strong>DSIL</strong>
+        <span>Dotation de Soutien à l'Investissement Local — jusqu'à 80 % du projet</span>
+      </div>
+      <div class="financement-item">
+        <strong>DETR</strong>
+        <span>Dotation d'Équipement des Territoires Ruraux — communes &lt; 20 000 hab.</span>
+      </div>
+      <div class="financement-item">
+        <strong>Fonds Vert</strong>
+        <span>Rénovation énergétique globale (objectif -40% énergie finale). Le PV peut figurer en <em>travaux connexes</em> mais n'est pas éligible en standalone. <strong>Non applicable aux ombrières de parking seules.</strong></span>
+      </div>
+      <div class="financement-item">
+        <strong>Appels d'offres CRE</strong>
+        <span>S21/S22 — tarif d'achat garanti ou complément de rémunération pour installations &gt; 500 kWc</span>
+      </div>
+      <div class="financement-item">
+        <strong>Tiers financement / CPE</strong>
+        <span>Contrat de Performance Énergétique — installation par un tiers sans mise de fonds initiale</span>
+      </div>
+      <div class="financement-item">
+        <strong>FEDER / FEADER</strong>
+        <span>Fonds européens via les Régions — territorial et projet structurant</span>
+      </div>
+    </div>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 Conseil : DSIL + CPE/tiers-financement = reste à charge quasi nul</div>
+      Pour les obligations de solarisation (toitures L.171-5 et parkings L.111-19-1 CU), les leviers
+      les plus adaptés sont <strong>DSIL/DETR</strong> (subvention jusqu'à 80%) combinés à un
+      <strong>CPE ou tiers-financement</strong> (un investisseur porte le coût, la collectivité perçoit
+      une part des revenus). Ce montage réduit le reste à charge à <strong>moins de 10 % du coût total</strong>.
+      Le Fonds Vert n'est mobilisable que si le PV s'inscrit dans une rénovation énergétique globale
+      du bâtiment (objectif -40% de consommation d'énergie finale attesté par étude thermique).
+    </div>
+
+    <h2 id="accompagnement">Notre accompagnement de A à Z</h2>
+    <p>
+      HeliaPV accompagne les collectivités à chaque étape, du diagnostic initial jusqu'à la réception des travaux :
+    </p>
+
+    <div class="accomp-steps">
+      <div class="accomp-step">
+        <div class="step-num">1</div>
+        <div style="font-size:1.5rem;margin-bottom:8px;">🔍</div>
+        <h5>Diagnostic communal global</h5>
+        <p>Inventaire MAJIC, qualification légale des sites, estimations kWc et €/an. <strong style="color:#4ade80">Offert.</strong></p>
+      </div>
+      <div class="accomp-step">
+        <div class="step-num">2</div>
+        <div style="font-size:1.5rem;margin-bottom:8px;">💶</div>
+        <h5>Montage financier</h5>
+        <p>Identification des leviers adaptés : DSIL/DETR (subvention investissement), CPE/tiers-financement (zéro apport), AO CRE pour grandes installations.</p>
+      </div>
+      <div class="accomp-step">
+        <div class="step-num">3</div>
+        <div style="font-size:1.5rem;margin-bottom:8px;">📋</div>
+        <h5>Dossier réglementaire</h5>
+        <p>Déclaration préalable ou permis de construire, consultation ABF, CERFA automatisés.</p>
+      </div>
+      <div class="accomp-step">
+        <div class="step-num">4</div>
+        <div style="font-size:1.5rem;margin-bottom:8px;">🏗️</div>
+        <h5>Sélection RGE</h5>
+        <p>Appel d'offres auprès d'installateurs certifiés RGE, comparaison des propositions, suivi travaux.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-info">
+      <div class="callout-title">ℹ️ Audit toiture et parking — prestation payante</div>
+      Le diagnostic communal global (étape 1) est entièrement gratuit.
+      L'audit technique approfondi toiture et parking — incluant mesures sur site,
+      analyse de structure et rapport d'ingénierie — est une prestation payante proposée selon les besoins.
+    </div>
+
+    <h2 id="autoconso">Autoconsommation collective : valoriser la production au profit des entreprises locales</h2>
+    <p>
+      Au-delà de l'obligation légale, la solarisation des équipements publics ouvre une opportunité stratégique :
+      la <strong>mise en place d'une opération d'autoconsommation collective</strong>, qui permet de distribuer l'énergie
+      produite sur les toitures et parkings communaux aux entreprises, commerces et riverains du territoire.
+    </p>
+
+    <div class="callout callout-info">
+      <div class="callout-title">⚖️ Cadre légal — Art. L315-2 du Code de l'Énergie (Loi APER 2023)</div>
+      Depuis la <strong>loi APER du 10 mars 2023</strong>, le périmètre d'une opération d'autoconsommation collective
+      a été élargi de 2 km (basse tension) à <strong>20 km pour les raccordements HTA</strong>, ce qui couvre
+      la quasi-totalité des communes rurales et péri-urbaines. La commune (ou son EPCI) peut être la
+      <strong>personne morale organisatrice (PMO)</strong> de l'opération.
+    </div>
+
+    <h3 style="color:white;font-size:1.05rem;margin:24px 0 12px;">Comment ça fonctionne ?</h3>
+    <div class="financement-grid">
+      <div class="financement-item">
+        <strong>1. La commune produit</strong>
+        <span>Les panneaux PV installés sur les bâtiments et parkings publics génèrent de l'électricité.</span>
+      </div>
+      <div class="financement-item">
+        <strong>2. Enedis répartit</strong>
+        <span>Enedis mesure et répartit automatiquement la production entre les participants selon une clé de répartition définie dans le contrat.</span>
+      </div>
+      <div class="financement-item">
+        <strong>3. Entreprises &amp; riverains consomment</strong>
+        <span>Chaque participant voit sa facture réduite à hauteur de la part qu'il consomme en autoconsommation collective.</span>
+      </div>
+      <div class="financement-item">
+        <strong>4. Le surplus est injecté</strong>
+        <span>L'énergie non autoconsommée est injectée sur le réseau et valorisée via l'obligation d'achat (tarif CRE) ou le complément de rémunération.</span>
+      </div>
+    </div>
+
+    <h3 style="color:white;font-size:1.05rem;margin:24px 0 12px;">Pourquoi c'est un levier de compétitivité pour les entreprises locales ?</h3>
+    <table class="obligations-table">
+      <thead>
+        <tr>
+          <th>Avantage</th>
+          <th>Détail</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Réduction du prix de l'électricité</strong></td>
+          <td>L'énergie autoconsommée évite les taxes et le transport réseau sur la part locale. Économies de <strong>30 à 60 % sur le prix du kWh</strong> consommé en AC.</td>
+        </tr>
+        <tr>
+          <td><strong>Visibilité sur les coûts énergétiques</strong></td>
+          <td>Tarif de la part solaire fixé contractuellement — indépendant des fluctuations du marché de gros (EPEX Spot).</td>
+        </tr>
+        <tr>
+          <td><strong>Argument RSE &amp; maîtrise carbone</strong></td>
+          <td>La consommation locale d'énergie renouvelable valorisable dans les rapports ESG, les appels d'offres publics et les certifications ISO 50001.</td>
+        </tr>
+        <tr>
+          <td><strong>Ancrage territorial</strong></td>
+          <td>Les entreprises participant à l'opération s'engagent dans la transition énergétique de leur commune — fort levier de communication locale.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 Exemple concret</div>
+      Une commune installe 200 kWc sur le toit de sa halle sportive et son parking (obligation APER).
+      Elle organise une AC collective avec 12 PME et commerces dans un rayon de 3 km.
+      Chaque entreprise bénéficie d'un tarif à <strong>5 c€/kWh</strong> sur sa part solaire
+      (vs. 15–20 c€/kWh sur le marché), soit une économie de <strong>1 500 à 4 000 €/an par participant</strong>.
+      La commune, en tant que PMO, perçoit une rémunération de gestion et valorise 100 % de sa production.
+    </div>
+
+    <h2 id="conclusion">Conclusion : ne pas attendre 2028 pour agir</h2>
+    <p>
+      Les délais administratifs et de travaux impliquent qu'une collectivité qui commence sa démarche
+      en 2025-2026 sera dans les délais pour les échéances de 2027-2028. En revanche, attendre 2027
+      pour les bâtiments ≥ 1 000 m² ou 2025 pour les parkings ≥ 2 500 m² expose à des <strong>risques réels</strong>
+      de non-conformité.
+    </p>
+    <p>
+      La bonne nouvelle : les aides financières adaptées (DSIL, DETR, CPE/tiers-financement, AO CRE) permettent
+      de réaliser ces travaux avec un impact minimal sur le budget communal. La production d'énergie
+      solaire génère ensuite des <strong>économies durables sur les factures d'électricité</strong> des équipements publics—
+      et via l'autoconsommation collective, elle devient un <strong>levier de compétitivité énergétique
+      pour les entreprises et commerces du territoire</strong>.
+    </p>
+
+    <div class="cta-diagnostic">
+      <h3>Prêt à identifier vos obligations ?</h3>
+      <p>
+        Recevez votre carte MAJIC des bâtiments et parkings concernés, avec les seuils légaux applicables
+        et les estimations d'économies. Entièrement gratuit pour les collectivités.
+      </p>
+      <a href="/register?plan=commune_gratuit" class="btn-cta-green">
+        <i class="bi bi-building-fill-add"></i> Inscrire ma commune — Diagnostic offert
+      </a>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:40px; padding-top:24px; border-top:1px solid rgba(255,255,255,.08); flex-wrap:wrap; gap:10px;">
+      <a href="/blog" style="color:rgba(255,255,255,.5);text-decoration:none;font-size:.9rem;">
+        ← Retour au blog
+      </a>
+      <a href="/blog/api-ign-lidar-hd-solaire" style="color:#FFB700;text-decoration:none;font-size:.9rem;">
+        Suivant : LiDAR IGN HD pour l'analyse PV →
+      </a>
+    </div>
+
+  </main>
+
+  <!-- Sidebar -->
+  <aside class="blog-sidebar">
+    <div class="sidebar-card">
+      <h4>Table des matières</h4>
+      <ul class="toc-list">
+        <li><a href="#contexte">Contexte légal</a></li>
+        <li><a href="#batiments">Bâtiments — L.171-4 / L.171-5 CCH</a></li>
+        <li><a href="#parkings">Parkings — L.111-19-1 CU</a></li>
+        <li><a href="#zaer">Zones ZAER</a></li>
+        <li><a href="#diagnostic">Identifier vos sites</a></li>
+        <li><a href="#financement">Financement disponible</a></li>
+        <li><a href="#accompagnement">Accompagnement A→Z</a></li>
+        <li><a href="#autoconso">Autoconsommation collective</a></li>
+        <li><a href="#conclusion">Conclusion</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-card">
+      <h4>Récapitulatif des échéances</h4>
+      <div style="font-size:.85rem; color:rgba(255,255,255,.7);">
+        <div style="margin-bottom:10px; padding:10px 12px; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.25); border-radius:8px;">
+          <strong style="color:#f87171;">1er juil. 2026</strong><br>
+          <span>Parkings ≥ 2 500 m²</span>
+        </div>
+        <div style="margin-bottom:10px; padding:10px 12px; background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.2); border-radius:8px;">
+          <strong style="color:#4ade80;">1er juil. 2027</strong><br>
+          <span>Bâtiments ≥ 1 000 m²</span>
+        </div>
+        <div style="padding:10px 12px; background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.2); border-radius:8px;">
+          <strong style="color:#4ade80;">1er juil. 2028</strong><br>
+          <span>Bâtiments ≥ 500 m²<br>Parkings ≥ 1 500 m²</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-card">
+      <h4>Textes de référence</h4>
+      <ul class="toc-list">
+        <li><a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000051560692" target="_blank" rel="noopener">Art. L.171-4 CCH ↗</a></li>
+            <li><a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000047298141" target="_blank" rel="noopener">Art. L.171-5 CCH ↗</a></li>
+        <li><a href="https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000047191056" target="_blank" rel="noopener">Loi APER n°2023-175 ↗</a></li>
+        <li><a href="https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000047642270" target="_blank" rel="noopener">Art. L.111-19-1 CU ↗</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-card" style="text-align:center">
+      <p style="color:#8b949e;font-size:.88rem;margin-bottom:16px">
+        Identifiez gratuitement les sites de votre commune concernés par les obligations légales.
+      </p>
+      <a href="/register?plan=commune_gratuit" class="btn-primary" style="font-size:.9rem;padding:10px 20px">
+        Diagnostic gratuit →
+      </a>
+    </div>
+  </aside>
+</div>
+
+<footer class="blog-footer">
+  <p>© {{ annee }} HeliaPV · <a href="/blog">Blog</a> · <a href="/#communes">Espace Communes</a> · <a href="/app">Plateforme</a> · <a href="/mentions-legales">Mentions légales</a></p>
+</footer>
+
+</body>
+</html>

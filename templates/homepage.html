@@ -735,6 +735,58 @@
             color: #0a0e27;
         }
 
+        /* ── SCREENSHOTS MODULES ── */
+        .mod-img-wrap {
+            width: 100%;
+            height: 230px;
+            overflow: hidden;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 183, 0, 0.18);
+            position: relative;
+        }
+
+        .mod-img-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+            display: block;
+            transition: transform 0.5s ease;
+        }
+
+        .feature-card:hover .mod-img-wrap img {
+            transform: scale(1.05);
+        }
+
+        .mod-img-side {
+            width: 420px;
+            min-width: 420px;
+            height: 280px;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 183, 0, 0.18);
+            flex-shrink: 0;
+        }
+
+        .mod-img-side img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+            display: block;
+            transition: transform 0.5s ease;
+        }
+
+        .feature-card:hover .mod-img-side img {
+            transform: scale(1.04);
+        }
+
+        @media (max-width: 991px) {
+            .mod-img-side { width: 100%; min-width: unset; height: 220px; }
+            .feature-card[style*="flex"] { flex-direction: column !important; }
+        }
+
         @media (max-width: 768px) {
             .hero-section h1 { font-size: 2.8rem; }
             .communes-section h2 { font-size: 2rem; }
@@ -813,17 +865,28 @@
     <div class="hero-section">
         <div class="container">
             <div class="badge-pro">
-                <i class="bi bi-lightning-charge-fill"></i> Plateforme Professionnelle
+                <i class="bi bi-lightning-charge-fill"></i> Solution Photovoltaïque Intelligente
             </div>
             <h1>
-                La solution <span class="gradient-text">tout-en-un</span><br>
-                pour développeurs photovoltaïques
+                La plateforme SaaS complète<br>
+                <span class="gradient-text">pour l'industrie solaire</span>
             </h1>
             <p class="subtitle">
-                De la <span class="highlight">prospection géolocalisée</span> au <span class="highlight">suivi de chantier</span> :<br>
-                pilotez vos projets solaires avec une efficacité maximale
+                De la <span class="highlight">prospection</span> à la <span class="highlight">mise en service</span> —<br>
+                un seul outil pour tous les acteurs du solaire
             </p>
-            <div class="mt-5">
+
+            <!-- Pour qui -->
+            <div class="d-flex flex-wrap justify-content-center gap-3 mt-5 mb-4">
+                <span class="trust-indicator"><i class="bi bi-tools"></i><span>Installateurs</span></span>
+                <span class="trust-indicator"><i class="bi bi-building-gear"></i><span>Développeurs</span></span>
+                <span class="trust-indicator"><i class="bi bi-cpu"></i><span>Fabricants</span></span>
+                <span class="trust-indicator"><i class="bi bi-shop"></i><span>Distributeurs</span></span>
+                <span class="trust-indicator"><i class="bi bi-graph-up-arrow"></i><span>Exploitants</span></span>
+                <span class="trust-indicator"><i class="bi bi-building"></i><span>Collectivités</span></span>
+            </div>
+
+            <div class="mt-4">
                 <a href="/register" class="cta-button cta-primary me-3">
                     <i class="bi bi-lightning-fill"></i> Essai gratuit 7 jours
                 </a>
@@ -831,7 +894,7 @@
                     <i class="bi bi-box-arrow-in-right"></i> Se connecter
                 </a>
             </div>
-            <div class="mt-5 pt-4">
+            <div class="mt-5 pt-2">
                 <div class="trust-indicator">
                     <i class="bi bi-shield-check"></i>
                     <span>Données cadastrales officielles</span>
@@ -852,7 +915,7 @@
     <div class="features-section">
         <div class="container">
             <h2 class="section-title">Votre arsenal complet de développement PV</h2>
-            <p class="section-subtitle">Chaque fonctionnalité pensée pour gagner du temps et signer plus de contrats</p>
+            <p class="section-subtitle">11 modules intégrés — de la prospection jusqu'à la mise en service</p>
 
             <div class="row g-4 mb-5">
                 <div class="col-md-4">
@@ -867,63 +930,232 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">📊</div>
-                        <h3>Études de faisabilité automatisées</h3>
-                        <p>Générez en 30 secondes un rapport complet : contraintes PLU, zones protégées, risques naturels, capacité d'accueil Enedis. Présentez-vous chez vos prospects avec toutes les réponses.</p>
-                        <div>
-                            <span class="tech-badge">API Géorisques</span>
-                            <span class="tech-badge">API GPU</span>
-                            <span class="tech-badge">Enedis ODR</span>
+            <!-- ── MODULE 1 : Prospection ── -->
+            <div class="row g-4 mb-4">
+                <div class="col-12">
+                    <div class="feature-card" style="display:flex; align-items:flex-start; gap:32px; padding:36px 40px;">
+                        <div style="min-width:64px; text-align:center;">
+                            <div class="feature-icon" style="font-size:3rem;">🗺️</div>
+                            <span style="display:block; color:#FFB700; font-size:0.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:6px;">Module 1</span>
+                        </div>
+                        <div style="flex:1;">
+                            <h3 style="font-size:1.5rem;">Des centaines de leads par recherche</h3>
+                            <p>Effectuez une recherche par commune en filtrant la taille des projets, leur distance au poste, leur consommation et le type de projet : <strong style="color:#FFB700">toiture, parking, friche ou RPG</strong>. Base de données Majic avec <strong style="color:#FFB700">2 millions de contacts de propriétaires</strong>. CRM complet avec suivi d'avancement des projets.</p>
+                            <div>
+                                <span class="tech-badge">Cadastre Majic</span>
+                                <span class="tech-badge">2M contacts</span>
+                                <span class="tech-badge">CRM intégré</span>
+                                <span class="tech-badge">Toiture / Parking / Friche / RPG</span>
+                                <span class="tech-badge">Distance au poste</span>
+                            </div>
+                        </div>
+                        <div class="mod-img-side">
+                            <img src="/static/images/slides/mod01.jpg" alt="Module prospection HeliaPV" loading="lazy">
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">👥</div>
-                        <h3>Pipeline commercial structuré</h3>
-                        <p>Workflow en 11 étapes de la prospection à la mise en service Consuel. Suivez chaque projet, partagez avec votre équipe, ne laissez plus aucune opportunité s'échapper.</p>
+            </div>
+
+            <!-- ── MODULES 2 & 3 : Analyse site + Multi-propriétés ── -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod02.jpg" alt="Analyse site HeliaPV" loading="lazy">
+                        </div>
+                        <div class="feature-icon">📍</div>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 2</span>
+                        <h3>Analyse site en un clic</h3>
+                        <p>Analysez toutes les contraintes <strong style="color:white">administratives et urbanistiques</strong> : PPRi, zones naturelles, altitudes, irradiation. Identifiez les postes les plus proches avec leurs caractéristiques — nom, position géographique, vue immersive, <strong style="color:white">puissance, taux d'affectation, quote-part</strong>.</p>
                         <div>
-                            <span class="tech-badge">Flask</span>
-                            <span class="tech-badge">PostgreSQL</span>
-                            <span class="tech-badge">Dashboard KPI</span>
+                            <span class="tech-badge">PPRi / Natura 2000</span>
+                            <span class="tech-badge">Postes HTA/BTA</span>
+                            <span class="tech-badge">PVGIS Irradiation</span>
+                            <span class="tech-badge">Géorisques</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod03.jpg" alt="Multi-propriétés Majic HeliaPV" loading="lazy">
+                        </div>
+                        <div class="feature-icon">🏘️</div>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 3</span>
+                        <h3>Multi-propriétés Majic</h3>
+                        <p>Grâce aux données Majic, identifiez <strong style="color:white">toutes les parcelles d'un propriétaire</strong> de multiples propriétés et faites rapidement des diagnostics et propositions sur l'ensemble de ses <strong style="color:white">actifs fonciers</strong>. Importez directement dans le CRM.</p>
+                        <div>
+                            <span class="tech-badge">Base Majic</span>
+                            <span class="tech-badge">Multi-parcelles</span>
+                            <span class="tech-badge">Import CRM direct</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── MODULES 4 & 5 : Calepinage + Filtration irradiation ── -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod04.jpg" alt="Calepinage 3D HeliaPV" loading="lazy">
+                        </div>
                         <div class="feature-icon">☀️</div>
-                        <h3>Calepinage sur mesure en direct</h3>
-                        <p>Dessinez vos zones d'implantation directement sur la carte. Le système calcule automatiquement puissance crête, nombre de modules, orientation optimale. Impressionnez vos clients en RDV.</p>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 4</span>
+                        <h3>Interface de calepinage complète</h3>
+                        <p>Toiture, parking, sol — <strong style="color:white">détection automatique des pentes et orientations</strong>, obstacles (fenêtres de toit, cheminées, blocs de climatisation). Irradiation annuelle, filtrage des zones en fonction de leur potentiel de productible. <strong style="color:white">Vue 3D immersive WebGL</strong>, ombrage réel.</p>
                         <div>
-                            <span class="tech-badge">Leaflet.draw</span>
-                            <span class="tech-badge">PVGIS API</span>
-                            <span class="tech-badge">Calculs auto</span>
+                            <span class="tech-badge">Vue 3D WebGL</span>
+                            <span class="tech-badge">LiDAR IGN COPC</span>
+                            <span class="tech-badge">Détection pentes auto</span>
+                            <span class="tech-badge">Ombrage réel</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">📄</div>
-                        <h3>Propositions commerciales clés en main</h3>
-                        <p>Générez un PDF pro de 12 pages : devis conforme NF C 15-752-1, étude autoconso personnalisée, ROI sur 25 ans, planning, garanties. Signez plus vite avec des documents qui rassurent.</p>
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod05.jpg" alt="Filtration irradiation HeliaPV" loading="lazy">
+                        </div>
+                        <div class="feature-icon">🔥</div>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 5</span>
+                        <h3>Filtration zones d'irradiation unique</h3>
+                        <p>Un procédé <strong style="color:white">unique de filtration heatmap</strong> détecte les obstacles et zones d'ombrages sur les modules, et calepine automatiquement les champs PV. La puissance et le productible du champ <strong style="color:white">s'ajustent automatiquement</strong>, optimisant vos installations PV.</p>
                         <div>
-                            <span class="tech-badge">ReportLab</span>
-                            <span class="tech-badge">Matplotlib</span>
-                            <span class="tech-badge">NF C 15-752-1</span>
+                            <span class="tech-badge">Heatmap irradiation</span>
+                            <span class="tech-badge">Calepinage auto</span>
+                            <span class="tech-badge">PVGIS 8 760 h</span>
+                            <span class="tech-badge">P50 / P90</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
+            </div>
+
+            <!-- ── MODULES 6 & 7 : Autoconsommation + Documents ── -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod06.jpg" alt="Autoconsommation HeliaPV" loading="lazy">
+                        </div>
                         <div class="feature-icon">⚡</div>
-                        <h3>Simulations énergétiques précises</h3>
-                        <p>Powered by PVGIS : production mensuelle réelle, courbes autoconsommation, calcul économique sur 25 ans. Argumentez avec des données scientifiques, pas des promesses.</p>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 6</span>
+                        <h3>Analyse autoconsommation avancée</h3>
+                        <p>Analyse selon profil type ou réel, <strong style="color:white">courbe de charge 8 760 h</strong>, 8 types de tarifications pré-enregistrés (dont Tempo EDF), courbes journalières/mensuelles/annuelles. <strong style="color:white">Business plan, TRI</strong>, calcul automatique des taxes IFER, taux d'autoconsommation et taux d'autosuffisance.</p>
                         <div>
-                            <span class="tech-badge">PVGIS</span>
-                            <span class="tech-badge">Graphiques</span>
-                            <span class="tech-badge">ROI 25 ans</span>
+                            <span class="tech-badge">8 760 h réels</span>
+                            <span class="tech-badge">8 tarifs Enedis</span>
+                            <span class="tech-badge">TRI / VAN / Business plan</span>
+                            <span class="tech-badge">Taxes IFER auto</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod07.jpg" alt="Génération documents HeliaPV" loading="lazy">
+                        </div>
+                        <div class="feature-icon">📄</div>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 7</span>
+                        <h3>Génération automatique de documents</h3>
+                        <p>Générez en un clic : <strong style="color:white">CERFA de déclaration préalable de travaux</strong>, plan de masse cadastral, schéma unifilaire NF C 15-712, <strong style="color:white">plan de string</strong>, calcul des pertes et dimensionnement de câble.</p>
+                        <div>
+                            <span class="tech-badge">CERFA 13703</span>
+                            <span class="tech-badge">CERFA 16702</span>
+                            <span class="tech-badge">Plan de masse</span>
+                            <span class="tech-badge">Schéma NF C 15-712</span>
+                            <span class="tech-badge">Plan de string</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── MODULE 8 : Proposition commerciale ── -->
+            <div class="row g-4 mb-4">
+                <div class="col-12">
+                    <div class="feature-card" style="display:flex; align-items:flex-start; gap:32px; padding:36px 40px;">
+                        <div style="min-width:64px; text-align:center;">
+                            <div class="feature-icon" style="font-size:3rem;">📋</div>
+                            <span style="display:block; color:#FFB700; font-size:0.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:6px;">Module 8</span>
+                        </div>
+                        <div style="flex:1;">
+                            <h3 style="font-size:1.5rem;">Proposition commerciale générée automatiquement</h3>
+                            <p>Proposition en <strong style="color:#FFB700">vente totale, autoconsommation + injection du surplus</strong> ou autoconsommation collective. <strong style="color:#FFB700">15 à 17 pages</strong> synthétisant tous les aspects de votre projet : présentation entreprise, analyse site, solution technique, étude de productible, étude financière, devis détaillé, planning de réalisation, garanties et maintenance, aspects réglementaires &amp; CGV.</p>
+                            <div>
+                                <span class="tech-badge">15 – 17 pages PDF</span>
+                                <span class="tech-badge">Vente totale</span>
+                                <span class="tech-badge">Autoconsommation individuelle</span>
+                                <span class="tech-badge">Autoconsommation collective</span>
+                                <span class="tech-badge">Implantation 3D</span>
+                                <span class="tech-badge">ROI 25 ans</span>
+                            </div>
+                        </div>
+                        <div class="mod-img-side">
+                            <img src="/static/images/slides/mod08.jpg" alt="Proposition commerciale HeliaPV" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── MODULES 9 & 10 : ACC + AO Bâtiments ── -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod09.jpg" alt="Autoconsommation collective HeliaPV" loading="lazy">
+                        </div>
+                        <div class="feature-icon">🔗</div>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 9</span>
+                        <h3>Autoconsommation collective</h3>
+                        <p>Trouvez en un clic les <strong style="color:white">points de consommation et sociétés</strong> dans le périmètre d'autoconsommation collective de votre projet. Leurs coordonnées et volumes de consommation sont extraits directement des données Enedis.</p>
+                        <div>
+                            <span class="tech-badge">Enedis Open Data</span>
+                            <span class="tech-badge">Périmètre ACC</span>
+                            <span class="tech-badge">Points de livraison</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="feature-card" style="height:100%;">
+                        <div class="mod-img-wrap">
+                            <img src="/static/images/slides/mod10.jpg" alt="AO Bâtiments HeliaPV" loading="lazy">
+                        </div>
+                        <div class="feature-icon">🏆</div>
+                        <span style="display:inline-block; color:#FFB700; font-size:0.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">Module 10</span>
+                        <h3>Réponse aux AO bâtiments</h3>
+                        <p>Répondez simplement aux <strong style="color:white">appels d'offres bâtiments &gt; 500 kWc</strong> et AO simplifiés grâce à l'interface dédiée. Remplissage assisté, calcul ECS (Évaluation Carbone Simplifiée), simulation notes, export aux formats CRE.</p>
+                        <div>
+                            <span class="tech-badge">AO &gt; 500 kWc</span>
+                            <span class="tech-badge">AO simplifiés</span>
+                            <span class="tech-badge">Bilan carbone ECS</span>
+                            <span class="tech-badge">Export CRE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── MODULE 11 : Suivi de chantier ── -->
+            <div class="row g-4 mb-5">
+                <div class="col-12">
+                    <div class="feature-card" style="display:flex; align-items:flex-start; gap:32px; padding:36px 40px;">
+                        <div style="min-width:64px; text-align:center;">
+                            <div class="feature-icon" style="font-size:3rem;">🏗️</div>
+                            <span style="display:block; color:#FFB700; font-size:0.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:6px;">Module 11</span>
+                        </div>
+                        <div style="flex:1;">
+                            <h3 style="font-size:1.5rem;">Suivi de chantier de A à Z</h3>
+                            <p>Interface AGILE de la <strong style="color:#FFB700">visite technique jusqu'à la mise en service et le Consuel</strong>. 7 sous-phases IEC 62446-1 : Études, Approvisionnement, Génie Civil, Installation, Commissioning, Raccordement, DOE – Clôture. GED versionnée, NCF, traçabilité modules N° de série, <strong style="color:#FFB700">lender pack bancaire</strong> inclus.</p>
+                            <div>
+                                <span class="tech-badge">IEC 62446-1</span>
+                                <span class="tech-badge">PPSPS</span>
+                                <span class="tech-badge">DOE + CONSUEL</span>
+                                <span class="tech-badge">GED versionnée</span>
+                                <span class="tech-badge">Lender pack bancaire</span>
+                                <span class="tech-badge">Monitoring</span>
+                            </div>
+                        </div>
+                        <div class="mod-img-side">
+                            <img src="/static/images/slides/mod11.jpg" alt="Suivi chantier HeliaPV" loading="lazy">
                         </div>
                     </div>
                 </div>
@@ -933,19 +1165,19 @@
                 <div class="row">
                     <div class="col-md-3 stat-item">
                         <span class="stat-number">11</span>
-                        <span class="stat-label">Étapes de pipeline</span>
+                        <span class="stat-label">Modules intégrés</span>
                     </div>
                     <div class="col-md-3 stat-item">
-                        <span class="stat-number">30s</span>
-                        <span class="stat-label">Génération rapport</span>
+                        <span class="stat-number">2M</span>
+                        <span class="stat-label">Contacts propriétaires</span>
                     </div>
                     <div class="col-md-3 stat-item">
-                        <span class="stat-number">18+</span>
-                        <span class="stat-label">Couches SIG</span>
+                        <span class="stat-number">8 760h</span>
+                        <span class="stat-label">Simulation PVGIS réelle</span>
                     </div>
                     <div class="col-md-3 stat-item">
-                        <span class="stat-number">24/7</span>
-                        <span class="stat-label">Accessible cloud</span>
+                        <span class="stat-number">36 000</span>
+                        <span class="stat-label">Communes couvertes</span>
                     </div>
                 </div>
             </div>
@@ -955,101 +1187,102 @@
     <!-- ══ WORKFLOW ══ -->
     <div class="workflow-section">
         <div class="container">
-            <h2 class="section-title">Votre méthode structurée, de A à Z</h2>
-            <p class="section-subtitle">Un processus éprouvé qui transforme les prospects en centrales installées</p>
+            <h2 class="section-title">De la prospection à la mise en service</h2>
+            <p class="section-subtitle">Un pipeline structuré qui accompagne chaque projet jusqu'au Consuel</p>
 
             <div class="row g-4">
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">1</div>
-                        <h5>Prospection terrain</h5>
-                        <p>Rapport automatique urbanisme + faisabilité</p>
+                        <h5>Prospection</h5>
+                        <p>Recherche commune, filtres, leads Majic, import CRM</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">2</div>
-                        <h5>Visite technique</h5>
-                        <p>Check-list métier + photos géolocalisées</p>
+                        <h5>Analyse de site</h5>
+                        <p>PPRi, postes Enedis, irradiation, contraintes urbanistiques</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">3</div>
-                        <h5>Calepinage précis</h5>
-                        <p>Modules, puissance, orientation auto</p>
+                        <h5>Calepinage 3D</h5>
+                        <p>Vue WebGL, heatmap irradiation, obstacles auto, puissance auto</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">4</div>
                         <h5>Simulation PVGIS</h5>
-                        <p>Production réelle + autoconso</p>
+                        <p>Production réelle 8 760 h, autoconsommation, TRI, IFER</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">5</div>
-                        <h5>Proposition pro</h5>
-                        <p>PDF 12 pages conforme NF</p>
+                        <h5>Proposition 15-17 p.</h5>
+                        <p>Vente totale, autoconso individuelle ou collective</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">6-8</div>
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">6</div>
                         <h5>Démarches admin</h5>
-                        <p>DP, PC, DDR Enedis trackés</p>
+                        <p>CERFA DP/PC auto, AO bâtiments &gt; 500 kWc</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">9-10</div>
-                        <h5>Installation</h5>
-                        <p>Commande matériel + chantier</p>
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">7</div>
+                        <h5>Chantier AGILE</h5>
+                        <p>7 sous-phases IEC 62446-1, GED, NCF, modules S/N</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">11</div>
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">8</div>
                         <h5>Mise en service</h5>
-                        <p>Consuel + Activation Enedis</p>
+                        <p>DOE + CONSUEL + monitoring + lender pack bancaire</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Stack tech -->
+    <!-- Stack tech (récapitulatif dernière slide PDF) -->
     <div class="container py-5" style="position: relative; z-index: 1;">
         <div class="text-center mb-4">
-            <h2 class="section-title" style="font-size: 2.5rem;">Stack technique professionnel</h2>
-            <p class="section-subtitle">Des API fiables, des données officielles, zéro approximation</p>
+            <h2 class="section-title" style="font-size: 2.5rem;">La plateforme complète pour l'industrie solaire</h2>
+            <p class="section-subtitle">SaaS cloud-native · Railway · Docker · CI/CD GitHub</p>
         </div>
         <div class="text-center">
-            <span class="tech-badge"><i class="bi bi-server"></i> Flask + PostgreSQL</span>
-            <span class="tech-badge"><i class="bi bi-map"></i> Leaflet + GeoServer</span>
-            <span class="tech-badge"><i class="bi bi-database"></i> PostGIS</span>
-            <span class="tech-badge"><i class="bi bi-file-pdf"></i> ReportLab</span>
-            <span class="tech-badge"><i class="bi bi-cloud"></i> Railway</span>
-            <span class="tech-badge"><i class="bi bi-sun"></i> PVGIS</span>
-            <span class="tech-badge"><i class="bi bi-building"></i> GPU</span>
+            <span class="tech-badge"><i class="bi bi-map"></i> GIS + LiDAR HD IGN COPC</span>
+            <span class="tech-badge"><i class="bi bi-sun"></i> PVGIS 8 760 h P50/P90</span>
+            <span class="tech-badge"><i class="bi bi-grid-1x2"></i> Calepinage + Schéma NF C 15-712</span>
+            <span class="tech-badge"><i class="bi bi-people"></i> CRM multi-rôles intégré</span>
+            <span class="tech-badge"><i class="bi bi-file-earmark-text"></i> CERFA 13703 + 16702 auto</span>
+            <span class="tech-badge"><i class="bi bi-folder2-open"></i> GED versionnée + PPSPS</span>
+            <span class="tech-badge"><i class="bi bi-kanban"></i> Chantier IEC 62446-1</span>
+            <span class="tech-badge"><i class="bi bi-bank"></i> Lender pack bancaire</span>
+            <span class="tech-badge"><i class="bi bi-robot"></i> IA Helia LLM solaire</span>
+            <span class="tech-badge"><i class="bi bi-server"></i> Flask + PostgreSQL + PostGIS</span>
+            <span class="tech-badge"><i class="bi bi-cloud"></i> Railway · Docker</span>
+            <span class="tech-badge"><i class="bi bi-lightning"></i> Enedis ODR</span>
             <span class="tech-badge"><i class="bi bi-exclamation-triangle"></i> Géorisques</span>
-            <span class="tech-badge"><i class="bi bi-lightning"></i> Enedis</span>
-            <span class="tech-badge"><i class="bi bi-geo-alt"></i> API Adresse</span>
-            <span class="tech-badge"><i class="bi bi-map-fill"></i> OSM</span>
-            <span class="tech-badge"><i class="bi bi-diagram-3"></i> Cadastre</span>
-            <span class="tech-badge"><i class="bi bi-layers"></i> LiDAR IGN HD</span>
-            <span class="tech-badge"><i class="bi bi-sun-fill"></i> Google Solar</span>
+            <span class="tech-badge"><i class="bi bi-building"></i> API GPU Urbanisme</span>
+            <span class="tech-badge"><i class="bi bi-layers"></i> Cadastre Majic 2M contacts</span>
         </div>
     </div>
 
-    <!-- CTA final développeurs -->
+    <!-- CTA final -->
     <div class="container text-center py-5 mb-3" style="position: relative; z-index: 1;">
         <h2 class="section-title" style="font-size: 3.5rem; margin-bottom: 1.5rem;">
-            Arrêtez de perdre du temps.<br>Développez plus vite.
+            La plateforme complète.<br>Pour l'industrie solaire.
         </h2>
         <p class="section-subtitle" style="font-size: 1.3rem; margin-bottom: 3rem;">
-            Rejoignez les développeurs PV qui transforment leur prospection en pipeline structuré
+            Installateurs · Développeurs · Fabricants · Distributeurs · Exploitants · Collectivités
         </p>
         <div class="mt-4">
             <a href="/register" class="cta-button cta-primary me-3" style="font-size: 1.3rem; padding: 22px 50px;">
@@ -1064,6 +1297,9 @@
             <i class="bi bi-credit-card"></i> Aucune CB requise &nbsp;·&nbsp;
             <i class="bi bi-calendar-check"></i> 7 jours d'essai offerts
         </p>
+        <p style="color: rgba(255, 255, 255, 0.35); margin-top: 10px; font-size: 0.85rem;">
+            Contact : Yann LAURENT — 06 21 16 55 85 — <a href="mailto:info@heliapv.fr" style="color: #FFB700;">info@heliapv.fr</a>
+        </p>
     </div>
 
     <!-- ══════════════════════════════════════════════════════ -->
@@ -1075,94 +1311,158 @@
             <div class="row align-items-center g-5 mb-5">
                 <div class="col-lg-6">
                     <div class="communes-badge">
-                        <i class="bi bi-building"></i> Communes de France
+                        <i class="bi bi-shield-check"></i> Obligations légales 2026–2028
                     </div>
                     <h2>
-                        Votre territoire <span class="accent-green">cartographié</span><br>
-                        gratuitement
+                        Votre commune face aux<br><span class="accent-green">obligations solaires</span>
                     </h2>
                     <p class="lead">
-                        HeliaPV met à disposition de toutes les <strong style="color:white">communes de France</strong>
-                        un accès gratuit à la plateforme : analyse du potentiel solaire, LiDAR IGN HD,
-                        réseau Enedis, cadastre, RPG, risques naturels.
-                        <strong style="color:#4ade80">100 % financé par nos partenaires énergie.</strong>
+                        La loi impose aux collectivités d'équiper leurs <strong style="color:white">bâtiments publics ≥ 500 m²</strong>
+                        et leurs <strong style="color:white">parkings &ge; 1 500 m²</strong> en panneaux solaires d'ici 2026-2028
+                        (L.171-4/L.171-5 CCH) et 2026-2028 (L.111-19-1 CU).
+                        HeliaPV vous offre un <strong style="color:#4ade80">diagnostic communal complet — entièrement gratuit</strong>
+                        pour identifier vos sites concernés et préparer vos dossiers.
                     </p>
                     <div class="communes-stats">
                         <div class="commune-stat">
-                            <span class="commune-stat-num">35 000</span>
-                            <span class="commune-stat-label">Communes couvertes</span>
+                            <span class="commune-stat-num">≥ 500 m²</span>
+                            <span class="commune-stat-label">Seuil bâtiments</span>
                         </div>
                         <div class="commune-stat">
-                            <span class="commune-stat-num">20 pts/m²</span>
-                            <span class="commune-stat-label">LiDAR IGN HD</span>
+                            <span class="commune-stat-num">≥ 1 500 m²</span>
+                            <span class="commune-stat-label">Seuil parkings</span>
                         </div>
                         <div class="commune-stat">
-                            <span class="commune-stat-num">18+</span>
-                            <span class="commune-stat-label">Couches SIG</span>
+                            <span class="commune-stat-num">2026–2028</span>
+                            <span class="commune-stat-label">Échéances légales</span>
                         </div>
                         <div class="commune-stat">
                             <span class="commune-stat-num">100 %</span>
-                            <span class="commune-stat-label">Gratuit mairies</span>
+                            <span class="commune-stat-label">Diagnostic offert</span>
                         </div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <a href="/blog/solarisation-obligatoire-collectivites-2028"
+                           style="color:#4ade80; font-size:0.88rem; font-weight:700; text-decoration:none;">
+                            <i class="bi bi-file-earmark-text"></i>
+                            Lire notre guide complet sur les obligations →
+                        </a>
                     </div>
                 </div>
                 <div class="col-lg-6">
                     <div class="row g-3">
                         <div class="col-6">
                             <div class="commune-cap-card">
-                                <span class="commune-cap-icon">📡</span>
-                                <h4>LiDAR IGN HD</h4>
-                                <p>Nuage de points 25 cm, détection pentes RANSAC, surfaces de toiture au m².</p>
-                                <span class="green-badge">20 pts/m²</span>
-                                <span class="green-badge">COPC</span>
+                                <span class="commune-cap-icon">🗺️</span>
+                                <h4>Cadastre MAJIC</h4>
+                                <p>Bâtiments publics et parkings de votre commune identifiés via la base cadastrale officielle. Surfaces calculées par parcelle.</p>
+                                <span class="green-badge">Base MAJIC</span>
+                                <span class="green-badge">Toiture + Parking</span>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="commune-cap-card">
-                                <span class="commune-cap-icon">⚡</span>
-                                <h4>Réseau Enedis</h4>
-                                <p>Lignes HTA aériennes/souterraines, postes HTA/BTA, capacités d'accueil injection.</p>
-                                <span class="green-badge">Open Data</span>
-                                <span class="green-badge">HTA/BTA</span>
+                                <span class="commune-cap-icon">⚖️</span>
+                                <h4>Obligations légales ciblées</h4>
+                                <p>Chaque site est qualifié selon les seuils L.171-4/L.171-5 CCH et L.111-19-1 CU. Échéances 2026 et 2028 signalées.</p>
+                                <span class="green-badge">L.171-5 CCH</span>
+                                <span class="green-badge">L.111-19-1 CU</span>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="commune-cap-card">
-                                <span class="commune-cap-icon">🛡️</span>
-                                <h4>Risques & contraintes</h4>
-                                <p>Natura 2000, ZNIEFF, PPRn, séisme, inondation. Toutes les contraintes avant l'étude.</p>
-                                <span class="green-badge">GéoRisques</span>
-                                <span class="green-badge">INPN</span>
+                                <span class="commune-cap-icon">📊</span>
+                                <h4>Estimations personnalisées</h4>
+                                <p>Puissance installable (kWc), production annuelle, économies €/an et CO₂ évité calculés pour chaque site éligible.</p>
+                                <span class="green-badge">kWc estimé</span>
+                                <span class="green-badge">€/an économisés</span>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="commune-cap-card">
-                                <span class="commune-cap-icon">☀️</span>
-                                <h4>Potentiel solaire</h4>
-                                <p>Heatmap irradiation, PVGIS Copernicus SARAH-3, simulation kWh/kWc/an par parcelle.</p>
-                                <span class="green-badge">PVGIS</span>
-                                <span class="green-badge">Heatmap</span>
+                                <span class="commune-cap-icon">🤝</span>
+                                <h4>Accompagnement disponible</h4>
+                                <p>Audit toiture et parking, montage financier (DSIL, DETR, CPE/tiers-financement), constitution du dossier réglementaire, sélection RGE.</p>
+                                <span class="green-badge">DSIL / DETR / CPE</span>
+                                <span class="green-badge">RGE certifié</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Séparateur Inscription mairie -->
-            <div class="row mt-5 align-items-center">
-                <div class="col-lg-7">
-                    <h3 style="color:white; font-weight:800; font-size:1.5rem; margin-bottom:.6rem;">
-                        Inscrire ma commune pour un accès complet
-                    </h3>
-                    <p style="color:rgba(255,255,255,.55); font-size:.95rem;">
-                        Obtenez un tableau de bord dédié, les exports PDF territoriaux et les mises à jour automatiques des données. Réservé aux agents et élus des collectivités, entièrement gratuit.
-                    </p>
+            <!-- Bloc accompagnement 4 étapes -->
+            <div class="row mb-5">
+                <div class="col-12">
+                    <div style="background:rgba(255,255,255,0.025); border:1px solid rgba(74,222,128,0.18); border-radius:20px; padding:40px 44px;">
+                        <div style="text-align:center; margin-bottom:32px;">
+                            <h3 style="color:white; font-weight:900; font-size:1.5rem; margin-bottom:8px;">
+                                Notre accompagnement <span style="background:linear-gradient(135deg,#4ade80,#22c55e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">A → Z</span>
+                            </h3>
+                            <p style="color:rgba(255,255,255,.5); font-size:.92rem;">
+                                Du diagnostic initial jusqu'à la mise en service — en option selon vos besoins
+                            </p>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div style="text-align:center; padding:20px 16px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.2); border-radius:14px; height:100%;">
+                                    <div style="width:36px;height:36px;background:rgba(74,222,128,0.15);border:1.5px solid #4ade80;border-radius:50%;font-weight:900;color:#4ade80;font-size:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">1</div>
+                                    <div style="font-size:1.6rem;margin-bottom:10px;">🔍</div>
+                                    <h5 style="color:white; font-weight:800; font-size:.95rem; margin-bottom:8px;">Diagnostic communal global</h5>
+                                    <p style="color:rgba(255,255,255,.55); font-size:.82rem; line-height:1.5;">Carte interactive MAJIC, liste des sites concernés par les obligations, estimations de puissance et d'économies. <strong style="color:#4ade80">Offert.</strong></p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div style="text-align:center; padding:20px 16px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.2); border-radius:14px; height:100%;">
+                                    <div style="width:36px;height:36px;background:rgba(74,222,128,0.15);border:1.5px solid #4ade80;border-radius:50%;font-weight:900;color:#4ade80;font-size:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">2</div>
+                                    <div style="font-size:1.6rem;margin-bottom:10px;">💶</div>
+                                    <h5 style="color:white; font-weight:800; font-size:.95rem; margin-bottom:8px;">Montage financier & subventions</h5>
+                                    <p style="color:rgba(255,255,255,.55); font-size:.82rem; line-height:1.5;">Identification des aides adaptées : DSIL, DETR, CPE/tiers-financement, appels d'offres CRE et autoconsommation collective. Calcul du reste à charge.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div style="text-align:center; padding:20px 16px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.2); border-radius:14px; height:100%;">
+                                    <div style="width:36px;height:36px;background:rgba(74,222,128,0.15);border:1.5px solid #4ade80;border-radius:50%;font-weight:900;color:#4ade80;font-size:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">3</div>
+                                    <div style="font-size:1.6rem;margin-bottom:10px;">📋</div>
+                                    <h5 style="color:white; font-weight:800; font-size:.95rem; margin-bottom:8px;">Dossier réglementaire</h5>
+                                    <p style="color:rgba(255,255,255,.55); font-size:.82rem; line-height:1.5;">Déclaration préalable ou permis de construire, consultation ABF si nécessaire, CERFA automatisés.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div style="text-align:center; padding:20px 16px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.2); border-radius:14px; height:100%;">
+                                    <div style="width:36px;height:36px;background:rgba(74,222,128,0.15);border:1.5px solid #4ade80;border-radius:50%;font-weight:900;color:#4ade80;font-size:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">4</div>
+                                    <div style="font-size:1.6rem;margin-bottom:10px;">🏗️</div>
+                                    <h5 style="color:white; font-weight:800; font-size:.95rem; margin-bottom:8px;">Sélection installateurs RGE</h5>
+                                    <p style="color:rgba(255,255,255,.55); font-size:.82rem; line-height:1.5;">Appel d'offres auprès d'installateurs certifiés RGE, comparaison des propositions, suivi de chantier.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-lg-5 text-lg-end mt-3 mt-lg-0">
-                    <a href="/register?plan=commune_gratuit" class="cta-button cta-primary"
-                       style="background: linear-gradient(135deg,#22c55e 0%,#16a34a 100%); box-shadow:0 8px 25px rgba(34,197,94,.35);">
-                        <i class="bi bi-building-fill-add"></i> Inscrire ma commune — Gratuit
-                    </a>
+            </div>
+
+            <!-- Barre recherche diagnostic commune -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.22);border-radius:20px;padding:32px 36px;">
+                        <h3 style="color:white;font-weight:800;font-size:1.35rem;margin-bottom:.5rem;">
+                            🔍 Voir le diagnostic solaire de votre commune — Gratuit
+                        </h3>
+                        <p style="color:rgba(255,255,255,.5);font-size:.9rem;margin-bottom:20px;">
+                            Carte MAJIC, sites éligibles, estimations kWc &amp; €/an, consommation Enedis par secteur — accès immédiat.
+                        </p>
+                        <div class="commune-search-wrap" style="max-width:560px;position:relative;">
+                            <div class="commune-search-row">
+                                <input id="commune-input" type="text" class="commune-input"
+                                    placeholder="Nom de votre commune…" autocomplete="off">
+                                <button class="btn-commune-search" onclick="launchCommune()">
+                                    <i class="bi bi-arrow-right-circle-fill"></i> Voir le diagnostic
+                                </button>
+                            </div>
+                            <ul id="commune-dropdown"></ul>
+                            <p class="commune-search-hint">Ex : Tulle, Brive-la-Gaillarde, Clermont-Ferrand…</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1278,9 +1578,28 @@
         } else if (/^\d{5}$/.test(val)) {
             window.location.href = '/ao/commune/' + val;
         } else {
-            window.location.href = '/ao/';
+            // Tenter une résolution rapide via l'API
+            fetch('https://geo.api.gouv.fr/communes?nom=' + encodeURIComponent(val) +
+                  '&fields=code&boost=population&limit=1')
+              .then(r => r.json())
+              .then(data => {
+                if (data && data.length) {
+                    window.location.href = '/ao/commune/' + data[0].code;
+                } else {
+                    window.location.href = '/ao/?q=' + encodeURIComponent(val);
+                }
+              })
+              .catch(() => { window.location.href = '/ao/?q=' + encodeURIComponent(val); });
         }
     }
     </script>
+
+<footer style="text-align:center;padding:16px;position:relative;z-index:1;">
+  <a href="/mentions-legales"
+     style="color:rgba(255,255,255,0.25);font-size:11px;text-decoration:none;
+            font-family:'Inter',-apple-system,sans-serif;letter-spacing:.5px;">
+    Mentions légales
+  </a>
+</footer>
 </body>
 </html>
