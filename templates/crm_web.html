@@ -490,6 +490,18 @@
     </style>
 </head>
 <body>
+    {% if view_as_user_email %}
+    <div style="background:linear-gradient(90deg,#fbbf24,#f59e0b);color:#0f1b2d;padding:10px 24px;font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:9999;position:relative">
+      <span>
+        <i class="bi bi-eye-fill"></i>
+        Mode admin — vous voyez l'interface comme <strong>{{ view_as_user_email }}</strong>
+        (user_id={{ view_as_user_id }}). Toutes les actions seront effectuées au nom de cet utilisateur.
+      </span>
+      <a href="/admin/view-as/clear" style="background:#0f1b2d;color:#fbbf24;padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:700;font-size:12px;border:1px solid #0f1b2d">
+        <i class="bi bi-x-circle"></i> Quitter le mode vue
+      </a>
+    </div>
+    {% endif %}
     <!-- Top bar -->
     <div class="topbar">
         <div class="d-flex align-items-center">

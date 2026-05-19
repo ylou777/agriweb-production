@@ -23,11 +23,16 @@ def get_current_crm_user():
     """
     Récupère l'utilisateur courant pour l'isolation des données CRM.
     Retourne (user_id, is_admin) ou (None, False) si non connecté.
+
+    Admin override : si l'utilisateur reel est admin et que la session
+    contient 'admin_view_as_user_id', on renvoie cet user_id avec
+    is_admin=False (pour que user_filter_clause filtre bien sur ce user
+    et que l'admin voie EXACTEMENT ce que voit ce user).
     """
     session_token = flask_session.get('session_token') or request.cookies.get('session_token')
     if not session_token:
         return None, False
-    
+
     try:
         from auth_database import get_auth_db
         conn = get_auth_db()
@@ -41,7 +46,16 @@ def get_current_crm_user():
         result = cursor.fetchone()
         conn.close()
         if result:
-            return result[0], bool(result[1])
+            real_user_id, is_admin = result[0], bool(result[1])
+            # Admin "view as" : si l'admin a active une vue cible, on retourne
+            # cet user comme s'il etait connecte (pas d'admin bypass).
+            view_as = flask_session.get('admin_view_as_user_id')
+            if is_admin and view_as:
+                try:
+                    return int(view_as), False
+                except (TypeError, ValueError):
+                    pass
+            return real_user_id, is_admin
         return None, False
     except Exception as e:
         print(f"⚠️ [CRM AUTH] Erreur récupération utilisateur: {e}")
@@ -200,7 +214,15 @@ def register_crm_routes(app):
     def crm_dashboard():
         """Page de lancement du CRM HeliaPV - Version web"""
         user_id, is_admin = get_current_crm_user()
-        return render_template('crm_web.html', is_admin=is_admin)
+        # Mode "vue admin comme utilisateur" : passe le contexte au template
+        view_as_user_email = flask_session.get('admin_view_as_user_email')
+        view_as_user_id = flask_session.get('admin_view_as_user_id')
+        return render_template(
+            'crm_web.html',
+            is_admin=is_admin,
+            view_as_user_email=view_as_user_email,
+            view_as_user_id=view_as_user_id,
+        )
 
     @app.route('/crm/stats')
     def crm_stats_page():

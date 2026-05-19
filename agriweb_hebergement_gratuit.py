@@ -21150,7 +21150,8 @@ def admin_view_user(user_id):
             
             <div class="mt-3">
                 <a href="/admin" class="btn btn-secondary">Retour</a>
-                <a href="/admin/user/{{ user[0] }}/crm" class="btn btn-success">Voir son CRM</a>
+                <a href="/admin/view-as/{{ user[0] }}" class="btn btn-success">Voir comme lui (vue immersive)</a>
+                <a href="/admin/user/{{ user[0] }}/crm" class="btn btn-outline-success">Vue tableau (QA rapide)</a>
                 <button class="btn btn-warning" onclick="resetPassword()">Réinitialiser mot de passe</button>
                  <button class="btn btn-primary" onclick="extendTrial()">Prolonger essai</button>
             </div>
@@ -21179,6 +21180,36 @@ def admin_view_user(user_id):
     </body>
     </html>
     """, user=user, sessions=sessions)
+
+
+@app.route("/admin/view-as/<int:user_id>")
+@require_admin
+def admin_view_as_user(user_id):
+    """Active le mode 'vue comme cet utilisateur' : pose un flag en session,
+    redirige vers /crm. L'admin voit alors EXACTEMENT l'UI que verrait
+    l'utilisateur cible. Un bandeau dans crm_web.html permet de sortir du mode."""
+    # Verifie que le user cible existe
+    conn = get_auth_db()
+    c = conn.cursor()
+    c.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return "Utilisateur introuvable", 404
+    session['admin_view_as_user_id'] = user_id
+    session['admin_view_as_user_email'] = row[1]
+    return redirect('/crm')
+
+
+@app.route("/admin/view-as/clear")
+@require_admin
+def admin_view_as_clear():
+    """Sort du mode 'vue comme'. Renvoie vers la fiche admin du user vu, ou /admin."""
+    target = session.pop('admin_view_as_user_id', None)
+    session.pop('admin_view_as_user_email', None)
+    if target:
+        return redirect(f'/admin/user/{target}')
+    return redirect('/admin')
 
 
 @app.route("/admin/user/<int:user_id>/crm")
