@@ -3212,16 +3212,16 @@ def register_crm_routes(app):
                 (prospect_id,),
                 fetch_one=True
             )
-            
+
             if not result:
                 return "Prospect non trouvé", 404
-            
+
             # Convertir en dictionnaire
             prospect_dict = dict(result)
-            
+
             print(f"[CALPINAGE PAGE] prospect_id={prospect_id}")
             print(f"[CALPINAGE PAGE] data_json type: {type(prospect_dict.get('data_json'))}")
-            
+
             # Parser data_json si c'est une chaîne
             if prospect_dict.get('data_json') and isinstance(prospect_dict['data_json'], str):
                 try:
@@ -3236,9 +3236,35 @@ def register_crm_routes(app):
             elif not prospect_dict.get('data_json'):
                 print(f"[CALPINAGE PAGE] data_json est vide/None")
                 prospect_dict['data_json'] = {}
-            
-            _, is_admin = get_current_crm_user()
-            return render_template('calpinage_pv.html', prospect=prospect_dict, is_admin=is_admin)
+
+            current_user_id, is_admin = get_current_crm_user()
+
+            # Feature flag granulaire : 3D Calpinage. Migration auto-idempotente
+            # de la colonne feature_3d_calpinage sur users. Permet d'autoriser
+            # certains prospects (Tryba, etc.) sans leur donner le statut admin.
+            can_use_3d = is_admin
+            try:
+                execute_query("""
+                    ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS feature_3d_calpinage BOOLEAN DEFAULT FALSE
+                """)
+                if current_user_id is not None and not is_admin:
+                    flag_row = execute_query(
+                        "SELECT feature_3d_calpinage FROM users WHERE id = %s",
+                        (current_user_id,),
+                        fetch_one=True
+                    )
+                    if flag_row and flag_row.get('feature_3d_calpinage'):
+                        can_use_3d = True
+            except Exception as e:
+                print(f"⚠️ [FEATURE 3D] erreur check flag : {e}")
+
+            return render_template(
+                'calpinage_pv.html',
+                prospect=prospect_dict,
+                is_admin=is_admin,
+                can_use_3d=can_use_3d,
+            )
             
         except Exception as e:
             import traceback

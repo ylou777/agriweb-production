@@ -703,8 +703,8 @@
                             <small class="text-muted" id="typeInfo">Installation en toiture - Modules fixés sur la charpente existante</small>
                         </div>
                     </div>
-                    <!-- Checkbox auto 3D inclinaison (admin uniquement) -->
-                    {% if is_admin %}
+                    <!-- Checkbox auto 3D inclinaison (feature flag can_use_3d) -->
+                    {% if can_use_3d %}
                     <div id="auto3DInclinaisonRow" class="mt-2" style="display:block;">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="auto3DInclinaisonCheck" checked
@@ -1040,7 +1040,7 @@
                     <div class="card-header d-flex justify-content-between align-items-center py-2">
                         <strong><i class="bi bi-map"></i> Carte de calpinage</strong>
                         <div class="d-flex align-items-center gap-1">
-                            {% if is_admin %}
+                            {% if can_use_3d %}
                             <button class="btn btn-sm btn-outline-info" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive WebGL">
                                 🌐 Vue 3D
                             </button>
@@ -1269,8 +1269,8 @@
                     </div>
                 </div>
                 
-                <!-- Visualisation 3D WebGL (admin uniquement) -->
-                {% if is_admin %}
+                <!-- Visualisation 3D WebGL (feature flag can_use_3d) -->
+                {% if can_use_3d %}
                 <div id="viewer3DContainer">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
@@ -1462,8 +1462,8 @@
                             <tbody id="fluxRoofBody"></tbody>
                         </table>
                         </div>
-                        <!-- Barre calepinage auto : plage d'irradiance + cible kWc (admin uniquement) -->
-                        {% if is_admin %}
+                        <!-- Barre calepinage auto : plage d'irradiance + cible kWc (feature flag can_use_3d) -->
+                        {% if can_use_3d %}
                         <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.10);
                              display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
                             <button class="btn btn-sm btn-success" onclick="autoRemplissageToiture()"
@@ -1971,7 +1971,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D (admin uniquement) -->
-    {% if is_admin %}
+    {% if can_use_3d %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
     <script src="/static/js/calpinage_3d.js?v=113"></script>
     {% endif %}
@@ -8019,7 +8019,7 @@
         updateModulePreview();
         updatePoseParams();  // initialiser la visibilité des champs et distances shed
 
-        {% if is_admin %}
+        {% if can_use_3d %}
         // Initialiser le viewer 3D avec délai pour laisser Three.js se charger
         setTimeout(() => {
             console.log('🔍 [3D DEBUG] Vérification chargement Three.js...');
