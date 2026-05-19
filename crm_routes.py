@@ -5269,38 +5269,69 @@ out geom tags;"""
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
     
+    def _ensure_parametrage_user_id_column():
+        """Migration auto : ajoute user_id a parametrage_entreprise si absent.
+        Idempotente. Appelee a chaque GET/POST sur les routes parametrage."""
+        try:
+            execute_query("""
+                ALTER TABLE parametrage_entreprise
+                ADD COLUMN IF NOT EXISTS user_id INTEGER
+            """)
+        except Exception as e:
+            # Si la DB ne supporte pas IF NOT EXISTS sur ADD COLUMN, on essaie sans
+            print(f"⚠️ [PARAM] migration user_id : {e}")
+
+
     @app.route('/api/crm/parametrage/entreprise', methods=['GET', 'POST'])
     def parametrage_entreprise():
-        """GET: Charger les infos entreprise, POST: Sauvegarder"""
+        """GET: Charger les infos entreprise du user courant, POST: Sauvegarder.
+        Multi-tenant : chaque user (ou couple admin / admin_view_as) a sa propre
+        ligne. Les anciennes lignes sans user_id sont visibles uniquement aux
+        admins en mode normal (back-compat)."""
+        _ensure_parametrage_user_id_column()
+
+        # Identifie le user courant (respecte admin_view_as)
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Non authentifie'}), 401
+
         try:
             if request.method == 'GET':
-                # Charger les données
+                # 1) cherche ligne specifique au user
                 result = execute_query(
-                    'SELECT * FROM parametrage_entreprise WHERE actif = TRUE ORDER BY id DESC LIMIT 1',
+                    'SELECT * FROM parametrage_entreprise WHERE user_id = %s AND actif = TRUE ORDER BY id DESC LIMIT 1',
+                    (user_id,),
                     fetch_one=True
                 )
-                
+                # 2) fallback : ligne legacy (user_id IS NULL) — uniquement admin
+                if not result and is_admin:
+                    result = execute_query(
+                        'SELECT * FROM parametrage_entreprise WHERE user_id IS NULL AND actif = TRUE ORDER BY id DESC LIMIT 1',
+                        fetch_one=True
+                    )
+
                 return jsonify({
                     'success': True,
                     'entreprise': dict(result) if result else None
                 })
-            
+
             else:  # POST
-                data = request.json
-                
+                data = request.json or {}
+
                 # Convertir les dates vides en None (PostgreSQL n'accepte pas '' pour DATE)
                 for date_field in ('rge_date_validite', 'qualibat_date_validite'):
                     if date_field in data and not data[date_field]:
                         data[date_field] = None
-                
-                # Vérifier si une entreprise existe déjà
+
+                # Cherche d'abord une ligne pour ce user_id
                 existing = execute_query(
-                    'SELECT id FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',
+                    'SELECT id FROM parametrage_entreprise WHERE user_id = %s AND actif = TRUE LIMIT 1',
+                    (user_id,),
                     fetch_one=True
                 )
-                
+
                 if existing:
-                    # UPDATE
+                    # UPDATE (sur la ligne du user)
                     execute_query("""
                         UPDATE parametrage_entreprise SET
                             nom_entreprise = %s,
@@ -5339,14 +5370,16 @@ out geom tags;"""
                         existing['id']
                     ))
                 else:
-                    # INSERT
+                    # INSERT (nouvelle ligne pour ce user_id)
                     execute_query("""
                         INSERT INTO parametrage_entreprise (
+                            user_id,
                             nom_entreprise, adresse, code_postal, ville, telephone, email, site_web,
                             siret, tva_intracommunautaire, rge_numero, rge_date_validite,
                             qualibat_numero, qualibat_date_validite, qualifelec_numero, logo_base64
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
+                        user_id,
                         data.get('nom_entreprise'),
                         data.get('adresse'),
                         data.get('code_postal'),
@@ -5363,10 +5396,10 @@ out geom tags;"""
                         data.get('qualifelec_numero'),
                         data.get('logo_base64')
                     ))
-                
-                print("✅ Paramétrage entreprise sauvegardé")
+
+                print(f"✅ Paramétrage entreprise sauvegardé pour user_id={user_id}")
                 return jsonify({'success': True})
-                
+
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -5442,38 +5475,76 @@ out geom tags;"""
     
     @app.route('/api/crm/parametrage/graphique', methods=['GET', 'POST'])
     def parametrage_graphique():
-        """GET: Charger les couleurs, POST: Sauvegarder"""
+        """GET: Charger les couleurs du user, POST: Sauvegarder. Multi-tenant."""
+        _ensure_parametrage_user_id_column()
+
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Non authentifie'}), 401
+
         try:
             if request.method == 'GET':
+                # 1) ligne du user
                 result = execute_query(
-                    'SELECT couleur_primaire, couleur_secondaire, couleur_accent FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',
+                    'SELECT couleur_primaire, couleur_secondaire, couleur_accent FROM parametrage_entreprise WHERE user_id = %s AND actif = TRUE LIMIT 1',
+                    (user_id,),
                     fetch_one=True
                 )
-                
+                # 2) fallback legacy pour admin
+                if not result and is_admin:
+                    result = execute_query(
+                        'SELECT couleur_primaire, couleur_secondaire, couleur_accent FROM parametrage_entreprise WHERE user_id IS NULL AND actif = TRUE LIMIT 1',
+                        fetch_one=True
+                    )
+
                 return jsonify({
                     'success': True,
                     'graphique': dict(result) if result else None
                 })
-            
+
             else:  # POST
-                data = request.json
-                
-                execute_query("""
-                    UPDATE parametrage_entreprise SET
-                        couleur_primaire = %s,
-                        couleur_secondaire = %s,
-                        couleur_accent = %s,
-                        date_modification = CURRENT_TIMESTAMP
-                    WHERE actif = TRUE
-                """, (
-                    data.get('couleur_primaire'),
-                    data.get('couleur_secondaire'),
-                    data.get('couleur_accent')
-                ))
-                
-                print("✅ Couleurs sauvegardées")
+                data = request.json or {}
+
+                # Cherche la ligne du user
+                existing = execute_query(
+                    'SELECT id FROM parametrage_entreprise WHERE user_id = %s AND actif = TRUE LIMIT 1',
+                    (user_id,),
+                    fetch_one=True
+                )
+
+                if existing:
+                    execute_query("""
+                        UPDATE parametrage_entreprise SET
+                            couleur_primaire = %s,
+                            couleur_secondaire = %s,
+                            couleur_accent = %s,
+                            date_modification = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (
+                        data.get('couleur_primaire'),
+                        data.get('couleur_secondaire'),
+                        data.get('couleur_accent'),
+                        existing['id']
+                    ))
+                else:
+                    # Pas encore de ligne entreprise pour ce user :
+                    # on cree une ligne minimale avec les couleurs.
+                    execute_query("""
+                        INSERT INTO parametrage_entreprise (
+                            user_id, nom_entreprise,
+                            couleur_primaire, couleur_secondaire, couleur_accent
+                        ) VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        user_id,
+                        'Mon entreprise',  # default placeholder
+                        data.get('couleur_primaire'),
+                        data.get('couleur_secondaire'),
+                        data.get('couleur_accent')
+                    ))
+
+                print(f"✅ Couleurs sauvegardées pour user_id={user_id}")
                 return jsonify({'success': True})
-                
+
         except Exception as e:
             import traceback
             traceback.print_exc()
