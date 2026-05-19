@@ -21150,6 +21150,7 @@ def admin_view_user(user_id):
             
             <div class="mt-3">
                 <a href="/admin" class="btn btn-secondary">Retour</a>
+                <a href="/admin/user/{{ user[0] }}/crm" class="btn btn-success">Voir son CRM</a>
                 <button class="btn btn-warning" onclick="resetPassword()">Réinitialiser mot de passe</button>
                  <button class="btn btn-primary" onclick="extendTrial()">Prolonger essai</button>
             </div>
@@ -21178,6 +21179,154 @@ def admin_view_user(user_id):
     </body>
     </html>
     """, user=user, sessions=sessions)
+
+
+@app.route("/admin/user/<int:user_id>/crm")
+@require_admin
+def admin_view_user_crm(user_id):
+    """Vue admin : afficher le CRM d'un utilisateur cible (fiches projet + prospects).
+    Utilise pour QA apres injection de leads. Lien retour vers /admin/user/<id>."""
+    from database_adapter import execute_query
+
+    # 1) Info user
+    conn = get_auth_db()
+    c = conn.cursor()
+    c.execute("SELECT id, email, name, company FROM users WHERE id = ?", (user_id,))
+    user_row = c.fetchone()
+    conn.close()
+    if not user_row:
+        return "Utilisateur introuvable", 404
+
+    # 2) Stats agreges
+    stats = execute_query("""
+        SELECT
+          COUNT(DISTINCT p.id)  AS nb_prospects,
+          COUNT(DISTINCT f.id)  AS nb_fiches,
+          COUNT(DISTINCT p.commune) AS nb_communes,
+          COUNT(CASE WHEN p.type = 'toiture'  THEN 1 END) AS nb_toitures,
+          COUNT(CASE WHEN p.type = 'parking'  THEN 1 END) AS nb_parkings,
+          COALESCE(SUM((p.data_json::jsonb->>'puissance_kwc')::numeric), 0) AS total_kwc
+        FROM agriweb_prospects p
+        LEFT JOIN project_fiches f ON f.prospect_id = p.id
+        WHERE p.user_id = %s
+    """, (str(user_id),), fetch_one=True) or {}
+
+    # 3) Liste des fiches projet
+    fiches = execute_query("""
+        SELECT
+          f.id          AS fiche_id,
+          f.nom_projet,
+          f.statut_projet,
+          f.date_creation,
+          p.id          AS prospect_id,
+          p.commune,
+          p.departement,
+          p.type,
+          p.adresse,
+          p.surface_m2,
+          (p.data_json::jsonb->>'puissance_kwc')::numeric AS puissance_kwc,
+          (p.data_json::jsonb->>'source') AS source
+        FROM project_fiches f
+        JOIN agriweb_prospects p ON p.id = f.prospect_id
+        WHERE f.user_id = %s
+        ORDER BY p.departement, p.commune, f.id
+    """, (str(user_id),), fetch_all=True) or []
+
+    # 4) Pour chaque fiche, compte d'etapes terminees/total
+    etapes_map = {}
+    for f in fiches:
+        rows = execute_query("""
+            SELECT
+              COUNT(*) AS total,
+              COUNT(CASE WHEN statut = 'termine' THEN 1 END) AS termine
+            FROM project_etapes WHERE project_id = %s
+        """, (f['fiche_id'],), fetch_one=True) or {}
+        etapes_map[f['fiche_id']] = (rows.get('termine', 0), rows.get('total', 0))
+
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><title>CRM de {{ user[1] }} — Admin View</title>
+<style>
+  body{font-family:system-ui,Arial,sans-serif;background:#0f1b2d;color:#f1f5f9;margin:0;padding:24px}
+  .topbar{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #334155}
+  .topbar h1{font-size:20px;margin:0;color:#10b981}
+  .topbar .meta{color:#94a3b8;font-size:13px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#10b9811a;color:#10b981;margin-left:8px}
+  a{color:#3b82f6;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+  .stat-box{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px;text-align:center}
+  .stat-box .val{font-size:24px;font-weight:700;color:#10b981}
+  .stat-box .label{font-size:11px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+  table{width:100%;border-collapse:collapse;font-size:12px;background:#1e293b;border:1px solid #334155;border-radius:8px;overflow:hidden}
+  th{padding:10px 12px;color:#94a3b8;text-align:left;border-bottom:1px solid #334155;background:#0f1b2d;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td{padding:8px 12px;color:#cbd5e1;border-bottom:1px solid #1e293b}
+  tr:hover td{background:#0f1b2d70}
+  .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+  .pill-tryba{background:#fbbf241a;color:#fbbf24;border:1px solid #fbbf2440}
+  .pill-toiture{background:#3b82f61a;color:#3b82f6}
+  .pill-parking{background:#a855f71a;color:#a855f7}
+  .progress{display:inline-block;width:80px;height:6px;background:#334155;border-radius:3px;overflow:hidden;vertical-align:middle}
+  .progress-bar{height:100%;background:linear-gradient(90deg,#10b981,#3b82f6)}
+</style></head><body>
+<div class="topbar">
+  <a href="/admin/user/{{ user[0] }}" style="color:#94a3b8">&larr; Fiche admin</a>
+  <h1>CRM vue admin</h1>
+  <div class="meta">
+    {{ user[1] }} &middot; {{ user[2] or 'sans nom' }} &middot; {{ user[3] or 'sans societe' }}
+    <span class="badge">user_id={{ user[0] }}</span>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-box"><div class="val">{{ stats.nb_prospects or 0 }}</div><div class="label">Prospects</div></div>
+  <div class="stat-box"><div class="val">{{ stats.nb_fiches or 0 }}</div><div class="label">Fiches projet</div></div>
+  <div class="stat-box"><div class="val">{{ stats.nb_communes or 0 }}</div><div class="label">Communes</div></div>
+  <div class="stat-box"><div class="val">{{ stats.nb_toitures or 0 }}</div><div class="label">Toitures</div></div>
+  <div class="stat-box"><div class="val">{{ stats.nb_parkings or 0 }}</div><div class="label">Parkings</div></div>
+  <div class="stat-box"><div class="val">{{ ("%.0f"|format(stats.total_kwc|float)).replace(",", " ") }} kWc</div><div class="label">Potentiel cumule</div></div>
+</div>
+
+<table>
+<thead><tr>
+  <th>#</th><th>Dept</th><th>Commune</th><th>Type</th><th>Adresse</th>
+  <th>Surface (m²)</th><th>kWc</th><th>Statut</th><th>Workflow</th><th>Source</th><th>Actions</th>
+</tr></thead>
+<tbody>
+{% for f in fiches %}
+<tr>
+  <td>{{ loop.index }}</td>
+  <td><strong>{{ f.departement or '' }}</strong></td>
+  <td>{{ f.commune or '' }}</td>
+  <td><span class="pill pill-{{ f.type }}">{{ f.type }}</span></td>
+  <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ f.adresse }}">{{ f.adresse }}</td>
+  <td>{{ ("%.0f"|format(f.surface_m2|float)) if f.surface_m2 else '-' }}</td>
+  <td>{{ ("%.1f"|format(f.puissance_kwc|float)) if f.puissance_kwc else '-' }}</td>
+  <td><span style="color:#94a3b8">{{ f.statut_projet }}</span></td>
+  <td>
+    {% set t,n = etapes_map[f.fiche_id] %}
+    {{ t }}/{{ n }}
+    <div class="progress"><div class="progress-bar" style="width:{{ (t/n*100)|round if n else 0 }}%"></div></div>
+  </td>
+  <td>
+    {% if f.source == 'tryba_handoff' %}<span class="pill pill-tryba">tryba</span>
+    {% else %}<span style="color:#64748b">{{ f.source or '-' }}</span>{% endif %}
+  </td>
+  <td>
+    <a href="/crm/prospect/{{ f.prospect_id }}/visite-technique" target="_blank">visite</a>
+    &middot;
+    <a href="/crm/prospect/{{ f.prospect_id }}/calpinage" target="_blank">calpinage</a>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="11" style="text-align:center;padding:32px;color:#64748b">Aucune fiche projet pour cet utilisateur.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</body></html>
+""", user=user_row, stats=stats, fiches=fiches, etapes_map=etapes_map)
+
 
 @app.route("/admin/user/create", methods=["POST"])
 @require_admin
