@@ -310,41 +310,86 @@ def rollback(conn, user_id):
 # Injection CRM (mêmes invariants que routes/commune_ao_routes.py:inject_crm)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def inject_lead(conn, rec, user_id):
-    """Pour 1 recipient, injecte tous ses map_assets dans agriweb_prospects
-    + project_fiches (via auto_create_project_for_prospect qui cree aussi
-    les 12 etapes du workflow). Retourne (injected, skipped).
+def inject_lead(conn, rec, user_id, top_per_commune=3, min_kwc=0.0, min_surface_m2=0.0):
+    """Pour 1 recipient, injecte les top_per_commune assets les plus puissants
+    (par puissance_kwc) dans agriweb_prospects + project_fiches.
 
-    NOTE: auto_create_project_for_prospect utilise database_adapter.execute_query
-    qui ouvre ses propres connexions. On commit donc apres chaque INSERT pour
-    que le prospect soit visible quand auto_create relit la base.
+    Source preferentielle : _diag_full.assets (50-100 batiments identifies),
+    fallback sur map_assets/top_assets (top 5 alleges de la campagne).
+
+    Anti-collision : si plusieurs assets ont la meme denomination dans la
+    commune (typique pour "Batiment communal"), on suffixe par lat,lon pour
+    qu'aucun ne soit ecrase par la dedup (commune, adresse, type).
+
+    Retourne (injected, skipped).
     """
     from crm_routes import auto_create_project_for_prospect
     from database_adapter import execute_query
 
     diag = rec["_diag"]
-    assets = diag.get("map_assets") or diag.get("top_assets") or []
+    # Source preferentielle : _diag_full.assets (riche, avec puissance_kwc
+    # calculee). Sinon top_assets ou map_assets en fallback.
+    full = diag.get("_diag_full") or {}
+    if isinstance(full, dict) and full.get("assets"):
+        raw_assets = full["assets"]
+        source_label = "_diag_full.assets"
+    else:
+        raw_assets = diag.get("map_assets") or diag.get("top_assets") or []
+        source_label = "fallback"
+
+    # Tri par puissance kWc decroissante, garde top N
+    def asset_kwc(a):
+        return _num(a.get("puissance_kwc") or a.get("kwc") or 0)
+
+    sorted_assets = sorted(raw_assets, key=asset_kwc, reverse=True)
+
+    # Filtres optionnels : seuil kWc et surface
+    def passes_thresholds(a):
+        if min_kwc > 0 and asset_kwc(a) < min_kwc:
+            return False
+        if min_surface_m2 > 0:
+            s = _num(a.get("surface_m2") or a.get("surface") or 0)
+            if s < min_surface_m2:
+                return False
+        return True
+
+    filtered = [a for a in sorted_assets if passes_thresholds(a)]
+    assets = filtered[:top_per_commune]
+
     nom_commune = rec["nom_commune"] or diag.get("nom_commune") or rec["code_insee"]
     code_insee = rec["code_insee"] or ""
     dept = (code_insee[:2] if len(code_insee) >= 2 else rec.get("departement") or "")
+
+    # Pre-detection collisions : si plusieurs assets de la commune partagent
+    # la meme (denomination, type), on suffixera tous leurs noms avec lat,lon.
+    from collections import Counter
+    name_counts = Counter()
+    for a in assets:
+        nm = (a.get("denomination") or a.get("name") or "").strip()
+        tp = (a.get("type") or "").strip().lower()
+        crm_t = "parking" if "parking" in tp else "toiture"
+        name_counts[(nm.lower(), crm_t)] += 1
+
+    print(f"  [{nom_commune}] top {len(assets)}/{len(raw_assets)} via {source_label}")
 
     injected = 0
     skipped = 0
 
     for asset in assets:
-        lat = asset.get("lat")
-        lon = asset.get("lon")
+        lat = asset.get("lat") or asset.get("latitude")
+        lon = asset.get("lon") or asset.get("longitude")
         surface = _num(asset.get("surface_m2") or asset.get("surface") or 0)
-        raw_name = asset.get("name") or ""
-        asset_type = asset.get("type") or ""
-        kwc = _num(asset.get("kwc") or asset.get("puissance_kwc") or 0)
+        raw_name = (asset.get("denomination") or asset.get("name") or "").strip()
+        asset_type = (asset.get("type") or "").strip()
+        kwc = _num(asset.get("puissance_kwc") or asset.get("kwc") or 0)
         crm_type = "parking" if "parking" in asset_type.lower() else "toiture"
-        # Fix dedup : si le nom est vide ou generique, suffixer par lat,lon
-        # pour eviter que plusieurs assets distincts dans la meme commune
-        # ne se collisionnent sur (commune, adresse, type) dans inject_crm.
-        generic = raw_name.strip().lower() in ("", "parking", "toiture", asset_type.lower())
-        if generic and lat is not None and lon is not None:
-            name = f"{crm_type} @ {float(lat):.5f}, {float(lon):.5f}"
+
+        # Suffixe (anti-collision) : nom generique OU collision detectee
+        generic = raw_name.lower() in ("", "parking", "toiture", asset_type.lower())
+        will_collide = name_counts[(raw_name.lower(), crm_type)] > 1
+        if (generic or will_collide) and lat is not None and lon is not None:
+            base = raw_name if raw_name else crm_type
+            name = f"{base} @ {float(lat):.5f}, {float(lon):.5f}"
         else:
             name = raw_name or crm_type
 
@@ -474,6 +519,15 @@ def main():
                         "(filtrage par data_json.source='tryba_handoff'). Demande confirmation.")
     p.add_argument("--yes", action="store_true",
                    help="Skip la confirmation interactive (a utiliser uniquement en automation)")
+    p.add_argument("--top-per-commune", type=int, default=3,
+                   help="Nombre de plus gros assets (par puissance kWc) a injecter par commune "
+                        "(defaut 3). Source : _diag_full.assets si disponible.")
+    p.add_argument("--min-kwc", type=float, default=0.0,
+                   help="Filtre les assets dont la puissance estimee < seuil kWc "
+                        "(defaut 0 = pas de filtre). Ex: --min-kwc 200 pour ne garder que les "
+                        "projets >= 200 kWc, plus convaincants commercialement.")
+    p.add_argument("--min-surface-m2", type=float, default=0.0,
+                   help="Filtre les assets dont la surface < seuil m^2 (defaut 0 = pas de filtre).")
     args = p.parse_args()
 
     # Filtre departements (region preset > liste manuelle)
@@ -599,7 +653,10 @@ def main():
     total_skipped = 0
     for r in picked:
         try:
-            inj, skp = inject_lead(conn, r, user["id"])
+            inj, skp = inject_lead(conn, r, user["id"],
+                                    top_per_commune=args.top_per_commune,
+                                    min_kwc=args.min_kwc,
+                                    min_surface_m2=args.min_surface_m2)
             print(f"  -> {r['nom_commune']:<28} injected={inj:>2} skipped={skp:>2}")
             total_injected += inj
             total_skipped += skp
