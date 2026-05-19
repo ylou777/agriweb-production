@@ -1989,6 +1989,13 @@
         const prospectLat = {{ prospect.latitude }};
         const prospectLon = {{ prospect.longitude }};
         const prospectDept = "{{ prospect.departement or '23' }}";
+        // Type du prospect (toiture / parking / friche / etc.) — utilise pour la
+        // logique irradiation : parking → bbox du polygone du parking au lieu
+        // d'un cercle 60m centre sur le centroide.
+        const prospectType = "{{ prospect.type or '' }}";
+        // Geometrie native du prospect (BD TOPO pour toitures, GeoServer pour
+        // parkings) si stockee dans data_json.geom — format GeoJSON Geometry.
+        const prospectGeom = {{ prospect.data_json.geom | tojson if prospect.data_json and prospect.data_json.geom else 'null' }};
         
         // Données de calpinage sauvegardées (si existantes)
         const savedCalpinage = {{ prospect.data_json.calpinage | tojson if prospect.data_json and prospect.data_json.calpinage else 'null' }};
@@ -10148,6 +10155,41 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             [maxLon + bufLon, maxLat + bufLat],
                             [minLon - bufLon, maxLat + bufLat]
                         ];
+                    } else if (prospectType === 'parking' && prospectGeom &&
+                               (prospectGeom.type === 'Polygon' || prospectGeom.type === 'MultiPolygon')) {
+                        // ── PARKING sans zone dessinee : utilise le polygone du parking ──
+                        // (data_json.geom = BD TOPO / GeoServer parkings). Pas de fallback
+                        // sur cercle 60m car ca catchait les batiments alentour au lieu
+                        // du parking lui-meme. Pour les toitures, on garde le fallback
+                        // circulaire (l'utilisateur dessine ses zones sur le batiment).
+                        let ring;
+                        if (prospectGeom.type === 'Polygon') {
+                            ring = prospectGeom.coordinates[0];
+                        } else {
+                            // MultiPolygon : prendre le plus grand polygone (le plus de points)
+                            let biggest = prospectGeom.coordinates[0];
+                            for (const poly of prospectGeom.coordinates) {
+                                if (poly[0] && poly[0].length > biggest[0].length) biggest = poly;
+                            }
+                            ring = biggest[0];
+                        }
+                        // Centroide + rayon = max dist a chaque sommet + buffer 30m
+                        const lats_p = ring.map(c => c[1]);
+                        const lons_p = ring.map(c => c[0]);
+                        heatLat = lats_p.reduce((a,b)=>a+b,0) / lats_p.length;
+                        heatLon = lons_p.reduce((a,b)=>a+b,0) / lons_p.length;
+                        const _mpdLatP = 111320;
+                        const _mpdLonP = 111320 * Math.cos(heatLat * Math.PI / 180);
+                        let _maxDP = 0;
+                        ring.forEach(c => {
+                            const dy = (c[1] - heatLat) * _mpdLatP;
+                            const dx = (c[0] - heatLon) * _mpdLonP;
+                            _maxDP = Math.max(_maxDP, Math.hypot(dx, dy));
+                        });
+                        radius_m = Math.max(40, Math.min(Math.ceil(_maxDP) + 30, 350));
+                        // bCoords = ring du parking (Solar API filtre les pixels dedans)
+                        bCoords = ring.map(c => [c[0], c[1]]);
+                        console.log(`🅿️ Parking sans zone — masque polygone parking (${ring.length} sommets, r=${radius_m}m)`);
                     } else {
                         heatLat = prospectLat;
                         heatLon = prospectLon;
