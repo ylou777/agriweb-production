@@ -282,7 +282,8 @@ def index():
         from crm_routes import get_current_crm_user
         user_id, is_admin = get_current_crm_user()
     except Exception:
-        user_id, is_admin = None, True
+        # Fail-closed : en cas d'erreur on NE retombe JAMAIS sur admin.
+        user_id, is_admin = None, False
     prospects = _get_prospects_for_ao(user_id=user_id, is_admin=is_admin)
     return render_template('ao_pv_batiment.html',
                            prospects=prospects,
@@ -297,6 +298,13 @@ def get_prospect_data(prospect_id):
     """Retourne les données d'un prospect formatées pour le formulaire AO."""
     try:
         from database_adapter import execute_query
+        from crm_routes import get_current_crm_user, verify_prospect_ownership
+        # Isolation multi-tenant : exiger session + propriété du prospect.
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({"error": "Authentification requise"}), 401
+        if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+            return jsonify({"error": "Prospect non trouvé"}), 404
         p = execute_query(
             'SELECT * FROM agriweb_prospects WHERE id = %s',
             (prospect_id,), fetch_one=True
@@ -500,10 +508,11 @@ def _get_prospects_for_ao(user_id=None, is_admin=False):
     try:
         from database_adapter import execute_query
         from crm_routes import user_filter_clause
-        filter_clause, params = user_filter_clause(user_id, is_admin)
-        # Si user_id non résolu, afficher quand même tous les prospects
+        # Fail-closed : un utilisateur non résolu ne voit AUCUN prospect
+        # (auparavant on vidait le filtre -> liste de TOUS les tenants).
         if not is_admin and user_id is None:
-            filter_clause, params = '', ()
+            return []
+        filter_clause, params = user_filter_clause(user_id, is_admin)
 
         rows = execute_query(
             f'SELECT id, nom_prospect, commune, departement, adresse, statut, surface_m2 '

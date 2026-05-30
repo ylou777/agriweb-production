@@ -5,9 +5,28 @@ Conforme IEC 62446-1 | PPSPS | Traçabilité modules | NCF | DOE | Milestone Bil
 import uuid
 import json
 from datetime import datetime, date
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, abort
 
 chantier_bp = Blueprint('chantier', __name__, url_prefix='/chantier')
+
+
+# ── Isolation multi-tenant ───────────────────────────────────────────────────
+# Garde unique : toute route /<int:prospect_id> et /api/<int:prospect_id>/...
+# exige une session valide ET la propriété du prospect. Sans ce garde, n'importe
+# qui pouvait lire/écrire le chantier d'un autre tenant en énumérant prospect_id.
+@chantier_bp.before_request
+def _enforce_prospect_ownership():
+    prospect_id = (request.view_args or {}).get('prospect_id')
+    if prospect_id is None:
+        return  # routes sans prospect_id (aucune pour l'instant)
+    # Import paresseux : évite tout cycle d'import au chargement du module.
+    from crm_routes import get_current_crm_user, verify_prospect_ownership
+    user_id, is_admin = get_current_crm_user()
+    if user_id is None:
+        abort(401)
+    if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+        # 404 plutôt que 403 : ne pas divulguer l'existence de l'id à un tiers.
+        abort(404)
 
 # ── Phases professionnelles PV > 100 kWc ─────────────────────────────────────
 PHASES = [
