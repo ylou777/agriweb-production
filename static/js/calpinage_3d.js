@@ -7278,10 +7278,24 @@ class Calpinage3DViewer {
     _fitCamera(radiusM) {
         this._lastFitRadius = radiusM;
         const dist = radiusM * 1.5;
-        this.camera.position.set(dist * 0.7, dist * 0.9, dist * 0.7);
+        // Cibler le BÂTIMENT PV, pas le point géocodé : l'adresse peut tomber en
+        // plein air (cour, parking) à plusieurs dizaines de mètres du bâtiment,
+        // qui apparaîtrait alors hors-cadre ("bâtiment absent").
+        let tx = 0, tz = 0;
+        const bc = this.lidarData && this.lidarData.building_hd && this.lidarData.building_hd.building_center;
+        if (bc) {
+            const p = this._geoToLocal(bc.lat, bc.lon); tx = p.x; tz = p.z;
+        } else if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+            const c = this._polygonCenter(this.pvBuildingCoords);
+            const p = this._geoToLocal(c.y, c.x); tx = p.x; tz = p.z;
+        }
+        const ty = (this._mainBldgTerrainH || 0) + (this._mainBldgBh || 6) * 0.5;
+        this.camera.position.set(tx + dist * 0.7, ty + dist * 0.9, tz + dist * 0.7);
         if (this.controls) {
-            this.controls.target.set(0, 3, 0);
+            this.controls.target.set(tx, ty, tz);
             this.controls.update();
+        } else {
+            this.camera.lookAt(tx, ty, tz);
         }
     }
     
