@@ -92,6 +92,36 @@ def user_filter_clause(user_id, is_admin, table_alias=''):
         return '', ()
     return f' AND {prefix}user_id = %s', (str(user_id),)
 
+
+def require_prospect_owner(f):
+    """Décorateur : exige une session valide + la propriété du prospect (param prospect_id)."""
+    from functools import wraps
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+        if not verify_prospect_ownership(kwargs.get('prospect_id'), user_id, is_admin):
+            return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def require_project_owner(f):
+    """Décorateur : exige une session valide + la propriété du projet (param project_id)."""
+    from functools import wraps
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+        if not verify_project_ownership(kwargs.get('project_id'), user_id, is_admin):
+            return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -1297,6 +1327,7 @@ def register_crm_routes(app):
     # ============================================================================
 
     @app.route('/api/crm/prospects/<int:prospect_id>/generate-cerfa', methods=['GET'])
+    @require_prospect_owner
     def generate_prospect_cerfa(prospect_id):
         """Génère un formulaire CERFA pré-rempli pour le prospect"""
         try:
@@ -1344,6 +1375,7 @@ def register_crm_routes(app):
     # ============================================================================
 
     @app.route('/api/crm/prospects/<int:prospect_id>/appointment', methods=['POST'])
+    @require_prospect_owner
     def create_prospect_appointment(prospect_id):
         """Crée un rendez-vous pour un prospect"""
         try:
@@ -1514,6 +1546,9 @@ def register_crm_routes(app):
             prospect_info = {}
             
             if data.get('prospect_id'):
+                # Isolation multi-tenant : interdire la copie du prospect d'un autre user
+                if not verify_prospect_ownership(data.get('prospect_id'), user_id, is_admin):
+                    return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
                 prospect = execute_query(
                     'SELECT * FROM agriweb_prospects WHERE id = %s',
                     (data.get('prospect_id'),),
@@ -1820,6 +1855,7 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/crm/projets/<int:project_id>/etapes/<int:etape_id>', methods=['PUT'])
+    @require_project_owner
     def update_etape(project_id, etape_id):
         """Met à jour une étape du projet"""
         try:
@@ -1845,6 +1881,7 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/crm/projets/<int:project_id>/documents', methods=['POST'])
+    @require_project_owner
     def add_document(project_id):
         """Ajoute un document au projet (JSON ou upload fichier)"""
         try:
@@ -1922,6 +1959,7 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>/download')
+    @require_project_owner
     def download_document(project_id, doc_id):
         """Télécharge un fichier de la dataroom"""
         try:
@@ -1962,6 +2000,7 @@ def register_crm_routes(app):
             return f"Erreur: {str(e)}", 500
 
     @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>/preview')
+    @require_project_owner
     def preview_document(project_id, doc_id):
         """Aperçu inline d'un fichier (PDF, images)"""
         try:
@@ -2069,6 +2108,7 @@ def register_crm_routes(app):
             return None
 
     @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['PUT'])
+    @require_project_owner
     def update_document(project_id, doc_id):
         """Met à jour un document"""
         try:
@@ -2095,6 +2135,7 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['DELETE'])
+    @require_project_owner
     def delete_document(project_id, doc_id):
         """Supprime un document"""
         try:
@@ -2617,6 +2658,7 @@ def register_crm_routes(app):
             return jsonify({'ok': False, 'source': 'open_data', 'error': str(od_err)}), 502
 
     @app.route('/api/crm/prospects/<int:prospect_id>/autoconsommation', methods=['POST'])
+    @require_prospect_owner
     def calculate_autoconsommation(prospect_id):
         """
         Calcul complet d'autoconsommation solaire.
@@ -3203,6 +3245,7 @@ def register_crm_routes(app):
             return jsonify({'error': str(e)}), 500
     
     @app.route('/crm/prospect/<int:prospect_id>/calpinage')
+    @require_prospect_owner
     def page_calpinage_pv(prospect_id):
         """Page de calpinage photovoltaïque pour un prospect"""
         try:
@@ -3272,6 +3315,7 @@ def register_crm_routes(app):
             return f"Erreur: {str(e)}", 500
     
     @app.route('/api/crm/prospects/<int:prospect_id>/calpinage', methods=['POST'])
+    @require_prospect_owner
     def save_calpinage(prospect_id):
         """Sauvegarder les données de calpinage dans data_json du prospect"""
         try:
@@ -5581,6 +5625,7 @@ out geom tags;"""
     # ============================================================================
     
     @app.route('/api/crm/prospect/<int:prospect_id>/generer-dp', methods=['POST'])
+    @require_prospect_owner
     def generer_declaration_prealable(prospect_id):
         """
         Génère le dossier complet de Déclaration Préalable de Travaux (DP)
