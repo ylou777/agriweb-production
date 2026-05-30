@@ -781,12 +781,28 @@ def get_static_style(layer_type='default'):
 
 
 # Configuration CORS pour Railway
+# Origines autorisées pour le CORS (ISO 27001 A.8.20). Surchargables via CORS_ALLOWED_ORIGINS.
+_CORS_ALLOWED_ORIGINS = set(filter(None, os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'https://app.heliapv.fr,https://heliapv.fr,https://www.heliapv.fr,'
+    'http://localhost:5000,http://127.0.0.1:5000'
+).split(',')))
+# Endpoints publics conçus pour l'embarquement cross-origin (widget/news/blog) : CORS large conservé.
+_CORS_PUBLIC_PREFIXES = ('/widget/', '/api/news', '/actualites', '/blog')
+
 @app.after_request
 def after_request(response):
-    """Configure les headers CORS et de sécurité pour Railway"""
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    """Configure les headers CORS (allowlist) et de sécurité pour Railway"""
+    origin = request.headers.get('Origin')
+    path = request.path or ''
+    if path.startswith(_CORS_PUBLIC_PREFIXES):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+    elif origin and origin in _CORS_ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Vary'] = 'Origin'
+    # sinon : aucune origine autorisée explicitement (pas d'en-tête ACAO)
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
     # En-têtes de sécurité (ISO 27001 A.8.20/A.8.23) — non-cassants :
     # pas de X-Frame-Options (le widget news est embarqué sur des sites tiers),
     # pas de CSP stricte (scripts inline).
@@ -5886,10 +5902,21 @@ def health_check():
         "geoserver_url": GEOSERVER_URL
     }), 200
 
+def _require_admin_debug():
+    """Garde ISO 27001 A.8.8 : routes de debug réservées aux admins (404 sinon, masque l'existence)."""
+    try:
+        from crm_routes import get_current_crm_user
+        _uid, is_admin = get_current_crm_user()
+        return bool(is_admin)
+    except Exception:
+        return False
+
 # Endpoint de debug pour tester les API d'authentification
 @app.route("/debug/auth", methods=["GET"])
 def debug_auth():
     """Debug des routes d'authentification"""
+    if not _require_admin_debug():
+        return ("Not found", 404)
     return jsonify({
         "status": "ok",
         "message": "API d'authentification opérationnelle",
@@ -5934,7 +5961,9 @@ def check_auth():
 def debug_geoserver():
     """Re-détecte et teste GeoServer"""
     global GEOSERVER_URL
-    
+    if not _require_admin_debug():
+        return ("Not found", 404)
+
     old_url = GEOSERVER_URL
     new_url = detect_working_geoserver()
     
@@ -5964,6 +5993,8 @@ def debug_geoserver():
 @app.route("/debug/database", methods=["GET"])
 def debug_database():
     """Debug de la base de données pour voir les utilisateurs et tokens"""
+    if not _require_admin_debug():
+        return ("Not found", 404)
     try:
         from datetime import datetime
         
@@ -6031,6 +6062,8 @@ def debug_database():
 @app.route("/debug/password-reset", methods=["GET", "POST"])
 def debug_password_reset():
     """Debug de la réinitialisation de mot de passe"""
+    if not _require_admin_debug():
+        return ("Not found", 404)
     try:
         if request.method == "GET":
             return jsonify({
@@ -6083,6 +6116,8 @@ def debug_password_reset():
 @app.route("/debug/clean-token", methods=["GET", "POST"])
 def debug_clean_verification_token():
     """Nettoie les tokens de vérification résiduels"""
+    if not _require_admin_debug():
+        return ("Not found", 404)
     try:
         if request.method == "GET":
             return jsonify({

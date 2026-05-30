@@ -96,3 +96,20 @@ git_history_*.txt
 
 # Rapports de nettoyage
 cleanup_analysis_report.txt
+
+# ── Secrets & fichiers sensibles (ISO 27001 A.8.10 / A.8.24) ──────────────────
+# NE JAMAIS committer de secrets : utiliser les variables d'environnement.
+*.env
+!*_template.env
+stripe_config.py
+stripe_config.env
+users.json
+production_users.json
+production_licenses.json
+*secret*.json
+*credentials*.json
+*_secrets.json
+*_secrets.env
+# Rapports d'audit sécurité (détaillent des failles)
+SECURITE_*.md
+AUDIT_SECURITE*.md
