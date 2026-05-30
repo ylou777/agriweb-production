@@ -607,7 +607,14 @@ except ImportError:
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # Force pas de cache pour les templates
-app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
+_secret_key = os.getenv('SECRET_KEY')
+if not _secret_key:
+    # Fallback FAIBLE (secret connu, committé) — uniquement pour le dev local.
+    # ISO 27001 A.8.24 : définir SECRET_KEY (forte, aléatoire) en env avant production.
+    _secret_key = 'agriweb-secret-key-2025-commercial'
+    print("⚠️ [SECURITE] SECRET_KEY non définie en environnement — fallback FAIBLE utilisé. "
+          "Définir une SECRET_KEY aléatoire (Railway) avant la production.")
+app.secret_key = _secret_key
 
 # ── Configuration Flask-Mail (OVH SMTP) ──────────────────────────────────────
 import config as _cfg
@@ -776,10 +783,16 @@ def get_static_style(layer_type='default'):
 # Configuration CORS pour Railway
 @app.after_request
 def after_request(response):
-    """Configure les headers CORS pour Railway"""
+    """Configure les headers CORS et de sécurité pour Railway"""
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    # En-têtes de sécurité (ISO 27001 A.8.20/A.8.23) — non-cassants :
+    # pas de X-Frame-Options (le widget news est embarqué sur des sites tiers),
+    # pas de CSP stricte (scripts inline).
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000')
     return response
 
 # ──────────────────────────────────────────────────────────────
