@@ -6751,11 +6751,14 @@ class Calpinage3DViewer {
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 5 cm
-                    // copcY = _sampleCopcHeight() = terrainH + max(bh, z_rel - baseline + bh)
-                    // → même repère que le mesh toit → comparaison directe
-                    const _roofAtPoint = this._sampleCopcHeight(ml.x, ml.z) ?? (_tHGlobal + Math.max(_bWHadd, mnh));
-                    if (copcY <= _roofAtPoint + 0.05) return;
+                    // Seuil obstacle : la SURFACE LiDAR réelle (copcY, grille COPC) dépasse
+                    // le PLAN RANSAC propre (les superstructures ont été retirées du fit
+                    // côté backend par _filter_roof_obstacles) de plus de 25 cm
+                    // → le module est posé sur une protubérance (cheminée, lanterneau…).
+                    // [FIX] auparavant on comparait copcY à _sampleCopcHeight (lui-même)
+                    //        → la condition était toujours vraie → aucun obstacle détecté.
+                    const _planeY = _tHGlobal + Math.max(_bWHadd, mnh);
+                    if (copcY <= _planeY + 0.25) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
                     if (modPos.corners?.length >= 4) {
@@ -6771,6 +6774,50 @@ class Calpinage3DViewer {
                     _rawBBoxes.push({ xMin, xMax, zMin, zMax });
                 });
             });
+
+            // ── Amélioration : détection d'obstacles directement sur la grille COPC,
+            // INDÉPENDANTE des plans RANSAC (fonctionne aussi sur toiture plate / sans
+            // RANSAC, comme ce bâtiment). Pour chaque cellule, on compare sa hauteur
+            // LiDAR à la MÉDIANE LOCALE (fenêtre ~±2 m) : un dépassement > 40 cm =
+            // superstructure (cheminée, lanterneau, édicule, HVAC, ventilation) →
+            // zone d'exclusion. Détecte aussi les obstacles situés ENTRE les modules.
+            let _gridHits = 0;
+            try {
+                const _cg2 = this.lidarData.building_hd.copc_grid;
+                const _g = _cg2.grid, _nx = _cg2.nx, _ny = _cg2.ny, _st = _cg2.step;
+                const _gx0 = _cg2.x0, _gy0 = _cg2.y0;
+                if (_g && _nx && _ny && _st) {
+                    const _PROT = 0.40;
+                    const _W = Math.max(2, Math.round(2.0 / _st)); // demi-fenêtre ≈ 2 m
+                    for (let gj = 0; gj < _ny; gj++) {
+                        const _row = _g[gj]; if (!_row) continue;
+                        for (let gi = 0; gi < _nx; gi++) {
+                            const _zr = _row[gi]; if (_zr == null) continue;
+                            // médiane locale des voisins valides (robuste au bruit)
+                            const _nb = [];
+                            for (let dj = -_W; dj <= _W; dj++) {
+                                const _r2 = _g[gj + dj]; if (!_r2) continue;
+                                for (let di = -_W; di <= _W; di++) {
+                                    const _v = _r2[gi + di];
+                                    if (_v != null) _nb.push(_v);
+                                }
+                            }
+                            if (_nb.length < 6) continue;
+                            _nb.sort((a, b) => a - b);
+                            const _med = _nb[_nb.length >> 1];
+                            if (_zr - _med > _PROT) {
+                                const _px = _gx0 + gi * _st, _py = _gy0 + gj * _st;
+                                const _wx = _px + _bOXadd, _wz = _bOZadd - _py;
+                                _rawBBoxes.push({ xMin: _wx - _st / 2, xMax: _wx + _st / 2,
+                                                  zMin: _wz - _st / 2, zMax: _wz + _st / 2 });
+                                _gridHits++;
+                            }
+                        }
+                    }
+                }
+            } catch (e) { console.warn('🔍 [Obstacles] scan grille:', e.message); }
+            if (_gridHits) console.log(`🔍 [Obstacles] scan grille COPC (médiane locale): ${_gridHits} cellule(s) en protubérance`);
+
             if (_rawBBoxes.length) {
                 // Fusionner les bboxes qui se touchent ou se chevauchent en obstacles uniques
                 const _MERGE_GAP = 0.10;
