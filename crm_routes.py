@@ -377,7 +377,7 @@ def register_crm_routes(app):
                 FROM agriweb_prospects
                 WHERE 1=1{filter_clause}
                 GROUP BY type
-            ''', filter_params if filter_params else None)
+            ''', filter_params if filter_params else None, fetch_all=True)
             by_type = {row['type']: row['count'] for row in by_type_rows}
             
             # Par statut
@@ -386,7 +386,7 @@ def register_crm_routes(app):
                 FROM agriweb_prospects
                 WHERE 1=1{filter_clause}
                 GROUP BY statut
-            ''', filter_params if filter_params else None)
+            ''', filter_params if filter_params else None, fetch_all=True)
             by_statut = {row['statut']: row['count'] for row in by_statut_rows}
             
             # Timeline (30 derniers jours)
@@ -399,7 +399,7 @@ def register_crm_routes(app):
                 WHERE date_creation >= NOW() - INTERVAL '30 days'{filter_clause}
                 GROUP BY DATE(date_creation), statut
                 ORDER BY date
-            ''', filter_params if filter_params else None)
+            ''', filter_params if filter_params else None, fetch_all=True)
             
             # Construire timeline
             from collections import defaultdict
@@ -450,7 +450,7 @@ def register_crm_routes(app):
                 FROM agriweb_prospects
                 WHERE 1=1{filter_clause}
                 GROUP BY type
-            ''', filter_params if filter_params else None)
+            ''', filter_params if filter_params else None, fetch_all=True)
             conversion_by_type = {}
             for row in conversion_type_rows:
                 total = row['total']
@@ -502,8 +502,8 @@ def register_crm_routes(app):
                 GROUP BY departement
                 ORDER BY total DESC
                 LIMIT 10
-            ''', filter_params if filter_params else None)
-            
+            ''', filter_params if filter_params else None, fetch_all=True)
+
             print(f"✅ [DASHBOARD KPI] Données complètes - Total prospects: {kpis['total']}")
             print(f"📈 [DASHBOARD KPI] Charts types: {len(by_type)}, statuts: {len(by_statut)}")
             print(f"🗺️ [DASHBOARD KPI] Départements: {len(departments_data)}")
@@ -1386,16 +1386,20 @@ def register_crm_routes(app):
             rdv_datetime = f"{data['date']} {data['time']}"
             
             # Créer le rendez-vous
+            # Schéma réel de crm_appointments : title/start_time/end_time/type/description
+            # (cf. database_adapter). On mappe le RDV dessus ; faute de durée fournie,
+            # end_time = start_time.
             execute_query('''
                 INSERT INTO crm_appointments (
-                    prospect_id, date_rdv, type_rdv, notes, date_creation
-                ) VALUES (%s, %s, %s, %s, %s)
+                    prospect_id, title, start_time, end_time, type, description
+                ) VALUES (%s, %s, %s, %s, %s, %s)
             ''', (
                 prospect_id,
+                data.get('type', 'visite'),
+                rdv_datetime,
                 rdv_datetime,
                 data.get('type', 'visite'),
-                data.get('notes', ''),
-                datetime.now().isoformat()
+                data.get('notes', '')
             ))
             
             # Mettre à jour le statut du prospect
@@ -1425,8 +1429,11 @@ def register_crm_routes(app):
             filter_clause, filter_params = user_filter_clause(user_id, is_admin, table_alias='ap')
 
             appointments = execute_query(f'''
-                SELECT 
+                SELECT
                     ca.*,
+                    ca.start_time AS date_rdv,
+                    ca.type AS type_rdv,
+                    ca.description AS notes,
                     ap.nom_prospect,
                     ap.adresse,
                     ap.contact_nom,
@@ -1438,7 +1445,7 @@ def register_crm_routes(app):
                 FROM crm_appointments ca
                 JOIN agriweb_prospects ap ON ca.prospect_id = ap.id
                 WHERE 1=1{filter_clause}
-                ORDER BY ca.date_rdv ASC
+                ORDER BY ca.start_time ASC
             ''', filter_params if filter_params else None, fetch_all=True)
             
             return jsonify({
