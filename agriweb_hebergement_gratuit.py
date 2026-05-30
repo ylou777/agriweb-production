@@ -4201,18 +4201,68 @@ def api_lidar_3d_data():
     try:
         if result["buildings_bdtopo"]:
             import numpy as np
-            # Trouver le bâtiment le plus proche du point cliqué
-            best_idx = 0
-            best_dist = float('inf')
+            import math as _math
+            # === Sélection du bâtiment PV ============================================
+            # Politique : si le point cliqué est DANS un bâtiment réel -> le plus grand
+            # de ceux-ci ; sinon (point géocodé en plein air) -> le plus GRAND bâtiment
+            # du secteur. On ignore les micro-structures (<20 m² : cabanons, locaux).
+            # NB : on N'utilise PAS la distance au centroïde — un grand bâtiment a son
+            # centroïde loin et serait écarté au profit d'une petite annexe proche.
+            _coslat = _math.cos(_math.radians(lat))
+            _DEG_M = 111320.0
+
+            def _poly_area_m2(c):
+                s = 0.0; n = len(c)
+                for i in range(n):
+                    x1, y1 = c[i]; x2, y2 = c[(i + 1) % n]
+                    s += x1 * y2 - x2 * y1
+                return abs(s) / 2.0 * (_DEG_M ** 2) * _coslat
+
+            def _point_in_poly(plon, plat, c):
+                inside = False; n = len(c); j = n - 1
+                for i in range(n):
+                    xi, yi = c[i]; xj, yj = c[j]
+                    if ((yi > plat) != (yj > plat)) and \
+                       (plon < (xj - xi) * (plat - yi) / ((yj - yi) or 1e-12) + xi):
+                        inside = not inside
+                    j = i
+                return inside
+
+            def _edge_dist_m(plon, plat, c):
+                best = float('inf'); n = len(c); j = n - 1
+                for i in range(n):
+                    ax = (c[i][0] - plon) * _DEG_M * _coslat; ay = (c[i][1] - plat) * _DEG_M
+                    bx = (c[j][0] - plon) * _DEG_M * _coslat; by = (c[j][1] - plat) * _DEG_M
+                    dx = bx - ax; dy = by - ay; L2 = dx * dx + dy * dy
+                    t = 0.0 if L2 == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / L2))
+                    px = ax + t * dx; py = ay + t * dy
+                    d = (px * px + py * py) ** 0.5
+                    if d < best: best = d
+                    j = i
+                return best
+
+            _MIN_AREA_M2 = 20.0
+            _cand = []
             for idx, bldg in enumerate(result["buildings_bdtopo"]):
-                coords_b = bldg["coords"]
-                cx = sum(c[0] for c in coords_b) / len(coords_b)
-                cy = sum(c[1] for c in coords_b) / len(coords_b)
-                d = ((cx - lon)**2 + (cy - lat)**2)
-                if d < best_dist:
-                    best_dist = d
-                    best_idx = idx
-            
+                c = bldg.get("coords") or []
+                if len(c) < 3:
+                    continue
+                _cand.append({"idx": idx, "area": _poly_area_m2(c),
+                              "inside": _point_in_poly(lon, lat, c),
+                              "edge": _edge_dist_m(lon, lat, c)})
+
+            _real = [b for b in _cand if b["area"] >= _MIN_AREA_M2]
+            _inside = [b for b in _real if b["inside"]]
+            if _inside:
+                best_idx = max(_inside, key=lambda b: b["area"])["idx"]; _why = "contient le point (plus grand)"
+            elif _real:
+                best_idx = max(_real, key=lambda b: b["area"])["idx"]; _why = "plus grand du secteur (plein air)"
+            elif _cand:
+                best_idx = min(_cand, key=lambda b: b["edge"])["idx"]; _why = "plus proche (repli)"
+            else:
+                best_idx = 0; _why = "defaut"
+            print(f"🏗️ Bâtiment PV backend: idx={best_idx} ({_why})")
+
             main_bldg = result["buildings_bdtopo"][best_idx]
             building_coords = main_bldg["coords"]
             
