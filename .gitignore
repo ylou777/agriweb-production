@@ -113,3 +113,7 @@ production_licenses.json
 # Rapports d'audit sécurité (détaillent des failles)
 SECURITE_*.md
 AUDIT_SECURITE*.md
+
+# Node (outillage debug local)
+node_modules/
+package-lock.json
