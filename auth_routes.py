@@ -11,6 +11,35 @@ import os
 # Blueprint pour les routes d'authentification
 auth_bp = Blueprint('auth', __name__)
 
+# ── Journalisation de sécurité (ISO 27001 A.8.15) ────────────────────────────
+import logging as _logging
+import time as _time
+from collections import defaultdict as _defaultdict
+
+security_log = _logging.getLogger('heliapv.security')
+if not security_log.handlers:
+    _h = _logging.StreamHandler()
+    _h.setFormatter(_logging.Formatter('%(asctime)s [SECURITY] %(message)s'))
+    security_log.addHandler(_h)
+    security_log.setLevel(_logging.INFO)
+    security_log.propagate = False
+
+# ── Anti-bruteforce login (ISO 27001 A.5.18) — best-effort en mémoire ─────────
+# Limite par worker. Pour la prod multi-worker, brancher flask-limiter + Redis.
+# Seuls les ÉCHECS sont comptés (les connexions réussies ne pénalisent pas).
+_login_attempts = _defaultdict(list)
+_LOGIN_WINDOW = 300   # 5 minutes
+_LOGIN_MAX = 10       # échecs max par IP sur la fenêtre
+
+def _login_throttled(ip):
+    now = _time.time()
+    recent = [t for t in _login_attempts[ip] if now - t < _LOGIN_WINDOW]
+    _login_attempts[ip] = recent
+    return len(recent) >= _LOGIN_MAX
+
+def _record_login_failure(ip):
+    _login_attempts[ip].append(_time.time())
+
 # ── Shared CSS base (dark theme aligned with homepage charte graphique) ──
 AUTH_BASE_CSS = """
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -414,21 +443,29 @@ def login_form():
 def login():
     """Connexion avec vérification email obligatoire"""
     try:
+        ip = request.remote_addr or '?'
+        if _login_throttled(ip):
+            security_log.warning(f"login rate-limited ip={ip}")
+            return jsonify({
+                'success': False,
+                'error': 'Trop de tentatives. Réessayez dans quelques minutes.'
+            }), 429
         data = request.get_json() if request.is_json else request.form
-        
+
         email = data.get('email', '').strip().lower()
         password = data.get('password', '').strip()
-        
+
         if not email or not password:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': 'Email et mot de passe requis'
             }), 400
-        
+
         # Tentative d'authentification
         success, user_data, message = auth_system.authenticate_user(email, password)
-        
+
         if success:
+            security_log.info(f"login success email={email} ip={ip}")
             # Créer une session
             session_token = auth_system.create_session(
                 user_data['id'], 
@@ -470,8 +507,10 @@ def login():
                     'error': 'Erreur lors de la création de session'
                 }), 500
         else:
+            _record_login_failure(ip)
+            security_log.warning(f"login failed email={email} ip={ip}")
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': message
             }), 401
             
