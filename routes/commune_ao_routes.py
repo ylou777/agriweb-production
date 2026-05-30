@@ -463,6 +463,10 @@ def commune_space(code_insee):
     is_owner = (account and user and account.get('user_id') == user.get('id')) or \
                (user and user.get('is_admin'))
 
+    # Isolation : un non-gestionnaire ne voit que les AO publiés/clos (pas les brouillons d'autrui)
+    if not is_owner:
+        projects = [p for p in projects if p.get('statut') in ('publie', 'clos')]
+
     html = """<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ nom_commune }} — Espace Solaire Municipal</title>
@@ -1390,8 +1394,14 @@ def new_project():
 
     db = _get_db()
     account = db.execute(
-        "SELECT id FROM commune_accounts WHERE code_insee=?", (code_insee,)
+        "SELECT id, user_id FROM commune_accounts WHERE code_insee=?", (code_insee,)
     ).fetchone()
+
+    # Isolation : interdire de créer un AO sur une commune gérée par un autre compte
+    if account and account['user_id'] is not None \
+            and str(account['user_id']) != str(user['id']) and not user.get('is_admin'):
+        db.close()
+        return "Cette commune est gérée par un autre compte.", 403
 
     commune_id = account['id'] if account else None
     if not commune_id:
@@ -1473,6 +1483,10 @@ def projet_detail(projet_id):
 
     is_owner = (account and user and account.get('user_id') == user.get('id')) or \
                (user and user.get('is_admin'))
+
+    # Isolation : un brouillon n'est visible que par son gestionnaire (ou admin)
+    if p.get('statut') == 'brouillon' and not is_owner:
+        return "Projet introuvable", 404
 
     # Contexte légal selon le type
     is_parking = 'parking' in p.get('asset_type', '')
