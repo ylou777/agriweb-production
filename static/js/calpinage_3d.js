@@ -2286,13 +2286,16 @@ class Calpinage3DViewer {
                 depthWrite: true,
                 side: THREE.DoubleSide,
             });
+            // Façade procédurale tuilable (fenêtres/matériau) au lieu d'une couleur plate.
+            // La couleur de base teinte légèrement la texture selon le type de mur.
             const wallMat = new THREE.MeshPhongMaterial({
-                color: wallColorMap[wallType] || 0xE8DCC8,
+                map: this._getTilingFacadeTexture(wallType),
+                color: 0xffffff,
                 specular: 0x111111,
                 shininess: 5,
                 side: THREE.DoubleSide,
             });
-            
+
             mesh = new THREE.Mesh(geo, [capMat, wallMat]);
             mesh.position.set(0, terrainH, 0);
         } catch(err) {
@@ -3076,7 +3079,73 @@ class Calpinage3DViewer {
         this._textureCache[cacheKey] = texture;
         return texture;
     }
-    
+
+    /**
+     * Texture de façade TUILABLE (1 travée × 1 étage ≈ 3m × 3m) pour les murs
+     * ExtrudeGeometry. Les UV des murs étant en mètres-monde (WorldUVGenerator :
+     * U = position horizontale, V = hauteur), on applique repeat = (1/BAY_M, 1/FLOOR_M)
+     * → grille de fenêtres régulière sur tout le bâtiment, quelle que soit l'emprise.
+     * Une seule texture par type de mur (partagée), donc très peu coûteuse.
+     */
+    _getTilingFacadeTexture(wallType) {
+        const cacheKey = `facade_tile_${wallType}`;
+        if (this._textureCache[cacheKey]) return this._textureCache[cacheKey];
+
+        const BAY_M = 3.0, FLOOR_M = 3.0;   // dimensions réelles d'une tuile (m)
+        const res = 256;                    // power-of-two → mipmaps OK
+        const canvas = document.createElement('canvas');
+        canvas.width = res; canvas.height = res;
+        const ctx = canvas.getContext('2d');
+
+        const wallColors = {
+            plaster:    { base: '#E8DCC8', var1: '#DED0BA', var2: '#F0E4D0', joint: null },
+            brick:      { base: '#B5651D', var1: '#A05518', var2: '#C47030', joint: '#D4C4A0' },
+            stone:      { base: '#A09080', var1: '#8A7A6A', var2: '#B8A898', joint: '#C8C0B0' },
+            concrete:   { base: '#B0B0B0', var1: '#A0A0A0', var2: '#C0C0C0', joint: null },
+            industrial: { base: '#888888', var1: '#777777', var2: '#999999', joint: null },
+            commercial: { base: '#D0D0D0', var1: '#C0C0C0', var2: '#E0E0E0', joint: null },
+        };
+        const wc = wallColors[wallType] || wallColors.plaster;
+
+        // Fond + motif (réutilise tes générateurs existants)
+        ctx.fillStyle = wc.base;
+        ctx.fillRect(0, 0, res, res);
+        if (wallType === 'brick') this._drawBrickPattern(ctx, res, wc);
+        else if (wallType === 'stone') this._drawStonePattern(ctx, res, wc);
+        else this._drawPlasterNoise(ctx, res, wc);
+
+        // Une fenêtre centrée (~1.1m × 1.5m), marges autour → grille régulière en se répétant
+        const winW = (1.1 / BAY_M) * res;
+        const winH = (1.5 / FLOOR_M) * res;
+        const wx = res / 2 - winW / 2;
+        const wy = res * 0.28;
+
+        ctx.fillStyle = '#7A7060';
+        ctx.fillRect(wx - 3, wy - 3, winW + 6, winH + 6);
+        const g = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
+        g.addColorStop(0, '#5577AA'); g.addColorStop(0.3, '#88AACC');
+        g.addColorStop(0.6, '#6688AA'); g.addColorStop(1, '#446688');
+        ctx.fillStyle = g;
+        ctx.fillRect(wx, wy, winW, winH);
+        ctx.strokeStyle = '#6A6050'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(wx + winW / 2, wy); ctx.lineTo(wx + winW / 2, wy + winH);
+        ctx.moveTo(wx, wy + winH * 0.45); ctx.lineTo(wx + winW, wy + winH * 0.45);
+        ctx.stroke();
+        ctx.fillStyle = '#9A9080';
+        ctx.fillRect(wx - 4, wy + winH, winW + 8, 3);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1 / BAY_M, 1 / FLOOR_M);
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+        this._textureCache[cacheKey] = texture;
+        return texture;
+    }
+
     /**
      * Motif briques
      */
