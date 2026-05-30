@@ -1972,8 +1972,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if can_use_3d %}
-    <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=113"></script>
+    <script src="{{ url_for('static', filename='js/calpinage_3d_bundled.js') }}?v=10"></script>
+    <script src="{{ url_for('static', filename='js/calpinage_3d.js') }}?v=113"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw

@@ -482,7 +482,7 @@
       </div>
     </div>
     <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
-    <iframe id="mapFrame" src="/static/map.html" title="Carte interactive"></iframe>
+    <iframe id="mapFrame" src="{{ url_for('static', filename='map.html') }}" title="Carte interactive"></iframe>
     
     <!-- Bouton flottant pour ouvrir la sidebar sur mobile -->
     <button id="openSidebarBtn" type="button">
@@ -490,7 +490,7 @@
     </button>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/static/main.js"></script>
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
   <script>
     // Sidebar responsive (fixe desktop, offcanvas mobile)
     const sidebar = document.getElementById('sidebar');
