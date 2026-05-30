@@ -5330,6 +5330,78 @@ def api_satellite_tile():
 
 
 # ──────────────────────────────────────────────────────────────
+# API: Street View Static (façades 3D) — proxy serveur
+# Nécessite GOOGLE_STREETVIEW_API_KEY (ou réutilise GOOGLE_SOLAR_API_KEY si
+# l'API "Street View Static" est activée sur la même clé Google Cloud).
+# ──────────────────────────────────────────────────────────────
+def _streetview_key():
+    k = os.getenv('GOOGLE_STREETVIEW_API_KEY')
+    if k:
+        return k
+    try:
+        from config import GOOGLE_SOLAR_API_KEY
+        return GOOGLE_SOLAR_API_KEY
+    except Exception:
+        return os.getenv('GOOGLE_SOLAR_API_KEY', '')
+
+
+@app.route('/api/streetview/meta', methods=['GET'])
+def api_streetview_meta():
+    """Métadonnées du panorama Street View le plus proche (status, pano_id, position)."""
+    location = request.args.get('location')  # "lat,lon"
+    if not location:
+        return jsonify({"error": "Paramètre location requis"}), 400
+    key = _streetview_key()
+    if not key:
+        return jsonify({"status": "NO_KEY", "error": "Clé Street View non configurée"}), 200
+    try:
+        r = requests.get(
+            "https://maps.googleapis.com/maps/api/streetview/metadata",
+            params={"location": location, "source": "outdoor", "key": key},
+            timeout=10,
+        )
+        return app.response_class(response=r.content, status=200, mimetype='application/json')
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)}), 502
+
+
+@app.route('/api/streetview', methods=['GET'])
+def api_streetview_image():
+    """Proxy image Street View Static (évite l'exposition de la clé + le CORS Three.js)."""
+    key = _streetview_key()
+    if not key:
+        return jsonify({"error": "Clé Street View non configurée"}), 503
+    pano = request.args.get('pano')
+    location = request.args.get('location')
+    if not pano and not location:
+        return jsonify({"error": "pano ou location requis"}), 400
+    params = {
+        "size": request.args.get('size', '640x640'),
+        "heading": request.args.get('heading', '0'),
+        "pitch": request.args.get('pitch', '0'),
+        "fov": request.args.get('fov', '90'),
+        "source": "outdoor",
+        "return_error_code": "true",
+        "key": key,
+    }
+    if pano:
+        params["pano"] = pano
+    else:
+        params["location"] = location
+    try:
+        r = requests.get("https://maps.googleapis.com/maps/api/streetview",
+                         params=params, timeout=15)
+        ct = r.headers.get('content-type', '')
+        if r.status_code == 200 and 'image' in ct:
+            resp = app.response_class(response=r.content, status=200, mimetype=ct or 'image/jpeg')
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
+        return jsonify({"error": f"Street View HTTP {r.status_code}", "type": ct}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
+# ──────────────────────────────────────────────────────────────
 # API: Lignes HTA (aériennes / souterraines) Enedis Open Data
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/hta-lignes', methods=['GET'])

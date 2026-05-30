@@ -554,6 +554,123 @@ class Calpinage3DViewer {
             lng: this.centerLon + x / this.LNG_TO_M
         };
     }
+
+    /**
+     * (B) Projette une VRAIE photo de façade Street View sur le mur côté rue du
+     * bâtiment PV. Best-effort + asynchrone : ne bloque pas le rendu, et en cas
+     * d'échec (pas de pano, clé absente, façade derrière la caméra) on garde la
+     * façade procédurale (A). Repère scène : +X=Est, -Z=Nord, +Y=Haut.
+     */
+    async _addStreetViewFacade(localCoords, terrainH, bh) {
+        // 1) Centroïde bâtiment → pano Street View le plus proche
+        let cx = 0, cz = 0;
+        for (const c of localCoords) { cx += c.x; cz += c.z; }
+        cx /= localCoords.length; cz /= localCoords.length;
+        const cg = this._localToGeo(cx, cz);
+
+        const meta = await (await fetch(`/api/streetview/meta?location=${cg.lat},${cg.lng}`)).json();
+        if (!meta || meta.status !== 'OK' || !meta.location) {
+            console.log('🏠 [SV] pas de panorama exploitable (status:', meta && meta.status, ')');
+            return;
+        }
+        const panoLocal = this._geoToLocal(meta.location.lat, meta.location.lng);
+        const cam = {
+            x: panoLocal.x,
+            y: this._getTerrainHeight(panoLocal.x, panoLocal.z) + 2.5, // hauteur caméra SV ≈ 2.5m
+            z: panoLocal.z,
+        };
+
+        // 2) Arête de façade la plus "face à la rue" (orientée vers le pano)
+        let best = null;
+        for (let i = 0; i < localCoords.length; i++) {
+            const a = localCoords[i], b = localCoords[(i + 1) % localCoords.length];
+            const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+            const ex = b.x - a.x, ez = b.z - a.z;
+            const len = Math.hypot(ex, ez);
+            if (len < 1.5) continue;
+            let nx = ez, nz = -ex;                       // normale du segment
+            const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
+            if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; } // vers l'extérieur
+            let dx = cam.x - mx, dz = cam.z - mz;
+            const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+            const facing = dx * nx + dz * nz;            // 1 = pleine face au pano
+            if (facing <= 0.15) continue;
+            const score = facing * Math.min(len, 25);
+            if (!best || score > best.score) best = { a, b, nx, nz, score };
+        }
+        if (!best) { console.log('🏠 [SV] aucune façade face à la rue'); return; }
+
+        // 3) Quad façade (monde)
+        const y0 = terrainH, y1 = terrainH + bh;
+        const BL = { x: best.a.x, y: y0, z: best.a.z }, BR = { x: best.b.x, y: y0, z: best.b.z };
+        const TL = { x: best.a.x, y: y1, z: best.a.z }, TR = { x: best.b.x, y: y1, z: best.b.z };
+        const fc = { x: (BL.x + BR.x) / 2, y: (y0 + y1) / 2, z: (BL.z + BR.z) / 2 };
+
+        // 4) Caméra : forward horizontal vers le centre façade, up monde, right = cross(f, up)
+        let fx = fc.x - cam.x, fz = fc.z - cam.z;
+        const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
+        const f = { x: fx, y: 0, z: fz }, up = { x: 0, y: 1, z: 0 };
+        const r = {
+            x: f.y * up.z - f.z * up.y,
+            y: f.z * up.x - f.x * up.z,
+            z: f.x * up.y - f.y * up.x,
+        };
+        const heading = ((Math.atan2(f.x, -f.z) * 180 / Math.PI) + 360) % 360; // 0=N, 90=E
+
+        // 5) FOV pour cadrer les 4 coins (+15% marge)
+        const dot = (p, q) => p.x * q.x + p.y * q.y + p.z * q.z;
+        const corners = [BL, BR, TL, TR];
+        let maxH = 0, maxV = 0, behind = false;
+        const cc = corners.map(c => {
+            const d = { x: c.x - cam.x, y: c.y - cam.y, z: c.z - cam.z };
+            const zc = dot(d, f), xc = dot(d, r), yc = dot(d, up);
+            if (zc <= 0.5) behind = true;
+            maxH = Math.max(maxH, Math.abs(Math.atan2(xc, zc)));
+            maxV = Math.max(maxV, Math.abs(Math.atan2(yc, zc)));
+            return { xc, yc, zc };
+        });
+        if (behind) { console.log('🏠 [SV] façade derrière la caméra'); return; }
+        let fov = Math.max(maxH, maxV) * 2 * 180 / Math.PI * 1.15;
+        fov = Math.min(120, Math.max(20, fov));
+        const tanHalf = Math.tan(fov * Math.PI / 360);
+
+        // 6) UV de chaque coin (projection gnomonique avec le fov demandé)
+        const uv = cc.map(p => ({
+            u: 0.5 + 0.5 * (p.xc / p.zc) / tanHalf,
+            v: 0.5 + 0.5 * (p.yc / p.zc) / tanHalf,
+        }));
+
+        // 7) Image Street View (par pano_id pour l'exactitude)
+        const imgUrl = `/api/streetview?pano=${encodeURIComponent(meta.pano_id)}`
+            + `&heading=${heading.toFixed(1)}&pitch=0&fov=${fov.toFixed(1)}&size=640x640`;
+        const tex = await new Promise((resolve, reject) =>
+            new THREE.TextureLoader().load(imgUrl, resolve, undefined, reject));
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.minFilter = THREE.LinearFilter;
+
+        // 8) Plan overlay sur la façade, poussé vers l'extérieur (anti z-fighting)
+        const off = 0.08;
+        const P = (p) => [p.x + best.nx * off, p.y, p.z + best.nz * off];
+        const geo = new THREE.BufferGeometry();
+        const pv = [P(BL), P(BR), P(TL), P(TR)];
+        geo.setAttribute('position', new THREE.Float32BufferAttribute([
+            ...pv[0], ...pv[1], ...pv[2],
+            ...pv[2], ...pv[1], ...pv[3],
+        ], 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute([
+            uv[0].u, uv[0].v, uv[1].u, uv[1].v, uv[2].u, uv[2].v,
+            uv[2].u, uv[2].v, uv[1].u, uv[1].v, uv[3].u, uv[3].v,
+        ], 2));
+        geo.computeVertexNormals();
+        const plane = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+            map: tex, side: THREE.DoubleSide,
+        }));
+        plane.userData.isStreetViewFacade = true;
+        this.scene.add(plane);
+        this.buildings.push(plane);
+        console.log(`🏠 [SV] façade appliquée (pano ${meta.pano_id}, heading ${heading.toFixed(0)}°, fov ${fov.toFixed(0)}°)`);
+    }
     
     /**
      * Remplissage automatique des pans de toiture avec des modules PV.
@@ -2329,6 +2446,12 @@ class Calpinage3DViewer {
         };
         this.scene.add(mesh);
         this.buildings.push(mesh);
+
+        // (B) Façade réelle Street View sur le bâtiment PV — best-effort, asynchrone.
+        if (neighborIdx === null && this.enableStreetViewFacades !== false) {
+            this._addStreetViewFacade(localCoords, terrainH, bh)
+                .catch(e => console.warn('🏠 [SV] façade ignorée:', (e && e.message) || e));
+        }
 
         // === Toit : LiDAR RANSAC (building_hd) ou analyse MNS → OBB fallback ===
         // Chemin 1 : plans RANSAC (building_hd.roof_planes) disponibles dès le chargement
