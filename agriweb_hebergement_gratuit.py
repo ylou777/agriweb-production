@@ -2236,9 +2236,23 @@ def api_lidar_copc_grid():
         except ImportError:
             pass
 
-        # ── 6. baseline_rel = percentile 5 des z_rel (→ mnh ≈ wall_h à l'égout) ──
+        # ── 6. baseline_rel = égout du TOIT PRINCIPAL (→ mnh ≈ wall_h à l'égout) ──
+        # On ancre la baseline sur le toit principal. Sur un GRAND bâtiment multi-corps,
+        # le buffer footprint (2 m) aspire des points bas (annexe basse, pied de mur, sol)
+        # qui tiraient le percentile 5 GLOBAL ~6 m sous le toit → toute la surface (mesh
+        # toit + modules) était gonflée de cet écart → modules « flottants ». On exclut
+        # donc d'abord les cellules nettement plus basses que la médiane (corps bas
+        # distincts) avant de prendre l'égout (p5) du cluster principal. Sur un toit
+        # uniforme ou faiblement en pente (ex: gymnase, maison), rien n'est exclu →
+        # comportement identique à avant.
         filled_vals = gz[~np.isnan(gz)].ravel()
-        z_baseline_rel = float(np.percentile(filled_vals, 5)) if len(filled_vals) else 0.0
+        if len(filled_vals):
+            _med_roof = float(np.median(filled_vals))
+            _main_roof = filled_vals[filled_vals >= _med_roof - 4.0]
+            _base_src = _main_roof if len(_main_roof) >= 10 else filled_vals
+            z_baseline_rel = float(np.percentile(_base_src, 5))
+        else:
+            z_baseline_rel = 0.0
 
         # Convertir en grille Python sérialisable
         grid = [
