@@ -2247,8 +2247,11 @@ def api_lidar_copc_grid():
         # comportement identique à avant.
         filled_vals = gz[~np.isnan(gz)].ravel()
         if len(filled_vals):
+            # Seuil -6 m calibre sur donnees reelles : exclut les corps bas distincts
+            # (annexe ~6 m sous le toit du 205) sans toucher l'egout legitime d'un toit
+            # uniforme/pente douce (gymnase 525 : ecart 0.05 m, sous le seuil de regression).
             _med_roof = float(np.median(filled_vals))
-            _main_roof = filled_vals[filled_vals >= _med_roof - 4.0]
+            _main_roof = filled_vals[filled_vals >= _med_roof - 6.0]
             _base_src = _main_roof if len(_main_roof) >= 10 else filled_vals
             z_baseline_rel = float(np.percentile(_base_src, 5))
         else:
