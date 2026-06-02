@@ -9135,6 +9135,54 @@ def get_sirene_info_by_polygon(commune_geom):
     """Récupère les données Sirene en utilisant le polygone exact de la commune"""
     return get_data_by_commune_polygon(commune_geom, None, SIRENE_LAYER)
 
+def get_enedis_records_raw(code_commune, annee=None):
+    """Récupère TOUS les enregistrements Enedis d'une commune (sans géocodage),
+    avec adresse reconstruite depuis les champs structurés. Sert au matching
+    d'un prospect existant (adresse -> consommation -> diagnostic autoconso).
+
+    Returns: liste de dict {adresse, numero_de_voie, libelle_de_voie,
+             consommation_mwh, secteur, nb_sites, annee}
+    """
+    import requests
+    try:
+        api_url = ("https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/"
+                   "consommation-annuelle-entreprise-par-adresse/records")
+        where = f'code_commune="{code_commune}"'
+        if annee:
+            where += f" AND annee={int(annee)}"
+        params = {
+            'where': where,
+            'order_by': 'consommation_annuelle_totale_de_ladresse_mwh DESC',
+            'limit': 100,
+            'select': ('adresse,nom_commune,code_grand_secteur,numero_de_voie,'
+                       'type_de_voie,libelle_de_voie,nombre_de_sites,'
+                       'consommation_annuelle_totale_de_ladresse_mwh,annee'),
+        }
+        records = requests.get(api_url, params=params, timeout=30).json().get('results', [])
+        out = []
+        for r in records:
+            a = (r.get('adresse') or '').strip()
+            if not a:
+                a = ' '.join(p for p in [
+                    str(r.get('numero_de_voie') or '').strip(),
+                    str(r.get('type_de_voie') or '').strip(),
+                    str(r.get('libelle_de_voie') or '').strip()] if p).strip()
+            out.append({
+                'adresse': a,
+                'numero_de_voie': r.get('numero_de_voie') or '',
+                'libelle_de_voie': r.get('libelle_de_voie') or '',
+                'consommation_mwh': r.get('consommation_annuelle_totale_de_ladresse_mwh') or 0,
+                'secteur': r.get('code_grand_secteur') or 'INCONNU',
+                'nb_sites': r.get('nombre_de_sites') or 1,
+                'annee': r.get('annee'),
+                'nom_commune': r.get('nom_commune') or '',
+            })
+        return out
+    except Exception as e:
+        print(f"⚠️ [ENEDIS RAW] {code_commune}: {e}")
+        return []
+
+
 def get_enedis_consommation_by_commune(code_commune, annee=None):
     """
     Récupère les données de consommation électrique Enedis depuis GeoServer WFS
@@ -9163,6 +9211,7 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
             'order_by': 'consommation_annuelle_totale_de_ladresse_mwh DESC',
             'limit': 100,  # max Opendatasoft ; on géocode ensuite le top 20
             'select': ('adresse,nom_commune,code_grand_secteur,code_secteur_naf2,'
+                       'numero_de_voie,type_de_voie,libelle_de_voie,'
                        'nombre_de_sites,consommation_annuelle_totale_de_ladresse_mwh,annee'),
         }
         response = requests.get(api_url, params=params, timeout=30)
@@ -9170,10 +9219,22 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         records = response.json().get('results', [])
 
         # Adapter au format attendu par la suite ({'properties': {...}})
+        def _enedis_addr(r):
+            """Reconstruit l'adresse depuis les champs structurés si 'adresse' est masquée."""
+            a = (r.get('adresse') or '').strip()
+            if a:
+                return a
+            parts = [str(r.get('numero_de_voie') or '').strip(),
+                     str(r.get('type_de_voie') or '').strip(),
+                     str(r.get('libelle_de_voie') or '').strip()]
+            return ' '.join(p for p in parts if p).strip()
+
         features = [{'properties': {
             'consommation_mwh': r.get('consommation_annuelle_totale_de_ladresse_mwh') or 0,
             'secteur': r.get('code_grand_secteur') or 'INCONNU',
-            'adresse': r.get('adresse') or '',
+            'adresse': _enedis_addr(r),
+            'numero_de_voie': r.get('numero_de_voie') or '',
+            'libelle_de_voie': r.get('libelle_de_voie') or '',
             'nom_commune': r.get('nom_commune') or '',
             'nb_sites': r.get('nombre_de_sites') or 1,
             'annee': r.get('annee'),
@@ -9234,6 +9295,8 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
                             'consommation_mwh': props.get('consommation_mwh', 0),
                             'secteur': props.get('secteur', 'INCONNU'),
                             'adresse': adresse,
+                            'numero_de_voie': props.get('numero_de_voie', ''),
+                            'libelle_de_voie': props.get('libelle_de_voie', ''),
                             'nom_commune': nom_commune,
                             'nombre_de_sites': props.get('nb_sites', 1),
                             'annee': props.get('annee', 2023)

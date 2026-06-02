@@ -1527,6 +1527,147 @@ def register_crm_routes(app):
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    def _resolve_code_insee(prospect, data_json):
+        """Trouve le code INSEE d'un prospect (data_json, sinon lookup nom commune)."""
+        code = str((data_json or {}).get('code_insee') or
+                   (data_json or {}).get('code_commune') or '').strip()
+        if code:
+            return code
+        commune = (prospect.get('commune') or '').strip()
+        if not commune:
+            return None
+        try:
+            import requests
+            from urllib.parse import quote_plus
+            r = requests.get(
+                f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=code&limit=1",
+                timeout=15)
+            arr = r.json()
+            if arr:
+                return arr[0].get('code')
+        except Exception as _e:
+            print(f"⚠️ [ENEDIS ENRICH] lookup INSEE '{commune}': {_e}")
+        return None
+
+    def _enrich_one_prospect(prospect, records, force=False):
+        """Enrichit un prospect avec le diagnostic autoconso (match Enedis).
+        Retourne dict de statut. Modifie data_json en BDD si match trouvé."""
+        from autoconsommation import match_enedis_address, diagnostic_autoconso_rapide
+        dj = prospect.get('data_json') or {}
+        if isinstance(dj, str):
+            try: dj = json.loads(dj)
+            except Exception: dj = {}
+        if dj.get('diagnostic_autoconso') and not force:
+            return {'id': prospect.get('id'), 'status': 'deja_enrichi'}
+        adresse = (prospect.get('adresse') or '').strip()
+        if not adresse:
+            return {'id': prospect.get('id'), 'status': 'sans_adresse'}
+        rec, score = match_enedis_address(adresse, records)
+        if not rec:
+            return {'id': prospect.get('id'), 'status': 'aucun_match', 'score': score}
+        lat = prospect.get('latitude')
+        try: lat = float(lat) if lat is not None else None
+        except Exception: lat = None
+        diag = diagnostic_autoconso_rapide(rec.get('consommation_mwh'), rec.get('secteur'), lat)
+        dj['diagnostic_autoconso'] = diag
+        dj['enedis_match'] = {
+            'adresse_enedis': rec.get('adresse'),
+            'consommation_mwh': rec.get('consommation_mwh'),
+            'secteur': rec.get('secteur'),
+            'annee': rec.get('annee'),
+            'score': score,
+        }
+        execute_query(
+            "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
+            (json.dumps(dj, ensure_ascii=False), prospect.get('id')))
+        return {'id': prospect.get('id'), 'status': 'enrichi', 'score': score,
+                'consommation_mwh': rec.get('consommation_mwh'),
+                'kwc_reco': diag.get('kwc_reco'),
+                'economie_an_eur': diag.get('economie_an_eur')}
+
+    @app.route('/api/enedis/enrich-prospect/<int:prospect_id>', methods=['POST'])
+    def enrich_prospect_autoconso(prospect_id):
+        """Enrichit UN prospect existant avec son pré-diagnostic autoconso
+        en matchant son adresse aux consommations Enedis de sa commune."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès refusé'}), 403
+            data = request.get_json(silent=True) or {}
+            force = bool(data.get('force'))
+            prospect = execute_query(
+                "SELECT id, commune, adresse, latitude, data_json FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,), fetch_one=True)
+            if not prospect:
+                return jsonify({'success': False, 'error': 'Prospect introuvable'}), 404
+            dj = prospect.get('data_json') or {}
+            if isinstance(dj, str):
+                try: dj = json.loads(dj)
+                except Exception: dj = {}
+            code_insee = _resolve_code_insee(prospect, dj)
+            if not code_insee:
+                return jsonify({'success': False, 'error': 'Code INSEE introuvable pour ce prospect'}), 400
+            from agriweb_hebergement_gratuit import get_enedis_records_raw
+            records = get_enedis_records_raw(code_insee) or []
+            res = _enrich_one_prospect(prospect, records, force=force)
+            return jsonify({'success': res['status'] == 'enrichi', 'result': res,
+                            'code_insee': code_insee, 'candidats_enedis': len(records)})
+        except Exception as e:
+            print(f"❌ [ENEDIS ENRICH] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/enedis/enrich-commune', methods=['POST'])
+    def enrich_commune_autoconso():
+        """Enrichit TOUS les prospects d'une commune (de l'utilisateur) avec le
+        pré-diagnostic autoconso. body: {code_commune?, commune?, force?}"""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            data = request.get_json(silent=True) or {}
+            force = bool(data.get('force'))
+            code_commune = str(data.get('code_commune') or '').strip()
+            commune = (data.get('commune') or '').strip()
+            # Sélection des prospects de l'utilisateur (filtrés par commune si fournie)
+            clause, params = '', []
+            if not is_admin:
+                clause += ' AND user_id = %s'; params.append(str(user_id))
+            if commune:
+                clause += ' AND commune = %s'; params.append(commune)
+            prospects = execute_query(
+                f"SELECT id, commune, adresse, latitude, data_json FROM agriweb_prospects "
+                f"WHERE adresse IS NOT NULL AND adresse <> ''{clause}",
+                tuple(params), fetch_all=True) or []
+            if not prospects:
+                return jsonify({'success': True, 'enrichis': 0, 'total': 0, 'details': []})
+            # Cache des records Enedis par commune (1 appel API par commune)
+            records_cache = {}
+            details, enrichis = [], 0
+            for p in prospects:
+                dj = p.get('data_json') or {}
+                if isinstance(dj, str):
+                    try: dj = json.loads(dj)
+                    except Exception: dj = {}
+                ci = code_commune or _resolve_code_insee(p, dj)
+                if not ci:
+                    details.append({'id': p.get('id'), 'status': 'sans_insee'}); continue
+                if ci not in records_cache:
+                    from agriweb_hebergement_gratuit import get_enedis_records_raw
+                    records_cache[ci] = get_enedis_records_raw(ci) or []
+                res = _enrich_one_prospect(p, records_cache[ci], force=force)
+                if res['status'] == 'enrichi':
+                    enrichis += 1
+                details.append(res)
+            return jsonify({'success': True, 'enrichis': enrichis, 'total': len(prospects),
+                            'communes_interrogees': len(records_cache), 'details': details})
+        except Exception as e:
+            print(f"❌ [ENEDIS ENRICH COMMUNE] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # ============================================================================
     # ROUTES API - PROJETS
     # ============================================================================

@@ -1175,3 +1175,78 @@ def diagnostic_autoconso_rapide(consommation_mwh: float, secteur: str = '',
         'economie_an_eur': eco.get('economie_an1'),
         'gain_total_an_eur': eco.get('gain_total_an1'),
     }
+
+
+# ---------------------------------------------------------------------------
+# Matching d'adresse prospect <-> enregistrement Enedis
+# (pour enrichir un prospect existant avec sa consommation reelle + diagnostic)
+# ---------------------------------------------------------------------------
+
+_VOIE_TYPES = {
+    'rue', 'avenue', 'av', 'ave', 'boulevard', 'bd', 'bld', 'chemin', 'che',
+    'route', 'rte', 'impasse', 'imp', 'allee', 'allees', 'place', 'pl', 'quai',
+    'cours', 'passage', 'pas', 'voie', 'lotissement', 'lot', 'lieu', 'dit',
+    'zone', 'za', 'zi', 'zac', 'rond', 'point', 'square', 'sq', 'esplanade',
+    'faubourg', 'fbg', 'sente', 'sentier', 'traverse', 'montee', 'descente',
+    'la', 'le', 'les', 'du', 'de', 'des', 'd', 'et', 'a', 'au', 'aux', 'en',
+}
+
+
+def _strip_accents(s: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', s)
+                   if unicodedata.category(c) != 'Mn')
+
+
+def _normalize_addr(s: str) -> str:
+    """Normalise une adresse: minuscule, sans accent, alphanum seulement."""
+    import re
+    s = _strip_accents(str(s or '').lower())
+    s = re.sub(r'\b\d{5}\b', ' ', s)          # retire code postal
+    s = re.sub(r'[^a-z0-9]+', ' ', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _addr_tokens(s: str):
+    """Tokens significatifs (numero + nom de voie, types de voie retires)."""
+    norm = _normalize_addr(s)
+    num = None
+    words = []
+    for w in norm.split():
+        if w.isdigit():
+            if num is None:
+                num = w
+            continue
+        if w in _VOIE_TYPES:
+            continue
+        words.append(w)
+    return num, set(words)
+
+
+def match_enedis_address(prospect_addr: str, records: list, min_score: float = 0.5):
+    """Trouve le meilleur enregistrement Enedis pour une adresse prospect.
+
+    Score = recouvrement Jaccard des tokens de nom de voie, bonus si le numero
+    de voie coincide. Retourne (record, score) ou (None, 0.0).
+    """
+    p_num, p_words = _addr_tokens(prospect_addr)
+    if not p_words:
+        return None, 0.0
+    best, best_score = None, 0.0
+    for r in (records or []):
+        r_num, r_words = _addr_tokens(r.get('adresse') or '')
+        if not r_words:
+            continue
+        inter = len(p_words & r_words)
+        if inter == 0:
+            continue
+        union = len(p_words | r_words)
+        score = inter / union
+        # bonus numero de voie identique (forte confirmation MAJIC/Enedis)
+        if p_num and r_num and p_num == str(r_num):
+            score = min(1.0, score + 0.25)
+        if score > best_score:
+            best, best_score = r, score
+    if best is not None and best_score >= min_score:
+        return best, round(best_score, 3)
+    return None, round(best_score, 3)
