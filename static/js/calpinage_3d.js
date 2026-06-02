@@ -554,123 +554,6 @@ class Calpinage3DViewer {
             lng: this.centerLon + x / this.LNG_TO_M
         };
     }
-
-    /**
-     * (B) Projette une VRAIE photo de façade Street View sur le mur côté rue du
-     * bâtiment PV. Best-effort + asynchrone : ne bloque pas le rendu, et en cas
-     * d'échec (pas de pano, clé absente, façade derrière la caméra) on garde la
-     * façade procédurale (A). Repère scène : +X=Est, -Z=Nord, +Y=Haut.
-     */
-    async _addStreetViewFacade(localCoords, terrainH, bh) {
-        // 1) Centroïde bâtiment → pano Street View le plus proche
-        let cx = 0, cz = 0;
-        for (const c of localCoords) { cx += c.x; cz += c.z; }
-        cx /= localCoords.length; cz /= localCoords.length;
-        const cg = this._localToGeo(cx, cz);
-
-        const meta = await (await fetch(`/api/streetview/meta?location=${cg.lat},${cg.lng}`)).json();
-        if (!meta || meta.status !== 'OK' || !meta.location) {
-            console.log('🏠 [SV] pas de panorama exploitable (status:', meta && meta.status, ')');
-            return;
-        }
-        const panoLocal = this._geoToLocal(meta.location.lat, meta.location.lng);
-        const cam = {
-            x: panoLocal.x,
-            y: this._getTerrainHeight(panoLocal.x, panoLocal.z) + 2.5, // hauteur caméra SV ≈ 2.5m
-            z: panoLocal.z,
-        };
-
-        // 2) Arête de façade la plus "face à la rue" (orientée vers le pano)
-        let best = null;
-        for (let i = 0; i < localCoords.length; i++) {
-            const a = localCoords[i], b = localCoords[(i + 1) % localCoords.length];
-            const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
-            const ex = b.x - a.x, ez = b.z - a.z;
-            const len = Math.hypot(ex, ez);
-            if (len < 1.5) continue;
-            let nx = ez, nz = -ex;                       // normale du segment
-            const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
-            if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; } // vers l'extérieur
-            let dx = cam.x - mx, dz = cam.z - mz;
-            const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-            const facing = dx * nx + dz * nz;            // 1 = pleine face au pano
-            if (facing <= 0.15) continue;
-            const score = facing * Math.min(len, 25);
-            if (!best || score > best.score) best = { a, b, nx, nz, score };
-        }
-        if (!best) { console.log('🏠 [SV] aucune façade face à la rue'); return; }
-
-        // 3) Quad façade (monde)
-        const y0 = terrainH, y1 = terrainH + bh;
-        const BL = { x: best.a.x, y: y0, z: best.a.z }, BR = { x: best.b.x, y: y0, z: best.b.z };
-        const TL = { x: best.a.x, y: y1, z: best.a.z }, TR = { x: best.b.x, y: y1, z: best.b.z };
-        const fc = { x: (BL.x + BR.x) / 2, y: (y0 + y1) / 2, z: (BL.z + BR.z) / 2 };
-
-        // 4) Caméra : forward horizontal vers le centre façade, up monde, right = cross(f, up)
-        let fx = fc.x - cam.x, fz = fc.z - cam.z;
-        const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
-        const f = { x: fx, y: 0, z: fz }, up = { x: 0, y: 1, z: 0 };
-        const r = {
-            x: f.y * up.z - f.z * up.y,
-            y: f.z * up.x - f.x * up.z,
-            z: f.x * up.y - f.y * up.x,
-        };
-        const heading = ((Math.atan2(f.x, -f.z) * 180 / Math.PI) + 360) % 360; // 0=N, 90=E
-
-        // 5) FOV pour cadrer les 4 coins (+15% marge)
-        const dot = (p, q) => p.x * q.x + p.y * q.y + p.z * q.z;
-        const corners = [BL, BR, TL, TR];
-        let maxH = 0, maxV = 0, behind = false;
-        const cc = corners.map(c => {
-            const d = { x: c.x - cam.x, y: c.y - cam.y, z: c.z - cam.z };
-            const zc = dot(d, f), xc = dot(d, r), yc = dot(d, up);
-            if (zc <= 0.5) behind = true;
-            maxH = Math.max(maxH, Math.abs(Math.atan2(xc, zc)));
-            maxV = Math.max(maxV, Math.abs(Math.atan2(yc, zc)));
-            return { xc, yc, zc };
-        });
-        if (behind) { console.log('🏠 [SV] façade derrière la caméra'); return; }
-        let fov = Math.max(maxH, maxV) * 2 * 180 / Math.PI * 1.15;
-        fov = Math.min(120, Math.max(20, fov));
-        const tanHalf = Math.tan(fov * Math.PI / 360);
-
-        // 6) UV de chaque coin (projection gnomonique avec le fov demandé)
-        const uv = cc.map(p => ({
-            u: 0.5 + 0.5 * (p.xc / p.zc) / tanHalf,
-            v: 0.5 + 0.5 * (p.yc / p.zc) / tanHalf,
-        }));
-
-        // 7) Image Street View (par pano_id pour l'exactitude)
-        const imgUrl = `/api/streetview?pano=${encodeURIComponent(meta.pano_id)}`
-            + `&heading=${heading.toFixed(1)}&pitch=0&fov=${fov.toFixed(1)}&size=640x640`;
-        const tex = await new Promise((resolve, reject) =>
-            new THREE.TextureLoader().load(imgUrl, resolve, undefined, reject));
-        tex.wrapS = THREE.ClampToEdgeWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
-        tex.minFilter = THREE.LinearFilter;
-
-        // 8) Plan overlay sur la façade, poussé vers l'extérieur (anti z-fighting)
-        const off = 0.08;
-        const P = (p) => [p.x + best.nx * off, p.y, p.z + best.nz * off];
-        const geo = new THREE.BufferGeometry();
-        const pv = [P(BL), P(BR), P(TL), P(TR)];
-        geo.setAttribute('position', new THREE.Float32BufferAttribute([
-            ...pv[0], ...pv[1], ...pv[2],
-            ...pv[2], ...pv[1], ...pv[3],
-        ], 3));
-        geo.setAttribute('uv', new THREE.Float32BufferAttribute([
-            uv[0].u, uv[0].v, uv[1].u, uv[1].v, uv[2].u, uv[2].v,
-            uv[2].u, uv[2].v, uv[1].u, uv[1].v, uv[3].u, uv[3].v,
-        ], 2));
-        geo.computeVertexNormals();
-        const plane = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-            map: tex, side: THREE.DoubleSide,
-        }));
-        plane.userData.isStreetViewFacade = true;
-        this.scene.add(plane);
-        this.buildings.push(plane);
-        console.log(`🏠 [SV] façade appliquée (pano ${meta.pano_id}, heading ${heading.toFixed(0)}°, fov ${fov.toFixed(0)}°)`);
-    }
     
     /**
      * Remplissage automatique des pans de toiture avec des modules PV.
@@ -2403,16 +2286,13 @@ class Calpinage3DViewer {
                 depthWrite: true,
                 side: THREE.DoubleSide,
             });
-            // Façade procédurale tuilable (fenêtres/matériau) au lieu d'une couleur plate.
-            // La couleur de base teinte légèrement la texture selon le type de mur.
             const wallMat = new THREE.MeshPhongMaterial({
-                map: this._getTilingFacadeTexture(wallType),
-                color: 0xffffff,
+                color: wallColorMap[wallType] || 0xE8DCC8,
                 specular: 0x111111,
                 shininess: 5,
                 side: THREE.DoubleSide,
             });
-
+            
             mesh = new THREE.Mesh(geo, [capMat, wallMat]);
             mesh.position.set(0, terrainH, 0);
         } catch(err) {
@@ -2446,12 +2326,6 @@ class Calpinage3DViewer {
         };
         this.scene.add(mesh);
         this.buildings.push(mesh);
-
-        // (B) Façade réelle Street View sur le bâtiment PV — best-effort, asynchrone.
-        if (neighborIdx === null && this.enableStreetViewFacades !== false) {
-            this._addStreetViewFacade(localCoords, terrainH, bh)
-                .catch(e => console.warn('🏠 [SV] façade ignorée:', (e && e.message) || e));
-        }
 
         // === Toit : LiDAR RANSAC (building_hd) ou analyse MNS → OBB fallback ===
         // Chemin 1 : plans RANSAC (building_hd.roof_planes) disponibles dès le chargement
@@ -3202,73 +3076,7 @@ class Calpinage3DViewer {
         this._textureCache[cacheKey] = texture;
         return texture;
     }
-
-    /**
-     * Texture de façade TUILABLE (1 travée × 1 étage ≈ 3m × 3m) pour les murs
-     * ExtrudeGeometry. Les UV des murs étant en mètres-monde (WorldUVGenerator :
-     * U = position horizontale, V = hauteur), on applique repeat = (1/BAY_M, 1/FLOOR_M)
-     * → grille de fenêtres régulière sur tout le bâtiment, quelle que soit l'emprise.
-     * Une seule texture par type de mur (partagée), donc très peu coûteuse.
-     */
-    _getTilingFacadeTexture(wallType) {
-        const cacheKey = `facade_tile_${wallType}`;
-        if (this._textureCache[cacheKey]) return this._textureCache[cacheKey];
-
-        const BAY_M = 3.0, FLOOR_M = 3.0;   // dimensions réelles d'une tuile (m)
-        const res = 256;                    // power-of-two → mipmaps OK
-        const canvas = document.createElement('canvas');
-        canvas.width = res; canvas.height = res;
-        const ctx = canvas.getContext('2d');
-
-        const wallColors = {
-            plaster:    { base: '#E8DCC8', var1: '#DED0BA', var2: '#F0E4D0', joint: null },
-            brick:      { base: '#B5651D', var1: '#A05518', var2: '#C47030', joint: '#D4C4A0' },
-            stone:      { base: '#A09080', var1: '#8A7A6A', var2: '#B8A898', joint: '#C8C0B0' },
-            concrete:   { base: '#B0B0B0', var1: '#A0A0A0', var2: '#C0C0C0', joint: null },
-            industrial: { base: '#888888', var1: '#777777', var2: '#999999', joint: null },
-            commercial: { base: '#D0D0D0', var1: '#C0C0C0', var2: '#E0E0E0', joint: null },
-        };
-        const wc = wallColors[wallType] || wallColors.plaster;
-
-        // Fond + motif (réutilise tes générateurs existants)
-        ctx.fillStyle = wc.base;
-        ctx.fillRect(0, 0, res, res);
-        if (wallType === 'brick') this._drawBrickPattern(ctx, res, wc);
-        else if (wallType === 'stone') this._drawStonePattern(ctx, res, wc);
-        else this._drawPlasterNoise(ctx, res, wc);
-
-        // Une fenêtre centrée (~1.1m × 1.5m), marges autour → grille régulière en se répétant
-        const winW = (1.1 / BAY_M) * res;
-        const winH = (1.5 / FLOOR_M) * res;
-        const wx = res / 2 - winW / 2;
-        const wy = res * 0.28;
-
-        ctx.fillStyle = '#7A7060';
-        ctx.fillRect(wx - 3, wy - 3, winW + 6, winH + 6);
-        const g = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
-        g.addColorStop(0, '#5577AA'); g.addColorStop(0.3, '#88AACC');
-        g.addColorStop(0.6, '#6688AA'); g.addColorStop(1, '#446688');
-        ctx.fillStyle = g;
-        ctx.fillRect(wx, wy, winW, winH);
-        ctx.strokeStyle = '#6A6050'; ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(wx + winW / 2, wy); ctx.lineTo(wx + winW / 2, wy + winH);
-        ctx.moveTo(wx, wy + winH * 0.45); ctx.lineTo(wx + winW, wy + winH * 0.45);
-        ctx.stroke();
-        ctx.fillStyle = '#9A9080';
-        ctx.fillRect(wx - 4, wy + winH, winW + 8, 3);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(1 / BAY_M, 1 / FLOOR_M);
-        texture.minFilter = THREE.LinearMipmapLinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.needsUpdate = true;
-        this._textureCache[cacheKey] = texture;
-        return texture;
-    }
-
+    
     /**
      * Motif briques
      */
@@ -6751,14 +6559,11 @@ class Calpinage3DViewer {
                         }
                     }
                     const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    // Seuil obstacle : la SURFACE LiDAR réelle (copcY, grille COPC) dépasse
-                    // le PLAN RANSAC propre (les superstructures ont été retirées du fit
-                    // côté backend par _filter_roof_obstacles) de plus de 25 cm
-                    // → le module est posé sur une protubérance (cheminée, lanterneau…).
-                    // [FIX] auparavant on comparait copcY à _sampleCopcHeight (lui-même)
-                    //        → la condition était toujours vraie → aucun obstacle détecté.
-                    const _planeY = _tHGlobal + Math.max(_bWHadd, mnh);
-                    if (copcY <= _planeY + 0.25) return;
+                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 5 cm
+                    // copcY = _sampleCopcHeight() = terrainH + max(bh, z_rel - baseline + bh)
+                    // → même repère que le mesh toit → comparaison directe
+                    const _roofAtPoint = this._sampleCopcHeight(ml.x, ml.z) ?? (_tHGlobal + Math.max(_bWHadd, mnh));
+                    if (copcY <= _roofAtPoint + 0.05) return;
                     // Empreinte réelle du module depuis ses coins géo
                     let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
                     if (modPos.corners?.length >= 4) {
@@ -6774,50 +6579,6 @@ class Calpinage3DViewer {
                     _rawBBoxes.push({ xMin, xMax, zMin, zMax });
                 });
             });
-
-            // ── Amélioration : détection d'obstacles directement sur la grille COPC,
-            // INDÉPENDANTE des plans RANSAC (fonctionne aussi sur toiture plate / sans
-            // RANSAC, comme ce bâtiment). Pour chaque cellule, on compare sa hauteur
-            // LiDAR à la MÉDIANE LOCALE (fenêtre ~±2 m) : un dépassement > 40 cm =
-            // superstructure (cheminée, lanterneau, édicule, HVAC, ventilation) →
-            // zone d'exclusion. Détecte aussi les obstacles situés ENTRE les modules.
-            let _gridHits = 0;
-            try {
-                const _cg2 = this.lidarData.building_hd.copc_grid;
-                const _g = _cg2.grid, _nx = _cg2.nx, _ny = _cg2.ny, _st = _cg2.step;
-                const _gx0 = _cg2.x0, _gy0 = _cg2.y0;
-                if (_g && _nx && _ny && _st) {
-                    const _PROT = 0.40;
-                    const _W = Math.max(2, Math.round(2.0 / _st)); // demi-fenêtre ≈ 2 m
-                    for (let gj = 0; gj < _ny; gj++) {
-                        const _row = _g[gj]; if (!_row) continue;
-                        for (let gi = 0; gi < _nx; gi++) {
-                            const _zr = _row[gi]; if (_zr == null) continue;
-                            // médiane locale des voisins valides (robuste au bruit)
-                            const _nb = [];
-                            for (let dj = -_W; dj <= _W; dj++) {
-                                const _r2 = _g[gj + dj]; if (!_r2) continue;
-                                for (let di = -_W; di <= _W; di++) {
-                                    const _v = _r2[gi + di];
-                                    if (_v != null) _nb.push(_v);
-                                }
-                            }
-                            if (_nb.length < 6) continue;
-                            _nb.sort((a, b) => a - b);
-                            const _med = _nb[_nb.length >> 1];
-                            if (_zr - _med > _PROT) {
-                                const _px = _gx0 + gi * _st, _py = _gy0 + gj * _st;
-                                const _wx = _px + _bOXadd, _wz = _bOZadd - _py;
-                                _rawBBoxes.push({ xMin: _wx - _st / 2, xMax: _wx + _st / 2,
-                                                  zMin: _wz - _st / 2, zMax: _wz + _st / 2 });
-                                _gridHits++;
-                            }
-                        }
-                    }
-                }
-            } catch (e) { console.warn('🔍 [Obstacles] scan grille:', e.message); }
-            if (_gridHits) console.log(`🔍 [Obstacles] scan grille COPC (médiane locale): ${_gridHits} cellule(s) en protubérance`);
-
             if (_rawBBoxes.length) {
                 // Fusionner les bboxes qui se touchent ou se chevauchent en obstacles uniques
                 const _MERGE_GAP = 0.10;
@@ -7325,24 +7086,10 @@ class Calpinage3DViewer {
     _fitCamera(radiusM) {
         this._lastFitRadius = radiusM;
         const dist = radiusM * 1.5;
-        // Cibler le BÂTIMENT PV, pas le point géocodé : l'adresse peut tomber en
-        // plein air (cour, parking) à plusieurs dizaines de mètres du bâtiment,
-        // qui apparaîtrait alors hors-cadre ("bâtiment absent").
-        let tx = 0, tz = 0;
-        const bc = this.lidarData && this.lidarData.building_hd && this.lidarData.building_hd.building_center;
-        if (bc) {
-            const p = this._geoToLocal(bc.lat, bc.lon); tx = p.x; tz = p.z;
-        } else if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-            const c = this._polygonCenter(this.pvBuildingCoords);
-            const p = this._geoToLocal(c.y, c.x); tx = p.x; tz = p.z;
-        }
-        const ty = (this._mainBldgTerrainH || 0) + (this._mainBldgBh || 6) * 0.5;
-        this.camera.position.set(tx + dist * 0.7, ty + dist * 0.9, tz + dist * 0.7);
+        this.camera.position.set(dist * 0.7, dist * 0.9, dist * 0.7);
         if (this.controls) {
-            this.controls.target.set(tx, ty, tz);
+            this.controls.target.set(0, 3, 0);
             this.controls.update();
-        } else {
-            this.camera.lookAt(tx, ty, tz);
         }
     }
     
