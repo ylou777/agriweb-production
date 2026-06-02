@@ -1460,6 +1460,74 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # ============================================================================
+    # PROSPECTION AUTOCONSO — injection des gros consommateurs Enedis
+    # ============================================================================
+    @app.route('/api/enedis/inject-crm', methods=['POST'])
+    def inject_enedis_autoconso_crm():
+        """Injecte les gros consommateurs Enedis d'une commune comme prospects
+        'autoconso' (avec pré-diagnostic). Réutilise get_enedis_consommation_by_commune."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            data = request.get_json(silent=True) or {}
+            code_commune = str(data.get('code_commune') or '').strip()
+            if not code_commune:
+                return jsonify({'success': False, 'error': 'code_commune requis'}), 400
+            min_mwh = float(data.get('min_mwh') or 0)
+            limit = int(data.get('limit') or 20)
+
+            from agriweb_hebergement_gratuit import get_enedis_consommation_by_commune
+            consommateurs = get_enedis_consommation_by_commune(code_commune) or []
+            consommateurs = [c for c in consommateurs
+                             if (c.get('consommation_mwh') or 0) >= min_mwh][:limit]
+
+            injected, skipped = 0, 0
+            for c in consommateurs:
+                adresse = (c.get('adresse') or '').strip()
+                commune = c.get('nom_commune') or ''
+                if not adresse:
+                    continue
+                # dédup : même adresse + commune pour cet utilisateur
+                existing = execute_query(
+                    "SELECT id FROM agriweb_prospects WHERE user_id = %s AND adresse = %s AND commune = %s",
+                    (str(user_id), adresse, commune), fetch_one=True)
+                if existing:
+                    skipped += 1
+                    continue
+                dj = {
+                    'source': 'enedis_autoconso',
+                    'code_insee': code_commune,
+                    'consommation_mwh': c.get('consommation_mwh'),
+                    'secteur': c.get('secteur'),
+                    'nombre_de_sites': c.get('nombre_de_sites'),
+                    'annee': c.get('annee'),
+                    'diagnostic_autoconso': c.get('diagnostic_autoconso') or {},
+                }
+                res = execute_query('''
+                    INSERT INTO agriweb_prospects
+                        (type, commune, adresse, latitude, longitude, statut, data_json, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                ''', (
+                    'autoconso', commune, adresse,
+                    c.get('latitude'), c.get('longitude'), 'nouveau',
+                    json.dumps(dj, ensure_ascii=False), str(user_id),
+                ), fetch_one=True)
+                if res and res.get('id'):
+                    try:
+                        auto_create_project_for_prospect(res['id'], commune, adresse, user_id=user_id)
+                    except Exception as _e_proj:
+                        print(f"⚠️ [ENEDIS INJECT] projet auto échoué pour {res['id']}: {_e_proj}")
+                    injected += 1
+            return jsonify({'success': True, 'injected': injected, 'skipped': skipped,
+                            'total_candidats': len(consommateurs)})
+        except Exception as e:
+            print(f"❌ [ENEDIS INJECT] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
     # ROUTES API - PROJETS
     # ============================================================================
 
