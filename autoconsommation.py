@@ -1094,3 +1094,84 @@ def get_enedis_dataconnect_profile(
     except ValueError as e:
         print(f"[ENEDIS_DC] get_enedis_dataconnect_profile erreur PDL={pdl}: {e}")
         return []
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DIAGNOSTIC AUTOCONSOMMATION RAPIDE (prospection Enedis OpenData)
+# Pour qualifier en un coup un consommateur (adresse + conso annuelle + secteur)
+# en candidat autoconsommation : dimensionnement PV indicatif -> taux autoconso
+# + economie/an. Le calepinage complet affine ensuite avec la vraie toiture.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _secteur_to_profile(secteur: str) -> str:
+    """Mappe le secteur Enedis (grand secteur / NAF) vers un profil de conso."""
+    s = (secteur or '').upper()
+    if 'AGRI' in s or s == 'AGR':
+        return 'AGR' if 'AGR' in _PROFILE_CACHE or True else 'PRO1'
+    if 'INDUS' in s:
+        return 'PRO2'
+    if 'RESID' in s or s.startswith('RES'):
+        return 'RES1'
+    # TERTIAIRE / PRO / inconnu -> tertiaire diurne (ideal autoconso)
+    return 'PRO1'
+
+
+def _productible_from_lat(lat: float) -> float:
+    """Productible PV indicatif (kWh/kWc/an) selon la latitude (affine par PVGIS ensuite)."""
+    if lat is None:
+        return 1150.0
+    return max(950.0, min(1400.0, 1350.0 - (lat - 43.0) * 70.0))
+
+
+def _synthetic_pv_8760_wh(kwc: float, productible_kwh_per_kwc: float = 1150.0) -> list:
+    """Profil PV horaire synthetique (8760 Wh) : cloche journaliere x saison,
+    normalise pour que la somme annuelle = productible * kwc (kWh)."""
+    import math
+    shape = []
+    for doy in range(365):
+        seasonal = 0.6 + 0.4 * math.cos(2 * math.pi * (doy - 172) / 365.0)  # pic ~21 juin
+        for hour in range(24):
+            x = (hour - 12.5) / 6.0
+            day = math.cos(x * math.pi / 2.0) if abs(x) < 1.0 else 0.0
+            shape.append(max(0.0, seasonal * day))
+    total = sum(shape) or 1.0
+    target_wh = productible_kwh_per_kwc * kwc * 1000.0
+    return [s * target_wh / total for s in shape]
+
+
+def diagnostic_autoconso_rapide(consommation_mwh: float, secteur: str = '',
+                                lat: float = None, kwc: float = None,
+                                tarif_achat_kwh: float = 0.2516) -> dict:
+    """Diagnostic autoconso rapide d'un consommateur (sans toiture, indicatif).
+
+    consommation_mwh : conso annuelle Enedis (MWh)
+    secteur          : secteur Enedis (TERTIAIRE / INDUSTRIE / AGRICULTURE...)
+    lat              : latitude (pour le productible regional)
+    kwc              : puissance PV imposee (sinon dimensionnement auto)
+    Retourne kWc reco, productible, taux autoconso/autosuffisance, economie/an.
+    """
+    conso_kwh = max(0.0, float(consommation_mwh or 0) * 1000.0)
+    if conso_kwh <= 0:
+        return {'eligible': False, 'raison': 'consommation nulle'}
+    profile = _secteur_to_profile(secteur)
+    productible = _productible_from_lat(lat)
+    if kwc is None:
+        # Dimensionnement autoconso : viser ~35% de couverture (haut taux autoconso),
+        # borne basse 3 kWc, borne haute 500 kWc (gros tertiaire/industrie).
+        kwc = round(min(max((conso_kwh * 0.35) / productible, 3.0), 500.0), 1)
+    prod_8760 = _synthetic_pv_8760_wh(kwc, productible)
+    ac = compute_autoconsommation(prod_8760, conso_kwh, profile)
+    eco = compute_economics(ac['kpis'], tarif_achat_kwh=tarif_achat_kwh)
+    k = ac['kpis']
+    return {
+        'eligible': True,
+        'kwc_reco': kwc,
+        'profil': profile,
+        'productible_kwh_kwc': round(productible),
+        'production_annuelle_kwh': round(k.get('production_annuelle_kwh', sum(prod_8760) / 1000.0)),
+        'consommation_annuelle_kwh': round(conso_kwh),
+        'taux_autoconsommation': k.get('taux_autoconsommation'),
+        'taux_autosuffisance': k.get('taux_autosuffisance'),
+        'economie_an_eur': eco.get('economie_an1'),
+        'gain_total_an_eur': eco.get('gain_total_an1'),
+    }

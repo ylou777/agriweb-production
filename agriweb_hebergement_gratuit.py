@@ -9151,31 +9151,35 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
     print(f"🔍 [ENEDIS] Recherche consommations GeoServer pour commune {code_commune}...")
     
     try:
-        # Construire l'URL WFS GeoServer
-        wfs_url = f"{GEOSERVER_URL}/wfs"
-        
-        # Paramètres WFS avec filtre CQL sur code_commune
-        params = {
-            'service': 'WFS',
-            'version': '1.0.0',
-            'request': 'GetFeature',
-            'typeName': 'gpu:consommation_enedis',
-            'outputFormat': 'application/json',
-            'CQL_FILTER': f"code_commune={code_commune}"  # Sans quotes car c'est un nombre
-        }
-        
-        # Ajouter filtre année si spécifié
+        # Source : API OpenData Enedis officielle (live, 2022) — robuste, indépendante
+        # du GeoServer. Dataset "consommation-annuelle-entreprise-par-adresse".
+        api_url = ("https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/"
+                   "consommation-annuelle-entreprise-par-adresse/records")
+        where = f'code_commune="{code_commune}"'
         if annee:
-            params['CQL_FILTER'] += f" AND annee={annee}"
-        
-        # Requête WFS
-        response = requests.get(wfs_url, params=params, timeout=30)
+            where += f" AND annee={int(annee)}"
+        params = {
+            'where': where,
+            'order_by': 'consommation_annuelle_totale_de_ladresse_mwh DESC',
+            'limit': 100,  # max Opendatasoft ; on géocode ensuite le top 20
+            'select': ('adresse,nom_commune,code_grand_secteur,code_secteur_naf2,'
+                       'nombre_de_sites,consommation_annuelle_totale_de_ladresse_mwh,annee'),
+        }
+        response = requests.get(api_url, params=params, timeout=30)
         response.raise_for_status()
-        
-        geojson = response.json()
-        features = geojson.get('features', [])
-        
-        print(f"✅ [ENEDIS] {len(features)} consommations trouvées pour {code_commune}")
+        records = response.json().get('results', [])
+
+        # Adapter au format attendu par la suite ({'properties': {...}})
+        features = [{'properties': {
+            'consommation_mwh': r.get('consommation_annuelle_totale_de_ladresse_mwh') or 0,
+            'secteur': r.get('code_grand_secteur') or 'INCONNU',
+            'adresse': r.get('adresse') or '',
+            'nom_commune': r.get('nom_commune') or '',
+            'nb_sites': r.get('nombre_de_sites') or 1,
+            'annee': r.get('annee'),
+        }} for r in records]
+
+        print(f"✅ [ENEDIS] {len(features)} consommations (OpenData) pour {code_commune}")
         
         # ⚠️ IMPORTANT: Les coordonnées dans GeoServer sont toutes identiques (erreur de géocodage initial)
         # STRATÉGIE OPTIMISÉE: Trier d'abord par consommation, puis géocoder le top 100 en PARALLÈLE
@@ -9234,7 +9238,17 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
                             'nombre_de_sites': props.get('nb_sites', 1),
                             'annee': props.get('annee', 2023)
                         }
-                        
+
+                        # Diagnostic autoconsommation rapide (prospection) :
+                        # conso Enedis + secteur + latitude -> kWc reco, taux autoconso, economie/an.
+                        # Le calepinage complet affine ensuite avec la vraie toiture.
+                        try:
+                            from autoconsommation import diagnostic_autoconso_rapide
+                            result['diagnostic_autoconso'] = diagnostic_autoconso_rapide(
+                                result['consommation_mwh'], result['secteur'], lat)
+                        except Exception:
+                            result['diagnostic_autoconso'] = None
+
                         with results_lock:
                             results.append(result)
                         

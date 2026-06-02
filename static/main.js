@@ -1123,13 +1123,25 @@ function displayAllLayers(data) {
           
           popup += `</table>`;
           
-          // Calcul ROI indicatif
-          const tarifMoyenKwh = 0.20; // €/kWh
-          const economieAnnuelle = props.consommation_mwh * 1000 * tarifMoyenKwh;
-          popup += `<div style="margin-top: 10px; padding: 8px; background: #f0f8ff; border-left: 3px solid #007bff;">`;
-          popup += `<b>💡 Économies potentielles:</b><br>`;
-          popup += `~${economieAnnuelle.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €/an`;
-          popup += `</div>`;
+          // Diagnostic autoconsommation (calculé côté serveur : profil sectoriel + dimensionnement PV)
+          const diag = props.diagnostic_autoconso;
+          if (diag && diag.eligible) {
+            popup += `<div style="margin-top: 10px; padding: 8px; background: #eafaf1; border-left: 3px solid #28a745;">`;
+            popup += `<b>☀️ Potentiel autoconsommation</b>`;
+            popup += `<table style="width:100%; font-size:13px; margin-top:4px;">`;
+            popup += `<tr><td>PV recommandé</td><td style="text-align:right;font-weight:600;">${diag.kwc_reco} kWc</td></tr>`;
+            popup += `<tr><td>Taux d'autoconsommation</td><td style="text-align:right;font-weight:600;">${diag.taux_autoconsommation}%</td></tr>`;
+            popup += `<tr><td>Autosuffisance</td><td style="text-align:right;">${diag.taux_autosuffisance}%</td></tr>`;
+            popup += `<tr><td>Économie estimée</td><td style="text-align:right;font-weight:700;color:#28a745;">${(diag.economie_an_eur||0).toLocaleString('fr-FR')} €/an</td></tr>`;
+            popup += `</table>`;
+            popup += `<div style="font-size:11px;color:#888;margin-top:4px;">Estimation indicative — à affiner avec le calepinage (vraie toiture)</div>`;
+            popup += `</div>`;
+          } else {
+            const economieAnnuelle = (props.consommation_mwh || 0) * 1000 * 0.20;
+            popup += `<div style="margin-top: 10px; padding: 8px; background: #f0f8ff; border-left: 3px solid #007bff;">`;
+            popup += `<b>💡 Facture électrique estimée:</b> ~${economieAnnuelle.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €/an`;
+            popup += `</div>`;
+          }
           
           popup += `</div>`;
           
