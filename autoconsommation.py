@@ -1223,18 +1223,26 @@ def _addr_tokens(s: str):
     return num, set(words)
 
 
-def match_enedis_address(prospect_addr: str, records: list, min_score: float = 0.5):
+def match_enedis_address(prospect_addr: str, records: list, commune: str = '',
+                         min_score: float = 0.5):
     """Trouve le meilleur enregistrement Enedis pour une adresse prospect.
 
     Score = recouvrement Jaccard des tokens de nom de voie, bonus si le numero
-    de voie coincide. Retourne (record, score) ou (None, 0.0).
+    de voie coincide. Le nom de la commune est retire des tokens (non
+    discriminant : sinon une adresse reduite a la commune matche n'importe quoi).
+    Retourne (record, score) ou (None, 0.0).
     """
+    # tokens du nom de commune a ignorer (ex 'Feurs', 'Saint-Etienne')
+    commune_words = set(_normalize_addr(commune).split()) if commune else set()
     p_num, p_words = _addr_tokens(prospect_addr)
+    p_words = {w for w in p_words if w not in commune_words}
     if not p_words:
+        # adresse sans contenu de voie reel (ex juste le nom de commune)
         return None, 0.0
     best, best_score = None, 0.0
     for r in (records or []):
         r_num, r_words = _addr_tokens(r.get('adresse') or '')
+        r_words = {w for w in r_words if w not in commune_words}
         if not r_words:
             continue
         inter = len(p_words & r_words)

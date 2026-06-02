@@ -1560,10 +1560,20 @@ def register_crm_routes(app):
         if dj.get('diagnostic_autoconso') and not force:
             return {'id': prospect.get('id'), 'status': 'deja_enrichi'}
         adresse = (prospect.get('adresse') or '').strip()
+        commune = (prospect.get('commune') or '').strip()
         if not adresse:
             return {'id': prospect.get('id'), 'status': 'sans_adresse'}
-        rec, score = match_enedis_address(adresse, records)
+        rec, score = match_enedis_address(adresse, records, commune=commune)
         if not rec:
+            # force : purge un ancien match base sur une correspondance (pas un
+            # diagnostic injecte d'origine source=enedis_autoconso)
+            if force and dj.get('enedis_match'):
+                dj.pop('diagnostic_autoconso', None)
+                dj.pop('enedis_match', None)
+                execute_query(
+                    "UPDATE agriweb_prospects SET data_json = %s WHERE id = %s",
+                    (json.dumps(dj, ensure_ascii=False), prospect.get('id')))
+                return {'id': prospect.get('id'), 'status': 'match_purge', 'score': score}
             return {'id': prospect.get('id'), 'status': 'aucun_match', 'score': score}
         lat = prospect.get('latitude')
         try: lat = float(lat) if lat is not None else None
@@ -1651,7 +1661,11 @@ def register_crm_routes(app):
                 if isinstance(dj, str):
                     try: dj = json.loads(dj)
                     except Exception: dj = {}
-                ci = code_commune or _resolve_code_insee(p, dj)
+                # code_commune n'est utilisé comme INSEE que s'il est apparié à un
+                # filtre commune (sinon on l'appliquerait à des prospects d'autres
+                # communes). Sans filtre, chaque prospect résout son propre INSEE.
+                ci = (code_commune if (code_commune and commune) else None) \
+                     or _resolve_code_insee(p, dj)
                 if not ci:
                     details.append({'id': p.get('id'), 'status': 'sans_insee'}); continue
                 if ci not in records_cache:
