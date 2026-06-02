@@ -1472,8 +1472,21 @@ def register_crm_routes(app):
                 return jsonify({'success': False, 'error': 'Authentification requise'}), 401
             data = request.get_json(silent=True) or {}
             code_commune = str(data.get('code_commune') or '').strip()
+            commune_nom = (data.get('commune') or '').strip()
+            # Résolution INSEE depuis le nom de commune si code absent (bouton rapport)
+            if not code_commune and commune_nom:
+                try:
+                    import requests as _rq
+                    from urllib.parse import quote_plus
+                    arr = _rq.get(
+                        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune_nom)}&fields=code&limit=1",
+                        timeout=15).json()
+                    if arr:
+                        code_commune = arr[0].get('code')
+                except Exception as _e:
+                    print(f"⚠️ [ENEDIS INJECT] lookup INSEE '{commune_nom}': {_e}")
             if not code_commune:
-                return jsonify({'success': False, 'error': 'code_commune requis'}), 400
+                return jsonify({'success': False, 'error': 'code_commune ou commune requis'}), 400
             min_mwh = float(data.get('min_mwh') or 0)
             limit = int(data.get('limit') or 20)
 

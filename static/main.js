@@ -1209,6 +1209,38 @@ function displayAllLayers(data) {
 }
 
 // --------- INFO PANEL ---------
+// Injection CRM des gros consommateurs Enedis d'une commune (prospection autoconso)
+async function injectEnedisToCRM(commune) {
+  const btn = document.getElementById('enedisInjectBtn');
+  const msg = document.getElementById('enedisInjectMsg');
+  const minMwh = parseFloat(document.getElementById('enedisMinMwh')?.value || 100);
+  const limit  = parseInt(document.getElementById('enedisLimit')?.value || 20);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Injection...'; }
+  if (msg) { msg.style.color = '#0a58ca'; msg.textContent = 'Récupération + géocodage des consommateurs…'; }
+  try {
+    const res = await fetch('/api/enedis/inject-crm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commune, min_mwh: minMwh, limit })
+    });
+    const j = await res.json();
+    if (!res.ok || !j.success) {
+      if (msg) { msg.style.color = '#dc3545'; msg.textContent = '❌ ' + (j.error || ('Erreur ' + res.status)); }
+    } else {
+      if (msg) {
+        msg.style.color = '#198754';
+        msg.innerHTML = `✅ ${j.injected} prospect(s) injecté(s)` +
+          (j.skipped ? `, ${j.skipped} déjà présent(s)` : '') +
+          ` (sur ${j.total_candidats} candidat(s)). Visibles dans le CRM.`;
+      }
+    }
+  } catch (e) {
+    if (msg) { msg.style.color = '#dc3545'; msg.textContent = '❌ ' + e.message; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '➕ Injecter dans le CRM'; }
+  }
+}
+
 function updateInfoPanel(arr) {
   if (!arr || arr.length === 0) {
     document.getElementById("info-panel").innerHTML = 
@@ -1276,8 +1308,39 @@ function updateInfoPanel(arr) {
   summary += `<div class="col-4 text-center"><strong>${Object.keys(layerCounts).length}</strong><br><small>Types de données</small></div>`;
   summary += `</div></div>`;
   
-  document.getElementById("info-panel").innerHTML = summary + html;
-  
+  // Bouton d'injection CRM des gros consommateurs Enedis (autoconso)
+  let enedisBtn = '';
+  try {
+    const d0 = arr[0] || {};
+    const enedisArr = Array.isArray(d0.enedis) ? d0.enedis
+                    : (d0.enedis && Array.isArray(d0.enedis.features) ? d0.enedis.features : []);
+    const communeNom = d0.commune || d0.address || '';
+    if (enedisArr.length > 0 && communeNom) {
+      enedisBtn =
+        `<div class="card mb-3" style="border-left:4px solid #FF5733;">
+           <div class="card-body py-2 px-3">
+             <div class="fw-bold mb-1" style="color:#FF5733;">⚡ Prospection autoconsommation</div>
+             <div class="small text-muted mb-2">${enedisArr.length} consommateur(s) Enedis sur ${communeNom}.</div>
+             <div class="d-flex align-items-center gap-2 flex-wrap">
+               <label class="small mb-0">Conso min (MWh/an)</label>
+               <input id="enedisMinMwh" type="number" value="100" min="0" step="50"
+                      class="form-control form-control-sm" style="width:90px;">
+               <label class="small mb-0">Max sites</label>
+               <input id="enedisLimit" type="number" value="20" min="1" max="100"
+                      class="form-control form-control-sm" style="width:70px;">
+               <button id="enedisInjectBtn" class="btn btn-sm btn-warning"
+                       onclick="injectEnedisToCRM('${communeNom.replace(/'/g, "\\'")}')">
+                 ➕ Injecter dans le CRM
+               </button>
+             </div>
+             <div id="enedisInjectMsg" class="small mt-1"></div>
+           </div>
+         </div>`;
+    }
+  } catch (e) { console.warn('[ENEDIS] bouton injection:', e); }
+
+  document.getElementById("info-panel").innerHTML = summary + enedisBtn + html;
+
   // Auto-ouverture désactivée pour éviter les boucles
   // if (totalObjects > 0) {
   //   const infoCollapse = document.getElementById("infoCollapse");
