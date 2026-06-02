@@ -566,6 +566,7 @@
                                     <option value="toiture">🏠 Toitures</option>
                                     <option value="friche">🏚️ Friches</option>
                                     <option value="parcelle_rpg">🌾 RPG</option>
+                                    <option value="autoconso">⚡ Autoconsommation</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -1675,14 +1676,16 @@
                 'parking': '🅿️',
                 'toiture': '🏠',
                 'friche': '🏚️',
-                'parcelle_rpg': '🌾'
+                'parcelle_rpg': '🌾',
+                'autoconso': '⚡'
             };
-            
+
             const typeBadge = {
                 'parking': 'badge-parking',
                 'toiture': 'badge-toiture',
                 'friche': 'badge-friche',
-                'parcelle_rpg': 'badge-rpg'
+                'parcelle_rpg': 'badge-rpg',
+                'autoconso': 'badge-friche'
             };
             
             const statusBadge = {
@@ -1692,9 +1695,9 @@
                 'perdu': 'status-perdu'
             };
             
-            const surface = prospect.surface_ha 
-                ? `${parseFloat(prospect.surface_ha).toFixed(2)} ha` 
-                : `${parseInt(prospect.surface_m2)} m²`;
+            const surface = prospect.surface_ha
+                ? `${parseFloat(prospect.surface_ha).toFixed(2)} ha`
+                : (prospect.surface_m2 ? `${parseInt(prospect.surface_m2)} m²` : null);
             
             // Parser les parcelles cadastrales si c'est du JSON
             let parcelles_cadastrales = [];
@@ -1770,15 +1773,25 @@
             
             // Si les colonnes ne sont pas remplies, essayer data_json
             let carteUrl = null;
+            let autoconsoDiag = null;   // diagnostic autoconsommation (Enedis)
+            let enedisMatch = null;     // info de la conso Enedis rattachée
             if (prospect.data_json) {
                 try {
-                    const data = typeof prospect.data_json === 'string' 
-                        ? JSON.parse(prospect.data_json) 
+                    const data = typeof prospect.data_json === 'string'
+                        ? JSON.parse(prospect.data_json)
                         : prospect.data_json;
-                    
+
+                    // Diagnostic autoconsommation (injecté ou enrichi via Enedis)
+                    if (data.diagnostic_autoconso && data.diagnostic_autoconso.eligible) {
+                        autoconsoDiag = data.diagnostic_autoconso;
+                    }
+                    enedisMatch = data.enedis_match || (data.source === 'enedis_autoconso' ? {
+                        consommation_mwh: data.consommation_mwh, secteur: data.secteur, annee: data.annee
+                    } : null);
+
                     // NE PAS utiliser data.carte_url (carte du rapport complet)
                     // On préfère toujours la carte simple Google Maps pour la vignette
-                    
+
                     if (data.poste_bt_info) {
                         poste_bt_info = {
                             nom: poste_bt_info.nom || data.poste_bt_info.nom,
@@ -1868,10 +1881,25 @@
                                 </a>
                             </div>
                             ` : ''}
+                            ${surface ? `
                             <div class="detail-row">
                                 <i class="bi bi-rulers text-success"></i> <span class="detail-label">Surface:</span> ${surface}
                             </div>
-                            
+                            ` : ''}
+
+                            ${autoconsoDiag ? `
+                            <div class="detail-row p-2 mt-2" style="background:rgba(40,167,69,0.12); border-left:3px solid #28a745; border-radius:6px;">
+                                <div class="mb-1"><i class="bi bi-sun-fill text-warning"></i> <span class="detail-label">Potentiel autoconsommation</span>${enedisMatch && enedisMatch.consommation_mwh ? ` <small class="text-muted">— conso Enedis ${Number(enedisMatch.consommation_mwh).toLocaleString('fr-FR',{maximumFractionDigits:0})} MWh/an${enedisMatch.secteur ? ' ('+enedisMatch.secteur+')' : ''}</small>` : ''}</div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge bg-warning text-dark">☀️ ${autoconsoDiag.kwc_reco} kWc</span>
+                                    <span class="badge bg-info text-dark">🔄 Autoconso ${autoconsoDiag.taux_autoconsommation}%</span>
+                                    <span class="badge bg-secondary">🔋 Autosuff. ${autoconsoDiag.taux_autosuffisance}%</span>
+                                    <span class="badge bg-success">💶 ${Number(autoconsoDiag.economie_an_eur||0).toLocaleString('fr-FR')} €/an</span>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size:0.7rem;">Estimation indicative — à affiner avec le calepinage (vraie toiture)</small>
+                            </div>
+                            ` : ''}
+
                             ${prospect.osm_amenity || prospect.osm_shop || prospect.osm_building || prospect.osm_landuse || prospect.osm_office || prospect.osm_industrial ? `
                             <div class="detail-row">
                                 <i class="bi bi-building text-info"></i> 
