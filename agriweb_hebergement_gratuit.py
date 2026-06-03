@@ -14064,12 +14064,26 @@ def search_by_commune():
             
             # Enrichissement cadastral OPTIMISÉ avec limite intelligente
             if toitures_data:
-                # OPTIMISATION PERFORMANCE: Toutes les toitures sont enrichies
-                # Note: Peut être lent pour les grandes communes (>500 toitures)
-                toitures_a_enrichir = toitures_data  # Toutes les toitures
-                
-                print(f"🏛️ [CADASTRE-TOITURES] Enrichissement optimisé : {len(toitures_a_enrichir)} toitures")
-                print(f"🔍 [CADASTRE-TOITURES] Traitement individuel avec timeout réduit")
+                # PERFORMANCE : l'enrichissement fait 2 appels API externes (cadastre
+                # IGN + géocodage inverse) par toiture. Sur les grandes communes
+                # (plusieurs centaines de bâtiments) cela dépassait le timeout de
+                # réponse -> 502. On enrichit donc EN PRIORITÉ les plus grandes
+                # toitures (cibles PV/autoconso), borné à TOITURES_ENRICH_MAX ;
+                # les autres restent affichées (géométrie + surface) sans cadastre.
+                TOITURES_ENRICH_MAX = int(os.getenv('TOITURES_ENRICH_MAX', '250'))
+                toitures_data.sort(
+                    key=lambda t: t.get('properties', {}).get('surface_toiture_m2', 0) or 0,
+                    reverse=True)
+                toitures_a_enrichir = toitures_data[:TOITURES_ENRICH_MAX]
+                for _t_rest in toitures_data[TOITURES_ENRICH_MAX:]:
+                    _t_rest['properties']['parcelles_cadastrales'] = []
+                    _t_rest['properties']['nb_parcelles_cadastrales'] = 0
+                if len(toitures_data) > TOITURES_ENRICH_MAX:
+                    print(f"⚠️ [CADASTRE-TOITURES] {len(toitures_data)} toitures ; "
+                          f"enrichissement limité aux {TOITURES_ENRICH_MAX} plus grandes "
+                          f"(les autres restent affichées sans cadastre/adresse).")
+
+                print(f"🏛️ [CADASTRE-TOITURES] Enrichissement parallèle : {len(toitures_a_enrichir)} toitures")
                 
                 def get_parcelles_for_toiture(toiture_geometry):
                     """Récupère les parcelles cadastrales intersectant une toiture spécifique avec limite optimisée"""
