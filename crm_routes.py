@@ -1768,7 +1768,11 @@ def register_crm_routes(app):
             def _process(o):
                 ci = str(o.get('code_insee') or '').strip()
                 dept, comm = ci[:2], ci[2:]
+                # Le cadastre officiel code la section sur 2 caractères : une
+                # section d'une seule lettre/chiffre est préfixée par '0' (C -> 0C).
                 section = str(o.get('section') or '').strip()
+                if len(section) == 1:
+                    section = '0' + section
                 numero = str(o.get('numero') or '').strip().zfill(4)
                 res = {'siren': o.get('siren'), 'denomination': o.get('denomination'),
                        'forme_juridique': o.get('forme_juridique'), 'code_insee': ci,
