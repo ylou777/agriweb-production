@@ -55,11 +55,25 @@
     <div class="muted mt-2">Part d'Enedis (sites industriels gros consommateurs) → identifie l'opérateur (SIRENE) → injecte ici. Les doublons sont ignorés.</div>
   </div></div>
 
+  <!-- Suivi d'avancement -->
+  <div class="card mb-3"><div class="card-body py-2">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div><span style="font-size:1.6rem;font-weight:700;color:#fbbf24;" id="statTotal">…</span> <span class="muted">prospects</span></div>
+      <div><span style="font-weight:700;" id="statDepts">…</span> <span class="muted">départements</span></div>
+      <div><span style="font-weight:700;" id="statOp">…</span> <span class="muted">avec opérateur</span></div>
+      <div class="ms-auto muted" id="statMaj"></div>
+    </div>
+    <div id="deptGrid" class="mt-2" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+  </div></div>
+
   <!-- Liste -->
   <div class="card"><div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h6 class="mb-0" style="color:#fbbf24;"><i class="bi bi-building"></i> Prospects industriels <span id="count" class="muted"></span></h6>
-      <button class="btn btn-sm btn-outline-light" onclick="chargerListe()"><i class="bi bi-arrow-clockwise"></i></button>
+      <div class="d-flex gap-2">
+        <input id="filtreDept" class="form-control form-control-sm" style="width:140px" placeholder="Filtrer dept (ex 69)" onchange="chargerListe()">
+        <button class="btn btn-sm btn-outline-light" onclick="chargerListe()"><i class="bi bi-arrow-clockwise"></i></button>
+      </div>
     </div>
     <div class="table-responsive">
       <table class="table table-sm align-middle">
@@ -100,12 +114,33 @@ async function lancerScan(){
   finally{ btn.disabled=false; btn.innerHTML='<i class="bi bi-search"></i> Lancer le scan'; }
 }
 
+let _statTimer=null;
+async function chargerStats(){
+  try{
+    const j = await (await fetch('/api/industriel/stats')).json();
+    if(!j.success) return;
+    document.getElementById('statTotal').textContent = fmt(j.total);
+    const pd = j.par_departement||{};
+    const nd = Object.keys(pd).length;
+    document.getElementById('statDepts').textContent = nd;
+    const pct = j.total? Math.round(100*j.avec_operateur/j.total):0;
+    document.getElementById('statOp').textContent = fmt(j.avec_operateur)+` (${pct}%)`;
+    const now = new Date();
+    document.getElementById('statMaj').textContent = 'maj '+now.toLocaleTimeString('fr-FR');
+    // grille par dept (101 cases environ)
+    document.getElementById('deptGrid').innerHTML = Object.entries(pd)
+      .sort((a,b)=>a[0].localeCompare(b[0]))
+      .map(([d,n])=>`<span class="badge" style="background:rgba(251,191,36,.15);color:#fbbf24;cursor:pointer" onclick="document.getElementById('filtreDept').value='${d}';chargerListe()">${d}:${n}</span>`).join('');
+  }catch(e){}
+}
 async function chargerListe(){
   const tb = document.getElementById('rows');
+  const dept = (document.getElementById('filtreDept')?.value||'').trim();
   try{
-    const j = await (await fetch('/api/industriel/prospects')).json();
+    const url = '/api/industriel/prospects'+(dept?('?dept='+encodeURIComponent(dept)):'');
+    const j = await (await fetch(url)).json();
     const ps = j.prospects||[];
-    document.getElementById('count').textContent = `(${ps.length})`;
+    document.getElementById('count').textContent = `(${ps.length}${ps.length>=(j.limit||500)?'+ — affichage limité, filtre par dept':''})`;
     if(!ps.length){ tb.innerHTML='<tr><td colspan="9" class="muted">Aucun prospect industriel. Lance un scan ci-dessus.</td></tr>'; return; }
     tb.innerHTML = ps.map(p=>{
       const op = p.operateur_nom
@@ -137,6 +172,8 @@ async function suppr(id){
   chargerListe();
 }
 chargerListe();
+chargerStats();
+_statTimer = setInterval(chargerStats, 10000);  // suivi auto toutes les 10 s
 </script>
 </body>
 </html>

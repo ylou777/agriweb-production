@@ -2267,17 +2267,45 @@ def register_crm_routes(app):
             if user_id is None:
                 return jsonify({'success': False, 'error': 'Authentification requise'}), 401
             _ensure_industrial_table()
-            if is_admin:
-                rows = execute_query(
-                    "SELECT * FROM industrial_prospects ORDER BY conso_mwh DESC NULLS LAST",
-                    fetch_all=True)
-            else:
-                rows = execute_query(
-                    "SELECT * FROM industrial_prospects WHERE user_id = %s ORDER BY conso_mwh DESC NULLS LAST",
-                    (str(user_id),), fetch_all=True)
-            return jsonify({'success': True, 'prospects': rows or []})
+            dept = (request.args.get('dept') or '').strip()
+            limit = min(int(request.args.get('limit') or 500), 2000)
+            clause, params = "", []
+            if not is_admin:
+                clause += " AND user_id = %s"; params.append(str(user_id))
+            if dept:
+                clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
+            rows = execute_query(
+                f"SELECT * FROM industrial_prospects WHERE 1=1{clause} "
+                f"ORDER BY conso_mwh DESC NULLS LAST LIMIT %s",
+                tuple(params + [limit]), fetch_all=True)
+            return jsonify({'success': True, 'prospects': rows or [], 'limit': limit})
         except Exception as e:
             print(f"❌ [INDUSTRIEL LIST] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/stats', methods=['GET'])
+    def industriel_stats():
+        """Compteurs pour suivre l'avancement : total + par département."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table()
+            clause, params = "", []
+            if not is_admin:
+                clause = " WHERE user_id = %s"; params.append(str(user_id))
+            total = execute_query(
+                f"SELECT COUNT(*) AS n, COUNT(operateur_nom) AS avec_op FROM industrial_prospects{clause}",
+                tuple(params) if params else None, fetch_one=True) or {}
+            par_dept = execute_query(
+                f"SELECT LEFT(code_commune, 2) AS dept, COUNT(*) AS n FROM industrial_prospects{clause} "
+                f"GROUP BY LEFT(code_commune, 2) ORDER BY dept",
+                tuple(params) if params else None, fetch_all=True) or []
+            return jsonify({'success': True, 'total': total.get('n', 0),
+                            'avec_operateur': total.get('avec_op', 0),
+                            'par_departement': {r['dept']: r['n'] for r in par_dept if r.get('dept')}})
+        except Exception as e:
+            print(f"❌ [INDUSTRIEL STATS] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/industriel/prospects/<int:pid>', methods=['PATCH', 'DELETE'])
