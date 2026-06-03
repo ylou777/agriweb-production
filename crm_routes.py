@@ -1777,6 +1777,21 @@ def register_crm_routes(app):
             from agriweb_hebergement_gratuit import get_enedis_records_raw
             GEO = "https://data.geopf.fr/geocodage"
             enedis_cache = {}
+            import time as _time
+
+            def _geo_get(path, params, tries=3):
+                """GET Géoplateforme avec retry/backoff (l'API throttle sous charge)."""
+                last = None
+                for i in range(tries):
+                    try:
+                        r = _rq.get(f"{GEO}/{path}", params=params, timeout=20)
+                        if r.status_code == 200:
+                            return r.json()
+                        last = f"http{r.status_code}"
+                    except Exception as _e:
+                        last = type(_e).__name__
+                    _time.sleep(0.5 * (i + 1))
+                raise RuntimeError(last or 'geo_fail')
 
             def _process(o):
                 ci = str(o.get('code_insee') or '').strip()
@@ -1792,15 +1807,15 @@ def register_crm_routes(app):
                        'section_raw': o.get('section'), 'numero_raw': o.get('numero'),
                        'status': 'init'}
                 try:
-                    pr = _rq.get(f"{GEO}/search", params={
+                    pr = _geo_get('search', {
                         'index': 'parcel', 'departmentcode': dept, 'municipalitycode': comm,
-                        'section': section, 'number': numero, 'limit': 1}, timeout=15).json()
+                        'section': section, 'number': numero, 'limit': 1})
                     feats = pr.get('features') or []
                     if not feats:
                         res['status'] = 'parcelle_introuvable'; return res
                     lon, lat = feats[0]['geometry']['coordinates']
-                    rr = _rq.get(f"{GEO}/reverse", params={
-                        'index': 'address', 'lon': lon, 'lat': lat, 'limit': 1}, timeout=15).json()
+                    rr = _geo_get('reverse', {
+                        'index': 'address', 'lon': lon, 'lat': lat, 'limit': 1})
                     af = rr.get('features') or []
                     if not af:
                         res['status'] = 'adresse_introuvable'; return res
@@ -1825,7 +1840,7 @@ def register_crm_routes(app):
                 except Exception as _e:
                     res['status'] = 'erreur'; res['err'] = str(_e)[:80]; return res
 
-            with ThreadPoolExecutor(max_workers=12) as ex:
+            with ThreadPoolExecutor(max_workers=5) as ex:
                 results = list(ex.map(_process, owners))
 
             from collections import Counter
@@ -1844,7 +1859,8 @@ def register_crm_routes(app):
                 'conso_mediane_mwh': conso_vals[len(conso_vals)//2] if conso_vals else None,
                 'conso_max_mwh': conso_vals[0] if conso_vals else None,
                 'exemples_enedis_ok': ok[:25],
-                'exemples_parcelle_introuvable': [r for r in results if r['status'] == 'parcelle_introuvable'][:10],
+                'exemples_parcelle_introuvable': [r for r in results if r['status'] == 'parcelle_introuvable'][:8],
+                'exemples_erreur': [r for r in results if r['status'] == 'erreur'][:8],
             })
         except Exception as e:
             print(f"❌ [MAJIC TEST] {e}")
