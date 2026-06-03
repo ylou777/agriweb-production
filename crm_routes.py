@@ -2500,17 +2500,22 @@ def register_crm_routes(app):
                 return jsonify({'success': False, 'error': 'Authentification requise'}), 401
             _ensure_industrial_table()
             dept = (request.args.get('dept') or '').strip()
-            limit = min(int(request.args.get('limit') or 500), 2000)
+            limit = min(int(request.args.get('limit') or 200), 500)
+            offset = max(int(request.args.get('offset') or 0), 0)
             clause, params = "", []
             if not is_admin:
                 clause += " AND user_id = %s"; params.append(str(user_id))
             if dept:
                 clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
+            total = execute_query(
+                f"SELECT COUNT(*) AS n FROM industrial_prospects WHERE 1=1{clause}",
+                tuple(params) if params else None, fetch_one=True) or {}
             rows = execute_query(
                 f"SELECT * FROM industrial_prospects WHERE 1=1{clause} "
-                f"ORDER BY conso_mwh DESC NULLS LAST LIMIT %s",
-                tuple(params + [limit]), fetch_all=True)
-            return jsonify({'success': True, 'prospects': rows or [], 'limit': limit})
+                f"ORDER BY conso_mwh DESC NULLS LAST LIMIT %s OFFSET %s",
+                tuple(params + [limit, offset]), fetch_all=True)
+            return jsonify({'success': True, 'prospects': rows or [], 'limit': limit,
+                            'offset': offset, 'total': total.get('n', 0)})
         except Exception as e:
             print(f"❌ [INDUSTRIEL LIST] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
