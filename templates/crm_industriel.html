@@ -58,7 +58,8 @@
       <button id="franceBtn" class="btn btn-sm btn-danger" onclick="lancerFrance()">
         <i class="bi bi-hexagon-fill"></i> Scanner toute la France (autonome)
       </button>
-      <button class="btn btn-sm btn-outline-light" onclick="stopFrance()"><i class="bi bi-stop-circle"></i> Stop</button>
+      <button type="button" class="btn btn-sm btn-outline-light" onclick="stopFrance()"><i class="bi bi-stop-circle"></i> Stop</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetBase()" title="Vider toute la base industrielle"><i class="bi bi-trash3"></i> Remise à zéro</button>
       <span id="franceStatus" class="muted"></span>
     </div>
     <div class="muted mt-1" style="font-size:.75rem;">Tourne <b>côté serveur</b>, en autonomie (même si tu fermes l'onglet) — ~2-4 h. La progression s'affiche ci-dessous en direct.</div>
@@ -138,6 +139,15 @@ async function stopFrance(){
   if(!confirm('Arrêter le scan France en cours ?')) return;
   await fetch('/api/industriel/scan-france/stop',{method:'POST'});
   pollFrance();
+}
+async function resetBase(){
+  if(!confirm('REMISE À ZÉRO : supprimer TOUS les prospects industriels et arrêter le scan ?\nIrréversible.')) return;
+  const st=document.getElementById('franceStatus'); st.textContent='Remise à zéro…';
+  try{
+    const j=await (await fetch('/api/industriel/clear',{method:'POST'})).json();
+    st.innerHTML = j.success?`<span class="text-success">✅ ${fmt(j.supprimes)} supprimés.</span>`:`<span class="text-danger">❌ ${j.error||''}</span>`;
+    chargerStats(); chargerListe();
+  }catch(e){ st.innerHTML='<span class="text-danger">❌ '+e.message+'</span>'; }
 }
 async function pollFrance(){
   try{

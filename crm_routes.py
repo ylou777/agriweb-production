@@ -2417,6 +2417,13 @@ def register_crm_routes(app):
                 fetch_one=True)
             if not job:
                 return jsonify({'success': True, 'job': None})
+            # Watchdog : job 'running' mais aucun worker actif (thread mort / restart)
+            # -> on relance (self-heal, déclenché par n'importe quel poll de statut).
+            if job.get('status') == 'running' and not _FRANCE_STATE.get('running'):
+                try:
+                    _start_france_worker(job['id'])
+                except Exception:
+                    pass
             todo = json.loads(job.get('depts_todo') or '[]')
             done = json.loads(job.get('depts_done') or '[]')
             return jsonify({'success': True, 'job': {
@@ -2440,6 +2447,30 @@ def register_crm_routes(app):
             _FRANCE_STATE['running'] = False
             return jsonify({'success': True})
         except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/clear', methods=['POST'])
+    def industriel_clear():
+        """Remet à zéro le CRM industriel (admin = tout ; user = ses prospects).
+        Arrête aussi tout scan France en cours."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table(); _ensure_scan_jobs_table()
+            # stoppe un éventuel scan en cours
+            execute_query("UPDATE scan_jobs SET status='stopped' WHERE type='france' AND status='running'")
+            _FRANCE_STATE['running'] = False
+            if is_admin:
+                n = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects", fetch_one=True) or {}
+                execute_query("DELETE FROM industrial_prospects")
+            else:
+                n = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects WHERE user_id = %s",
+                                  (str(user_id),), fetch_one=True) or {}
+                execute_query("DELETE FROM industrial_prospects WHERE user_id = %s", (str(user_id),))
+            return jsonify({'success': True, 'supprimes': n.get('n', 0)})
+        except Exception as e:
+            print(f"❌ [INDUSTRIEL CLEAR] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # Reprise auto du scan France au démarrage de l'app (si un job était 'running').
