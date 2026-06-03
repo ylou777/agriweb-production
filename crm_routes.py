@@ -1745,6 +1745,27 @@ def register_crm_routes(app):
             limit = int(request.values.get('limit') or 100)
             max_dist = float(request.values.get('max_dist') or 80)
 
+            # Mode "count" : volume réel de la base (sans géocodage) pour
+            # dimensionner le gisement. /api/enedis/majic-test?count=1
+            if request.values.get('count'):
+                vol = execute_query("""
+                    SELECT COUNT(*) AS lignes,
+                           COUNT(DISTINCT siren) AS entites,
+                           COUNT(DISTINCT code_insee) AS communes
+                    FROM proprietaires_parcelles
+                    WHERE denomination IS NOT NULL
+                """, fetch_one=True) or {}
+                top_fj = execute_query("""
+                    SELECT forme_juridique, COUNT(DISTINCT siren) AS entites
+                    FROM proprietaires_parcelles
+                    WHERE denomination IS NOT NULL AND forme_juridique IS NOT NULL
+                    GROUP BY forme_juridique
+                    ORDER BY entites DESC
+                    LIMIT 15
+                """, fetch_all=True) or []
+                return jsonify({'success': True, 'volume': vol,
+                                'top_formes_juridiques': top_fj})
+
             # Échantillon ALÉATOIRE national (TABLESAMPLE rapide + random()) pour
             # éviter le biais métropolitain d'un ORDER BY siren. 1 ligne / SIREN.
             owners = execute_query("""
