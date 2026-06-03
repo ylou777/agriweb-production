@@ -165,11 +165,14 @@ async function pollFrance(){
   }catch(e){}
 }
 let _statTimer=null;
+let _lastTotal=-1;
 async function chargerStats(){
   pollFrance();
   try{
     const j = await (await fetch('/api/industriel/stats')).json();
     if(!j.success) return;
+    // Rafraîchit la liste quand le total change (le scan injecte en continu)
+    if(j.total !== _lastTotal){ _lastTotal = j.total; chargerListe(); }
     document.getElementById('statTotal').textContent = fmt(j.total);
     const pd = j.par_departement||{};
     const nd = Object.keys(pd).length;
