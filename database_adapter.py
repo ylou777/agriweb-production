@@ -57,7 +57,8 @@ def execute_query(query, params=None, fetch_one=False, fetch_all=False):
             cursor.execute(query)
         
         # IMPORTANT: Commit AVANT le fetch pour INSERT...RETURNING
-        if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+        # (inclut le DDL CREATE/ALTER/DROP, sinon les tables/colonnes ne persistent pas)
+        if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP')):
             conn.commit()
         
         if fetch_one:
