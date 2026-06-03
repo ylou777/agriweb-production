@@ -566,7 +566,7 @@
                                     <option value="toiture">🏠 Toitures</option>
                                     <option value="friche">🏚️ Friches</option>
                                     <option value="parcelle_rpg">🌾 RPG</option>
-                                    <option value="autoconso">⚡ Autoconsommation</option>
+                                    <option value="autoconso">☀️ Avec diagnostic autoconso</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -2052,6 +2052,15 @@
             }, 150);
         }
         
+        // Vrai si le prospect porte un pré-diagnostic autoconso (dans data_json)
+        function prospectHasAutoconso(p) {
+            if (p.type === 'autoconso') return true;
+            const dj = p.data_json;
+            if (!dj) return false;
+            if (typeof dj === 'string') return dj.indexOf('"diagnostic_autoconso"') !== -1;
+            return !!dj.diagnostic_autoconso;
+        }
+
         function doFilterProspects() {
             const searchText = document.getElementById('searchBox').value.toLowerCase();
             const typeFilter = document.getElementById('filterType').value;
@@ -2075,7 +2084,11 @@
                     p.adresse.toLowerCase().includes(searchText) ||
                     (p.notes && p.notes.toLowerCase().includes(searchText));
                 
-                const matchType = !typeFilter || p.type === typeFilter;
+                // 'autoconso' = prospects AVEC un diagnostic autoconso (quel que
+                // soit leur type : toiture/parking/... enrichis OU type autoconso)
+                const matchType = !typeFilter || (typeFilter === 'autoconso'
+                    ? prospectHasAutoconso(p)
+                    : p.type === typeFilter);
                 const matchStatus = !statusFilter || p.statut === statusFilter;
                 const matchPriorite = !prioriteFilter || p.priorite === prioriteFilter;
                 
