@@ -14089,60 +14089,47 @@ def search_by_commune():
                     except Exception:
                         return []
                 
-                # Traitement individuel mais optimisé
-                total_enrichies = 0
-                total_erreurs = 0
-                
-                for i, toiture in enumerate(toitures_a_enrichir):
-                    # Log de progression moins verbeux - seulement chaque 100
-                    if (i + 1) % 100 == 0 or i == 0:
-                        # print(f"    📍 Progression: {i+1}/{len(toitures_a_enrichir)} toitures traitées...")  # Optimisé pour production multi-user
-                        pass
-                    
+                # Enrichissement PARALLÈLE (cadastre IGN + géocodage inverse par
+                # toiture sont des I/O indépendantes). Évite les boucles
+                # séquentielles de plusieurs minutes (-> 502) sur les grandes communes.
+                from concurrent.futures import ThreadPoolExecutor as _ToitTPE
+
+                def _enrich_one_toiture(i_toiture):
+                    i, toiture = i_toiture
+                    enrichie = False
                     # 1. Enrichissement cadastral
                     parcelles_toiture = get_parcelles_for_toiture(toiture["geometry"])
-                    
                     if parcelles_toiture:
-                        # Extraire les références cadastrales
                         refs_cadastrales = []
                         for parcelle in parcelles_toiture:
                             props = parcelle.get('properties', {})
-                            
                             numero = props.get('numero', '')
                             section = props.get('section', '')
                             commune_code = props.get('commune', '')
                             prefixe = props.get('prefixe', '')
-                            
                             if section and numero:
-                                ref = {
+                                refs_cadastrales.append({
                                     'numero': numero,
                                     'section': section,
                                     'commune': commune_code,
                                     'prefixe': prefixe,
                                     'reference_complete': f"{commune_code}{prefixe}{section}{numero}".strip()
-                                }
-                                refs_cadastrales.append(ref)
-                        
+                                })
                         toiture["properties"]["parcelles_cadastrales"] = refs_cadastrales
                         toiture["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
-                        total_enrichies += 1
+                        enrichie = True
                     else:
                         toiture["properties"]["parcelles_cadastrales"] = []
                         toiture["properties"]["nb_parcelles_cadastrales"] = 0
-                        total_erreurs += 1
-                    
+
                     # 2. Enrichissement avec l'adresse IGN (géocodage inverse)
                     geom = toiture.get("geometry", {})
                     if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
                         try:
-                            # Calculer le centroïde de la toiture pour obtenir lat/lon
                             from shapely.geometry import shape
                             shp_geom = shape(geom)
                             centroid = shp_geom.centroid
-                            
-                            # Géocodage inverse IGN
                             adresse_info = get_address_from_coordinates(centroid.y, centroid.x)
-                            
                             if adresse_info and adresse_info.get('address'):
                                 toiture["properties"]["adresse"] = adresse_info['address']
                                 toiture["properties"]["adresse_distance"] = adresse_info.get('distance', 0)
@@ -14150,7 +14137,6 @@ def search_by_commune():
                                 toiture["properties"]["code_postal"] = adresse_info.get('postcode', '')
                                 toiture["properties"]["ville"] = adresse_info.get('city', '')
                                 toiture["properties"]["code_commune"] = adresse_info.get('citycode', '')
-                                # Mettre à jour le lien annuaire avec la ville si disponible
                                 try:
                                     ville = adresse_info.get('city', '') or commune
                                     toiture["properties"]["lien_annuaire"] = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(ville)}&univers=pagesjaunes&idOu="
@@ -14163,6 +14149,12 @@ def search_by_commune():
                         except Exception as e:
                             safe_print(f"🔴 [ADRESSE] Erreur enrichissement toiture {i}: {e}")
                             toiture["properties"]["adresse"] = "Erreur géocodage"
+                    return enrichie
+
+                with _ToitTPE(max_workers=12) as _toit_ex:
+                    _flags = list(_toit_ex.map(_enrich_one_toiture, enumerate(toitures_a_enrichir)))
+                total_enrichies = sum(1 for f in _flags if f)
+                total_erreurs = len(_flags) - total_enrichies
                 
                 # print(f"[CADASTRE-TOITURES] Enrichissement individuel optimisé terminé:")  # Optimisé pour performance
                 # print(f"{total_enrichies} toitures enrichies avec succès")  # Optimisé pour performance
