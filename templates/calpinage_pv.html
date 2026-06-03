@@ -2000,6 +2000,11 @@
         // Données de calpinage sauvegardées (si existantes)
         const savedCalpinage = {{ prospect.data_json.calpinage | tojson if prospect.data_json and prospect.data_json.calpinage else 'null' }};
 
+        // Pré-diagnostic autoconso capté depuis Enedis lors de l'enrichissement
+        // (sert à pré-remplir la conso annuelle de l'analyse autoconsommation)
+        const prospectAutoconso  = {{ prospect.data_json.diagnostic_autoconso | tojson if prospect.data_json and prospect.data_json.diagnostic_autoconso else 'null' }};
+        const prospectEnedisMatch = {{ prospect.data_json.enedis_match | tojson if prospect.data_json and prospect.data_json.enedis_match else 'null' }};
+
         // Cache irradiation Google Solar (sauvegardé en BDD → évite de re-consommer des tokens)
         const savedIrradiationCache = {{ prospect.data_json.calpinage.irradiation_cache | tojson if prospect.data_json and prospect.data_json.calpinage and prospect.data_json.calpinage.irradiation_cache else 'null' }};
         
@@ -12026,6 +12031,39 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (typeof _acUpdateTariffInfo === 'function') _acUpdateTariffInfo();
             console.log('[AUTOCONSO] ✅ Paramètres restaurés depuis la BDD:', _ap);
         }
+
+        // Pré-remplissage de la consommation depuis la conso Enedis captée à
+        // l'enrichissement (si l'utilisateur n'a pas déjà saisi/sauvegardé une valeur).
+        try {
+            const _savedConso = savedCalpinage && savedCalpinage.autoconso_params
+                                && savedCalpinage.autoconso_params.consommation_kwh;
+            if (!_savedConso) {
+                let _consoKwh = null, _secteur = null;
+                if (prospectAutoconso && prospectAutoconso.consommation_annuelle_kwh > 0) {
+                    _consoKwh = Math.round(prospectAutoconso.consommation_annuelle_kwh);
+                } else if (prospectEnedisMatch && prospectEnedisMatch.consommation_mwh > 0) {
+                    _consoKwh = Math.round(prospectEnedisMatch.consommation_mwh * 1000);
+                }
+                if (prospectEnedisMatch && prospectEnedisMatch.secteur) _secteur = prospectEnedisMatch.secteur;
+                const _elC = document.getElementById('acConsommationKwh');
+                if (_elC && _consoKwh) {
+                    _elC.value = _consoKwh;
+                    // Profil sectoriel déduit du diagnostic (RES1/PRO1/PRO2/AGR...)
+                    const _elP = document.getElementById('acProfilType');
+                    if (_elP && prospectAutoconso && prospectAutoconso.profil
+                        && _elP.querySelector(`option[value="${prospectAutoconso.profil}"]`)) {
+                        _elP.value = prospectAutoconso.profil;
+                    }
+                    // Indicateur visuel "valeur Enedis"
+                    const _mwh = (_consoKwh / 1000).toLocaleString('fr-FR', {maximumFractionDigits: 0});
+                    const _note = document.createElement('div');
+                    _note.style.cssText = 'font-size:0.7rem;color:#22c55e;margin:-2px 0 6px;';
+                    _note.innerHTML = `✓ Pré-rempli depuis Enedis : ${_mwh} MWh/an${_secteur ? ' ('+_secteur+')' : ''}`;
+                    _elC.insertAdjacentElement('afterend', _note);
+                    console.log('[AUTOCONSO] Conso Enedis pré-remplie:', _consoKwh, 'kWh', _secteur);
+                }
+            }
+        } catch (e) { console.warn('[AUTOCONSO] pré-remplissage Enedis échoué', e); }
         
         // Fonction pour charger le calpinage sauvegardé
         function loadSavedCalpinage() {
