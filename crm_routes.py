@@ -1902,6 +1902,147 @@ def register_crm_routes(app):
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/enedis/industrial-scan', methods=['GET', 'POST'])
+    def industrial_scan():
+        """PROSPECTION INVERSE : part d'Enedis (sites industriels gros consommateurs)
+        et remonte le PROPRIÉTAIRE via parcelle (Géoplateforme) -> MAJIC.
+        Params: dept | code_commune, secteur (def INDUSTRIE), min_mwh, limit, annee."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            dept = (request.values.get('dept') or '').strip()
+            code_commune = (request.values.get('code_commune') or '').strip()
+            secteur = (request.values.get('secteur') or 'INDUSTRIE').strip().upper()
+            min_mwh = float(request.values.get('min_mwh') or 100)
+            limit = min(int(request.values.get('limit') or 50), 100)
+            annee = request.values.get('annee')
+            if not dept and not code_commune:
+                return jsonify({'success': False, 'error': 'dept ou code_commune requis'}), 400
+
+            import requests as _rq
+            from concurrent.futures import ThreadPoolExecutor
+            import time as _time
+            GEO = "https://data.geopf.fr/geocodage"
+
+            # 1) Enedis : sites du secteur, conso >= seuil, triés décroissant
+            where = (f'code_grand_secteur="{secteur}" '
+                     f'AND consommation_annuelle_totale_de_ladresse_mwh >= {min_mwh}')
+            if dept:
+                where += f' AND code_departement="{dept}"'
+            if code_commune:
+                where += f' AND code_commune="{code_commune}"'
+            if annee:
+                where += f' AND annee={int(annee)}'
+            api_url = ("https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/"
+                       "consommation-annuelle-entreprise-par-adresse/records")
+            er = _rq.get(api_url, params={
+                'where': where,
+                'order_by': 'consommation_annuelle_totale_de_ladresse_mwh DESC',
+                'limit': limit,
+                'select': ('adresse,numero_de_voie,type_de_voie,libelle_de_voie,nom_commune,'
+                           'code_commune,code_secteur_naf2,nombre_de_sites,'
+                           'consommation_annuelle_totale_de_ladresse_mwh,annee'),
+            }, timeout=30)
+            sites = er.json().get('results', [])
+
+            def _geo_get(path, params, tries=3):
+                last = None
+                for i in range(tries):
+                    try:
+                        r = _rq.get(f"{GEO}/{path}", params=params, timeout=20)
+                        if r.status_code == 200:
+                            return r.json()
+                        last = f"http{r.status_code}"
+                    except Exception as _e:
+                        last = type(_e).__name__
+                    _time.sleep(0.5 * (i + 1))
+                return {}
+
+            def _resolve_parcelle(site):
+                """Adresse Enedis -> coords -> parcelle (section/numero/insee)."""
+                a = (site.get('adresse') or '').strip()
+                if not a:
+                    a = ' '.join(p for p in [str(site.get('numero_de_voie') or '').strip(),
+                                             str(site.get('type_de_voie') or '').strip(),
+                                             str(site.get('libelle_de_voie') or '').strip()] if p).strip()
+                commune = site.get('nom_commune') or ''
+                cc = site.get('code_commune') or ''
+                site['adresse_resolue'] = f"{a}, {commune}".strip(', ')
+                if not a:
+                    site['parcelle_status'] = 'sans_adresse'; return site
+                gr = _geo_get('search', {'index': 'address', 'q': f"{a} {commune}",
+                                         'citycode': cc, 'limit': 1})
+                feats = gr.get('features') or []
+                if not feats:
+                    site['parcelle_status'] = 'adresse_non_geocodee'; return site
+                lon, lat = feats[0]['geometry']['coordinates']
+                pr = _geo_get('reverse', {'index': 'parcel', 'lon': lon, 'lat': lat, 'limit': 1})
+                pf = pr.get('features') or []
+                if not pf:
+                    site['parcelle_status'] = 'parcelle_non_trouvee'; return site
+                pp = pf[0].get('properties', {})
+                site['insee'] = f"{pp.get('departmentcode', '')}{pp.get('municipalitycode', '')}"
+                site['section'] = pp.get('section')
+                site['numero'] = pp.get('number')
+                site['parcelle_id'] = pp.get('id')
+                site['parcelle_status'] = 'parcelle_ok'
+                return site
+
+            with ThreadPoolExecutor(max_workers=5) as ex:
+                sites = list(ex.map(_resolve_parcelle, sites))
+
+            # 2) MAJIC : parcelle -> propriétaire (séquentiel, requêtes indexées)
+            owners_found = 0
+            for site in sites:
+                if site.get('parcelle_status') != 'parcelle_ok':
+                    continue
+                sec = str(site.get('section') or '')
+                num = str(site.get('numero') or '')
+                sec_cands = list({sec, sec.lstrip('0'), sec.zfill(2)})
+                num_cands = list({num, num.lstrip('0'), num.zfill(4)})
+                try:
+                    owner = execute_query(
+                        "SELECT denomination, siren, forme_juridique FROM proprietaires_parcelles "
+                        "WHERE code_insee = %s AND section = ANY(%s) AND numero = ANY(%s) "
+                        "AND denomination IS NOT NULL LIMIT 1",
+                        (site.get('insee'), sec_cands, num_cands), fetch_one=True)
+                except Exception:
+                    owner = None
+                if owner:
+                    site['proprietaire'] = owner.get('denomination')
+                    site['proprietaire_siren'] = owner.get('siren')
+                    site['proprietaire_fj'] = owner.get('forme_juridique')
+                    owners_found += 1
+
+            n = len(sites)
+            prospects = [{
+                'conso_mwh': s.get('consommation_annuelle_totale_de_ladresse_mwh'),
+                'naf2': s.get('code_secteur_naf2'),
+                'adresse': s.get('adresse_resolue'),
+                'commune': s.get('nom_commune'),
+                'code_commune': s.get('code_commune'),
+                'nb_sites': s.get('nombre_de_sites'),
+                'annee': s.get('annee'),
+                'parcelle': s.get('parcelle_id'),
+                'proprietaire': s.get('proprietaire'),
+                'proprietaire_siren': s.get('proprietaire_siren'),
+                'proprietaire_fj': s.get('proprietaire_fj'),
+            } for s in sites]
+            return jsonify({
+                'success': True,
+                'filtre': {'dept': dept, 'code_commune': code_commune,
+                           'secteur': secteur, 'min_mwh': min_mwh},
+                'sites_enedis': n,
+                'proprietaire_resolu': owners_found,
+                'taux_resolution_%': round(100 * owners_found / n, 1) if n else 0,
+                'prospects': prospects,
+            })
+        except Exception as e:
+            print(f"❌ [INDUSTRIAL SCAN] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # ============================================================================
     # ROUTES API - PROJETS
     # ============================================================================
