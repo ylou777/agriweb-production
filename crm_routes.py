@@ -649,6 +649,7 @@ def register_crm_routes(app):
                 print(f"    - Toutes les clés: {list(first_toiture.keys())}")
             total_exported = 0
             details = {'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+            created_prospects = []  # pour l'enrichissement autoconso (bornee aux nouveaux)
             
             # Exporter les parkings
             for parking in data.get('parkings', []):
@@ -691,7 +692,9 @@ def register_crm_routes(app):
                 
                 if result and result.get('id'):
                     auto_create_project_for_prospect(result['id'], parking.get('commune'), parking.get('adresse'), user_id=user_id)
-                
+                    created_prospects.append({'id': result['id'], 'commune': parking.get('commune'),
+                                              'adresse': parking.get('adresse'), 'latitude': clean_value(parking.get('lat')), 'data_json': parking})
+
                 total_exported += 1
                 details['parkings'] += 1
             
@@ -736,7 +739,9 @@ def register_crm_routes(app):
                 
                 if result and result.get('id'):
                     auto_create_project_for_prospect(result['id'], toiture.get('commune'), toiture.get('adresse'), user_id=user_id)
-                
+                    created_prospects.append({'id': result['id'], 'commune': toiture.get('commune'),
+                                              'adresse': toiture.get('adresse'), 'latitude': clean_value(toiture.get('lat')), 'data_json': toiture})
+
                 total_exported += 1
                 details['toitures'] += 1
             
@@ -781,7 +786,9 @@ def register_crm_routes(app):
                 
                 if result and result.get('id'):
                     auto_create_project_for_prospect(result['id'], friche.get('commune'), friche.get('adresse'), user_id=user_id)
-                
+                    created_prospects.append({'id': result['id'], 'commune': friche.get('commune'),
+                                              'adresse': friche.get('adresse'), 'latitude': clean_value(friche.get('lat')), 'data_json': friche})
+
                 total_exported += 1
                 details['friches'] += 1
             
@@ -822,48 +829,34 @@ def register_crm_routes(app):
                 
                 if result and result.get('id'):
                     auto_create_project_for_prospect(result['id'], rpg.get('commune'), rpg.get('adresse'), user_id=user_id)
-                
+                    created_prospects.append({'id': result['id'], 'commune': rpg.get('commune'),
+                                              'adresse': rpg.get('adresse'), 'latitude': rpg.get('latitude'), 'data_json': rpg})
+
                 total_exported += 1
                 details['rpg'] += 1
             
             print(f"✅ [CRM EXPORT] Export réussi: {total_exported} prospects ajoutés")
 
-            # Enrichissement autoconso AUTOMATIQUE des prospects créés :
-            # pour chaque commune touchée, 1 seul appel Enedis, puis matching
-            # adresse -> consommation -> diagnostic. Idempotent (sans force) et
-            # non bloquant (jamais d'échec d'export à cause de l'enrichissement).
+            # Enrichissement autoconso AUTOMATIQUE — borné aux prospects qui
+            # viennent d'être créés (pas de rescan de toute la commune). Pour
+            # chaque commune, 1 seul appel Enedis puis matching adresse -> conso
+            # -> diagnostic. Non bloquant (un échec ne casse jamais l'export).
             try:
                 from agriweb_hebergement_gratuit import get_enedis_records_raw
-                communes_touchees = set()
-                for _k in ('parkings', 'toitures', 'friches', 'rpg'):
-                    for _it in data.get(_k, []) or []:
-                        _c = (_it.get('commune') or '').strip()
-                        if _c:
-                            communes_touchees.add(_c)
+                by_commune = {}
+                for _p in created_prospects:
+                    if (_p.get('adresse') or '').strip() and (_p.get('commune') or '').strip():
+                        by_commune.setdefault(_p['commune'], []).append(_p)
                 enrichis_auto = 0
-                for _commune in communes_touchees:
-                    rows = execute_query(
-                        "SELECT id, commune, adresse, latitude, data_json FROM agriweb_prospects "
-                        "WHERE user_id = %s AND commune = %s AND adresse IS NOT NULL AND adresse <> ''",
-                        (str(user_id), _commune), fetch_all=True) or []
-                    todo = []
-                    for _r in rows:
-                        _dj = _r.get('data_json') or {}
-                        if isinstance(_dj, str):
-                            try: _dj = json.loads(_dj)
-                            except Exception: _dj = {}
-                        if not _dj.get('diagnostic_autoconso'):
-                            todo.append(_r)
-                    if not todo:
-                        continue
-                    _ci = _resolve_code_insee(todo[0], {})
+                for _commune, _plist in by_commune.items():
+                    _ci = _resolve_code_insee(_plist[0], {})
                     if not _ci:
                         continue
                     _records = get_enedis_records_raw(_ci) or []
                     if not _records:
                         continue
-                    for _r in todo:
-                        if _enrich_one_prospect(_r, _records, force=False).get('status') == 'enrichi':
+                    for _p in _plist:
+                        if _enrich_one_prospect(_p, _records, force=False).get('status') == 'enrichi':
                             enrichis_auto += 1
                 if enrichis_auto:
                     print(f"☀️ [CRM EXPORT] {enrichis_auto} prospect(s) enrichi(s) autoconso automatiquement")
