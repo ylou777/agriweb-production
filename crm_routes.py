@@ -1946,6 +1946,20 @@ def register_crm_routes(app):
             }, timeout=30)
             sites = er.json().get('results', [])
 
+            # Déduplication par adresse (le dataset a une ligne par année) :
+            # on garde la conso la plus élevée (≈ année la plus représentative).
+            _dedup = {}
+            for s in sites:
+                key = (str(s.get('numero_de_voie') or ''), str(s.get('libelle_de_voie') or ''),
+                       str(s.get('adresse') or ''), str(s.get('code_commune') or ''))
+                cur = _dedup.get(key)
+                if not cur or (s.get('consommation_annuelle_totale_de_ladresse_mwh') or 0) > \
+                        (cur.get('consommation_annuelle_totale_de_ladresse_mwh') or 0):
+                    _dedup[key] = s
+            sites = sorted(_dedup.values(),
+                           key=lambda s: s.get('consommation_annuelle_totale_de_ladresse_mwh') or 0,
+                           reverse=True)
+
             def _geo_get(path, params, tries=3):
                 last = None
                 for i in range(tries):
@@ -2015,7 +2029,49 @@ def register_crm_routes(app):
                     site['proprietaire_fj'] = owner.get('forme_juridique')
                     owners_found += 1
 
+            # 3) SIRENE : opérateur(s) probable(s) = entreprises de la commune dont
+            # l'activité (NAF) colle au secteur Enedis, classées par effectif.
+            # Cache par (code_commune, naf2). C'est le DÉCIDEUR (vs MAJIC = foncier).
+            sirene_cache = {}
+
+            def _sirene_ops(cc, naf2):
+                ck = (cc, naf2)
+                if ck in sirene_cache:
+                    return sirene_cache[ck]
+                ops = []
+                try:
+                    rr = _rq.get("https://recherche-entreprises.api.gouv.fr/search",
+                                 params={'code_commune': cc, 'per_page': 25, 'page': 1},
+                                 timeout=15)
+                    cands = (rr.json().get('results') or []) if rr.status_code == 200 else []
+                    naf2s = str(naf2 or '').strip()
+                    if naf2s:
+                        f = [c for c in cands
+                             if (c.get('activite_principale') or '').replace('.', '').startswith(naf2s)]
+                        cands = f or cands
+
+                    def _eff(c):
+                        try:
+                            return int(c.get('tranche_effectif_salarie') or -1)
+                        except Exception:
+                            return -1
+                    for c in sorted(cands, key=_eff, reverse=True)[:3]:
+                        ops.append({'nom': c.get('nom_complet'), 'siren': c.get('siren'),
+                                    'naf': c.get('activite_principale'),
+                                    'effectif': c.get('tranche_effectif_salarie')})
+                except Exception:
+                    pass
+                sirene_cache[ck] = ops
+                return ops
+
+            with ThreadPoolExecutor(max_workers=5) as ex2:
+                ops_list = list(ex2.map(
+                    lambda s: _sirene_ops(s.get('code_commune'), s.get('code_secteur_naf2')), sites))
+            for s, ops in zip(sites, ops_list):
+                s['operateurs'] = ops
+
             n = len(sites)
+            avec_operateur = sum(1 for s in sites if s.get('operateurs'))
             prospects = [{
                 'conso_mwh': s.get('consommation_annuelle_totale_de_ladresse_mwh'),
                 'naf2': s.get('code_secteur_naf2'),
@@ -2024,18 +2080,19 @@ def register_crm_routes(app):
                 'code_commune': s.get('code_commune'),
                 'nb_sites': s.get('nombre_de_sites'),
                 'annee': s.get('annee'),
+                'operateurs_sirene': s.get('operateurs'),
                 'parcelle': s.get('parcelle_id'),
-                'proprietaire': s.get('proprietaire'),
+                'proprietaire_foncier': s.get('proprietaire'),
                 'proprietaire_siren': s.get('proprietaire_siren'),
-                'proprietaire_fj': s.get('proprietaire_fj'),
             } for s in sites]
             return jsonify({
                 'success': True,
                 'filtre': {'dept': dept, 'code_commune': code_commune,
                            'secteur': secteur, 'min_mwh': min_mwh},
                 'sites_enedis': n,
-                'proprietaire_resolu': owners_found,
-                'taux_resolution_%': round(100 * owners_found / n, 1) if n else 0,
+                'avec_operateur_sirene': avec_operateur,
+                'taux_operateur_%': round(100 * avec_operateur / n, 1) if n else 0,
+                'proprietaire_foncier_resolu': owners_found,
                 'prospects': prospects,
             })
         except Exception as e:
