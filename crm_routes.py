@@ -1926,7 +1926,7 @@ def register_crm_routes(app):
             api_url = ("https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/"
                        "consommation-annuelle-entreprise-par-adresse/records")
             raw = []
-            raw_cap = min(limit * 3, 600)  # on sur-échantillonne pour la dédup
+            raw_cap = min(limit * 3, 4000)  # on sur-échantillonne pour la dédup
             offset = 0
             while len(raw) < raw_cap:
                 er = _rq.get(api_url, params={
@@ -2203,7 +2203,7 @@ def register_crm_routes(app):
                 min_mwh = round(float(min_kwc) * 3.3, 1)
             else:
                 min_mwh = float(data.get('min_mwh') or 330)
-            limit = min(int(data.get('limit') or 100), 300)
+            limit = min(int(data.get('limit') or 100), 1000)
             annee = data.get('annee')
             if not dept and not code_commune:
                 return jsonify({'success': False, 'error': 'dept ou code_commune requis'}), 400
