@@ -1733,6 +1733,105 @@ def register_crm_routes(app):
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/enedis/majic-test', methods=['GET', 'POST'])
+    def majic_enedis_test():
+        """MESURE (admin) : sur un échantillon de propriétaires MAJIC, quel taux
+        de remontée Enedis ? Pont parcelle -> Géoplateforme (parcel) -> coords ->
+        reverse (adresse) -> match Enedis OpenData. Params: limit, max_dist (m)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            limit = int(request.values.get('limit') or 100)
+            max_dist = float(request.values.get('max_dist') or 80)
+
+            owners = execute_query("""
+                SELECT DISTINCT ON (siren) siren, denomination, forme_juridique,
+                       code_insee, section, numero
+                FROM proprietaires_parcelles
+                WHERE denomination IS NOT NULL AND section IS NOT NULL
+                  AND numero IS NOT NULL AND code_insee IS NOT NULL
+                ORDER BY siren
+                LIMIT %s
+            """, (limit,), fetch_all=True) or []
+            if not owners:
+                return jsonify({'success': True, 'echantillon': 0,
+                                'note': 'Aucun propriétaire MAJIC trouvé'})
+
+            import requests as _rq
+            from concurrent.futures import ThreadPoolExecutor
+            from autoconsommation import match_enedis_address
+            from agriweb_hebergement_gratuit import get_enedis_records_raw
+            GEO = "https://data.geopf.fr/geocodage"
+            enedis_cache = {}
+
+            def _process(o):
+                ci = str(o.get('code_insee') or '').strip()
+                dept, comm = ci[:2], ci[2:]
+                section = str(o.get('section') or '').strip().lstrip('0') or str(o.get('section') or '').strip()
+                numero = str(o.get('numero') or '').strip().zfill(4)
+                res = {'siren': o.get('siren'), 'denomination': o.get('denomination'),
+                       'forme_juridique': o.get('forme_juridique'), 'code_insee': ci,
+                       'parcelle': f"{o.get('section')}{numero}", 'status': 'init'}
+                try:
+                    pr = _rq.get(f"{GEO}/search", params={
+                        'index': 'parcel', 'departmentcode': dept, 'municipalitycode': comm,
+                        'section': section, 'number': numero, 'limit': 1}, timeout=15).json()
+                    feats = pr.get('features') or []
+                    if not feats:
+                        res['status'] = 'parcelle_introuvable'; return res
+                    lon, lat = feats[0]['geometry']['coordinates']
+                    rr = _rq.get(f"{GEO}/reverse", params={
+                        'index': 'address', 'lon': lon, 'lat': lat, 'limit': 1}, timeout=15).json()
+                    af = rr.get('features') or []
+                    if not af:
+                        res['status'] = 'adresse_introuvable'; return res
+                    ap = af[0].get('properties', {})
+                    res['adresse'] = ap.get('label')
+                    res['distance_m'] = ap.get('distance')
+                    citycode = ap.get('citycode') or ci
+                    if ap.get('distance') is not None and ap['distance'] > max_dist:
+                        res['status'] = 'parcelle_sans_batiment_proche'; return res
+                    if citycode not in enedis_cache:
+                        enedis_cache[citycode] = get_enedis_records_raw(citycode) or []
+                    rec, score = match_enedis_address(
+                        ap.get('label') or '', enedis_cache[citycode], commune=ap.get('city') or '')
+                    if rec:
+                        res['status'] = 'enedis_ok'
+                        res['conso_mwh'] = rec.get('consommation_mwh')
+                        res['secteur'] = rec.get('secteur')
+                        res['score'] = score
+                    else:
+                        res['status'] = 'aucun_match_enedis'
+                    return res
+                except Exception as _e:
+                    res['status'] = 'erreur'; res['err'] = str(_e)[:80]; return res
+
+            with ThreadPoolExecutor(max_workers=12) as ex:
+                results = list(ex.map(_process, owners))
+
+            from collections import Counter
+            stats = dict(Counter(r['status'] for r in results))
+            ok = [r for r in results if r['status'] == 'enedis_ok']
+            n = len(results)
+            taux = {
+                'parcelle_geocodee_%': round(100 * sum(1 for r in results if r['status'] not in ('parcelle_introuvable', 'erreur')) / n, 1) if n else 0,
+                'adresse_trouvee_%': round(100 * sum(1 for r in results if r.get('adresse')) / n, 1) if n else 0,
+                'enedis_remonte_%': round(100 * len(ok) / n, 1) if n else 0,
+            }
+            conso_vals = sorted((r['conso_mwh'] for r in ok if r.get('conso_mwh')), reverse=True)
+            return jsonify({
+                'success': True, 'echantillon': n, 'max_dist_m': max_dist,
+                'taux': taux, 'statuts': stats,
+                'conso_mediane_mwh': conso_vals[len(conso_vals)//2] if conso_vals else None,
+                'conso_max_mwh': conso_vals[0] if conso_vals else None,
+                'exemples_enedis_ok': ok[:25],
+            })
+        except Exception as e:
+            print(f"❌ [MAJIC TEST] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # ============================================================================
     # ROUTES API - PROJETS
     # ============================================================================
