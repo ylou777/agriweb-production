@@ -1882,9 +1882,15 @@ def register_crm_routes(app):
                 'enedis_remonte_%': round(100 * len(ok) / n, 1) if n else 0,
             }
             conso_vals = sorted((r['conso_mwh'] for r in ok if r.get('conso_mwh')), reverse=True)
+            secteurs = dict(Counter(r.get('secteur') for r in ok))
+            industrie = [r for r in ok if r.get('secteur') == 'INDUSTRIE']
             return jsonify({
                 'success': True, 'echantillon': n, 'max_dist_m': max_dist,
                 'taux': taux, 'statuts': stats,
+                'secteurs_enedis_ok': secteurs,
+                'industrie_n': len(industrie),
+                'industrie_conso_max_mwh': max((r.get('conso_mwh') or 0 for r in industrie), default=None),
+                'exemples_industrie': industrie[:12],
                 'conso_mediane_mwh': conso_vals[len(conso_vals)//2] if conso_vals else None,
                 'conso_max_mwh': conso_vals[0] if conso_vals else None,
                 'exemples_enedis_ok': ok[:25],
