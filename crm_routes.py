@@ -1641,6 +1641,8 @@ def register_crm_routes(app):
             (json.dumps(dj, ensure_ascii=False), prospect.get('id')))
         return {'id': prospect.get('id'), 'status': 'enrichi', 'score': score,
                 'consommation_mwh': rec.get('consommation_mwh'),
+                'secteur': rec.get('secteur'),
+                'profil': diag.get('profil'),
                 'kwc_reco': diag.get('kwc_reco'),
                 'economie_an_eur': diag.get('economie_an_eur')}
 
