@@ -2034,33 +2034,48 @@ def register_crm_routes(app):
             # Cache par (code_commune, naf2). C'est le DÉCIDEUR (vs MAJIC = foncier).
             sirene_cache = {}
 
+            def _naf2_section(naf2):
+                """Section INSEE depuis la division NAF2 (gammes industrielles)."""
+                try:
+                    nn = int(str(naf2).strip())
+                except Exception:
+                    return None
+                if 5 <= nn <= 9: return 'B'      # industries extractives
+                if 10 <= nn <= 33: return 'C'    # industrie manufacturière
+                if nn == 35: return 'D'          # énergie
+                if 36 <= nn <= 39: return 'E'    # eau / déchets
+                return None
+
+            def _eff(c):
+                try:
+                    return int(c.get('tranche_effectif_salarie') or -1)
+                except Exception:
+                    return -1
+
             def _sirene_ops(cc, naf2):
                 ck = (cc, naf2)
                 if ck in sirene_cache:
                     return sirene_cache[ck]
                 ops = []
-                try:
-                    rr = _rq.get("https://recherche-entreprises.api.gouv.fr/search",
-                                 params={'code_commune': cc, 'per_page': 25, 'page': 1},
-                                 timeout=15)
-                    cands = (rr.json().get('results') or []) if rr.status_code == 200 else []
-                    naf2s = str(naf2 or '').strip()
-                    if naf2s:
-                        f = [c for c in cands
-                             if (c.get('activite_principale') or '').replace('.', '').startswith(naf2s)]
-                        cands = f or cands
-
-                    def _eff(c):
-                        try:
-                            return int(c.get('tranche_effectif_salarie') or -1)
-                        except Exception:
-                            return -1
-                    for c in sorted(cands, key=_eff, reverse=True)[:3]:
-                        ops.append({'nom': c.get('nom_complet'), 'siren': c.get('siren'),
-                                    'naf': c.get('activite_principale'),
-                                    'effectif': c.get('tranche_effectif_salarie')})
-                except Exception:
-                    pass
+                naf2s = str(naf2 or '').strip()
+                section = _naf2_section(naf2s)
+                # Sans NAF exploitable, pas d'opérateur fiable (on n'invente rien).
+                if naf2s and section:
+                    try:
+                        rr = _rq.get("https://recherche-entreprises.api.gouv.fr/search",
+                                     params={'code_commune': cc,
+                                             'section_activite_principale': section,
+                                             'per_page': 25, 'page': 1}, timeout=15)
+                        cands = (rr.json().get('results') or []) if rr.status_code == 200 else []
+                        # STRICT : uniquement le NAF2 du site (jamais de repli hors-NAF).
+                        cands = [c for c in cands
+                                 if (c.get('activite_principale') or '').replace('.', '').startswith(naf2s)]
+                        for c in sorted(cands, key=_eff, reverse=True)[:3]:
+                            ops.append({'nom': c.get('nom_complet'), 'siren': c.get('siren'),
+                                        'naf': c.get('activite_principale'),
+                                        'effectif': c.get('tranche_effectif_salarie')})
+                    except Exception:
+                        pass
                 sirene_cache[ck] = ops
                 return ops
 
