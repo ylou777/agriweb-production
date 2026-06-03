@@ -827,7 +827,50 @@ def register_crm_routes(app):
                 details['rpg'] += 1
             
             print(f"✅ [CRM EXPORT] Export réussi: {total_exported} prospects ajoutés")
-            
+
+            # Enrichissement autoconso AUTOMATIQUE des prospects créés :
+            # pour chaque commune touchée, 1 seul appel Enedis, puis matching
+            # adresse -> consommation -> diagnostic. Idempotent (sans force) et
+            # non bloquant (jamais d'échec d'export à cause de l'enrichissement).
+            try:
+                from agriweb_hebergement_gratuit import get_enedis_records_raw
+                communes_touchees = set()
+                for _k in ('parkings', 'toitures', 'friches', 'rpg'):
+                    for _it in data.get(_k, []) or []:
+                        _c = (_it.get('commune') or '').strip()
+                        if _c:
+                            communes_touchees.add(_c)
+                enrichis_auto = 0
+                for _commune in communes_touchees:
+                    rows = execute_query(
+                        "SELECT id, commune, adresse, latitude, data_json FROM agriweb_prospects "
+                        "WHERE user_id = %s AND commune = %s AND adresse IS NOT NULL AND adresse <> ''",
+                        (str(user_id), _commune), fetch_all=True) or []
+                    todo = []
+                    for _r in rows:
+                        _dj = _r.get('data_json') or {}
+                        if isinstance(_dj, str):
+                            try: _dj = json.loads(_dj)
+                            except Exception: _dj = {}
+                        if not _dj.get('diagnostic_autoconso'):
+                            todo.append(_r)
+                    if not todo:
+                        continue
+                    _ci = _resolve_code_insee(todo[0], {})
+                    if not _ci:
+                        continue
+                    _records = get_enedis_records_raw(_ci) or []
+                    if not _records:
+                        continue
+                    for _r in todo:
+                        if _enrich_one_prospect(_r, _records, force=False).get('status') == 'enrichi':
+                            enrichis_auto += 1
+                if enrichis_auto:
+                    print(f"☀️ [CRM EXPORT] {enrichis_auto} prospect(s) enrichi(s) autoconso automatiquement")
+                    details['autoconso_enrichis'] = enrichis_auto
+            except Exception as _e_enr:
+                print(f"⚠️ [CRM EXPORT] enrichissement autoconso auto échoué: {_e_enr}")
+
             return jsonify({
                 'success': True,
                 'total_exported': total_exported,
