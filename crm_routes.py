@@ -1902,24 +1902,10 @@ def register_crm_routes(app):
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/enedis/industrial-scan', methods=['GET', 'POST'])
-    def industrial_scan():
-        """PROSPECTION INVERSE : part d'Enedis (sites industriels gros consommateurs)
-        et remonte le PROPRIÉTAIRE via parcelle (Géoplateforme) -> MAJIC.
-        Params: dept | code_commune, secteur (def INDUSTRIE), min_mwh, limit, annee."""
-        try:
-            user_id, is_admin = get_current_crm_user()
-            if not is_admin:
-                return jsonify({'success': False, 'error': 'Admin requis'}), 403
-            dept = (request.values.get('dept') or '').strip()
-            code_commune = (request.values.get('code_commune') or '').strip()
-            secteur = (request.values.get('secteur') or 'INDUSTRIE').strip().upper()
-            min_mwh = float(request.values.get('min_mwh') or 100)
-            limit = min(int(request.values.get('limit') or 50), 100)
-            annee = request.values.get('annee')
-            if not dept and not code_commune:
-                return jsonify({'success': False, 'error': 'dept ou code_commune requis'}), 400
-
+    def _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee):
+        """PROSPECTION INVERSE : Enedis (sites du secteur, gros conso) -> opérateur
+        (SIRENE) + propriétaire foncier (MAJIC). Retourne un dict de résultats."""
+        if True:
             import requests as _rq
             from concurrent.futures import ThreadPoolExecutor
             import time as _time
@@ -2100,19 +2086,185 @@ def register_crm_routes(app):
                 'proprietaire_foncier': s.get('proprietaire'),
                 'proprietaire_siren': s.get('proprietaire_siren'),
             } for s in sites]
-            return jsonify({
-                'success': True,
-                'filtre': {'dept': dept, 'code_commune': code_commune,
-                           'secteur': secteur, 'min_mwh': min_mwh},
+            return {
                 'sites_enedis': n,
                 'avec_operateur_sirene': avec_operateur,
                 'taux_operateur_%': round(100 * avec_operateur / n, 1) if n else 0,
                 'proprietaire_foncier_resolu': owners_found,
                 'prospects': prospects,
-            })
+            }
+
+    @app.route('/api/enedis/industrial-scan', methods=['GET', 'POST'])
+    def industrial_scan():
+        """Scan brut (diagnostic, admin) : renvoie la liste sans rien stocker."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            dept = (request.values.get('dept') or '').strip()
+            code_commune = (request.values.get('code_commune') or '').strip()
+            secteur = (request.values.get('secteur') or 'INDUSTRIE').strip().upper()
+            min_mwh = float(request.values.get('min_mwh') or 100)
+            limit = min(int(request.values.get('limit') or 50), 100)
+            annee = request.values.get('annee')
+            if not dept and not code_commune:
+                return jsonify({'success': False, 'error': 'dept ou code_commune requis'}), 400
+            res = _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee)
+            return jsonify({'success': True,
+                            'filtre': {'dept': dept, 'code_commune': code_commune,
+                                       'secteur': secteur, 'min_mwh': min_mwh}, **res})
         except Exception as e:
             print(f"❌ [INDUSTRIAL SCAN] {e}")
             import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
+    # CRM INDUSTRIEL DÉDIÉ (table séparée industrial_prospects)
+    # ============================================================================
+    def _ensure_industrial_table():
+        execute_query("""
+            CREATE TABLE IF NOT EXISTS industrial_prospects (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT,
+                commune TEXT,
+                code_commune TEXT,
+                adresse TEXT,
+                conso_mwh REAL,
+                naf2 TEXT,
+                secteur TEXT,
+                operateur_nom TEXT,
+                operateur_siren TEXT,
+                operateur_naf TEXT,
+                operateur_effectif TEXT,
+                proprietaire_foncier TEXT,
+                parcelle TEXT,
+                kwc_reco REAL,
+                economie_an_eur REAL,
+                statut TEXT DEFAULT 'nouveau',
+                notes TEXT,
+                data_json TEXT,
+                date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    @app.route('/crm/industriel')
+    def crm_industriel_page():
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return redirect('/auth/login')
+        return render_template('crm_industriel.html', is_admin=is_admin)
+
+    @app.route('/api/industriel/scan-inject', methods=['POST'])
+    def industriel_scan_inject():
+        """Lance un scan industriel et INJECTE les résultats dans le CRM dédié."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table()
+            data = request.get_json(silent=True) or {}
+            dept = str(data.get('dept') or '').strip()
+            code_commune = str(data.get('code_commune') or '').strip()
+            secteur = (data.get('secteur') or 'INDUSTRIE').strip().upper()
+            min_mwh = float(data.get('min_mwh') or 500)
+            limit = min(int(data.get('limit') or 50), 100)
+            annee = data.get('annee')
+            if not dept and not code_commune:
+                return jsonify({'success': False, 'error': 'dept ou code_commune requis'}), 400
+            res = _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee)
+            try:
+                from autoconsommation import diagnostic_autoconso_rapide
+            except Exception:
+                diagnostic_autoconso_rapide = None
+            injected, skipped = 0, 0
+            for p in res.get('prospects', []):
+                adresse = (p.get('adresse') or '').strip()
+                cc = p.get('code_commune') or ''
+                if not adresse:
+                    skipped += 1; continue
+                existing = execute_query(
+                    "SELECT id FROM industrial_prospects WHERE user_id = %s AND code_commune = %s AND adresse = %s",
+                    (str(user_id), cc, adresse), fetch_one=True)
+                if existing:
+                    skipped += 1; continue
+                ops = p.get('operateurs_sirene') or []
+                op = ops[0] if ops else {}
+                diag = {}
+                if diagnostic_autoconso_rapide:
+                    try:
+                        diag = diagnostic_autoconso_rapide(p.get('conso_mwh'), secteur) or {}
+                    except Exception:
+                        diag = {}
+                dj = {'operateurs_sirene': ops, 'naf2': p.get('naf2'),
+                      'parcelle': p.get('parcelle'),
+                      'proprietaire_foncier': p.get('proprietaire_foncier'),
+                      'annee': p.get('annee'), 'diagnostic_autoconso': diag}
+                execute_query("""
+                    INSERT INTO industrial_prospects
+                        (user_id, commune, code_commune, adresse, conso_mwh, naf2, secteur,
+                         operateur_nom, operateur_siren, operateur_naf, operateur_effectif,
+                         proprietaire_foncier, parcelle, kwc_reco, economie_an_eur,
+                         statut, data_json)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    str(user_id), p.get('commune'), cc, adresse, p.get('conso_mwh'),
+                    p.get('naf2'), secteur, op.get('nom'), op.get('siren'), op.get('naf'),
+                    op.get('effectif'), p.get('proprietaire_foncier'), p.get('parcelle'),
+                    diag.get('kwc_reco'), diag.get('economie_an_eur'),
+                    'nouveau', json.dumps(dj, ensure_ascii=False),
+                ))
+                injected += 1
+            return jsonify({'success': True, 'injected': injected, 'skipped': skipped,
+                            'sites_scannes': res.get('sites_enedis', 0)})
+        except Exception as e:
+            print(f"❌ [INDUSTRIEL INJECT] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/prospects', methods=['GET'])
+    def industriel_prospects_list():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table()
+            if is_admin:
+                rows = execute_query(
+                    "SELECT * FROM industrial_prospects ORDER BY conso_mwh DESC NULLS LAST",
+                    fetch_all=True)
+            else:
+                rows = execute_query(
+                    "SELECT * FROM industrial_prospects WHERE user_id = %s ORDER BY conso_mwh DESC NULLS LAST",
+                    (str(user_id),), fetch_all=True)
+            return jsonify({'success': True, 'prospects': rows or []})
+        except Exception as e:
+            print(f"❌ [INDUSTRIEL LIST] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/prospects/<int:pid>', methods=['PATCH', 'DELETE'])
+    def industriel_prospect_edit(pid):
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            owner = execute_query("SELECT user_id FROM industrial_prospects WHERE id = %s",
+                                  (pid,), fetch_one=True)
+            if not owner:
+                return jsonify({'success': False, 'error': 'Introuvable'}), 404
+            if not is_admin and str(owner.get('user_id')) != str(user_id):
+                return jsonify({'success': False, 'error': 'Accès refusé'}), 403
+            if request.method == 'DELETE':
+                execute_query("DELETE FROM industrial_prospects WHERE id = %s", (pid,))
+                return jsonify({'success': True})
+            data = request.get_json(silent=True) or {}
+            if 'statut' in data:
+                execute_query("UPDATE industrial_prospects SET statut = %s WHERE id = %s",
+                              (data['statut'], pid))
+            if 'notes' in data:
+                execute_query("UPDATE industrial_prospects SET notes = %s WHERE id = %s",
+                              (data['notes'], pid))
+            return jsonify({'success': True})
+        except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # ============================================================================

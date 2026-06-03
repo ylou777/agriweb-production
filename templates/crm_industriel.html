@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM Industriel — Prospection autoconsommation</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background:#0f1420; color:#e2e8f0; font-family:'Poppins',Arial,sans-serif; }
+  .navbar-brand { color:#fbbf24; font-weight:700; }
+  .card { background:#1a2030; border:1px solid rgba(255,255,255,.08); }
+  .form-control, .form-select { background:#0f1420; border-color:rgba(255,255,255,.15); color:#e2e8f0; }
+  .form-control:focus, .form-select:focus { background:#0f1420; color:#e2e8f0; border-color:#fbbf24; box-shadow:none; }
+  table { color:#e2e8f0; }
+  .table > :not(caption) > * > * { background:transparent; color:#e2e8f0; border-color:rgba(255,255,255,.07); }
+  .conso { font-weight:700; color:#fbbf24; }
+  .op { font-weight:600; }
+  .muted { color:#8b93a7; font-size:.8rem; }
+  .badge-naf { background:rgba(56,189,248,.15); color:#7dd3fc; }
+  tr:hover { background:rgba(255,255,255,.03); }
+  .statut-sel { width:auto; display:inline-block; font-size:.8rem; padding:2px 6px; }
+</style>
+</head>
+<body>
+<nav class="navbar px-3 mb-3" style="background:#161b29;border-bottom:1px solid rgba(255,255,255,.08);">
+  <span class="navbar-brand"><i class="bi bi-lightning-charge-fill"></i> CRM Industriel <small class="muted">— autoconsommation</small></span>
+  <a href="/crm" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> CRM principal</a>
+</nav>
+
+<div class="container-fluid">
+  <!-- Lanceur de scan -->
+  <div class="card mb-3"><div class="card-body">
+    <h6 class="mb-3" style="color:#fbbf24;"><i class="bi bi-radar"></i> Scanner un territoire</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="muted">Département</label>
+        <input id="scanDept" class="form-control form-control-sm" style="width:120px" placeholder="ex: 30">
+      </div>
+      <div class="col-auto">
+        <label class="muted">Conso min (MWh/an)</label>
+        <input id="scanMin" type="number" value="500" step="100" class="form-control form-control-sm" style="width:130px">
+      </div>
+      <div class="col-auto">
+        <label class="muted">Max sites</label>
+        <input id="scanLimit" type="number" value="50" min="1" max="100" class="form-control form-control-sm" style="width:90px">
+      </div>
+      <div class="col-auto">
+        <button id="scanBtn" class="btn btn-warning btn-sm" onclick="lancerScan()">
+          <i class="bi bi-search"></i> Lancer le scan
+        </button>
+      </div>
+      <div class="col"><div id="scanMsg" class="muted"></div></div>
+    </div>
+    <div class="muted mt-2">Part d'Enedis (sites industriels gros consommateurs) → identifie l'opérateur (SIRENE) → injecte ici. Les doublons sont ignorés.</div>
+  </div></div>
+
+  <!-- Liste -->
+  <div class="card"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0" style="color:#fbbf24;"><i class="bi bi-building"></i> Prospects industriels <span id="count" class="muted"></span></h6>
+      <button class="btn btn-sm btn-outline-light" onclick="chargerListe()"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr class="muted">
+          <th>Conso/an</th><th>Secteur</th><th>Commune</th><th>Adresse</th>
+          <th>Opérateur (décideur)</th><th>PV reco</th><th>Économie</th><th>Statut</th><th></th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="muted">Chargement…</td></tr></tbody>
+      </table>
+    </div>
+  </div></div>
+</div>
+
+<script>
+const STATUTS = ['nouveau','contacte','qualifie','rdv','perdu','gagne'];
+function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
+
+async function lancerScan(){
+  const dept = document.getElementById('scanDept').value.trim();
+  const min_mwh = parseFloat(document.getElementById('scanMin').value||500);
+  const limit = parseInt(document.getElementById('scanLimit').value||50);
+  const btn = document.getElementById('scanBtn'), msg = document.getElementById('scanMsg');
+  if(!dept){ msg.innerHTML='<span class="text-warning">Indique un département.</span>'; return; }
+  btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Scan en cours…';
+  msg.innerHTML='Interrogation Enedis + SIRENE… (30-90 s)';
+  try{
+    const r = await fetch('/api/industriel/scan-inject',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({dept,min_mwh,limit})});
+    const j = await r.json();
+    if(!r.ok||!j.success){ msg.innerHTML='<span class="text-danger">❌ '+(j.error||r.status)+'</span>'; }
+    else{
+      msg.innerHTML=`<span class="text-success">✅ ${j.injected} prospect(s) injecté(s)`+
+        (j.skipped?`, ${j.skipped} déjà présent(s)`:'')+` (sur ${j.sites_scannes} sites scannés).</span>`;
+      chargerListe();
+    }
+  }catch(e){ msg.innerHTML='<span class="text-danger">❌ '+e.message+'</span>'; }
+  finally{ btn.disabled=false; btn.innerHTML='<i class="bi bi-search"></i> Lancer le scan'; }
+}
+
+async function chargerListe(){
+  const tb = document.getElementById('rows');
+  try{
+    const j = await (await fetch('/api/industriel/prospects')).json();
+    const ps = j.prospects||[];
+    document.getElementById('count').textContent = `(${ps.length})`;
+    if(!ps.length){ tb.innerHTML='<tr><td colspan="9" class="muted">Aucun prospect industriel. Lance un scan ci-dessus.</td></tr>'; return; }
+    tb.innerHTML = ps.map(p=>{
+      const op = p.operateur_nom
+        ? `<span class="op">${p.operateur_nom}</span>`+
+          (p.operateur_siren?` <span class="muted">SIREN ${p.operateur_siren}</span>`:'')+
+          (p.operateur_effectif?` <span class="muted">· eff. ${p.operateur_effectif}</span>`:'')
+        : '<span class="muted">— non identifié</span>';
+      const opts = STATUTS.map(s=>`<option ${p.statut===s?'selected':''}>${s}</option>`).join('');
+      return `<tr>
+        <td class="conso">${fmt(p.conso_mwh)} MWh</td>
+        <td><span class="badge badge-naf">NAF ${p.naf2||'?'}</span></td>
+        <td>${p.commune||''}</td>
+        <td class="muted">${p.adresse||''}</td>
+        <td>${op}</td>
+        <td>${p.kwc_reco?fmt(p.kwc_reco)+' kWc':'—'}</td>
+        <td>${p.economie_an_eur?fmt(p.economie_an_eur)+' €/an':'—'}</td>
+        <td><select class="form-select form-select-sm statut-sel" onchange="majStatut(${p.id},this.value)">${opts}</select></td>
+        <td><button class="btn btn-sm btn-outline-danger" onclick="suppr(${p.id})"><i class="bi bi-trash"></i></button></td>
+      </tr>`;
+    }).join('');
+  }catch(e){ tb.innerHTML='<tr><td colspan="9" class="text-danger">Erreur: '+e.message+'</td></tr>'; }
+}
+async function majStatut(id,statut){
+  await fetch('/api/industriel/prospects/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({statut})});
+}
+async function suppr(id){
+  if(!confirm('Supprimer ce prospect ?')) return;
+  await fetch('/api/industriel/prospects/'+id,{method:'DELETE'});
+  chargerListe();
+}
+chargerListe();
+</script>
+</body>
+</html>
