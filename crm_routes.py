@@ -11,6 +11,11 @@ import json
 import os
 import io
 import zipfile
+import threading
+
+# Worker autonome "scan France" : verrou + état partagés (process unique, 1 worker gunicorn)
+_FRANCE_LOCK = threading.Lock()
+_FRANCE_STATE = {'running': False}
 from declaration_prealable_generator import generate_declaration_prealable_complete
 from plan_masse_generator import generate_plan_masse
 from plan_masse_simple import generate_plan_masse_simple
@@ -2176,6 +2181,117 @@ def register_crm_routes(app):
             )
         """)
 
+    def _ensure_scan_jobs_table():
+        execute_query("""
+            CREATE TABLE IF NOT EXISTS scan_jobs (
+                id SERIAL PRIMARY KEY,
+                type TEXT,
+                status TEXT DEFAULT 'running',
+                user_id TEXT,
+                params TEXT,
+                depts_todo TEXT,
+                depts_done TEXT,
+                current_dept TEXT,
+                total_injected INTEGER DEFAULT 0,
+                total_skipped INTEGER DEFAULT 0,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    def _all_depts():
+        d = [f"{i:02d}" for i in range(1, 96) if i != 20]
+        return d + ["2A", "2B", "971", "972", "973", "974", "976"]
+
+    def _inject_industrial_dept(dept, min_kwc, limit, user_id, secteur='INDUSTRIE'):
+        """Scanne 1 département et injecte dans industrial_prospects.
+        Retourne (injected, skipped, sites_scannes)."""
+        min_mwh = round(float(min_kwc) * 3.3, 1)
+        res = _run_industrial_scan(dept, '', secteur, min_mwh, int(limit), None, with_foncier=False)
+        try:
+            from autoconsommation import diagnostic_autoconso_rapide
+        except Exception:
+            diagnostic_autoconso_rapide = None
+        injected, skipped = 0, 0
+        for p in res.get('prospects', []):
+            adresse = (p.get('adresse') or '').strip()
+            cc = p.get('code_commune') or ''
+            if not adresse:
+                skipped += 1; continue
+            existing = execute_query(
+                "SELECT id FROM industrial_prospects WHERE user_id = %s AND code_commune = %s AND adresse = %s",
+                (str(user_id), cc, adresse), fetch_one=True)
+            if existing:
+                skipped += 1; continue
+            ops = p.get('operateurs_sirene') or []
+            op = ops[0] if ops else {}
+            diag = {}
+            if diagnostic_autoconso_rapide:
+                try:
+                    diag = diagnostic_autoconso_rapide(p.get('conso_mwh'), secteur) or {}
+                except Exception:
+                    diag = {}
+            dj = {'operateurs_sirene': ops, 'naf2': p.get('naf2'), 'parcelle': p.get('parcelle'),
+                  'proprietaire_foncier': p.get('proprietaire_foncier'), 'annee': p.get('annee'),
+                  'diagnostic_autoconso': diag}
+            execute_query("""
+                INSERT INTO industrial_prospects
+                    (user_id, commune, code_commune, adresse, conso_mwh, naf2, secteur,
+                     operateur_nom, operateur_siren, operateur_naf, operateur_effectif,
+                     proprietaire_foncier, parcelle, kwc_reco, economie_an_eur, statut, data_json)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                str(user_id), p.get('commune'), cc, adresse, p.get('conso_mwh'),
+                p.get('naf2'), secteur, op.get('nom'), op.get('siren'), op.get('naf'),
+                op.get('effectif'), p.get('proprietaire_foncier'), p.get('parcelle'),
+                diag.get('kwc_reco'), diag.get('economie_an_eur'),
+                'nouveau', json.dumps(dj, ensure_ascii=False),
+            ))
+            injected += 1
+        return injected, skipped, res.get('sites_enedis', 0)
+
+    def _france_worker(job_id):
+        """Worker autonome : enchaîne les départements restants d'un job, paçé,
+        en mettant à jour l'état en base (survit aux redémarrages via reprise)."""
+        import time as _t
+        try:
+            while True:
+                job = execute_query("SELECT * FROM scan_jobs WHERE id = %s", (job_id,), fetch_one=True)
+                if not job or job.get('status') != 'running':
+                    break
+                todo = json.loads(job.get('depts_todo') or '[]')
+                if not todo:
+                    execute_query("UPDATE scan_jobs SET status='done', current_dept=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=%s", (job_id,))
+                    break
+                dept = todo[0]
+                params = json.loads(job.get('params') or '{}')
+                execute_query("UPDATE scan_jobs SET current_dept=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s", (dept, job_id))
+                try:
+                    inj, skip, _sites = _inject_industrial_dept(
+                        dept, params.get('min_kwc', 100), params.get('limit', 1000), job.get('user_id'))
+                except Exception as _e:
+                    inj, skip = 0, 0
+                    print(f"⚠️ [FRANCE WORKER] dept {dept}: {_e}")
+                done = json.loads(job.get('depts_done') or '[]'); done.append(dept)
+                execute_query("""UPDATE scan_jobs SET depts_todo=%s, depts_done=%s,
+                                 total_injected=total_injected+%s, total_skipped=total_skipped+%s,
+                                 updated_at=CURRENT_TIMESTAMP WHERE id=%s""",
+                              (json.dumps(todo[1:]), json.dumps(done), inj, skip, job_id))
+                _t.sleep(20)  # paçage entre départements (ménage l'app + les API)
+        except Exception as _e:
+            print(f"❌ [FRANCE WORKER] {_e}")
+        finally:
+            _FRANCE_STATE['running'] = False
+
+    def _start_france_worker(job_id):
+        import threading
+        with _FRANCE_LOCK:
+            if _FRANCE_STATE.get('running'):
+                return False
+            _FRANCE_STATE['running'] = True
+        threading.Thread(target=_france_worker, args=(job_id,), daemon=True).start()
+        return True
+
     @app.route('/crm/industriel')
     def crm_industriel_page():
         user_id, is_admin = get_current_crm_user()
@@ -2259,6 +2375,91 @@ def register_crm_routes(app):
             print(f"❌ [INDUSTRIEL INJECT] {e}")
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/scan-france/start', methods=['POST'])
+    def scan_france_start():
+        """Démarre le worker autonome qui scanne tous les départements (admin)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_industrial_table(); _ensure_scan_jobs_table()
+            data = request.get_json(silent=True) or {}
+            min_kwc = float(data.get('min_kwc') or 100)
+            limit = min(int(data.get('limit') or 1000), 1000)
+            existing = execute_query(
+                "SELECT id FROM scan_jobs WHERE type='france' AND status='running' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if existing:
+                return jsonify({'success': False, 'error': 'Un scan France est déjà en cours',
+                                'job_id': existing['id']}), 409
+            depts = _all_depts()
+            job = execute_query("""
+                INSERT INTO scan_jobs (type, status, user_id, params, depts_todo, depts_done)
+                VALUES ('france', 'running', %s, %s, %s, '[]') RETURNING id
+            """, (str(user_id), json.dumps({'min_kwc': min_kwc, 'limit': limit}),
+                  json.dumps(depts)), fetch_one=True)
+            _start_france_worker(job['id'])
+            return jsonify({'success': True, 'job_id': job['id'], 'total_depts': len(depts)})
+        except Exception as e:
+            print(f"❌ [SCAN FRANCE START] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/scan-france/status', methods=['GET'])
+    def scan_france_status():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_scan_jobs_table()
+            job = execute_query(
+                "SELECT * FROM scan_jobs WHERE type='france' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if not job:
+                return jsonify({'success': True, 'job': None})
+            todo = json.loads(job.get('depts_todo') or '[]')
+            done = json.loads(job.get('depts_done') or '[]')
+            return jsonify({'success': True, 'job': {
+                'status': job.get('status'), 'current_dept': job.get('current_dept'),
+                'faits': len(done), 'restants': len(todo), 'total_depts': len(done) + len(todo),
+                'total_injected': job.get('total_injected'), 'total_skipped': job.get('total_skipped'),
+                'updated_at': str(job.get('updated_at')),
+            }})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/scan-france/stop', methods=['POST'])
+    def scan_france_stop():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_scan_jobs_table()
+            execute_query("UPDATE scan_jobs SET status='stopped', updated_at=CURRENT_TIMESTAMP "
+                          "WHERE type='france' AND status='running'")
+            _FRANCE_STATE['running'] = False
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Reprise auto du scan France au démarrage de l'app (si un job était 'running').
+    def _resume_france_on_startup():
+        import time as _t
+        _t.sleep(25)  # laisser l'app + la base se stabiliser
+        try:
+            _ensure_scan_jobs_table()
+            job = execute_query(
+                "SELECT id FROM scan_jobs WHERE type='france' AND status='running' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if job and not _FRANCE_STATE.get('running'):
+                if _start_france_worker(job['id']):
+                    print(f"🔄 [FRANCE WORKER] reprise du job {job['id']}")
+        except Exception as _e:
+            print(f"⚠️ [FRANCE WORKER] reprise: {_e}")
+    try:
+        threading.Thread(target=_resume_france_on_startup, daemon=True).start()
+    except Exception:
+        pass
 
     @app.route('/api/industriel/prospects', methods=['GET'])
     def industriel_prospects_list():

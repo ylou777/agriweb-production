@@ -53,6 +53,15 @@
       <div class="col"><div id="scanMsg" class="muted"></div></div>
     </div>
     <div class="muted mt-2">Part d'Enedis (sites industriels gros consommateurs) → identifie l'opérateur (SIRENE) → injecte ici. Les doublons sont ignorés.</div>
+    <hr style="border-color:rgba(255,255,255,.1)">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button id="franceBtn" class="btn btn-sm btn-danger" onclick="lancerFrance()">
+        <i class="bi bi-hexagon-fill"></i> Scanner toute la France (autonome)
+      </button>
+      <button class="btn btn-sm btn-outline-light" onclick="stopFrance()"><i class="bi bi-stop-circle"></i> Stop</button>
+      <span id="franceStatus" class="muted"></span>
+    </div>
+    <div class="muted mt-1" style="font-size:.75rem;">Tourne <b>côté serveur</b>, en autonomie (même si tu fermes l'onglet) — ~2-4 h. La progression s'affiche ci-dessous en direct.</div>
   </div></div>
 
   <!-- Suivi d'avancement -->
@@ -114,8 +123,40 @@ async function lancerScan(){
   finally{ btn.disabled=false; btn.innerHTML='<i class="bi bi-search"></i> Lancer le scan'; }
 }
 
+async function lancerFrance(){
+  if(!confirm("Lancer le scan AUTONOME de toute la France (101 départements) ?\nÇa tourne côté serveur pendant ~2-4 h. Évite de lancer des scans manuels pendant ce temps.")) return;
+  const st = document.getElementById('franceStatus');
+  st.textContent='Démarrage…';
+  try{
+    const r = await fetch('/api/industriel/scan-france/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({min_kwc:100,limit:1000})});
+    const j = await r.json();
+    if(!j.success){ st.innerHTML='<span class="text-danger">❌ '+(j.error||'')+'</span>'; }
+    else { st.innerHTML='<span class="text-success">✅ Lancé ('+j.total_depts+' départements).</span>'; pollFrance(); }
+  }catch(e){ st.innerHTML='<span class="text-danger">❌ '+e.message+'</span>'; }
+}
+async function stopFrance(){
+  if(!confirm('Arrêter le scan France en cours ?')) return;
+  await fetch('/api/industriel/scan-france/stop',{method:'POST'});
+  pollFrance();
+}
+async function pollFrance(){
+  try{
+    const j = await (await fetch('/api/industriel/scan-france/status')).json();
+    const st = document.getElementById('franceStatus');
+    if(!j.success || !j.job){ st.textContent=''; return; }
+    const o = j.job;
+    const pct = o.total_depts? Math.round(100*o.faits/o.total_depts):0;
+    const badge = o.status==='running'?'<span class="text-warning">⏳ en cours</span>'
+                : o.status==='done'?'<span class="text-success">✅ terminé</span>'
+                : '<span class="muted">'+o.status+'</span>';
+    st.innerHTML = `${badge} — ${o.faits}/${o.total_depts} dépts (${pct}%)`
+      + (o.current_dept?` · en cours: ${o.current_dept}`:'')
+      + ` · ${fmt(o.total_injected)} injectés`;
+  }catch(e){}
+}
 let _statTimer=null;
 async function chargerStats(){
+  pollFrance();
   try{
     const j = await (await fetch('/api/industriel/stats')).json();
     if(!j.success) return;
