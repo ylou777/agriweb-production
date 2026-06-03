@@ -1744,6 +1744,12 @@ def register_crm_routes(app):
                 return jsonify({'success': False, 'error': 'Admin requis'}), 403
             limit = int(request.values.get('limit') or 100)
             max_dist = float(request.values.get('max_dist') or 80)
+            # Filtre optionnel par forme(s) juridique(s) : ?fj=5499,5710
+            fj_raw = request.values.get('fj') or ''
+            fj_codes = [c.strip() for c in fj_raw.split(',') if c.strip().isdigit()]
+            fj_clause = ''
+            if fj_codes:
+                fj_clause = " AND forme_juridique IN (" + ",".join(fj_codes) + ")"
 
             # Mode "count" : volume réel de la base (sans géocodage) pour
             # dimensionner le gisement. /api/enedis/majic-test?count=1
@@ -1768,24 +1774,26 @@ def register_crm_routes(app):
 
             # Échantillon ALÉATOIRE national (TABLESAMPLE rapide + random()) pour
             # éviter le biais métropolitain d'un ORDER BY siren. 1 ligne / SIREN.
-            owners = execute_query("""
+            # TABLESAMPLE plus large si on filtre un segment (sinon trop peu de lignes).
+            pct = 15 if fj_codes else 5
+            owners = execute_query(f"""
                 SELECT * FROM (
                     SELECT DISTINCT ON (siren) siren, denomination, forme_juridique,
                            code_insee, section, numero
-                    FROM proprietaires_parcelles TABLESAMPLE SYSTEM (5)
+                    FROM proprietaires_parcelles TABLESAMPLE SYSTEM ({pct})
                     WHERE denomination IS NOT NULL AND section IS NOT NULL
-                      AND numero IS NOT NULL AND code_insee IS NOT NULL
+                      AND numero IS NOT NULL AND code_insee IS NOT NULL{fj_clause}
                     ORDER BY siren
                 ) t ORDER BY random() LIMIT %s
             """, (limit,), fetch_all=True) or []
             if not owners:
                 # fallback si TABLESAMPLE ne renvoie rien (table petite)
-                owners = execute_query("""
+                owners = execute_query(f"""
                     SELECT DISTINCT ON (siren) siren, denomination, forme_juridique,
                            code_insee, section, numero
                     FROM proprietaires_parcelles
                     WHERE denomination IS NOT NULL AND section IS NOT NULL
-                      AND numero IS NOT NULL AND code_insee IS NOT NULL
+                      AND numero IS NOT NULL AND code_insee IS NOT NULL{fj_clause}
                     ORDER BY siren LIMIT %s
                 """, (limit,), fetch_all=True) or []
             if not owners:
