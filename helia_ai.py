@@ -2172,6 +2172,7 @@ def manage_helia_mode():
 
 
 # ============================================================================
+@helia_bp.route('/api/helia/map/commands', methods=['GET'])
 def get_map_commands():
     """Récupère les commandes de carte en attente d'exécution"""
     try:
