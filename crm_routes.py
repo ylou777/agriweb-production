@@ -1768,11 +1768,12 @@ def register_crm_routes(app):
             def _process(o):
                 ci = str(o.get('code_insee') or '').strip()
                 dept, comm = ci[:2], ci[2:]
-                section = str(o.get('section') or '').strip().lstrip('0') or str(o.get('section') or '').strip()
+                section = str(o.get('section') or '').strip()
                 numero = str(o.get('numero') or '').strip().zfill(4)
                 res = {'siren': o.get('siren'), 'denomination': o.get('denomination'),
                        'forme_juridique': o.get('forme_juridique'), 'code_insee': ci,
-                       'parcelle': f"{o.get('section')}{numero}", 'status': 'init'}
+                       'section_raw': o.get('section'), 'numero_raw': o.get('numero'),
+                       'status': 'init'}
                 try:
                     pr = _rq.get(f"{GEO}/search", params={
                         'index': 'parcel', 'departmentcode': dept, 'municipalitycode': comm,
@@ -1826,6 +1827,7 @@ def register_crm_routes(app):
                 'conso_mediane_mwh': conso_vals[len(conso_vals)//2] if conso_vals else None,
                 'conso_max_mwh': conso_vals[0] if conso_vals else None,
                 'exemples_enedis_ok': ok[:25],
+                'exemples_parcelle_introuvable': [r for r in results if r['status'] == 'parcelle_introuvable'][:10],
             })
         except Exception as e:
             print(f"❌ [MAJIC TEST] {e}")
