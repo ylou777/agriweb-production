@@ -1902,16 +1902,19 @@ def register_crm_routes(app):
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    def _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee):
-        """PROSPECTION INVERSE : Enedis (sites du secteur, gros conso) -> opérateur
-        (SIRENE) + propriétaire foncier (MAJIC). Retourne un dict de résultats."""
+    def _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee, with_foncier=True):
+        """PROSPECTION INVERSE : Enedis (sites du secteur, conso >= seuil, triés
+        décroissant, paginés) -> opérateur (SIRENE). Le rattachement foncier MAJIC
+        est optionnel (with_foncier) car peu pertinent pour l'industriel."""
         if True:
             import requests as _rq
             from concurrent.futures import ThreadPoolExecutor
             import time as _time
             GEO = "https://data.geopf.fr/geocodage"
 
-            # 1) Enedis : sites du secteur, conso >= seuil, triés décroissant
+            # 1) Enedis : sites du secteur, conso >= seuil, triés décroissant.
+            # Pagination (limit API max 100) + dédup multi-années -> on récupère
+            # assez de lignes brutes pour obtenir `limit` sites UNIQUES.
             where = (f'code_grand_secteur="{secteur}" '
                      f'AND consommation_annuelle_totale_de_ladresse_mwh >= {min_mwh}')
             if dept:
@@ -1922,20 +1925,29 @@ def register_crm_routes(app):
                 where += f' AND annee={int(annee)}'
             api_url = ("https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/"
                        "consommation-annuelle-entreprise-par-adresse/records")
-            er = _rq.get(api_url, params={
-                'where': where,
-                'order_by': 'consommation_annuelle_totale_de_ladresse_mwh DESC',
-                'limit': limit,
-                'select': ('adresse,numero_de_voie,type_de_voie,libelle_de_voie,nom_commune,'
-                           'code_commune,code_secteur_naf2,nombre_de_sites,'
-                           'consommation_annuelle_totale_de_ladresse_mwh,annee'),
-            }, timeout=30)
-            sites = er.json().get('results', [])
+            raw = []
+            raw_cap = min(limit * 3, 600)  # on sur-échantillonne pour la dédup
+            offset = 0
+            while len(raw) < raw_cap:
+                er = _rq.get(api_url, params={
+                    'where': where,
+                    'order_by': 'consommation_annuelle_totale_de_ladresse_mwh DESC',
+                    'limit': min(100, raw_cap - len(raw)), 'offset': offset,
+                    'select': ('adresse,numero_de_voie,type_de_voie,libelle_de_voie,nom_commune,'
+                               'code_commune,code_secteur_naf2,nombre_de_sites,'
+                               'consommation_annuelle_totale_de_ladresse_mwh,annee'),
+                }, timeout=30)
+                batch = er.json().get('results', []) if er.status_code == 200 else []
+                if not batch:
+                    break
+                raw.extend(batch)
+                offset += len(batch)
+                if len(batch) < 100:
+                    break
 
-            # Déduplication par adresse (le dataset a une ligne par année) :
-            # on garde la conso la plus élevée (≈ année la plus représentative).
+            # Déduplication par adresse (1 ligne/année) : garde la conso max.
             _dedup = {}
-            for s in sites:
+            for s in raw:
                 key = (str(s.get('numero_de_voie') or ''), str(s.get('libelle_de_voie') or ''),
                        str(s.get('adresse') or ''), str(s.get('code_commune') or ''))
                 cur = _dedup.get(key)
@@ -1944,7 +1956,7 @@ def register_crm_routes(app):
                     _dedup[key] = s
             sites = sorted(_dedup.values(),
                            key=lambda s: s.get('consommation_annuelle_totale_de_ladresse_mwh') or 0,
-                           reverse=True)
+                           reverse=True)[:limit]
 
             def _geo_get(path, params, tries=3):
                 last = None
@@ -1989,31 +2001,40 @@ def register_crm_routes(app):
                 site['parcelle_status'] = 'parcelle_ok'
                 return site
 
-            with ThreadPoolExecutor(max_workers=5) as ex:
-                sites = list(ex.map(_resolve_parcelle, sites))
-
-            # 2) MAJIC : parcelle -> propriétaire (séquentiel, requêtes indexées)
             owners_found = 0
-            for site in sites:
-                if site.get('parcelle_status') != 'parcelle_ok':
-                    continue
-                sec = str(site.get('section') or '')
-                num = str(site.get('numero') or '')
-                sec_cands = list({sec, sec.lstrip('0'), sec.zfill(2)})
-                num_cands = list({num, num.lstrip('0'), num.zfill(4)})
-                try:
-                    owner = execute_query(
-                        "SELECT denomination, siren, forme_juridique FROM proprietaires_parcelles "
-                        "WHERE code_insee = %s AND section = ANY(%s) AND numero = ANY(%s) "
-                        "AND denomination IS NOT NULL LIMIT 1",
-                        (site.get('insee'), sec_cands, num_cands), fetch_one=True)
-                except Exception:
-                    owner = None
-                if owner:
-                    site['proprietaire'] = owner.get('denomination')
-                    site['proprietaire_siren'] = owner.get('siren')
-                    site['proprietaire_fj'] = owner.get('forme_juridique')
-                    owners_found += 1
+            if with_foncier:
+                # Rattachement foncier MAJIC (optionnel) : adresse -> parcelle -> propriétaire.
+                with ThreadPoolExecutor(max_workers=5) as ex:
+                    sites = list(ex.map(_resolve_parcelle, sites))
+                for site in sites:
+                    if site.get('parcelle_status') != 'parcelle_ok':
+                        continue
+                    sec = str(site.get('section') or '')
+                    num = str(site.get('numero') or '')
+                    sec_cands = list({sec, sec.lstrip('0'), sec.zfill(2)})
+                    num_cands = list({num, num.lstrip('0'), num.zfill(4)})
+                    try:
+                        owner = execute_query(
+                            "SELECT denomination, siren, forme_juridique FROM proprietaires_parcelles "
+                            "WHERE code_insee = %s AND section = ANY(%s) AND numero = ANY(%s) "
+                            "AND denomination IS NOT NULL LIMIT 1",
+                            (site.get('insee'), sec_cands, num_cands), fetch_one=True)
+                    except Exception:
+                        owner = None
+                    if owner:
+                        site['proprietaire'] = owner.get('denomination')
+                        site['proprietaire_siren'] = owner.get('siren')
+                        site['proprietaire_fj'] = owner.get('forme_juridique')
+                        owners_found += 1
+            else:
+                # Sans foncier : on construit juste l'adresse lisible.
+                for site in sites:
+                    a = (site.get('adresse') or '').strip()
+                    if not a:
+                        a = ' '.join(p for p in [str(site.get('numero_de_voie') or '').strip(),
+                                                 str(site.get('type_de_voie') or '').strip(),
+                                                 str(site.get('libelle_de_voie') or '').strip()] if p).strip()
+                    site['adresse_resolue'] = f"{a}, {site.get('nom_commune') or ''}".strip(', ')
 
             # 3) SIRENE : opérateur(s) probable(s) = entreprises de la commune dont
             # l'activité (NAF) colle au secteur Enedis, classées par effectif.
@@ -2166,12 +2187,21 @@ def register_crm_routes(app):
             dept = str(data.get('dept') or '').strip()
             code_commune = str(data.get('code_commune') or '').strip()
             secteur = (data.get('secteur') or 'INDUSTRIE').strip().upper()
-            min_mwh = float(data.get('min_mwh') or 500)
-            limit = min(int(data.get('limit') or 50), 100)
+            # Seuil exprimé en kWc d'autoconso (converti en MWh) : pour viser ≥ N kWc
+            # avec un dimensionnement à ~35% de la conso (productible moyen ~1150),
+            # il faut conso ≈ N × 1150 / 350 ≈ N × 3.3 MWh/an.
+            min_kwc = data.get('min_kwc')
+            if min_kwc is not None and str(min_kwc) != '':
+                min_mwh = round(float(min_kwc) * 3.3, 1)
+            else:
+                min_mwh = float(data.get('min_mwh') or 330)
+            limit = min(int(data.get('limit') or 100), 300)
             annee = data.get('annee')
             if not dept and not code_commune:
                 return jsonify({'success': False, 'error': 'dept ou code_commune requis'}), 400
-            res = _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee)
+            # Industriel : on saute le foncier MAJIC (peu pertinent), on garde SIRENE.
+            res = _run_industrial_scan(dept, code_commune, secteur, min_mwh, limit, annee,
+                                       with_foncier=False)
             try:
                 from autoconsommation import diagnostic_autoconso_rapide
             except Exception:
@@ -2215,7 +2245,8 @@ def register_crm_routes(app):
                 ))
                 injected += 1
             return jsonify({'success': True, 'injected': injected, 'skipped': skipped,
-                            'sites_scannes': res.get('sites_enedis', 0)})
+                            'sites_scannes': res.get('sites_enedis', 0),
+                            'seuil_mwh': min_mwh})
         except Exception as e:
             print(f"❌ [INDUSTRIEL INJECT] {e}")
             import traceback; traceback.print_exc()

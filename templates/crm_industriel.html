@@ -38,12 +38,12 @@
         <input id="scanDept" class="form-control form-control-sm" style="width:120px" placeholder="ex: 30">
       </div>
       <div class="col-auto">
-        <label class="muted">Conso min (MWh/an)</label>
-        <input id="scanMin" type="number" value="500" step="100" class="form-control form-control-sm" style="width:130px">
+        <label class="muted">PV mini visé (kWc)</label>
+        <input id="scanKwc" type="number" value="100" step="10" min="10" class="form-control form-control-sm" style="width:130px">
       </div>
       <div class="col-auto">
         <label class="muted">Max sites</label>
-        <input id="scanLimit" type="number" value="50" min="1" max="100" class="form-control form-control-sm" style="width:90px">
+        <input id="scanLimit" type="number" value="100" min="1" max="300" class="form-control form-control-sm" style="width:90px">
       </div>
       <div class="col-auto">
         <button id="scanBtn" class="btn btn-warning btn-sm" onclick="lancerScan()">
@@ -79,20 +79,21 @@ function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximu
 
 async function lancerScan(){
   const dept = document.getElementById('scanDept').value.trim();
-  const min_mwh = parseFloat(document.getElementById('scanMin').value||500);
-  const limit = parseInt(document.getElementById('scanLimit').value||50);
+  const min_kwc = parseFloat(document.getElementById('scanKwc').value||100);
+  const limit = parseInt(document.getElementById('scanLimit').value||100);
   const btn = document.getElementById('scanBtn'), msg = document.getElementById('scanMsg');
   if(!dept){ msg.innerHTML='<span class="text-warning">Indique un département.</span>'; return; }
   btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Scan en cours…';
-  msg.innerHTML='Interrogation Enedis + SIRENE… (30-90 s)';
+  msg.innerHTML='Interrogation Enedis + SIRENE… (peut prendre 1-3 min)';
   try{
     const r = await fetch('/api/industriel/scan-inject',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({dept,min_mwh,limit})});
+      body:JSON.stringify({dept,min_kwc,limit})});
     const j = await r.json();
     if(!r.ok||!j.success){ msg.innerHTML='<span class="text-danger">❌ '+(j.error||r.status)+'</span>'; }
     else{
       msg.innerHTML=`<span class="text-success">✅ ${j.injected} prospect(s) injecté(s)`+
-        (j.skipped?`, ${j.skipped} déjà présent(s)`:'')+` (sur ${j.sites_scannes} sites scannés).</span>`;
+        (j.skipped?`, ${j.skipped} déjà présent(s)`:'')+
+        ` (sur ${j.sites_scannes} sites ≥ ${fmt(j.seuil_mwh)} MWh/an).</span>`;
       chargerListe();
     }
   }catch(e){ msg.innerHTML='<span class="text-danger">❌ '+e.message+'</span>'; }
