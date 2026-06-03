@@ -2068,25 +2068,33 @@ def register_crm_routes(app):
                 section = _naf2_section(naf2s)
                 # Sans NAF exploitable, pas d'opérateur fiable (on n'invente rien).
                 if naf2s and section:
-                    try:
-                        rr = _rq.get("https://recherche-entreprises.api.gouv.fr/search",
-                                     params={'code_commune': cc,
-                                             'section_activite_principale': section,
-                                             'per_page': 25, 'page': 1}, timeout=15)
-                        cands = (rr.json().get('results') or []) if rr.status_code == 200 else []
-                        # STRICT : uniquement le NAF2 du site (jamais de repli hors-NAF).
-                        cands = [c for c in cands
-                                 if (c.get('activite_principale') or '').replace('.', '').startswith(naf2s)]
-                        for c in sorted(cands, key=_eff, reverse=True)[:3]:
-                            ops.append({'nom': c.get('nom_complet'), 'siren': c.get('siren'),
-                                        'naf': c.get('activite_principale'),
-                                        'effectif': c.get('tranche_effectif_salarie')})
-                    except Exception:
-                        pass
+                    cands = []
+                    # Retry/backoff : l'API recherche-entreprises throttle (~7 req/s).
+                    for i in range(4):
+                        try:
+                            rr = _rq.get("https://recherche-entreprises.api.gouv.fr/search",
+                                         params={'code_commune': cc,
+                                                 'section_activite_principale': section,
+                                                 'per_page': 25, 'page': 1}, timeout=15)
+                            if rr.status_code == 200:
+                                cands = rr.json().get('results') or []
+                                break
+                            if rr.status_code != 429 and rr.status_code >= 400 and rr.status_code != 503:
+                                break  # erreur non transitoire
+                        except Exception:
+                            pass
+                        _time.sleep(0.7 * (i + 1))
+                    # STRICT : uniquement le NAF2 du site (jamais de repli hors-NAF).
+                    cands = [c for c in cands
+                             if (c.get('activite_principale') or '').replace('.', '').startswith(naf2s)]
+                    for c in sorted(cands, key=_eff, reverse=True)[:3]:
+                        ops.append({'nom': c.get('nom_complet'), 'siren': c.get('siren'),
+                                    'naf': c.get('activite_principale'),
+                                    'effectif': c.get('tranche_effectif_salarie')})
                 sirene_cache[ck] = ops
                 return ops
 
-            with ThreadPoolExecutor(max_workers=5) as ex2:
+            with ThreadPoolExecutor(max_workers=4) as ex2:
                 ops_list = list(ex2.map(
                     lambda s: _sirene_ops(s.get('code_commune'), s.get('code_secteur_naf2')), sites))
             for s, ops in zip(sites, ops_list):
