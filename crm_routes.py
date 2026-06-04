@@ -2836,21 +2836,36 @@ def register_crm_routes(app):
                                 'total_gisement': 0,
                                 'message': 'Aucun prospect industriel pour ce département'})
 
-            # Dédoublonnage : (commune, adresse) déjà présents chez la cible
+            # Dédoublonnage : (commune, adresse) déjà présents chez la cible.
+            # On garde id + lat pour pouvoir backfiller le géocodage (le pré-chargement
+            # est idempotent : relancé, il complète lat/lon des lignes déjà copiées
+            # au fur et à mesure que le gisement maître se géocode).
             existing = execute_query(
-                "SELECT commune, adresse FROM agriweb_prospects WHERE user_id = %s AND type = 'industriel'",
+                "SELECT id, commune, adresse, latitude FROM agriweb_prospects "
+                "WHERE user_id = %s AND type = 'industriel'",
                 (str(target_id),), fetch_all=True) or []
-            seen = {((e.get('commune') or '').strip().lower(), (e.get('adresse') or '').strip().lower())
-                    for e in existing}
+            seen = {((e.get('commune') or '').strip().lower(), (e.get('adresse') or '').strip().lower()):
+                    {'id': e.get('id'), 'lat': e.get('latitude')} for e in existing}
 
-            copied, skipped = 0, 0
+            copied, skipped, updated = 0, 0, 0
             for r in rows:
                 commune = r.get('commune') or ''
                 adresse = r.get('adresse') or ''
                 key = (commune.strip().lower(), adresse.strip().lower())
                 if key in seen:
-                    skipped += 1; continue
-                seen.add(key)
+                    ex = seen[key]
+                    if ex.get('lat') is None and r.get('lat') is not None:
+                        try:
+                            execute_query(
+                                "UPDATE agriweb_prospects SET latitude=%s, longitude=%s WHERE id=%s",
+                                (r.get('lat'), r.get('lon'), ex['id']))
+                            ex['lat'] = r.get('lat'); updated += 1
+                        except Exception:
+                            skipped += 1
+                    else:
+                        skipped += 1
+                    continue
+                seen[key] = {'id': None, 'lat': r.get('lat')}
                 try:
                     dj = json.loads(r.get('data_json') or '{}')
                 except Exception:
@@ -2876,9 +2891,10 @@ def register_crm_routes(app):
                     print(f"⚠️ [PRECHARGER] insert échoué {commune}/{adresse}: {e_ins}")
                     skipped += 1
 
-            print(f"✅ [PRECHARGER] dept={dept} → user {target_id}: {copied} copiés, {skipped} ignorés")
-            return jsonify({'success': True, 'copied': copied, 'skipped': skipped, 'dept': dept,
-                            'target_user_id': target_id, 'total_gisement': len(rows)})
+            print(f"✅ [PRECHARGER] dept={dept} → user {target_id}: {copied} copiés, "
+                  f"{updated} géoloc. complétés, {skipped} ignorés")
+            return jsonify({'success': True, 'copied': copied, 'updated': updated, 'skipped': skipped,
+                            'dept': dept, 'target_user_id': target_id, 'total_gisement': len(rows)})
         except Exception as e:
             print(f"❌ [PRECHARGER] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
