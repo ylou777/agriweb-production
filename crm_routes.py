@@ -2574,6 +2574,16 @@ def register_crm_routes(app):
         stripe_pub = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
         return render_template('crm_offre.html', stripe_pub=stripe_pub)
 
+    @app.route('/crm/gisement')
+    def crm_gisement_page():
+        """Vue admin dédiée : tout le gisement en vignettes riches (paginé serveur)."""
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return redirect('/auth/login?next=/crm/gisement')
+        if not is_admin:
+            return redirect('/crm/industriel')
+        return render_template('crm_gisement.html')
+
     @app.route('/api/industriel/scan-inject', methods=['POST'])
     def industriel_scan_inject():
         """Lance un scan industriel et INJECTE les résultats dans le CRM dédié."""

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gisement industriel — vue admin (vignettes)</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background:#0f1420; color:#e2e8f0; font-family:'Poppins',Arial,sans-serif; }
+  .navbar-brand { color:#fbbf24; font-weight:700; }
+  .card { background:#1a2030; border:1px solid rgba(255,255,255,.08); }
+  .form-control, .form-select { background:#0f1420; border-color:rgba(255,255,255,.15); color:#e2e8f0; }
+  .form-control:focus, .form-select:focus { background:#0f1420; color:#e2e8f0; border-color:#fbbf24; box-shadow:none; }
+  .muted { color:#8b93a7; font-size:.8rem; }
+  .vignette { background:#1a2030; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; height:100%; transition:.15s; }
+  .vignette:hover { border-color:rgba(251,191,36,.4); }
+  .op-nom { font-weight:700; font-size:1rem; color:#e2e8f0; }
+  .conso { font-weight:700; color:#fbbf24; }
+  .badge-naf { background:rgba(56,189,248,.15); color:#7dd3fc; }
+  .badge-ind { background:rgba(251,146,60,.18); color:#fdba74; }
+  .auto-box { background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.2); border-radius:8px; padding:8px; margin-top:8px; }
+  .chip { display:inline-block; background:rgba(255,255,255,.06); border-radius:6px; padding:2px 7px; font-size:.78rem; margin:2px 2px 0 0; }
+  .geo-ok { color:#22c55e; } .geo-no { color:#8b93a7; }
+  a.osm { color:#7dd3fc; text-decoration:none; }
+</style>
+</head>
+<body>
+<nav class="navbar px-3 mb-3" style="background:#161b29;border-bottom:1px solid rgba(255,255,255,.08);">
+  <span class="navbar-brand"><i class="bi bi-database-fill"></i> Gisement industriel <small class="muted">— vue admin, vignettes</small></span>
+  <div class="d-flex gap-2">
+    <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-table"></i> Console (table)</a>
+    <a href="/crm" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> CRM principal</a>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="card mb-3"><div class="card-body py-2">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="me-2"><i class="bi bi-funnel"></i> <b id="count" class="conso">…</b></span>
+      <input id="filtreDept" class="form-control form-control-sm" style="width:95px" placeholder="Dépt" onchange="reset0()">
+      <select id="filtreNaf" class="form-select form-select-sm" style="width:200px" onchange="reset0()"></select>
+      <select id="filtreConso" class="form-select form-select-sm" style="width:170px" onchange="reset0()">
+        <option value="">Toutes consos</option>
+        <option value="330-1000">330 – 1 000 MWh</option>
+        <option value="1000-3000">1 000 – 3 000 MWh</option>
+        <option value="3000-10000">3 000 – 10 000 MWh</option>
+        <option value="10000-30000">10 000 – 30 000 MWh</option>
+        <option value="30000-">30 000+ MWh</option>
+      </select>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(-1)" id="prevBtn"><i class="bi bi-chevron-left"></i></button>
+        <span id="pageInfo" class="muted" style="min-width:130px;text-align:center;"></span>
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(1)" id="nextBtn"><i class="bi bi-chevron-right"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="chargerVignettes()"><i class="bi bi-arrow-clockwise"></i></button>
+      </div>
+    </div>
+  </div></div>
+
+  <div id="grid" class="row g-3">
+    <div class="col-12 muted">Chargement…</div>
+  </div>
+  <div class="text-center my-3">
+    <button type="button" class="btn btn-outline-warning btn-sm" onclick="pageList(1)" id="nextBtn2"><i class="bi bi-chevron-down"></i> Page suivante</button>
+  </div>
+</div>
+
+<script>
+const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
+let _offset=0, _size=24, _total=0;
+function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
+function reset0(){ _offset=0; chargerVignettes(); }
+function pageList(dir){
+  const next=_offset+dir*_size;
+  if(next<0 || next>=_total) return;
+  _offset=next; window.scrollTo({top:0,behavior:'smooth'}); chargerVignettes();
+}
+function initNaf(){
+  const sel=document.getElementById('filtreNaf');
+  let h='<option value="">Tous secteurs</option>';
+  Object.entries(NAF_LABELS).forEach(([c,l])=>h+=`<option value="${c}">NAF${c} · ${l}</option>`);
+  sel.innerHTML=h;
+}
+function vignette(p){
+  let dj=p.data_json||{};
+  if(typeof dj==='string'){ try{ dj=JSON.parse(dj); }catch(e){ dj={}; } }
+  const diag=dj.diagnostic_autoconso||{};
+  const dept=(p.code_commune||'').substring(0,2);
+  const geo = (p.lat!=null && p.lon!=null);
+  const carte = geo ? `<a class="osm" href="https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}" target="_blank"><i class="bi bi-geo-alt-fill geo-ok"></i> Voir sur la carte</a>`
+                    : `<span class="geo-no"><i class="bi bi-geo-alt"></i> non géocodé</span>`;
+  let auto='';
+  if(diag.eligible){
+    const ac=diag.taux_autoconsommation!=null?Math.round(diag.taux_autoconsommation*100):null;
+    const as=diag.taux_autosuffisance!=null?Math.round(diag.taux_autosuffisance*100):null;
+    auto=`<div class="auto-box">
+      <div class="muted mb-1"><i class="bi bi-sun-fill text-warning"></i> Potentiel autoconsommation — conso Enedis <b>${fmt(p.conso_mwh)} MWh/an</b></div>
+      ${diag.kwc_reco?`<span class="chip">⚡ ${fmt(diag.kwc_reco)} kWc</span>`:''}
+      ${ac!=null?`<span class="chip">Autoconso ${ac}%</span>`:''}
+      ${as!=null?`<span class="chip">Autosuff. ${as}%</span>`:''}
+      ${diag.economie_an_eur?`<span class="chip" style="color:#22c55e">${fmt(diag.economie_an_eur)} €/an</span>`:''}
+    </div>`;
+  } else {
+    auto=`<div class="muted mt-2"><i class="bi bi-lightning"></i> Conso Enedis <b class="conso">${fmt(p.conso_mwh)} MWh/an</b></div>`;
+  }
+  const op = p.operateur_nom
+    ? `<div class="op-nom">${p.operateur_nom}</div>`+
+      (p.operateur_siren?`<div class="muted">SIREN ${p.operateur_siren}${p.operateur_effectif?` · effectif ${p.operateur_effectif}`:''} <a class="osm" href="/crm?proprietaire=${p.operateur_siren}" target="_blank">propriétés</a></div>`:'')
+    : `<div class="op-nom" style="color:#8b93a7">Opérateur non identifié</div>`;
+  return `<div class="col-md-6 col-xl-4"><div class="vignette">
+    <div class="d-flex justify-content-between align-items-start mb-1">
+      <span class="badge badge-ind">🏭 INDUSTRIEL</span>
+      <span class="badge badge-naf" title="NAF ${p.naf2||'?'}">${p.naf2?(NAF_LABELS[p.naf2]||('NAF'+p.naf2)):'secteur ?'}</span>
+    </div>
+    ${op}
+    <div class="muted mt-1"><i class="bi bi-geo"></i> ${p.adresse||'adresse ?'}, ${p.commune||''} ${dept?`(${dept})`:''}</div>
+    ${auto}
+    <div class="mt-2" style="font-size:.85rem">${carte}</div>
+  </div></div>`;
+}
+async function chargerVignettes(){
+  const grid=document.getElementById('grid');
+  const dept=(document.getElementById('filtreDept').value||'').trim();
+  const naf2=(document.getElementById('filtreNaf').value||'').trim();
+  const tr=(document.getElementById('filtreConso').value||'').trim();
+  const qs=new URLSearchParams({offset:_offset, limit:_size});
+  if(dept) qs.set('dept',dept);
+  if(naf2) qs.set('naf2',naf2);
+  if(tr){ const [a,b]=tr.split('-'); if(a) qs.set('conso_min',a); if(b) qs.set('conso_max',b); }
+  grid.innerHTML='<div class="col-12 muted">Chargement…</div>';
+  try{
+    const j=await (await fetch('/api/industriel/prospects?'+qs)).json();
+    const ps=j.prospects||[]; _total=j.total||0; _size=j.limit||24;
+    document.getElementById('count').textContent=`${fmt(_total)} prospects`;
+    const a=_total?_offset+1:0, b=_offset+ps.length;
+    document.getElementById('pageInfo').textContent=`${fmt(a)}–${fmt(b)} / ${fmt(_total)}`;
+    const last=(_offset+_size)>=_total;
+    document.getElementById('prevBtn').disabled=_offset<=0;
+    document.getElementById('nextBtn').disabled=last;
+    document.getElementById('nextBtn2').style.display=last?'none':'';
+    grid.innerHTML = ps.length ? ps.map(vignette).join('') : '<div class="col-12 muted">Aucun prospect pour ces filtres.</div>';
+  }catch(e){ grid.innerHTML=`<div class="col-12 text-danger">${e}</div>`; }
+}
+initNaf();
+chargerVignettes();
+</script>
+</body>
+</html>
