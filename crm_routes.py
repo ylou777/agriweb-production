@@ -2645,6 +2645,30 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/admin/feature-3d', methods=['POST'])
+    def admin_set_feature_3d():
+        """Active/désactive le Calepinage 3D pour un utilisateur (par email). Admin."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            data = request.get_json(silent=True) or {}
+            email = (data.get('email') or '').strip().lower()
+            enable = bool(data.get('enable', True))
+            if not email:
+                return jsonify({'success': False, 'error': 'email requis'}), 400
+            execute_query("ALTER TABLE users ADD COLUMN IF NOT EXISTS feature_3d_calpinage BOOLEAN DEFAULT FALSE")
+            row = execute_query("SELECT id FROM users WHERE email = %s", (email,), fetch_one=True)
+            if not row:
+                return jsonify({'success': False, 'error': 'utilisateur introuvable'}), 404
+            execute_query("UPDATE users SET feature_3d_calpinage = %s WHERE email = %s", (enable, email))
+            chk = execute_query("SELECT feature_3d_calpinage FROM users WHERE email = %s", (email,), fetch_one=True) or {}
+            return jsonify({'success': True, 'email': email,
+                            'feature_3d_calpinage': chk.get('feature_3d_calpinage')})
+        except Exception as e:
+            print(f"❌ [FEATURE 3D] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/analyse', methods=['GET'])
     def industriel_analyse():
         """Répartition par secteur NAF et par tranche de conso (priorisation)."""
