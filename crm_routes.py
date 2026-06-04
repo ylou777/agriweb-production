@@ -2669,6 +2669,59 @@ def register_crm_routes(app):
             print(f"❌ [FEATURE 3D] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/industriel/etude', methods=['GET'])
+    def industriel_etude():
+        """Photographie statistique complète de la base (pour étude de marché)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_industrial_table()
+            out = {}
+            out['global'] = execute_query("""
+                SELECT COUNT(*) AS n, COUNT(operateur_nom) AS avec_operateur,
+                       ROUND(MIN(conso_mwh)) AS conso_min, ROUND(MAX(conso_mwh)) AS conso_max,
+                       ROUND(AVG(conso_mwh)) AS conso_moy, ROUND(SUM(conso_mwh)) AS conso_totale,
+                       ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY conso_mwh)) AS conso_mediane,
+                       ROUND(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY conso_mwh)) AS conso_p90
+                FROM industrial_prospects WHERE conso_mwh IS NOT NULL
+            """, fetch_one=True)
+            out['par_secteur'] = execute_query("""
+                SELECT naf2, COUNT(*) AS n, ROUND(AVG(conso_mwh)) AS conso_moy,
+                       ROUND(SUM(conso_mwh)) AS conso_tot
+                FROM industrial_prospects WHERE naf2 IS NOT NULL AND naf2 <> ''
+                GROUP BY naf2 ORDER BY n DESC
+            """, fetch_all=True)
+            out['par_tranche_conso'] = execute_query("""
+                SELECT CASE
+                    WHEN conso_mwh < 1000 THEN '1_0330-1000'
+                    WHEN conso_mwh < 3000 THEN '2_1000-3000'
+                    WHEN conso_mwh < 10000 THEN '3_3000-10000'
+                    WHEN conso_mwh < 30000 THEN '4_10000-30000'
+                    ELSE '5_30000+' END AS tranche,
+                    COUNT(*) AS n, ROUND(SUM(conso_mwh)) AS conso_tot
+                FROM industrial_prospects WHERE conso_mwh IS NOT NULL GROUP BY 1 ORDER BY 1
+            """, fetch_all=True)
+            out['par_departement'] = execute_query("""
+                SELECT LEFT(code_commune,2) AS dept, COUNT(*) AS n, ROUND(SUM(conso_mwh)) AS conso_tot
+                FROM industrial_prospects WHERE code_commune IS NOT NULL
+                GROUP BY 1 ORDER BY n DESC
+            """, fetch_all=True)
+            out['par_effectif'] = execute_query("""
+                SELECT COALESCE(operateur_effectif,'NN') AS eff, COUNT(*) AS n
+                FROM industrial_prospects WHERE operateur_nom IS NOT NULL
+                GROUP BY 1 ORDER BY n DESC
+            """, fetch_all=True)
+            out['top_sites'] = execute_query("""
+                SELECT ROUND(conso_mwh) AS conso_mwh, naf2, commune, operateur_nom, operateur_effectif
+                FROM industrial_prospects ORDER BY conso_mwh DESC NULLS LAST LIMIT 40
+            """, fetch_all=True)
+            return jsonify({'success': True, 'etude': out})
+        except Exception as e:
+            print(f"❌ [ETUDE] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/analyse', methods=['GET'])
     def industriel_analyse():
         """Répartition par secteur NAF et par tranche de conso (priorisation)."""
