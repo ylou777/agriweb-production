@@ -2645,6 +2645,36 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/industriel/analyse', methods=['GET'])
+    def industriel_analyse():
+        """Répartition par secteur NAF et par tranche de conso (priorisation)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table()
+            uf = "" if is_admin else " AND user_id = %s"
+            up = () if is_admin else (str(user_id),)
+            par_secteur = execute_query(
+                f"SELECT naf2, COUNT(*) AS n, ROUND(AVG(conso_mwh)) AS conso_moy, "
+                f"ROUND(SUM(conso_mwh)) AS conso_tot FROM industrial_prospects "
+                f"WHERE naf2 IS NOT NULL AND naf2 <> ''{uf} GROUP BY naf2 ORDER BY n DESC LIMIT 30",
+                up or None, fetch_all=True) or []
+            tranches = execute_query(
+                f"""SELECT CASE
+                        WHEN conso_mwh < 1000 THEN '0330-1000'
+                        WHEN conso_mwh < 3000 THEN '1000-3000'
+                        WHEN conso_mwh < 10000 THEN '3000-10000'
+                        WHEN conso_mwh < 30000 THEN '10000-30000'
+                        ELSE '30000+' END AS tranche,
+                        COUNT(*) AS n
+                     FROM industrial_prospects WHERE conso_mwh IS NOT NULL{uf}
+                     GROUP BY 1 ORDER BY 1""",
+                up or None, fetch_all=True) or []
+            return jsonify({'success': True, 'par_secteur': par_secteur, 'par_tranche_conso': tranches})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # Reprise auto des workers au démarrage de l'app (si un job était 'running').
     def _resume_france_on_startup():
         import time as _t
