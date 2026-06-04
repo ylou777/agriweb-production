@@ -25,13 +25,17 @@ def _slim_json_value(v, key=None):
     la structure et les métadonnées (totaux, kpis, nb de zones). Le data_json
     COMPLET reste en base et est rechargé à l'ouverture d'un prospect."""
     if isinstance(v, str):
-        if len(v) > 4000:  # base64 d'image, gros blob -> on ne garde que la présence
+        if len(v) > 1500:  # base64 d'image, gros blob -> on ne garde que la présence
             return True if (key and 'screenshot' in key.lower()) else ""
         return v
     if isinstance(v, list):
-        return v if len(v) <= 200 else []  # 8760h, listes de modules/points -> vidées
+        # 8760h, modules/points, FeatureCollections (parcelles/toitures/rpg…) -> vidées.
+        # Les listes utiles en vignette (postes BT/HTA, zones de calepinage) sont courtes.
+        return [_slim_json_value(x) for x in v] if len(v) <= 40 else []
     if isinstance(v, dict):
-        return {k: _slim_json_value(val, k) for k, val in v.items()}
+        # 'features' (FeatureCollection) : on vide les gros tableaux de features.
+        return {k: ([] if (k == 'features' and isinstance(val, list) and len(val) > 40)
+                    else _slim_json_value(val, k)) for k, val in v.items()}
     return v
 
 
