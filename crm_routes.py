@@ -17,6 +17,7 @@ import threading
 _FRANCE_LOCK = threading.Lock()
 _FRANCE_STATE = {'running': False}
 _OP_STATE = {'running': False}
+_GEO_STATE = {'running': False}
 
 
 def _slim_json_value(v, key=None):
@@ -2221,6 +2222,10 @@ def register_crm_routes(app):
         """)
         # Marqueur de tentative de résolution opérateur (évite les boucles).
         execute_query("ALTER TABLE industrial_prospects ADD COLUMN IF NOT EXISTS operateur_tried INTEGER DEFAULT 0")
+        # Géocodage du gisement (lat/lon) pour la vignette-carte + le calepinage.
+        execute_query("ALTER TABLE industrial_prospects ADD COLUMN IF NOT EXISTS lat REAL")
+        execute_query("ALTER TABLE industrial_prospects ADD COLUMN IF NOT EXISTS lon REAL")
+        execute_query("ALTER TABLE industrial_prospects ADD COLUMN IF NOT EXISTS geo_tried INTEGER DEFAULT 0")
 
     def _ensure_scan_jobs_table():
         execute_query("""
@@ -2452,6 +2457,70 @@ def register_crm_routes(app):
                 return False
             _OP_STATE['running'] = True
         threading.Thread(target=_operators_worker, args=(job_id,), daemon=True).start()
+        return True
+
+    def _geocode_worker(job_id):
+        """Géocode le gisement industriel (lat/lon depuis l'adresse via Géoplateforme),
+        paçé. Chaque site tenté une fois/run ; geo_tried évite les boucles."""
+        import requests as _rq, time as _t
+        GEO = "https://data.geopf.fr/geocodage"
+
+        def _geo(addr, cc):
+            for i in range(4):
+                try:
+                    r = _rq.get(f"{GEO}/search", params={
+                        'index': 'address', 'q': addr, 'citycode': cc or '', 'limit': 1}, timeout=15)
+                    if r.status_code == 200:
+                        f = r.json().get('features') or []
+                        if f:
+                            lon, lat = f[0]['geometry']['coordinates']
+                            return lat, lon, True
+                        return None, None, True  # géocodé mais rien -> on marque
+                except Exception:
+                    pass
+                _t.sleep(0.6 * (i + 1))
+            return None, None, False  # échec API -> réessayable au prochain run
+
+        try:
+            while True:
+                job = execute_query("SELECT status FROM scan_jobs WHERE id=%s", (job_id,), fetch_one=True)
+                if not job or job.get('status') != 'running':
+                    break
+                batch = execute_query("""
+                    SELECT id, adresse, code_commune FROM industrial_prospects
+                    WHERE lat IS NULL AND COALESCE(geo_tried,0)=0
+                      AND adresse IS NOT NULL AND adresse <> '' LIMIT 50
+                """, fetch_all=True) or []
+                if not batch:
+                    execute_query("UPDATE scan_jobs SET status='done', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (job_id,))
+                    break
+                done = 0
+                for p in batch:
+                    lat, lon, ok = _geo(p.get('adresse'), p.get('code_commune'))
+                    if not ok:
+                        _t.sleep(2); continue  # throttle -> on lèvera au prochain run
+                    execute_query("UPDATE industrial_prospects SET geo_tried=1, lat=%s, lon=%s WHERE id=%s",
+                                  (lat, lon, p['id']))
+                    if lat is not None:
+                        done += 1
+                execute_query("UPDATE scan_jobs SET total_injected=total_injected+%s, "
+                              "updated_at=CURRENT_TIMESTAMP, claimed_at=CURRENT_TIMESTAMP WHERE id=%s",
+                              (done, job_id))
+                _t.sleep(2)  # paçage entre lots
+        except Exception as _e:
+            print(f"❌ [GEO WORKER] {_e}")
+        finally:
+            _GEO_STATE['running'] = False
+
+    def _start_geocode_worker(job_id):
+        import threading
+        if not _claim_job(job_id):
+            return False
+        with _FRANCE_LOCK:
+            if _GEO_STATE.get('running'):
+                return False
+            _GEO_STATE['running'] = True
+        threading.Thread(target=_geocode_worker, args=(job_id,), daemon=True).start()
         return True
 
     @app.route('/crm/industriel')
@@ -2703,6 +2772,74 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/industriel/geocode/start', methods=['POST'])
+    def geocode_start():
+        """Lance le worker autonome de géocodage du gisement (lat/lon). Admin."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_industrial_table(); _ensure_scan_jobs_table()
+            existing = execute_query(
+                "SELECT id FROM scan_jobs WHERE type='geocode' AND status='running' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if existing:
+                return jsonify({'success': False, 'error': 'Un géocodage est déjà en cours',
+                                'job_id': existing['id']}), 409
+            execute_query("UPDATE industrial_prospects SET geo_tried=0 WHERE lat IS NULL")
+            n = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects "
+                              "WHERE lat IS NULL AND adresse IS NOT NULL AND adresse <> ''",
+                              fetch_one=True) or {}
+            job = execute_query("""
+                INSERT INTO scan_jobs (type, status, user_id, params, depts_todo, depts_done)
+                VALUES ('geocode', 'running', %s, '{}', '[]', '[]') RETURNING id
+            """, (str(user_id),), fetch_one=True)
+            _start_geocode_worker(job['id'])
+            return jsonify({'success': True, 'job_id': job['id'], 'a_geocoder': n.get('n', 0)})
+        except Exception as e:
+            print(f"❌ [GEOCODE START] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/geocode/status', methods=['GET'])
+    def geocode_status():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_scan_jobs_table()
+            job = execute_query("SELECT * FROM scan_jobs WHERE type='geocode' ORDER BY id DESC LIMIT 1",
+                                fetch_one=True)
+            if not job:
+                return jsonify({'success': True, 'job': None})
+            if job.get('status') == 'running' and not _GEO_STATE.get('running'):
+                try:
+                    _start_geocode_worker(job['id'])  # watchdog
+                except Exception:
+                    pass
+            restants = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects "
+                                     "WHERE lat IS NULL AND COALESCE(geo_tried,0)=0 "
+                                     "AND adresse IS NOT NULL AND adresse <> ''", fetch_one=True) or {}
+            avec = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects WHERE lat IS NOT NULL",
+                                 fetch_one=True) or {}
+            return jsonify({'success': True, 'job': {
+                'status': job.get('status'), 'geocodes': avec.get('n', 0),
+                'restants': restants.get('n', 0), 'updated_at': str(job.get('updated_at'))}})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/geocode/stop', methods=['POST'])
+    def geocode_stop():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_scan_jobs_table()
+            execute_query("UPDATE scan_jobs SET status='stopped' WHERE type='geocode' AND status='running'")
+            _GEO_STATE['running'] = False
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/admin/feature-3d', methods=['POST'])
     def admin_set_feature_3d():
         """Active/désactive le Calepinage 3D pour un utilisateur (par email). Admin."""
@@ -2904,6 +3041,11 @@ def register_crm_routes(app):
                 fetch_one=True)
             if jo and not _OP_STATE.get('running') and _start_operators_worker(jo['id']):
                 print(f"🔄 [OP WORKER] reprise du job {jo['id']}")
+            jg = execute_query(
+                "SELECT id FROM scan_jobs WHERE type='geocode' AND status='running' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if jg and not _GEO_STATE.get('running') and _start_geocode_worker(jg['id']):
+                print(f"🔄 [GEO WORKER] reprise du job {jg['id']}")
         except Exception as _e:
             print(f"⚠️ [WORKER] reprise: {_e}")
     try:
