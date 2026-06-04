@@ -63,6 +63,13 @@
       <span id="franceStatus" class="muted"></span>
     </div>
     <div class="muted mt-1" style="font-size:.75rem;">Tourne <b>côté serveur</b>, en autonomie (même si tu fermes l'onglet) — ~2-4 h. La progression s'affiche ci-dessous en direct.</div>
+    <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+      <button type="button" class="btn btn-sm btn-info" onclick="lancerOperateurs()">
+        <i class="bi bi-person-badge"></i> Récupérer les opérateurs manquants
+      </button>
+      <span id="opStatus" class="muted"></span>
+    </div>
+    <div class="muted mt-1" style="font-size:.75rem;">Repasse sur les prospects sans décideur (re-interroge SIRENE, paçé). Re-lançable.</div>
   </div></div>
 
   <!-- Suivi d'avancement -->
@@ -152,6 +159,26 @@ async function resetBase(){
     chargerStats(); chargerListe();
   }catch(e){ st.innerHTML='<span class="text-danger">❌ '+e.message+'</span>'; }
 }
+async function lancerOperateurs(){
+  const st=document.getElementById('opStatus'); st.textContent='Démarrage…';
+  try{
+    const j=await (await fetch('/api/industriel/resolve-operators/start',{method:'POST'})).json();
+    if(!j.success){ st.innerHTML='<span class="text-danger">❌ '+(j.error||'')+'</span>'; }
+    else { st.innerHTML='<span class="text-success">✅ Lancé ('+fmt(j.a_resoudre)+' à résoudre)</span>'; pollOperateurs(); }
+  }catch(e){ st.innerHTML='<span class="text-danger">❌ '+e.message+'</span>'; }
+}
+async function pollOperateurs(){
+  try{
+    const j=await (await fetch('/api/industriel/resolve-operators/status')).json();
+    const st=document.getElementById('opStatus');
+    if(!j.success||!j.job){ st.textContent=''; return; }
+    const o=j.job;
+    const badge = o.status==='running'?'<span class="text-warning">⏳ en cours</span>'
+                : o.status==='done'?'<span class="text-success">✅ terminé</span>'
+                : '<span class="muted">'+o.status+'</span>';
+    st.innerHTML = `${badge} — ${fmt(o.resolus)} opérateurs récupérés · ${fmt(o.restants)} restants`;
+  }catch(e){}
+}
 async function pollFrance(){
   try{
     const j = await (await fetch('/api/industriel/scan-france/status')).json();
@@ -171,6 +198,7 @@ let _statTimer=null;
 let _lastTotal=-1;
 async function chargerStats(){
   pollFrance();
+  pollOperateurs();
   try{
     const j = await (await fetch('/api/industriel/stats')).json();
     if(!j.success) return;

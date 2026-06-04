@@ -13,9 +13,10 @@ import io
 import zipfile
 import threading
 
-# Worker autonome "scan France" : verrou + état partagés (process unique, 1 worker gunicorn)
+# Workers autonomes (process unique, 1 worker gunicorn) : verrou + état partagés
 _FRANCE_LOCK = threading.Lock()
 _FRANCE_STATE = {'running': False}
+_OP_STATE = {'running': False}
 from declaration_prealable_generator import generate_declaration_prealable_complete
 from plan_masse_generator import generate_plan_masse
 from plan_masse_simple import generate_plan_masse_simple
@@ -2180,6 +2181,8 @@ def register_crm_routes(app):
                 date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Marqueur de tentative de résolution opérateur (évite les boucles).
+        execute_query("ALTER TABLE industrial_prospects ADD COLUMN IF NOT EXISTS operateur_tried INTEGER DEFAULT 0")
 
     def _ensure_scan_jobs_table():
         execute_query("""
@@ -2290,6 +2293,107 @@ def register_crm_routes(app):
                 return False
             _FRANCE_STATE['running'] = True
         threading.Thread(target=_france_worker, args=(job_id,), daemon=True).start()
+        return True
+
+    def _sirene_operator(cc, naf2):
+        """Résout l'opérateur d'un site via SIRENE (commune + NAF, tri effectif).
+        Retourne (ops_list, ok) ; ok=False = échec API (throttle) -> à réessayer."""
+        import requests as _rq, time as _t
+        naf2s = str(naf2 or '').strip()
+
+        def _section(n):
+            try:
+                nn = int(n)
+            except Exception:
+                return None
+            if 5 <= nn <= 9: return 'B'
+            if 10 <= nn <= 33: return 'C'
+            if nn == 35: return 'D'
+            if 36 <= nn <= 39: return 'E'
+            return None
+        section = _section(naf2s)
+        if not naf2s or not section:
+            return [], True  # pas de NAF exploitable -> rien à résoudre
+        cands = None
+        for i in range(5):
+            try:
+                r = _rq.get("https://recherche-entreprises.api.gouv.fr/search",
+                            params={'code_commune': cc, 'section_activite_principale': section,
+                                    'per_page': 25, 'page': 1}, timeout=15)
+                if r.status_code == 200:
+                    cands = r.json().get('results') or []
+                    break
+            except Exception:
+                pass
+            _t.sleep(1.0 * (i + 1))  # backoff
+        if cands is None:
+            return [], False  # throttle / échec -> réessayable
+        cands = [c for c in cands
+                 if (c.get('activite_principale') or '').replace('.', '').startswith(naf2s)]
+
+        def _eff(c):
+            try:
+                return int(c.get('tranche_effectif_salarie') or -1)
+            except Exception:
+                return -1
+        ops = [{'nom': c.get('nom_complet'), 'siren': c.get('siren'),
+                'naf': c.get('activite_principale'), 'effectif': c.get('tranche_effectif_salarie')}
+               for c in sorted(cands, key=_eff, reverse=True)[:3]]
+        return ops, True
+
+    def _operators_worker(job_id):
+        """Repasse sur les prospects sans opérateur (avec NAF), résout via SIRENE,
+        paçé pour ne pas se faire throttler. Chaque prospect est tenté une fois/run."""
+        import time as _t
+        try:
+            cache = {}
+            while True:
+                job = execute_query("SELECT status FROM scan_jobs WHERE id=%s", (job_id,), fetch_one=True)
+                if not job or job.get('status') != 'running':
+                    break
+                batch = execute_query("""
+                    SELECT id, code_commune, naf2 FROM industrial_prospects
+                    WHERE operateur_nom IS NULL AND COALESCE(operateur_tried,0)=0
+                      AND naf2 IS NOT NULL AND naf2 <> '' LIMIT 40
+                """, fetch_all=True) or []
+                if not batch:
+                    execute_query("UPDATE scan_jobs SET status='done', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (job_id,))
+                    break
+                resolved = 0
+                for p in batch:
+                    key = (p.get('code_commune'), p.get('naf2'))
+                    if key in cache:
+                        ops, ok = cache[key]
+                    else:
+                        ops, ok = _sirene_operator(p.get('code_commune'), p.get('naf2'))
+                        if ok:
+                            cache[key] = (ops, ok)
+                    op = ops[0] if (ok and ops) else {}
+                    # tried=1 dans tous les cas (trouvé / pas de match / throttle) pour
+                    # garantir la terminaison ; un re-run réinitialise les non résolus.
+                    execute_query("""UPDATE industrial_prospects SET operateur_tried=1,
+                                     operateur_nom=%s, operateur_siren=%s, operateur_naf=%s, operateur_effectif=%s
+                                     WHERE id=%s""",
+                                  (op.get('nom'), op.get('siren'), op.get('naf'), op.get('effectif'), p['id']))
+                    if op:
+                        resolved += 1
+                    if not ok:
+                        _t.sleep(3)  # throttle -> on lève le pied
+                execute_query("UPDATE scan_jobs SET total_injected=total_injected+%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+                              (resolved, job_id))
+                _t.sleep(6)  # paçage entre lots
+        except Exception as _e:
+            print(f"❌ [OP WORKER] {_e}")
+        finally:
+            _OP_STATE['running'] = False
+
+    def _start_operators_worker(job_id):
+        import threading
+        with _FRANCE_LOCK:
+            if _OP_STATE.get('running'):
+                return False
+            _OP_STATE['running'] = True
+        threading.Thread(target=_operators_worker, args=(job_id,), daemon=True).start()
         return True
 
     @app.route('/crm/industriel')
@@ -2473,20 +2577,92 @@ def register_crm_routes(app):
             print(f"❌ [INDUSTRIEL CLEAR] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    # Reprise auto du scan France au démarrage de l'app (si un job était 'running').
+    @app.route('/api/industriel/resolve-operators/start', methods=['POST'])
+    def resolve_operators_start():
+        """Lance le worker autonome qui récupère les opérateurs manquants (admin)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_industrial_table(); _ensure_scan_jobs_table()
+            existing = execute_query(
+                "SELECT id FROM scan_jobs WHERE type='operators' AND status='running' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if existing:
+                return jsonify({'success': False, 'error': 'Une résolution est déjà en cours',
+                                'job_id': existing['id']}), 409
+            # réinitialise les tentatives sur les prospects encore sans opérateur
+            execute_query("UPDATE industrial_prospects SET operateur_tried=0 WHERE operateur_nom IS NULL")
+            n = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects "
+                              "WHERE operateur_nom IS NULL AND naf2 IS NOT NULL AND naf2 <> ''",
+                              fetch_one=True) or {}
+            job = execute_query("""
+                INSERT INTO scan_jobs (type, status, user_id, params, depts_todo, depts_done)
+                VALUES ('operators', 'running', %s, '{}', '[]', '[]') RETURNING id
+            """, (str(user_id),), fetch_one=True)
+            _start_operators_worker(job['id'])
+            return jsonify({'success': True, 'job_id': job['id'], 'a_resoudre': n.get('n', 0)})
+        except Exception as e:
+            print(f"❌ [RESOLVE OP START] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/resolve-operators/status', methods=['GET'])
+    def resolve_operators_status():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_scan_jobs_table()
+            job = execute_query(
+                "SELECT * FROM scan_jobs WHERE type='operators' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if not job:
+                return jsonify({'success': True, 'job': None})
+            if job.get('status') == 'running' and not _OP_STATE.get('running'):
+                try:
+                    _start_operators_worker(job['id'])  # watchdog self-heal
+                except Exception:
+                    pass
+            restants = execute_query("SELECT COUNT(*) AS n FROM industrial_prospects "
+                                     "WHERE operateur_nom IS NULL AND COALESCE(operateur_tried,0)=0 "
+                                     "AND naf2 IS NOT NULL AND naf2 <> ''", fetch_one=True) or {}
+            return jsonify({'success': True, 'job': {
+                'status': job.get('status'), 'resolus': job.get('total_injected'),
+                'restants': restants.get('n', 0), 'updated_at': str(job.get('updated_at'))}})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/resolve-operators/stop', methods=['POST'])
+    def resolve_operators_stop():
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_scan_jobs_table()
+            execute_query("UPDATE scan_jobs SET status='stopped' WHERE type='operators' AND status='running'")
+            _OP_STATE['running'] = False
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Reprise auto des workers au démarrage de l'app (si un job était 'running').
     def _resume_france_on_startup():
         import time as _t
         _t.sleep(25)  # laisser l'app + la base se stabiliser
         try:
             _ensure_scan_jobs_table()
-            job = execute_query(
+            jf = execute_query(
                 "SELECT id FROM scan_jobs WHERE type='france' AND status='running' ORDER BY id DESC LIMIT 1",
                 fetch_one=True)
-            if job and not _FRANCE_STATE.get('running'):
-                if _start_france_worker(job['id']):
-                    print(f"🔄 [FRANCE WORKER] reprise du job {job['id']}")
+            if jf and not _FRANCE_STATE.get('running') and _start_france_worker(jf['id']):
+                print(f"🔄 [FRANCE WORKER] reprise du job {jf['id']}")
+            jo = execute_query(
+                "SELECT id FROM scan_jobs WHERE type='operators' AND status='running' ORDER BY id DESC LIMIT 1",
+                fetch_one=True)
+            if jo and not _OP_STATE.get('running') and _start_operators_worker(jo['id']):
+                print(f"🔄 [OP WORKER] reprise du job {jo['id']}")
         except Exception as _e:
-            print(f"⚠️ [FRANCE WORKER] reprise: {_e}")
+            print(f"⚠️ [WORKER] reprise: {_e}")
     try:
         threading.Thread(target=_resume_france_on_startup, daemon=True).start()
     except Exception:
