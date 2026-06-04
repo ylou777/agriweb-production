@@ -38,9 +38,9 @@
   <div class="card mb-3"><div class="card-body py-2">
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <span class="me-2"><i class="bi bi-funnel"></i> <b id="count" class="conso">…</b></span>
-      <input id="filtreDept" class="form-control form-control-sm" style="width:95px" placeholder="Dépt" onchange="reset0()">
-      <select id="filtreNaf" class="form-select form-select-sm" style="width:200px" onchange="reset0()"></select>
-      <select id="filtreConso" class="form-select form-select-sm" style="width:170px" onchange="reset0()">
+      <input id="filtreDept" class="form-control form-control-sm" style="width:95px" placeholder="Dépt" title="Filtrer par département" onchange="reset0()">
+      <select id="filtreNaf" class="form-select form-select-sm" style="width:200px" title="Filtrer par secteur" onchange="reset0()"></select>
+      <select id="filtreConso" class="form-select form-select-sm" style="width:170px" title="Filtrer par tranche de conso" onchange="reset0()">
         <option value="">Toutes consos</option>
         <option value="330-1000">330 – 1 000 MWh</option>
         <option value="1000-3000">1 000 – 3 000 MWh</option>
@@ -49,10 +49,10 @@
         <option value="30000-">30 000+ MWh</option>
       </select>
       <div class="ms-auto d-flex align-items-center gap-2">
-        <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(-1)" id="prevBtn"><i class="bi bi-chevron-left"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(-1)" id="prevBtn" title="Page précédente"><i class="bi bi-chevron-left"></i></button>
         <span id="pageInfo" class="muted" style="min-width:130px;text-align:center;"></span>
-        <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(1)" id="nextBtn"><i class="bi bi-chevron-right"></i></button>
-        <button type="button" class="btn btn-sm btn-outline-light" onclick="chargerVignettes()"><i class="bi bi-arrow-clockwise"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(1)" id="nextBtn" title="Page suivante"><i class="bi bi-chevron-right"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="chargerVignettes()" title="Rafraîchir"><i class="bi bi-arrow-clockwise"></i></button>
       </div>
     </div>
   </div></div>
@@ -91,8 +91,9 @@ function vignette(p){
                     : `<span class="geo-no"><i class="bi bi-geo-alt"></i> non géocodé</span>`;
   let auto='';
   if(diag.eligible){
-    const ac=diag.taux_autoconsommation!=null?Math.round(diag.taux_autoconsommation*100):null;
-    const as=diag.taux_autosuffisance!=null?Math.round(diag.taux_autosuffisance*100):null;
+    // taux_autoconsommation / taux_autosuffisance sont DÉJÀ en % (arrondis à 0,1)
+    const ac=diag.taux_autoconsommation;
+    const as=diag.taux_autosuffisance;
     auto=`<div class="auto-box">
       <div class="muted mb-1"><i class="bi bi-sun-fill text-warning"></i> Potentiel autoconsommation — conso Enedis <b>${fmt(p.conso_mwh)} MWh/an</b></div>
       ${diag.kwc_reco?`<span class="chip">⚡ ${fmt(diag.kwc_reco)} kWc</span>`:''}
