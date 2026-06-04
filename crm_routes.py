@@ -2707,6 +2707,59 @@ def register_crm_routes(app):
             print(f"❌ [FEATURE 3D] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/admin/sysinfo', methods=['GET'])
+    def admin_sysinfo():
+        """Diagnostic mémoire (admin) : RSS du worker + limite/usage conteneur,
+        pour dimensionner le nombre de workers gunicorn sans OOM."""
+        try:
+            _uid, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            info = {}
+
+            def _mb(b):
+                try:
+                    return round(int(b) / 1024 / 1024, 1)
+                except Exception:
+                    return None
+            # RSS du process worker courant
+            try:
+                with open('/proc/self/status') as f:
+                    for line in f:
+                        if line.startswith('VmRSS'):
+                            info['worker_rss_mb'] = round(int(line.split()[1]) / 1024, 1)
+                            break
+            except Exception:
+                pass
+            # Limite mémoire du conteneur (cgroup v2 puis v1)
+            for p in ('/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+                try:
+                    v = open(p).read().strip()
+                    if v.isdigit() and int(v) < (1 << 62):
+                        info['conteneur_limite_mb'] = _mb(v); break
+                except Exception:
+                    pass
+            # Usage mémoire courant du conteneur (tous process)
+            for p in ('/sys/fs/cgroup/memory.current', '/sys/fs/cgroup/memory/memory.usage_in_bytes'):
+                try:
+                    v = open(p).read().strip()
+                    if v.isdigit():
+                        info['conteneur_usage_mb'] = _mb(v); break
+                except Exception:
+                    pass
+            try:
+                info['cpu_count'] = os.cpu_count()
+            except Exception:
+                pass
+            # Estimation : combien de workers tiendraient
+            rss = info.get('worker_rss_mb'); lim = info.get('conteneur_limite_mb')
+            if rss and lim:
+                info['workers_estimes_max'] = max(1, int((lim * 0.85) / rss))
+            info['config_actuelle'] = 'gunicorn --workers 1 --threads 8'
+            return jsonify({'success': True, **info})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/etude', methods=['GET'])
     def industriel_etude():
         """Photographie statistique complète de la base (pour étude de marché)."""
