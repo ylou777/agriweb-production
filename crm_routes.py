@@ -2768,14 +2768,39 @@ def register_crm_routes(app):
                 except Exception:
                     pass
             try:
-                info['cpu_count'] = os.cpu_count()
+                info['cpu_count_hote'] = os.cpu_count()
             except Exception:
                 pass
-            # Estimation : combien de workers tiendraient
+            # vCPU RÉELLEMENT alloué au conteneur (cgroup) — la vraie contrainte
+            try:
+                cm = open('/sys/fs/cgroup/cpu.max').read().split()
+                if cm and cm[0] != 'max':
+                    info['vcpu_alloue'] = round(int(cm[0]) / int(cm[1]), 2)
+            except Exception:
+                try:
+                    q = int(open('/sys/fs/cgroup/cpu/cpu.cfs_quota_us').read())
+                    p = int(open('/sys/fs/cgroup/cpu/cpu.cfs_period_us').read())
+                    if q > 0:
+                        info['vcpu_alloue'] = round(q / p, 2)
+                except Exception:
+                    pass
+            # nb de process gunicorn (workers) effectivement lancés
+            try:
+                n = 0
+                for d in os.listdir('/proc'):
+                    if d.isdigit():
+                        try:
+                            cl = open(f'/proc/{d}/cmdline', 'rb').read()
+                            if b'gunicorn' in cl:
+                                n += 1
+                        except Exception:
+                            pass
+                info['process_gunicorn'] = n
+            except Exception:
+                pass
             rss = info.get('worker_rss_mb'); lim = info.get('conteneur_limite_mb')
             if rss and lim:
-                info['workers_estimes_max'] = max(1, int((lim * 0.85) / rss))
-            info['config_actuelle'] = 'gunicorn --workers 1 --threads 8'
+                info['workers_max_RAM'] = max(1, int((lim * 0.85) / rss))
             return jsonify({'success': True, **info})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

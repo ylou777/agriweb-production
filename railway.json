@@ -4,7 +4,7 @@
     "buildCommand": "git submodule update --init --recursive"
   },
   "deploy": {
-    "startCommand": "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 4 --threads 8 --timeout 600 --graceful-timeout 600 --keep-alive 5",
+    "startCommand": "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 600 --graceful-timeout 600 --keep-alive 5",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
