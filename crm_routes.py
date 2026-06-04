@@ -44,6 +44,16 @@ REGION_NOMS = {
     '84': 'Auvergne-Rhône-Alpes', '93': "Provence-Alpes-Côte d'Azur", '94': 'Corse',
 }
 
+# Offre SaaS prospection industrielle (abonnement mensuel). Montants en centimes.
+INDUSTRIEL_PLANS = {
+    'solo': {'amount': 14900, 'territory': 'dept', 'label': 'Solo',
+             'name': 'HeliaPV Industriel — Solo',
+             'desc': '1 département · prospects industriels pré-chargés (opérateur, conso, autoconso)'},
+    'pro':  {'amount': 49000, 'territory': 'region', 'label': 'Pro',
+             'name': 'HeliaPV Industriel — Pro',
+             'desc': '1 région entière · + calepinage 3D'},
+}
+
 
 def _slim_json_value(v, key=None):
     """Allège récursivement un data_json pour la LISTE (vignettes) : retire les
@@ -2555,6 +2565,15 @@ def register_crm_routes(app):
             return redirect('/auth/login')
         return render_template('crm_industriel.html', is_admin=is_admin)
 
+    @app.route('/crm/offre')
+    def crm_offre_page():
+        """Page client : choisir un territoire et s'abonner (Stripe)."""
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return redirect('/auth/login?next=/crm/offre')
+        stripe_pub = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+        return render_template('crm_offre.html', stripe_pub=stripe_pub)
+
     @app.route('/api/industriel/scan-inject', methods=['POST'])
     def industriel_scan_inject():
         """Lance un scan industriel et INJECTE les résultats dans le CRM dédié."""
@@ -2813,6 +2832,14 @@ def register_crm_routes(app):
                     expires_at TIMESTAMP
                 )
             """)
+            for ddl in (
+                "ALTER TABLE user_territories ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT",
+                "ALTER TABLE user_territories ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT",
+            ):
+                try:
+                    execute_query(ddl)
+                except Exception:
+                    pass
         except Exception as e:
             print(f"⚠️ [TERRITORIES] ensure table: {e}")
 
@@ -2839,6 +2866,51 @@ def register_crm_routes(app):
         except Exception as e:
             print(f"⚠️ [TERRITORIES] resolve email: {e}")
             return None
+
+    def _email_by_user_id(user_id):
+        """user_id → email (auth db SQLite). None si introuvable."""
+        try:
+            from auth_database import get_auth_db
+            conn = get_auth_db(); cur = conn.cursor()
+            cur.execute("SELECT email FROM users WHERE id = ?", (str(user_id),))
+            row = cur.fetchone(); conn.close()
+            return row[0] if row else None
+        except Exception:
+            return None
+
+    def _grant_territory(target_id, ttype, code, plan=None, months=0, granted_by=None,
+                         stripe_subscription_id=None, stripe_customer_id=None, do_preload=False):
+        """Enregistre un droit territorial et, en option, pré-charge le CRM.
+        Retourne {preload, preload_total}."""
+        _ensure_territories_table()
+        months = int(months or 0)
+        expires_sql = "CURRENT_TIMESTAMP + (%s || ' months')::interval" if months > 0 else "NULL"
+        params = [str(target_id), ttype, code or 'FR', plan,
+                  str(granted_by) if granted_by is not None else None,
+                  stripe_subscription_id, stripe_customer_id]
+        if months > 0:
+            params.append(str(months))
+        execute_query(
+            "INSERT INTO user_territories "
+            "(user_id, territory_type, territory_code, plan, granted_by, "
+            " stripe_subscription_id, stripe_customer_id, expires_at) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s, {expires_sql})", tuple(params))
+        result = {'preload': None, 'preload_total': 0}
+        if do_preload:
+            depts = _expand_territory(ttype, code)
+            if depts == '*':
+                depts = [r['d'] for r in (execute_query(
+                    "SELECT DISTINCT LEFT(code_commune,2) AS d FROM industrial_prospects "
+                    "WHERE code_commune IS NOT NULL", fetch_all=True) or [])]
+            pre = []
+            for d in depts:
+                try:
+                    pre.append({'dept': d, **_precharger_dept_into(d, target_id)})
+                except Exception as e:
+                    pre.append({'dept': d, 'error': str(e)})
+            result['preload'] = pre
+            result['preload_total'] = sum(x.get('copied', 0) for x in pre)
+        return result
 
     def _user_entitled_depts(user_id):
         """Ensemble des départements auxquels l'utilisateur a droit (droits actifs).
@@ -2881,31 +2953,13 @@ def register_crm_routes(app):
             target_id = _resolve_user_id_by_email(email)
             if target_id is None:
                 return jsonify({'success': False, 'error': f'Utilisateur {email} introuvable'}), 404
-            _ensure_territories_table()
-            expires_sql = "CURRENT_TIMESTAMP + (%s || ' months')::interval" if months > 0 else "NULL"
-            params = [str(target_id), ttype, code or 'FR', plan, str(caller_id)]
-            if months > 0:
-                params.append(str(months))
-            execute_query(
-                f"INSERT INTO user_territories (user_id, territory_type, territory_code, plan, granted_by, expires_at) "
-                f"VALUES (%s, %s, %s, %s, %s, {expires_sql})", tuple(params))
+            g = _grant_territory(target_id, ttype, code, plan=plan, months=months,
+                                 granted_by=caller_id, do_preload=preload)
             result = {'success': True, 'email': email, 'user_id': target_id,
                       'type': ttype, 'code': code, 'plan': plan, 'months': months or None}
             if preload:
-                depts = _expand_territory(ttype, code)
-                if depts == '*':
-                    depts = [r['d'] for r in (execute_query(
-                        "SELECT DISTINCT LEFT(code_commune,2) AS d FROM industrial_prospects "
-                        "WHERE code_commune IS NOT NULL", fetch_all=True) or [])]
-                pre = []
-                for d in depts:
-                    try:
-                        r = _precharger_dept_into(d, target_id)
-                        pre.append({'dept': d, **r})
-                    except Exception as e:
-                        pre.append({'dept': d, 'error': str(e)})
-                result['preload'] = pre
-                result['preload_total'] = sum(x.get('copied', 0) for x in pre)
+                result['preload'] = g.get('preload')
+                result['preload_total'] = g.get('preload_total')
             return jsonify(result)
         except Exception as e:
             print(f"❌ [TERRITOIRE GRANT] {e}")
@@ -3112,6 +3166,117 @@ def register_crm_routes(app):
         except Exception as e:
             print(f"❌ [PRECHARGER] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/checkout', methods=['POST'])
+    def industriel_checkout():
+        """Crée une session Stripe Checkout en mode ABONNEMENT pour un territoire.
+        Le territoire choisi voyage dans la metadata → le webhook accorde le droit
+        et pré-charge le CRM après paiement. Body: {plan(solo|pro), code}."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if caller_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            data = request.get_json(silent=True) or {}
+            plan = (data.get('plan') or '').lower()
+            if plan == 'enterprise':
+                return jsonify({'success': False,
+                                'error': 'Le plan Entreprise (national) est sur devis — contactez-nous.'}), 400
+            if plan not in INDUSTRIEL_PLANS:
+                return jsonify({'success': False, 'error': 'Plan invalide'}), 400
+            cfg = INDUSTRIEL_PLANS[plan]
+            ttype = cfg['territory']
+            code = (data.get('code') or '').strip().upper()
+            if ttype == 'dept':
+                code = code.zfill(2) if code.isdigit() else code
+                if not code:
+                    return jsonify({'success': False, 'error': 'Département requis'}), 400
+            elif ttype == 'region':
+                if code not in REGION_DEPTS:
+                    return jsonify({'success': False, 'error': 'Région invalide'}), 400
+
+            try:
+                import stripe as _stripe
+            except Exception:
+                return jsonify({'success': False, 'error': 'Librairie Stripe absente'}), 500
+            _stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+            if not _stripe.api_key:
+                return jsonify({'success': False, 'error': 'Stripe non configuré (clé manquante)'}), 500
+
+            email = _email_by_user_id(caller_id) or (data.get('email') or '').strip() or None
+            meta = {'user_id': str(caller_id), 'user_email': email or '',
+                    'territory_type': ttype, 'territory_code': code, 'plan': plan}
+            root = request.url_root
+            try:
+                cs = _stripe.checkout.Session.create(
+                    mode='subscription',
+                    payment_method_types=['card'],
+                    line_items=[{
+                        'price_data': {
+                            'currency': 'eur',
+                            'product_data': {'name': cfg['name'], 'description': cfg['desc']},
+                            'unit_amount': cfg['amount'],
+                            'recurring': {'interval': 'month'},
+                        },
+                        'quantity': 1,
+                    }],
+                    client_reference_id=str(caller_id),
+                    customer_email=email,
+                    metadata=meta,
+                    subscription_data={'metadata': meta},
+                    success_url=root + 'crm/industriel?abonnement=ok',
+                    cancel_url=root + 'crm/offre?annule=1',
+                )
+            except _stripe.error.AuthenticationError:
+                return jsonify({'success': False, 'error': 'Clés Stripe invalides'}), 500
+            except _stripe.error.StripeError as e:
+                return jsonify({'success': False, 'error': f'Stripe: {e}'}), 500
+            return jsonify({'success': True, 'url': cs.url})
+        except Exception as e:
+            print(f"❌ [CHECKOUT] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/stripe-webhook', methods=['POST'])
+    def industriel_stripe_webhook():
+        """Webhook Stripe dédié à l'offre territoire. Sur paiement abouti :
+        accorde le droit + pré-charge le CRM. Sur résiliation : révoque."""
+        try:
+            import stripe as _stripe
+        except Exception:
+            return jsonify({'error': 'stripe absent'}), 500
+        _stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+        secret = os.environ.get('STRIPE_INDUSTRIEL_WEBHOOK_SECRET') or os.environ.get('STRIPE_WEBHOOK_SECRET')
+        payload = request.get_data(as_text=True)
+        sig = request.headers.get('Stripe-Signature')
+        try:
+            event = _stripe.Webhook.construct_event(payload, sig, secret)
+        except Exception as e:
+            print(f"⚠️ [STRIPE WEBHOOK] signature invalide: {e}")
+            return jsonify({'error': 'signature'}), 400
+        try:
+            etype = event['type']
+            obj = event['data']['object']
+            if etype == 'checkout.session.completed':
+                meta = obj.get('metadata') or {}
+                target_id = meta.get('user_id') or obj.get('client_reference_id')
+                ttype = meta.get('territory_type')
+                code = meta.get('territory_code')
+                plan = meta.get('plan')
+                sub = obj.get('subscription')
+                cust = obj.get('customer')
+                if target_id and ttype:
+                    g = _grant_territory(target_id, ttype, code, plan=plan, granted_by='stripe',
+                                         stripe_subscription_id=sub, stripe_customer_id=cust,
+                                         do_preload=True)
+                    print(f"✅ [STRIPE] abonnement {plan} {ttype}/{code} → user {target_id}, "
+                          f"{g.get('preload_total')} prospects pré-chargés")
+            elif etype == 'customer.subscription.deleted':
+                sub_id = obj.get('id')
+                if sub_id:
+                    execute_query("DELETE FROM user_territories WHERE stripe_subscription_id = %s", (sub_id,))
+                    print(f"🚫 [STRIPE] abonnement {sub_id} résilié → droits révoqués")
+        except Exception as e:
+            print(f"❌ [STRIPE WEBHOOK] traitement: {e}")
+        return jsonify({'received': True})
 
     @app.route('/api/industriel/geocode/start', methods=['POST'])
     def geocode_start():

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HeliaPV — Abonnement prospection industrielle</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background:#0f1420; color:#e2e8f0; font-family:'Poppins',Arial,sans-serif; }
+  .navbar-brand { color:#fbbf24; font-weight:700; }
+  .card { background:#1a2030; border:1px solid rgba(255,255,255,.08); }
+  .form-control, .form-select { background:#0f1420; border-color:rgba(255,255,255,.15); color:#e2e8f0; }
+  .form-control:focus, .form-select:focus { background:#0f1420; color:#e2e8f0; border-color:#fbbf24; box-shadow:none; }
+  .muted { color:#8b93a7; font-size:.85rem; }
+  .plan { cursor:pointer; transition:.15s; }
+  .plan:hover { border-color:rgba(34,197,94,.5); }
+  .plan.sel { border-color:#22c55e; box-shadow:0 0 0 2px rgba(34,197,94,.35); }
+  .price { font-size:2rem; font-weight:800; color:#22c55e; }
+  .price small { font-size:.9rem; color:#8b93a7; font-weight:400; }
+</style>
+</head>
+<body>
+<nav class="navbar px-3 mb-3" style="background:#161b29;border-bottom:1px solid rgba(255,255,255,.08);">
+  <span class="navbar-brand"><i class="bi bi-bag-check-fill"></i> Offre prospection industrielle</span>
+  <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> Retour</a>
+</nav>
+
+<div class="container" style="max-width:960px;">
+  <p class="muted mb-3">Abonnez-vous à un territoire : votre CRM se remplit automatiquement des <b>prospects industriels gros consommateurs</b> (opérateur décideur + SIREN, conso Enedis, diagnostic autoconsommation, calepinage) de la zone choisie.</p>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card plan h-100" data-plan="solo" onclick="choisir('solo')"><div class="card-body">
+        <h5 class="mb-1">Solo</h5>
+        <div class="price">149€ <small>/ mois</small></div>
+        <ul class="muted mt-2 mb-0" style="padding-left:1.1rem;">
+          <li>1 département au choix</li>
+          <li>Prospects pré-chargés en vignettes</li>
+          <li>Opérateur, conso, autoconso</li>
+        </ul>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card plan h-100" data-plan="pro" onclick="choisir('pro')"><div class="card-body">
+        <h5 class="mb-1">Pro</h5>
+        <div class="price">490€ <small>/ mois</small></div>
+        <ul class="muted mt-2 mb-0" style="padding-left:1.1rem;">
+          <li>1 région entière</li>
+          <li>Tout le Solo, +</li>
+          <li>Calepinage 3D</li>
+        </ul>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card plan h-100" data-plan="enterprise" onclick="choisir('enterprise')"><div class="card-body">
+        <h5 class="mb-1">Entreprise</h5>
+        <div class="price">Devis</div>
+        <ul class="muted mt-2 mb-0" style="padding-left:1.1rem;">
+          <li>France entière</li>
+          <li>Accès national au gisement</li>
+          <li>Sur mesure</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card mt-3" id="zoneTerr" style="display:none;"><div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto" id="wrapDept">
+        <label class="muted">Département</label>
+        <input id="terrDept" class="form-control form-control-sm" style="width:110px" placeholder="ex: 69">
+      </div>
+      <div class="col-auto" id="wrapRegion" style="display:none;">
+        <label class="muted">Région</label>
+        <select id="terrRegion" class="form-select form-select-sm" style="width:240px"></select>
+      </div>
+      <div class="col-auto">
+        <button id="payBtn" class="btn btn-success" onclick="souscrire()"><i class="bi bi-credit-card"></i> S'abonner</button>
+      </div>
+      <div class="col-auto"><span id="payMsg" class="muted"></span></div>
+    </div>
+  </div></div>
+
+  <div class="card mt-3" id="zoneDevis" style="display:none;"><div class="card-body">
+    <p class="mb-1"><i class="bi bi-envelope"></i> Le plan <b>Entreprise</b> (accès national) est sur devis.</p>
+    <p class="muted mb-0">Contactez-nous à <a href="mailto:contact@heliapv.fr" class="text-warning">contact@heliapv.fr</a> pour un accès national au gisement.</p>
+  </div></div>
+</div>
+
+<script>
+const REGIONS={'11':'Île-de-France','24':'Centre-Val de Loire','27':'Bourgogne-Franche-Comté','28':'Normandie','32':'Hauts-de-France','44':'Grand Est','52':'Pays de la Loire','53':'Bretagne','75':'Nouvelle-Aquitaine','76':'Occitanie','84':'Auvergne-Rhône-Alpes','93':"Provence-Alpes-Côte d'Azur",'94':'Corse'};
+let planSel=null;
+(function(){ const s=document.getElementById('terrRegion'); s.innerHTML=Object.entries(REGIONS).map(([k,v])=>`<option value="${k}">${v}</option>`).join(''); })();
+function choisir(p){
+  planSel=p;
+  document.querySelectorAll('.plan').forEach(c=>c.classList.toggle('sel', c.dataset.plan===p));
+  const terr=document.getElementById('zoneTerr'), devis=document.getElementById('zoneDevis');
+  if(p==='enterprise'){ terr.style.display='none'; devis.style.display=''; return; }
+  devis.style.display='none'; terr.style.display='';
+  document.getElementById('wrapDept').style.display = p==='solo'?'':'none';
+  document.getElementById('wrapRegion').style.display = p==='pro'?'':'none';
+}
+async function souscrire(){
+  const msg=document.getElementById('payMsg'), btn=document.getElementById('payBtn');
+  let code=''; if(planSel==='solo') code=document.getElementById('terrDept').value.trim(); else if(planSel==='pro') code=document.getElementById('terrRegion').value;
+  if(!planSel){ msg.innerHTML='<span class="text-warning">Choisis une offre.</span>'; return; }
+  if(planSel!=='enterprise' && !code){ msg.innerHTML='<span class="text-warning">Indique le territoire.</span>'; return; }
+  btn.disabled=true; msg.textContent='Redirection vers le paiement…';
+  try{
+    const r=await fetch('/api/industriel/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:planSel,code})});
+    const j=await r.json();
+    if(j.success && j.url){ window.location.href=j.url; }
+    else { msg.innerHTML=`<span class="text-danger">${j.error||'Erreur'}</span>`; btn.disabled=false; }
+  }catch(e){ msg.innerHTML=`<span class="text-danger">${e}</span>`; btn.disabled=false; }
+}
+</script>
+</body>
+</html>
