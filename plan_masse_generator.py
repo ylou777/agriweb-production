@@ -1759,6 +1759,22 @@ class PlanMasseGenerator:
                     except:
                         pass
         
+        # Aucune parcelle stockée (cas des prospects industriels pré-chargés sans
+        # volet foncier) : récupération LIVE au point via l'API Cadastre IGN.
+        # En mode calpinage, l'enrichissement renvoie les parcelles sous les zones PV ;
+        # sinon il renvoie la parcelle contenant le point.
+        lat = self.data.get('latitude') or self.data.get('lat')
+        lon = self.data.get('longitude') or self.data.get('lon')
+        if lat and lon:
+            print(f"[PLAN] 🛰️ Aucune parcelle stockée — récupération live au point ({lat},{lon})")
+            try:
+                live = self._enrich_parcelles_with_geometry([])
+                if live:
+                    print(f"[PLAN] ✅ {len(live)} parcelle(s) récupérée(s) en direct (cadastre IGN)")
+                    return live
+            except Exception as _e:
+                print(f"[PLAN] ⚠️ Récupération live échouée: {_e}")
+
         print(f"[PLAN] ÔÜá´©Å Aucune parcelle cadastrale trouv├®e dans les donn├®es prospect")
         print(f"[PLAN] Champs disponibles: {list(self.data.keys())}")
         return []
@@ -1903,6 +1919,34 @@ class PlanMasseGenerator:
                     print(f"[PLAN] Ô£à {len(enriched)} parcelles intersectant les zones PV")
                     return enriched
                 
+                # Cas industriel (aucune parcelle d'entrée, pas de calpinage) :
+                # renvoyer la parcelle qui CONTIENT le point ; à défaut, toutes
+                # celles de la bbox (contexte local du plan de masse).
+                if not parcelles:
+                    from shapely.geometry import shape as _shape, Point as _Point
+                    lat0 = self.data.get('latitude') or self.data.get('lat')
+                    lon0 = self.data.get('longitude') or self.data.get('lon')
+                    pt = _Point(lon0, lat0) if (lat0 and lon0) else None
+                    fmt = lambda feat: {
+                        "section": feat.get('properties', {}).get('section', ''),
+                        "numero": feat.get('properties', {}).get('numero', ''),
+                        "surface": feat.get('properties', {}).get('contenance', 0),
+                        "commune": feat.get('properties', {}).get('commune', ''),
+                        "code_insee": feat.get('properties', {}).get('code_insee', ''),
+                        "geometry": feat.get('geometry', {}), "geojson": feat,
+                    }
+                    out = []
+                    for feat in api_features:
+                        try:
+                            if pt is not None and _shape(feat.get('geometry', {})).contains(pt):
+                                print(f"[PLAN] ✅ Parcelle du point: {feat.get('properties',{}).get('section')}{feat.get('properties',{}).get('numero')}")
+                                return [fmt(feat)]
+                        except Exception:
+                            pass
+                        out.append(fmt(feat))
+                    print(f"[PLAN] ✅ {len(out)} parcelle(s) de la bbox (aucune ne contient le point)")
+                    return out
+
                 # Mode normal: enrichir les parcelles existantes
                 # Afficher les premi├¿res parcelles de l'API pour debug
                 for i, feat in enumerate(api_features[:3]):
