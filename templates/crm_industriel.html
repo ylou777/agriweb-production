@@ -32,6 +32,17 @@
 </nav>
 
 <div class="container-fluid">
+  <!-- Vue d'ensemble du pipeline (admin) -->
+  <div class="card mb-3" id="overviewCard" style="display:none;border-color:rgba(251,191,36,.35)"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0" style="color:#fbbf24;"><i class="bi bi-diagram-3"></i> Vue d'ensemble du pipeline</h6>
+      <button type="button" class="btn btn-sm btn-outline-light" onclick="chargerOverview()"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+    <div class="row g-2" id="overviewBody">
+      <div class="col-12 muted">Chargement…</div>
+    </div>
+  </div></div>
+
   <!-- Lanceur de scan -->
   <div class="card mb-3"><div class="card-body">
     <h6 class="mb-3" style="color:#fbbf24;"><i class="bi bi-radar"></i> Scanner un territoire</h6>
@@ -437,12 +448,50 @@ async function revoquer(id){
   chargerDroits();
 }
 
+/* ---- Vue d'ensemble du pipeline (admin) ---- */
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+function bar(pct,color){ return `<div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:4px"><div style="height:100%;width:${Math.min(100,pct||0)}%;background:${color||'#fbbf24'}"></div></div>`; }
+function statutPill(s){
+  if(!s) return '<span class="muted">—</span>';
+  const m={running:['#22c55e','en cours'],done:['#38bdf8','terminé'],stopped:['#f59e0b','stoppé'],error:['#ef4444','erreur']};
+  const c=m[s]||['#8b93a7',s];
+  return `<span style="color:${c[0]};font-weight:600">● ${c[1]}</span>`;
+}
+async function chargerOverview(){
+  if(!IS_ADMIN) return;
+  const box=document.getElementById('overviewBody');
+  try{
+    const j=await (await fetch('/api/industriel/overview')).json();
+    if(!j.success){ box.innerHTML=`<div class="col-12 text-danger">${j.error||'Erreur'}</div>`; return; }
+    const G=j.gisement, GE=j.geocodage, C=j.commercialisation, JB=j.jobs;
+    const cell=(titre,contenu)=>`<div class="col-md-3 col-6"><div class="p-2" style="background:rgba(255,255,255,.03);border-radius:8px;height:100%">${titre}${contenu}</div></div>`;
+    box.innerHTML =
+      cell(`<div class="muted"><i class="bi bi-database"></i> Gisement</div>`,
+           `<div style="font-size:1.5rem;font-weight:700;color:#fbbf24">${fmt(G.total)}</div>
+            <div class="muted">${fmt(G.depts)} dépts · ${G.twh} TWh/an</div>`)
+    + cell(`<div class="muted"><i class="bi bi-person-badge"></i> Opérateurs ${statutPill(JB.operateurs&&JB.operateurs.status)}</div>`,
+           `<div style="font-size:1.5rem;font-weight:700">${G.pct_operateur}%</div>
+            <div class="muted">${fmt(G.avec_operateur)} décideurs</div>${bar(G.pct_operateur,'#38bdf8')}`)
+    + cell(`<div class="muted"><i class="bi bi-geo-alt"></i> Géocodage ${statutPill(GE.status)}</div>`,
+           `<div style="font-size:1.5rem;font-weight:700;color:#22c55e">${GE.pct}%</div>
+            <div class="muted">${fmt(GE.geocodes)} faits · ${fmt(GE.restants)} restants</div>${bar(GE.pct,'#22c55e')}`)
+    + cell(`<div class="muted"><i class="bi bi-bag-check"></i> Commercialisation</div>`,
+           `<div style="font-size:1.5rem;font-weight:700">${fmt(C.clients)}</div>
+            <div class="muted">client(s) · ${fmt(C.droits)} territoire(s)</div>
+            <div class="muted">${fmt(C.vignettes_prechargees)} vignettes pré-chargées</div>`)
+    + `<div class="col-12 mt-1"><span class="muted">Scan France ${statutPill(JB.scan_france&&JB.scan_france.status)} · `
+    + `Abonnés Stripe : ${fmt(C.abonnes_stripe)} · `
+    + `Stripe ${j.stripe_configure?'<span style="color:#22c55e">configuré</span>':'<span style="color:#f59e0b">non configuré</span>'}</span></div>`;
+  }catch(e){ box.innerHTML=`<div class="col-12 text-danger">${e}</div>`; }
+}
+
 initNafSelect();
 initRegionSelect();
 chargerListe();
 chargerStats();
 chargerDroits();
 pollGeocodage();
+if(IS_ADMIN){ document.getElementById('overviewCard').style.display=''; chargerOverview(); setInterval(chargerOverview, 15000); }
 _statTimer = setInterval(chargerStats, 10000);  // suivi auto toutes les 10 s
 </script>
 </body>

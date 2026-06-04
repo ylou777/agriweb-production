@@ -3621,6 +3621,86 @@ def register_crm_routes(app):
             print(f"❌ [INDUSTRIEL STATS] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/industriel/overview', methods=['GET'])
+    def industriel_overview():
+        """Vision d'ensemble admin : état complet du pipeline en un seul appel
+        (gisement → opérateurs → géocodage → commercialisation → abonnements)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            _ensure_industrial_table(); _ensure_scan_jobs_table(); _ensure_territories_table()
+
+            # 1) Gisement
+            g = execute_query(
+                "SELECT COUNT(*) AS total, COUNT(operateur_nom) AS avec_op, "
+                "COUNT(lat) AS geocodes, COALESCE(SUM(conso_mwh),0) AS conso_mwh, "
+                "COUNT(DISTINCT LEFT(code_commune,2)) AS depts, "
+                "COUNT(*) FILTER (WHERE adresse IS NOT NULL AND adresse <> '') AS avec_adresse "
+                "FROM industrial_prospects", fetch_one=True) or {}
+            total = g.get('total', 0) or 0
+            avec_adresse = g.get('avec_adresse', 0) or 0
+            geocodes = g.get('geocodes', 0) or 0
+            avec_op = g.get('avec_op', 0) or 0
+
+            def _job(t):
+                j = execute_query("SELECT status, updated_at FROM scan_jobs WHERE type=%s "
+                                  "ORDER BY id DESC LIMIT 1", (t,), fetch_one=True)
+                return {'status': j.get('status'), 'updated_at': str(j.get('updated_at'))} if j else None
+
+            # 2) Jobs autonomes
+            jobs = {'scan_france': _job('france'), 'operateurs': _job('operators'),
+                    'geocodage': _job('geocode')}
+            geo_restants = execute_query(
+                "SELECT COUNT(*) AS n FROM industrial_prospects "
+                "WHERE lat IS NULL AND COALESCE(geo_tried,0)=0 "
+                "AND adresse IS NOT NULL AND adresse <> ''", fetch_one=True) or {}
+
+            # 3) Commercialisation / droits
+            terr = execute_query(
+                "SELECT COUNT(*) AS droits, COUNT(DISTINCT user_id) AS clients, "
+                "COUNT(*) FILTER (WHERE stripe_subscription_id IS NOT NULL) AS abonnes_stripe "
+                "FROM user_territories "
+                "WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP", fetch_one=True) or {}
+            par_type = execute_query(
+                "SELECT territory_type, COUNT(*) AS n FROM user_territories "
+                "WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP "
+                "GROUP BY territory_type", fetch_all=True) or []
+
+            # 4) Vignettes pré-chargées dans les CRM clients (tous users)
+            pre = execute_query(
+                "SELECT COUNT(*) AS vignettes, COUNT(DISTINCT user_id) AS crms "
+                "FROM agriweb_prospects WHERE type='industriel'", fetch_one=True) or {}
+
+            return jsonify({'success': True,
+                'gisement': {
+                    'total': total, 'depts': g.get('depts', 0),
+                    'twh': round((g.get('conso_mwh', 0) or 0) / 1_000_000, 2),
+                    'avec_adresse': avec_adresse,
+                    'avec_operateur': avec_op,
+                    'pct_operateur': round(100 * avec_op / total) if total else 0,
+                },
+                'geocodage': {
+                    'geocodes': geocodes,
+                    'restants': geo_restants.get('n', 0),
+                    'pct': round(100 * geocodes / avec_adresse) if avec_adresse else 0,
+                    'status': (jobs['geocodage'] or {}).get('status'),
+                },
+                'jobs': jobs,
+                'commercialisation': {
+                    'clients': terr.get('clients', 0),
+                    'droits': terr.get('droits', 0),
+                    'abonnes_stripe': terr.get('abonnes_stripe', 0),
+                    'par_type': {r['territory_type']: r['n'] for r in par_type if r.get('territory_type')},
+                    'vignettes_prechargees': pre.get('vignettes', 0),
+                    'crms_remplis': pre.get('crms', 0),
+                },
+                'stripe_configure': bool(os.environ.get('STRIPE_SECRET_KEY')),
+            })
+        except Exception as e:
+            print(f"❌ [OVERVIEW] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/prospects/<int:pid>', methods=['PATCH', 'DELETE'])
     def industriel_prospect_edit(pid):
         try:
