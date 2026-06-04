@@ -2954,9 +2954,23 @@ def register_crm_routes(app):
             else:
                 rows = execute_query("SELECT * FROM user_territories WHERE user_id = %s ORDER BY granted_at DESC",
                                      (str(caller_id),), fetch_all=True) or []
+            # Attache l'email (affichage) en un seul aller-retour auth db
+            try:
+                from auth_database import get_auth_db
+                conn = get_auth_db(); cur = conn.cursor()
+                emap = {}
+                for uid in {str(r.get('user_id')) for r in rows}:
+                    cur.execute("SELECT email FROM users WHERE id = ?", (uid,))
+                    er = cur.fetchone()
+                    if er:
+                        emap[uid] = er[0]
+                conn.close()
+            except Exception:
+                emap = {}
             for r in rows:
                 if r.get('territory_type') == 'region':
                     r['territory_nom'] = REGION_NOMS.get((r.get('territory_code') or '').upper())
+                r['user_email'] = emap.get(str(r.get('user_id')))
             return jsonify({'success': True, 'territoires': rows})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
