@@ -91,7 +91,16 @@
         <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(-1)" id="prevBtn"><i class="bi bi-chevron-left"></i></button>
         <span id="pageInfo" class="muted" style="min-width:120px;text-align:center;"></span>
         <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(1)" id="nextBtn"><i class="bi bi-chevron-right"></i></button>
-        <input id="filtreDept" class="form-control form-control-sm" style="width:130px" placeholder="Filtrer dept" onchange="_listOffset=0;chargerListe()">
+        <input id="filtreDept" class="form-control form-control-sm" style="width:95px" placeholder="Dept" onchange="_listOffset=0;chargerListe()">
+        <select id="filtreNaf" class="form-select form-select-sm" style="width:185px" onchange="_listOffset=0;chargerListe()"></select>
+        <select id="filtreConso" class="form-select form-select-sm" style="width:155px" onchange="_listOffset=0;chargerListe()">
+          <option value="">Toutes consos</option>
+          <option value="330-1000">330 – 1 000 MWh</option>
+          <option value="1000-3000">1 000 – 3 000 MWh</option>
+          <option value="3000-10000">3 000 – 10 000 MWh</option>
+          <option value="10000-30000">10 000 – 30 000 MWh</option>
+          <option value="30000-">30 000+ MWh</option>
+        </select>
         <button type="button" class="btn btn-sm btn-outline-light" onclick="chargerListe()"><i class="bi bi-arrow-clockwise"></i></button>
       </div>
     </div>
@@ -225,12 +234,25 @@ function pageList(dir){
   if(ns < 0 || ns >= _listTotal) return;
   _listOffset = ns; chargerListe();
 }
+const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
+function initNafSelect(){
+  const sel=document.getElementById('filtreNaf'); if(!sel||sel.options.length) return;
+  sel.title='Filtrer par secteur';
+  let h='<option value="">Tous secteurs</option>';
+  Object.entries(NAF_LABELS).forEach(([c,l])=>h+=`<option value="${c}">NAF${c} · ${l}</option>`);
+  sel.innerHTML=h;
+  const c=document.getElementById('filtreConso'); if(c) c.title='Filtrer par tranche de conso';
+}
 async function chargerListe(){
   const tb = document.getElementById('rows');
   const dept = (document.getElementById('filtreDept')?.value||'').trim();
+  const naf2 = (document.getElementById('filtreNaf')?.value||'').trim();
+  const tr = (document.getElementById('filtreConso')?.value||'').trim();
   try{
     const qs = new URLSearchParams({offset:_listOffset, limit:_listPageSize});
     if(dept) qs.set('dept', dept);
+    if(naf2) qs.set('naf2', naf2);
+    if(tr){ const [a,b]=tr.split('-'); if(a) qs.set('conso_min',a); if(b) qs.set('conso_max',b); }
     const j = await (await fetch('/api/industriel/prospects?'+qs)).json();
     const ps = j.prospects||[];
     _listTotal = j.total||0; _listPageSize = j.limit||200;
@@ -249,7 +271,7 @@ async function chargerListe(){
       const opts = STATUTS.map(s=>`<option ${p.statut===s?'selected':''}>${s}</option>`).join('');
       return `<tr>
         <td class="conso">${fmt(p.conso_mwh)} MWh</td>
-        <td><span class="badge badge-naf">NAF ${p.naf2||'?'}</span></td>
+        <td><span class="badge badge-naf" title="NAF ${p.naf2||'?'}">${p.naf2?(NAF_LABELS[p.naf2]||('NAF'+p.naf2)):'—'}</span></td>
         <td>${p.commune||''}</td>
         <td class="muted">${p.adresse||''}</td>
         <td>${op}</td>
@@ -269,6 +291,7 @@ async function suppr(id){
   await fetch('/api/industriel/prospects/'+id,{method:'DELETE'});
   chargerListe();
 }
+initNafSelect();
 chargerListe();
 chargerStats();
 _statTimer = setInterval(chargerStats, 10000);  // suivi auto toutes les 10 s

@@ -2706,6 +2706,9 @@ def register_crm_routes(app):
                 return jsonify({'success': False, 'error': 'Authentification requise'}), 401
             _ensure_industrial_table()
             dept = (request.args.get('dept') or '').strip()
+            naf2 = (request.args.get('naf2') or '').strip()
+            conso_min = request.args.get('conso_min')
+            conso_max = request.args.get('conso_max')
             limit = min(int(request.args.get('limit') or 200), 500)
             offset = max(int(request.args.get('offset') or 0), 0)
             clause, params = "", []
@@ -2713,6 +2716,12 @@ def register_crm_routes(app):
                 clause += " AND user_id = %s"; params.append(str(user_id))
             if dept:
                 clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
+            if naf2:
+                clause += " AND naf2 = %s"; params.append(naf2)
+            if conso_min:
+                clause += " AND conso_mwh >= %s"; params.append(float(conso_min))
+            if conso_max:
+                clause += " AND conso_mwh < %s"; params.append(float(conso_max))
             total = execute_query(
                 f"SELECT COUNT(*) AS n FROM industrial_prospects WHERE 1=1{clause}",
                 tuple(params) if params else None, fetch_one=True) or {}
