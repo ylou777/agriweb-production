@@ -2235,10 +2235,12 @@ def register_crm_routes(app):
                 current_dept TEXT,
                 total_injected INTEGER DEFAULT 0,
                 total_skipped INTEGER DEFAULT 0,
+                claimed_at TIMESTAMP,
                 started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        execute_query("ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP")
 
     def _all_depts():
         d = [f"{i:02d}" for i in range(1, 96) if i != 20]
@@ -2316,7 +2318,7 @@ def register_crm_routes(app):
                 done = json.loads(job.get('depts_done') or '[]'); done.append(dept)
                 execute_query("""UPDATE scan_jobs SET depts_todo=%s, depts_done=%s,
                                  total_injected=total_injected+%s, total_skipped=total_skipped+%s,
-                                 updated_at=CURRENT_TIMESTAMP WHERE id=%s""",
+                                 updated_at=CURRENT_TIMESTAMP, claimed_at=CURRENT_TIMESTAMP WHERE id=%s""",
                               (json.dumps(todo[1:]), json.dumps(done), inj, skip, job_id))
                 _t.sleep(20)  # paçage entre départements (ménage l'app + les API)
         except Exception as _e:
@@ -2324,8 +2326,23 @@ def register_crm_routes(app):
         finally:
             _FRANCE_STATE['running'] = False
 
+    def _claim_job(job_id):
+        """Verrou multi-process : un seul worker gunicorn « réclame » un job à la
+        fois (atomique en base). Re-réclamable après 900 s d'inactivité (process mort)."""
+        try:
+            row = execute_query(
+                "UPDATE scan_jobs SET claimed_at = CURRENT_TIMESTAMP "
+                "WHERE id = %s AND status = 'running' "
+                "AND (claimed_at IS NULL OR claimed_at < CURRENT_TIMESTAMP - INTERVAL '900 seconds') "
+                "RETURNING id", (job_id,), fetch_one=True)
+            return bool(row)
+        except Exception:
+            return True  # en cas de doute (colonne absente…), on n'empêche pas le run
+
     def _start_france_worker(job_id):
         import threading
+        if not _claim_job(job_id):
+            return False  # un autre process détient déjà ce job
         with _FRANCE_LOCK:
             if _FRANCE_STATE.get('running'):
                 return False
@@ -2417,7 +2434,8 @@ def register_crm_routes(app):
                         resolved += 1
                     if not ok:
                         _t.sleep(3)  # throttle -> on lève le pied
-                execute_query("UPDATE scan_jobs SET total_injected=total_injected+%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+                execute_query("UPDATE scan_jobs SET total_injected=total_injected+%s, "
+                              "updated_at=CURRENT_TIMESTAMP, claimed_at=CURRENT_TIMESTAMP WHERE id=%s",
                               (resolved, job_id))
                 _t.sleep(6)  # paçage entre lots
         except Exception as _e:
@@ -2427,6 +2445,8 @@ def register_crm_routes(app):
 
     def _start_operators_worker(job_id):
         import threading
+        if not _claim_job(job_id):
+            return False  # un autre process détient déjà ce job
         with _FRANCE_LOCK:
             if _OP_STATE.get('running'):
                 return False
