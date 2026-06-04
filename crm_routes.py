@@ -19,6 +19,31 @@ _FRANCE_STATE = {'running': False}
 _OP_STATE = {'running': False}
 _GEO_STATE = {'running': False}
 
+# Régions (code INSEE) → départements, pour étendre un droit "région" en
+# départements pré-chargeables. Métropole uniquement (le gisement Enedis ne
+# couvre pas Corse/DOM = EDF-SEI).
+REGION_DEPTS = {
+    '11': ['75', '77', '78', '91', '92', '93', '94', '95'],                          # Île-de-France
+    '24': ['18', '28', '36', '37', '41', '45'],                                      # Centre-Val de Loire
+    '27': ['21', '25', '39', '58', '70', '71', '89', '90'],                          # Bourgogne-Franche-Comté
+    '28': ['14', '27', '50', '61', '76'],                                            # Normandie
+    '32': ['02', '59', '60', '62', '80'],                                            # Hauts-de-France
+    '44': ['08', '10', '51', '52', '54', '55', '57', '67', '68', '88'],              # Grand Est
+    '52': ['44', '49', '53', '72', '85'],                                            # Pays de la Loire
+    '53': ['22', '29', '35', '56'],                                                  # Bretagne
+    '75': ['16', '17', '19', '23', '24', '33', '40', '47', '64', '79', '86', '87'],  # Nouvelle-Aquitaine
+    '76': ['09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'],  # Occitanie
+    '84': ['01', '03', '07', '15', '26', '38', '42', '43', '63', '69', '73', '74'],  # Auvergne-Rhône-Alpes
+    '93': ['04', '05', '06', '13', '83', '84'],                                      # Provence-Alpes-Côte d'Azur
+    '94': ['2A', '2B'],                                                              # Corse
+}
+REGION_NOMS = {
+    '11': 'Île-de-France', '24': 'Centre-Val de Loire', '27': 'Bourgogne-Franche-Comté',
+    '28': 'Normandie', '32': 'Hauts-de-France', '44': 'Grand Est', '52': 'Pays de la Loire',
+    '53': 'Bretagne', '75': 'Nouvelle-Aquitaine', '76': 'Occitanie',
+    '84': 'Auvergne-Rhône-Alpes', '93': "Provence-Alpes-Côte d'Azur", '94': 'Corse',
+}
+
 
 def _slim_json_value(v, key=None):
     """Allège récursivement un data_json pour la LISTE (vignettes) : retire les
@@ -2772,6 +2797,183 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    def _ensure_territories_table():
+        """Table des droits territoriaux (qui a payé quoi)."""
+        try:
+            execute_query("""
+                CREATE TABLE IF NOT EXISTS user_territories (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    territory_type TEXT NOT NULL,
+                    territory_code TEXT NOT NULL,
+                    plan TEXT,
+                    exclusive INTEGER DEFAULT 0,
+                    granted_by TEXT,
+                    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP
+                )
+            """)
+        except Exception as e:
+            print(f"⚠️ [TERRITORIES] ensure table: {e}")
+
+    def _expand_territory(ttype, code):
+        """(type, code) → liste de départements pré-chargeables, ou '*' pour national."""
+        ttype = (ttype or '').lower()
+        code = (code or '').strip().upper()
+        if ttype == 'national':
+            return '*'
+        if ttype == 'region':
+            return list(REGION_DEPTS.get(code, []))
+        if ttype == 'dept':
+            return [code.zfill(2) if code.isdigit() else code]
+        return []
+
+    def _resolve_user_id_by_email(email):
+        """email → user_id (auth db SQLite). None si introuvable."""
+        try:
+            from auth_database import get_auth_db
+            conn = get_auth_db(); cur = conn.cursor()
+            cur.execute("SELECT id FROM users WHERE email = ?", (email,))
+            row = cur.fetchone(); conn.close()
+            return row[0] if row else None
+        except Exception as e:
+            print(f"⚠️ [TERRITORIES] resolve email: {e}")
+            return None
+
+    def _user_entitled_depts(user_id):
+        """Ensemble des départements auxquels l'utilisateur a droit (droits actifs).
+        Retourne '*' si droit national, sinon un set de codes département."""
+        _ensure_territories_table()
+        rows = execute_query(
+            "SELECT territory_type, territory_code FROM user_territories "
+            "WHERE user_id = %s AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)",
+            (str(user_id),), fetch_all=True) or []
+        depts = set()
+        for r in rows:
+            exp = _expand_territory(r.get('territory_type'), r.get('territory_code'))
+            if exp == '*':
+                return '*'
+            depts.update(exp)
+        return depts
+
+    @app.route('/api/industriel/territoire/grant', methods=['POST'])
+    def territoire_grant():
+        """Attribue un territoire à un utilisateur (admin). Optionnellement pré-charge
+        dans la foulée. Body: {email, type(dept|region|national), code, plan?, months?, preload?}."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            data = request.get_json(silent=True) or {}
+            email = (data.get('email') or '').strip()
+            ttype = (data.get('type') or 'dept').lower()
+            code = (data.get('code') or '').strip().upper()
+            plan = data.get('plan')
+            preload = bool(data.get('preload'))
+            try:
+                months = int(data.get('months') or 0)
+            except Exception:
+                months = 0
+            if not email or ttype not in ('dept', 'region', 'national'):
+                return jsonify({'success': False, 'error': 'email + type valides requis'}), 400
+            if ttype != 'national' and not code:
+                return jsonify({'success': False, 'error': 'code (département/région) requis'}), 400
+            target_id = _resolve_user_id_by_email(email)
+            if target_id is None:
+                return jsonify({'success': False, 'error': f'Utilisateur {email} introuvable'}), 404
+            _ensure_territories_table()
+            expires_sql = "CURRENT_TIMESTAMP + (%s || ' months')::interval" if months > 0 else "NULL"
+            params = [str(target_id), ttype, code or 'FR', plan, str(caller_id)]
+            if months > 0:
+                params.append(str(months))
+            execute_query(
+                f"INSERT INTO user_territories (user_id, territory_type, territory_code, plan, granted_by, expires_at) "
+                f"VALUES (%s, %s, %s, %s, %s, {expires_sql})", tuple(params))
+            result = {'success': True, 'email': email, 'user_id': target_id,
+                      'type': ttype, 'code': code, 'plan': plan, 'months': months or None}
+            if preload:
+                depts = _expand_territory(ttype, code)
+                if depts == '*':
+                    depts = [r['d'] for r in (execute_query(
+                        "SELECT DISTINCT LEFT(code_commune,2) AS d FROM industrial_prospects "
+                        "WHERE code_commune IS NOT NULL", fetch_all=True) or [])]
+                pre = []
+                for d in depts:
+                    try:
+                        r = _precharger_dept_into(d, target_id)
+                        pre.append({'dept': d, **r})
+                    except Exception as e:
+                        pre.append({'dept': d, 'error': str(e)})
+                result['preload'] = pre
+                result['preload_total'] = sum(x.get('copied', 0) for x in pre)
+            return jsonify(result)
+        except Exception as e:
+            print(f"❌ [TERRITOIRE GRANT] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/territoire/revoke', methods=['POST'])
+    def territoire_revoke():
+        """Révoque un territoire (admin). Body: {email, type, code} ou {id}."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            data = request.get_json(silent=True) or {}
+            _ensure_territories_table()
+            if data.get('id'):
+                execute_query("DELETE FROM user_territories WHERE id = %s", (int(data['id']),))
+                return jsonify({'success': True})
+            email = (data.get('email') or '').strip()
+            target_id = _resolve_user_id_by_email(email)
+            if target_id is None:
+                return jsonify({'success': False, 'error': 'Utilisateur introuvable'}), 404
+            execute_query(
+                "DELETE FROM user_territories WHERE user_id = %s AND territory_type = %s AND territory_code = %s",
+                (str(target_id), (data.get('type') or '').lower(), (data.get('code') or '').strip().upper()))
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/territoire/list', methods=['GET'])
+    def territoire_list():
+        """Liste les droits. Admin: tous (ou ?email=). User: les siens."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if caller_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_territories_table()
+            if is_admin:
+                email = (request.args.get('email') or '').strip()
+                if email:
+                    tid = _resolve_user_id_by_email(email)
+                    rows = execute_query("SELECT * FROM user_territories WHERE user_id = %s ORDER BY granted_at DESC",
+                                         (str(tid),), fetch_all=True) or []
+                else:
+                    rows = execute_query("SELECT * FROM user_territories ORDER BY granted_at DESC LIMIT 500",
+                                         fetch_all=True) or []
+            else:
+                rows = execute_query("SELECT * FROM user_territories WHERE user_id = %s ORDER BY granted_at DESC",
+                                     (str(caller_id),), fetch_all=True) or []
+            for r in rows:
+                if r.get('territory_type') == 'region':
+                    r['territory_nom'] = REGION_NOMS.get((r.get('territory_code') or '').upper())
+            return jsonify({'success': True, 'territoires': rows})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/territoire/mine', methods=['GET'])
+    def territoire_mine():
+        """Départements auxquels l'utilisateur courant a droit."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if caller_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            ent = _user_entitled_depts(caller_id)
+            return jsonify({'success': True, 'national': ent == '*',
+                            'depts': sorted(ent) if ent != '*' else 'all', 'admin': is_admin})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     def _ensure_prospect_proprio_columns():
         """Garantit les colonnes proprietaire_* sur agriweb_prospects (présentes en
         prod mais pas dans le schéma versionné)."""
@@ -2785,12 +2987,83 @@ def register_crm_routes(app):
             except Exception:
                 pass
 
+    def _precharger_dept_into(dept, target_id, limit=5000):
+        """Copie le gisement maître d'un département dans le CRM d'un utilisateur,
+        en vignettes complètes. Idempotent (dédoublonnage + backfill lat/lon).
+        Retourne {copied, updated, skipped, total_gisement}."""
+        dept = str(dept).strip().upper()
+        try:
+            limit = max(1, min(int(limit), 20000))
+        except Exception:
+            limit = 5000
+        _ensure_industrial_table()
+        _ensure_prospect_proprio_columns()
+        rows = execute_query(
+            "SELECT * FROM industrial_prospects WHERE LEFT(code_commune, 2) = %s "
+            "AND adresse IS NOT NULL AND adresse <> '' "
+            "ORDER BY conso_mwh DESC NULLS LAST LIMIT %s",
+            (dept, limit), fetch_all=True) or []
+        if not rows:
+            return {'copied': 0, 'updated': 0, 'skipped': 0, 'total_gisement': 0}
+        existing = execute_query(
+            "SELECT id, commune, adresse, latitude FROM agriweb_prospects "
+            "WHERE user_id = %s AND type = 'industriel'",
+            (str(target_id),), fetch_all=True) or []
+        seen = {((e.get('commune') or '').strip().lower(), (e.get('adresse') or '').strip().lower()):
+                {'id': e.get('id'), 'lat': e.get('latitude')} for e in existing}
+        copied, skipped, updated = 0, 0, 0
+        for r in rows:
+            commune = r.get('commune') or ''
+            adresse = r.get('adresse') or ''
+            key = (commune.strip().lower(), adresse.strip().lower())
+            if key in seen:
+                ex = seen[key]
+                if ex.get('lat') is None and r.get('lat') is not None:
+                    try:
+                        execute_query(
+                            "UPDATE agriweb_prospects SET latitude=%s, longitude=%s WHERE id=%s",
+                            (r.get('lat'), r.get('lon'), ex['id']))
+                        ex['lat'] = r.get('lat'); updated += 1
+                    except Exception:
+                        skipped += 1
+                else:
+                    skipped += 1
+                continue
+            seen[key] = {'id': None, 'lat': r.get('lat')}
+            try:
+                dj = json.loads(r.get('data_json') or '{}')
+            except Exception:
+                dj = {}
+            dj['source'] = 'industriel'
+            dj['enedis_match'] = {'consommation_mwh': r.get('conso_mwh'),
+                                  'secteur': r.get('secteur'), 'annee': dj.get('annee')}
+            try:
+                execute_query('''
+                    INSERT INTO agriweb_prospects
+                        (type, commune, departement, adresse, latitude, longitude,
+                         nom_prospect, proprietaire_siren, proprietaire_denomination, siret,
+                         statut, priorite, data_json, user_id)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ''', (
+                    'industriel', commune, dept, adresse, r.get('lat'), r.get('lon'),
+                    r.get('operateur_nom'), r.get('operateur_siren'), r.get('operateur_nom'),
+                    r.get('operateur_siren'), 'nouveau', 'haute',
+                    json.dumps(dj, ensure_ascii=False), str(target_id),
+                ))
+                copied += 1
+            except Exception as e_ins:
+                print(f"⚠️ [PRECHARGER] insert échoué {commune}/{adresse}: {e_ins}")
+                skipped += 1
+        print(f"✅ [PRECHARGER] dept={dept} → user {target_id}: {copied} copiés, "
+              f"{updated} géoloc. complétés, {skipped} ignorés")
+        return {'copied': copied, 'updated': updated, 'skipped': skipped, 'total_gisement': len(rows)}
+
     @app.route('/api/industriel/precharger', methods=['POST'])
     def industriel_precharger():
-        """Pré-charge les prospects industriels d'un département (gisement maître)
-        dans le CRM d'un utilisateur, en vignettes complètes (carte, opérateur+SIREN,
-        conso Enedis, diagnostic autoconso). Réservé à l'offre — admin pour l'instant.
-        Body: {dept, email?(cible, admin), limit?}."""
+        """Pré-charge les prospects industriels d'un département dans le CRM.
+        Réservé à l'offre : un non-admin ne peut charger que les départements
+        couverts par son abonnement (droits territoriaux). L'admin n'est pas bridé
+        et peut cibler un autre utilisateur (email). Body: {dept, email?, limit?}."""
         try:
             caller_id, is_admin = get_current_crm_user()
             if caller_id is None:
@@ -2799,10 +3072,7 @@ def register_crm_routes(app):
             dept = str(data.get('dept') or '').strip().upper()
             if not dept:
                 return jsonify({'success': False, 'error': 'Département requis'}), 400
-            try:
-                limit = max(1, min(int(data.get('limit') or 5000), 20000))
-            except Exception:
-                limit = 5000
+            limit = data.get('limit') or 5000
 
             # Cible : un admin peut pré-charger dans le CRM d'un autre user (par email)
             target_id = caller_id
@@ -2810,91 +3080,21 @@ def register_crm_routes(app):
             if target_email:
                 if not is_admin:
                     return jsonify({'success': False, 'error': 'Admin requis pour cibler un autre utilisateur'}), 403
-                try:
-                    from auth_database import get_auth_db
-                    conn = get_auth_db(); cur = conn.cursor()
-                    cur.execute("SELECT id FROM users WHERE email = ?", (target_email,))
-                    row = cur.fetchone(); conn.close()
-                    if not row:
-                        return jsonify({'success': False, 'error': f'Utilisateur {target_email} introuvable'}), 404
-                    target_id = row[0]
-                except Exception as e:
-                    return jsonify({'success': False, 'error': f'Résolution utilisateur: {e}'}), 500
+                target_id = _resolve_user_id_by_email(target_email)
+                if target_id is None:
+                    return jsonify({'success': False, 'error': f'Utilisateur {target_email} introuvable'}), 404
 
-            _ensure_industrial_table()
-            _ensure_prospect_proprio_columns()
+            # Gating : un non-admin chargeant dans son propre CRM doit avoir le droit
+            # territorial sur ce département.
+            if not is_admin:
+                ent = _user_entitled_depts(caller_id)
+                if ent != '*' and dept not in ent:
+                    return jsonify({'success': False, 'error': 'territoire_non_couvert',
+                                    'message': f"Le département {dept} n'est pas couvert par votre abonnement.",
+                                    'depts_autorises': sorted(ent)}), 403
 
-            # Gisement maître du département (toutes lignes, indépendamment du user_id
-            # ayant lancé le scan) — priorité aux plus gros consommateurs.
-            rows = execute_query(
-                "SELECT * FROM industrial_prospects WHERE LEFT(code_commune, 2) = %s "
-                "AND adresse IS NOT NULL AND adresse <> '' "
-                "ORDER BY conso_mwh DESC NULLS LAST LIMIT %s",
-                (dept, limit), fetch_all=True) or []
-            if not rows:
-                return jsonify({'success': True, 'copied': 0, 'skipped': 0, 'dept': dept,
-                                'total_gisement': 0,
-                                'message': 'Aucun prospect industriel pour ce département'})
-
-            # Dédoublonnage : (commune, adresse) déjà présents chez la cible.
-            # On garde id + lat pour pouvoir backfiller le géocodage (le pré-chargement
-            # est idempotent : relancé, il complète lat/lon des lignes déjà copiées
-            # au fur et à mesure que le gisement maître se géocode).
-            existing = execute_query(
-                "SELECT id, commune, adresse, latitude FROM agriweb_prospects "
-                "WHERE user_id = %s AND type = 'industriel'",
-                (str(target_id),), fetch_all=True) or []
-            seen = {((e.get('commune') or '').strip().lower(), (e.get('adresse') or '').strip().lower()):
-                    {'id': e.get('id'), 'lat': e.get('latitude')} for e in existing}
-
-            copied, skipped, updated = 0, 0, 0
-            for r in rows:
-                commune = r.get('commune') or ''
-                adresse = r.get('adresse') or ''
-                key = (commune.strip().lower(), adresse.strip().lower())
-                if key in seen:
-                    ex = seen[key]
-                    if ex.get('lat') is None and r.get('lat') is not None:
-                        try:
-                            execute_query(
-                                "UPDATE agriweb_prospects SET latitude=%s, longitude=%s WHERE id=%s",
-                                (r.get('lat'), r.get('lon'), ex['id']))
-                            ex['lat'] = r.get('lat'); updated += 1
-                        except Exception:
-                            skipped += 1
-                    else:
-                        skipped += 1
-                    continue
-                seen[key] = {'id': None, 'lat': r.get('lat')}
-                try:
-                    dj = json.loads(r.get('data_json') or '{}')
-                except Exception:
-                    dj = {}
-                dj['source'] = 'industriel'
-                dj['enedis_match'] = {'consommation_mwh': r.get('conso_mwh'),
-                                      'secteur': r.get('secteur'), 'annee': dj.get('annee')}
-                try:
-                    execute_query('''
-                        INSERT INTO agriweb_prospects
-                            (type, commune, departement, adresse, latitude, longitude,
-                             nom_prospect, proprietaire_siren, proprietaire_denomination, siret,
-                             statut, priorite, data_json, user_id)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ''', (
-                        'industriel', commune, dept, adresse, r.get('lat'), r.get('lon'),
-                        r.get('operateur_nom'), r.get('operateur_siren'), r.get('operateur_nom'),
-                        r.get('operateur_siren'), 'nouveau', 'haute',
-                        json.dumps(dj, ensure_ascii=False), str(target_id),
-                    ))
-                    copied += 1
-                except Exception as e_ins:
-                    print(f"⚠️ [PRECHARGER] insert échoué {commune}/{adresse}: {e_ins}")
-                    skipped += 1
-
-            print(f"✅ [PRECHARGER] dept={dept} → user {target_id}: {copied} copiés, "
-                  f"{updated} géoloc. complétés, {skipped} ignorés")
-            return jsonify({'success': True, 'copied': copied, 'updated': updated, 'skipped': skipped,
-                            'dept': dept, 'target_user_id': target_id, 'total_gisement': len(rows)})
+            res = _precharger_dept_into(dept, target_id, limit)
+            return jsonify({'success': True, 'dept': dept, 'target_user_id': target_id, **res})
         except Exception as e:
             print(f"❌ [PRECHARGER] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
