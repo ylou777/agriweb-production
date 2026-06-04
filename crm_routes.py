@@ -2772,6 +2772,117 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    def _ensure_prospect_proprio_columns():
+        """Garantit les colonnes proprietaire_* sur agriweb_prospects (présentes en
+        prod mais pas dans le schéma versionné)."""
+        for ddl in (
+            "ALTER TABLE agriweb_prospects ADD COLUMN IF NOT EXISTS proprietaire_siren TEXT",
+            "ALTER TABLE agriweb_prospects ADD COLUMN IF NOT EXISTS proprietaire_denomination TEXT",
+            "ALTER TABLE agriweb_prospects ADD COLUMN IF NOT EXISTS proprietaire_forme_juridique TEXT",
+        ):
+            try:
+                execute_query(ddl)
+            except Exception:
+                pass
+
+    @app.route('/api/industriel/precharger', methods=['POST'])
+    def industriel_precharger():
+        """Pré-charge les prospects industriels d'un département (gisement maître)
+        dans le CRM d'un utilisateur, en vignettes complètes (carte, opérateur+SIREN,
+        conso Enedis, diagnostic autoconso). Réservé à l'offre — admin pour l'instant.
+        Body: {dept, email?(cible, admin), limit?}."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if caller_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            data = request.get_json(silent=True) or {}
+            dept = str(data.get('dept') or '').strip().upper()
+            if not dept:
+                return jsonify({'success': False, 'error': 'Département requis'}), 400
+            try:
+                limit = max(1, min(int(data.get('limit') or 5000), 20000))
+            except Exception:
+                limit = 5000
+
+            # Cible : un admin peut pré-charger dans le CRM d'un autre user (par email)
+            target_id = caller_id
+            target_email = (data.get('email') or '').strip()
+            if target_email:
+                if not is_admin:
+                    return jsonify({'success': False, 'error': 'Admin requis pour cibler un autre utilisateur'}), 403
+                try:
+                    from auth_database import get_auth_db
+                    conn = get_auth_db(); cur = conn.cursor()
+                    cur.execute("SELECT id FROM users WHERE email = ?", (target_email,))
+                    row = cur.fetchone(); conn.close()
+                    if not row:
+                        return jsonify({'success': False, 'error': f'Utilisateur {target_email} introuvable'}), 404
+                    target_id = row[0]
+                except Exception as e:
+                    return jsonify({'success': False, 'error': f'Résolution utilisateur: {e}'}), 500
+
+            _ensure_industrial_table()
+            _ensure_prospect_proprio_columns()
+
+            # Gisement maître du département (toutes lignes, indépendamment du user_id
+            # ayant lancé le scan) — priorité aux plus gros consommateurs.
+            rows = execute_query(
+                "SELECT * FROM industrial_prospects WHERE LEFT(code_commune, 2) = %s "
+                "AND adresse IS NOT NULL AND adresse <> '' "
+                "ORDER BY conso_mwh DESC NULLS LAST LIMIT %s",
+                (dept, limit), fetch_all=True) or []
+            if not rows:
+                return jsonify({'success': True, 'copied': 0, 'skipped': 0, 'dept': dept,
+                                'total_gisement': 0,
+                                'message': 'Aucun prospect industriel pour ce département'})
+
+            # Dédoublonnage : (commune, adresse) déjà présents chez la cible
+            existing = execute_query(
+                "SELECT commune, adresse FROM agriweb_prospects WHERE user_id = %s AND type = 'industriel'",
+                (str(target_id),), fetch_all=True) or []
+            seen = {((e.get('commune') or '').strip().lower(), (e.get('adresse') or '').strip().lower())
+                    for e in existing}
+
+            copied, skipped = 0, 0
+            for r in rows:
+                commune = r.get('commune') or ''
+                adresse = r.get('adresse') or ''
+                key = (commune.strip().lower(), adresse.strip().lower())
+                if key in seen:
+                    skipped += 1; continue
+                seen.add(key)
+                try:
+                    dj = json.loads(r.get('data_json') or '{}')
+                except Exception:
+                    dj = {}
+                dj['source'] = 'industriel'
+                dj['enedis_match'] = {'consommation_mwh': r.get('conso_mwh'),
+                                      'secteur': r.get('secteur'), 'annee': dj.get('annee')}
+                try:
+                    execute_query('''
+                        INSERT INTO agriweb_prospects
+                            (type, commune, departement, adresse, latitude, longitude,
+                             nom_prospect, proprietaire_siren, proprietaire_denomination, siret,
+                             statut, priorite, data_json, user_id)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ''', (
+                        'industriel', commune, dept, adresse, r.get('lat'), r.get('lon'),
+                        r.get('operateur_nom'), r.get('operateur_siren'), r.get('operateur_nom'),
+                        r.get('operateur_siren'), 'nouveau', 'haute',
+                        json.dumps(dj, ensure_ascii=False), str(target_id),
+                    ))
+                    copied += 1
+                except Exception as e_ins:
+                    print(f"⚠️ [PRECHARGER] insert échoué {commune}/{adresse}: {e_ins}")
+                    skipped += 1
+
+            print(f"✅ [PRECHARGER] dept={dept} → user {target_id}: {copied} copiés, {skipped} ignorés")
+            return jsonify({'success': True, 'copied': copied, 'skipped': skipped, 'dept': dept,
+                            'target_user_id': target_id, 'total_gisement': len(rows)})
+        except Exception as e:
+            print(f"❌ [PRECHARGER] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/geocode/start', methods=['POST'])
     def geocode_start():
         """Lance le worker autonome de géocodage du gisement (lat/lon). Admin."""
