@@ -17,6 +17,36 @@ import threading
 _FRANCE_LOCK = threading.Lock()
 _FRANCE_STATE = {'running': False}
 _OP_STATE = {'running': False}
+
+
+def _slim_json_value(v, key=None):
+    """Allège récursivement un data_json pour la LISTE (vignettes) : retire les
+    géants (images base64, tableaux 8760h, nuages LiDAR, modules) tout en gardant
+    la structure et les métadonnées (totaux, kpis, nb de zones). Le data_json
+    COMPLET reste en base et est rechargé à l'ouverture d'un prospect."""
+    if isinstance(v, str):
+        if len(v) > 4000:  # base64 d'image, gros blob -> on ne garde que la présence
+            return True if (key and 'screenshot' in key.lower()) else ""
+        return v
+    if isinstance(v, list):
+        return v if len(v) <= 200 else []  # 8760h, listes de modules/points -> vidées
+    if isinstance(v, dict):
+        return {k: _slim_json_value(val, k) for k, val in v.items()}
+    return v
+
+
+def slim_data_json(dj):
+    """Retourne une version allégée (string JSON) du data_json d'un prospect."""
+    if not dj:
+        return dj
+    if isinstance(dj, str):
+        try:
+            dj = json.loads(dj)
+        except Exception:
+            return dj if len(dj) <= 4000 else "{}"
+    if not isinstance(dj, dict):
+        return "{}"
+    return json.dumps(_slim_json_value(dj), ensure_ascii=False)
 from declaration_prealable_generator import generate_declaration_prealable_complete
 from plan_masse_generator import generate_plan_masse
 from plan_masse_simple import generate_plan_masse_simple
@@ -903,12 +933,16 @@ def register_crm_routes(app):
                 ORDER BY date_creation DESC
             ''', filter_params if filter_params else None, fetch_all=True)
             
-            # Mapper contact_telephone -> contact_tel pour compatibilité frontend
+            # Mapper contact_telephone -> contact_tel + ALLÉGER le data_json
+            # (les vignettes n'ont besoin que du léger ; le calepinage/LiDAR/captures
+            # restent en base et sont rechargés à l'ouverture d'un prospect).
             if prospects:
                 for prospect in prospects:
                     if 'contact_telephone' in prospect:
                         prospect['contact_tel'] = prospect['contact_telephone']
-            
+                    if prospect.get('data_json'):
+                        prospect['data_json'] = slim_data_json(prospect['data_json'])
+
             # Calculer les stats
             stats = execute_query(f'''
                 SELECT 
