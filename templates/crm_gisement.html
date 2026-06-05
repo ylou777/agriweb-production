@@ -48,6 +48,11 @@
         <option value="10000-30000">10 000 – 30 000 MWh</option>
         <option value="30000-">30 000+ MWh</option>
       </select>
+      <div class="d-flex align-items-center gap-1" title="Part de la consommation à couvrir par le PV">
+        <span class="muted"><i class="bi bi-sliders"></i> Couvrir</span>
+        <input id="tauxCible" type="number" min="5" max="100" step="5" value="40" class="form-control form-control-sm" style="width:70px" oninput="renderGrid()">
+        <span class="muted">% de la conso</span>
+      </div>
       <div class="ms-auto d-flex align-items-center gap-2">
         <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(-1)" id="prevBtn" title="Page précédente"><i class="bi bi-chevron-left"></i></button>
         <span id="pageInfo" class="muted" style="min-width:130px;text-align:center;"></span>
@@ -82,9 +87,6 @@ function initNaf(){
   sel.innerHTML=h;
 }
 function vignette(p){
-  let dj=p.data_json||{};
-  if(typeof dj==='string'){ try{ dj=JSON.parse(dj); }catch(e){ dj={}; } }
-  const diag=dj.diagnostic_autoconso||{};
   const dept=(p.code_commune||'').substring(0,2);
   const geo = (p.lat!=null && p.lon!=null);
   const adr = encodeURIComponent(((p.adresse||'')+', '+(p.commune||'')).replace(/^,\s*/,'').trim());
@@ -92,20 +94,25 @@ function vignette(p){
   const carte = geo
     ? `<a class="osm" href="/app?lat=${p.lat}&lon=${p.lon}&address=${label}" target="_blank"><i class="bi bi-search geo-ok"></i> Analyser dans HeliaPV</a>`
     : `<a class="osm" href="/app?address=${adr}" target="_blank"><i class="bi bi-search geo-no"></i> Rechercher l'adresse</a>`;
+  // Potentiel d'installation = puissance PV pour couvrir TAUX% de la conso,
+  // selon le productible du lieu (≈ PVGIS par latitude). Calcul instantané.
   let auto='';
-  if(diag.eligible){
-    // taux_autoconsommation / taux_autosuffisance sont DÉJÀ en % (arrondis à 0,1)
-    const ac=diag.taux_autoconsommation;
-    const as=diag.taux_autosuffisance;
+  const conso=Number(p.conso_mwh)||0;
+  if(conso>0){
+    const taux=currentTaux();
+    const prod=productibleAt(p.lat);
+    const kwc=(taux/100)*conso*1000/prod;
+    const puiss = kwc>=1000
+      ? `${(kwc/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} MWc`
+      : `${Math.round(kwc).toLocaleString('fr-FR')} kWc`;
+    const note = (p.lat!=null) ? `productible ${Math.round(prod)} kWh/kWc` : `productible ${Math.round(prod)} kWh/kWc (estimé national)`;
     auto=`<div class="auto-box">
-      <div class="muted mb-1"><i class="bi bi-sun-fill text-warning"></i> Potentiel autoconsommation — conso Enedis <b>${fmt(p.conso_mwh)} MWh/an</b></div>
-      ${diag.kwc_reco?`<span class="chip">⚡ ${fmt(diag.kwc_reco)} kWc</span>`:''}
-      ${ac!=null?`<span class="chip">Autoconso ${ac}%</span>`:''}
-      ${as!=null?`<span class="chip">Autosuff. ${as}%</span>`:''}
-      ${diag.economie_an_eur?`<span class="chip" style="color:#22c55e">${fmt(diag.economie_an_eur)} €/an</span>`:''}
+      <div class="muted mb-1"><i class="bi bi-sun-fill text-warning"></i> Potentiel — couvrir <b>${taux}%</b> de <b>${fmt(conso)} MWh/an</b></div>
+      <span class="chip" style="font-size:1rem"><b>⚡ ${puiss}</b></span>
+      <span class="chip">${note}</span>
     </div>`;
   } else {
-    auto=`<div class="muted mt-2"><i class="bi bi-lightning"></i> Conso Enedis <b class="conso">${fmt(p.conso_mwh)} MWh/an</b></div>`;
+    auto=`<div class="muted mt-2"><i class="bi bi-lightning"></i> Conso Enedis non renseignée</div>`;
   }
   const op = p.operateur_nom
     ? `<div class="op-nom">${p.operateur_nom}</div>`+
@@ -122,6 +129,17 @@ function vignette(p){
     <div class="mt-2" style="font-size:.85rem">${carte}</div>
   </div></div>`;
 }
+// Taux de couverture visé (paramétrable) + productible local (≈ PVGIS par latitude)
+function currentTaux(){ const v=parseFloat(document.getElementById('tauxCible').value); return (isFinite(v)&&v>0)?Math.min(100,v):40; }
+function productibleAt(lat){ if(lat==null) return 1150; return Math.max(950, Math.min(1400, 1350-(lat-43)*70)); }
+
+let _lastProspects=[];
+function renderGrid(){
+  const grid=document.getElementById('grid');
+  grid.innerHTML = _lastProspects.length
+    ? _lastProspects.map(vignette).join('')
+    : '<div class="col-12 muted">Aucun prospect pour ces filtres.</div>';
+}
 async function chargerVignettes(){
   const grid=document.getElementById('grid');
   const dept=(document.getElementById('filtreDept').value||'').trim();
@@ -135,6 +153,7 @@ async function chargerVignettes(){
   try{
     const j=await (await fetch('/api/industriel/prospects?'+qs)).json();
     const ps=j.prospects||[]; _total=j.total||0; _size=j.limit||24;
+    _lastProspects=ps;
     document.getElementById('count').textContent=`${fmt(_total)} prospects`;
     const a=_total?_offset+1:0, b=_offset+ps.length;
     document.getElementById('pageInfo').textContent=`${fmt(a)}–${fmt(b)} / ${fmt(_total)}`;
@@ -142,7 +161,7 @@ async function chargerVignettes(){
     document.getElementById('prevBtn').disabled=_offset<=0;
     document.getElementById('nextBtn').disabled=last;
     document.getElementById('nextBtn2').style.display=last?'none':'';
-    grid.innerHTML = ps.length ? ps.map(vignette).join('') : '<div class="col-12 muted">Aucun prospect pour ces filtres.</div>';
+    renderGrid();
   }catch(e){ grid.innerHTML=`<div class="col-12 text-danger">${e}</div>`; }
 }
 initNaf();
