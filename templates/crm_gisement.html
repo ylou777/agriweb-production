@@ -50,7 +50,7 @@
       </select>
       <div class="d-flex align-items-center gap-1" title="Part de la consommation à couvrir par le PV">
         <span class="muted"><i class="bi bi-sliders"></i> Couvrir</span>
-        <input id="tauxCible" type="number" min="5" max="100" step="5" value="40" class="form-control form-control-sm" style="width:70px" oninput="renderGrid()">
+        <input id="tauxCible" type="number" min="5" max="100" step="5" value="40" class="form-control form-control-sm" style="width:70px" oninput="onTaux()">
         <span class="muted">% de la conso</span>
       </div>
       <div class="ms-auto d-flex align-items-center gap-2">
@@ -59,6 +59,13 @@
         <button type="button" class="btn btn-sm btn-outline-light" onclick="pageList(1)" id="nextBtn" title="Page suivante"><i class="bi bi-chevron-right"></i></button>
         <button type="button" class="btn btn-sm btn-outline-light" onclick="chargerVignettes()" title="Rafraîchir"><i class="bi bi-arrow-clockwise"></i></button>
       </div>
+    </div>
+  </div></div>
+
+  <!-- Compteur global (agrégé sur toute la base filtrée) -->
+  <div class="card mb-3" id="compteur" style="border-color:rgba(34,197,94,.4);background:linear-gradient(90deg,#161d2e,#152417)"><div class="card-body py-3">
+    <div class="row text-center g-2" id="compteurBody">
+      <div class="col-12 muted">Calcul du potentiel global…</div>
     </div>
   </div></div>
 
@@ -74,7 +81,35 @@
 const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
 let _offset=0, _size=250, _total=0;
 function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
-function reset0(){ _offset=0; chargerVignettes(); }
+function reset0(){ _offset=0; chargerVignettes(); chargerCompteur(); }
+let _tauxTimer=null;
+function onTaux(){ renderGrid(); clearTimeout(_tauxTimer); _tauxTimer=setTimeout(chargerCompteur, 350); }
+function filtreQS(){
+  const dept=(document.getElementById('filtreDept').value||'').trim();
+  const naf2=(document.getElementById('filtreNaf').value||'').trim();
+  const tr=(document.getElementById('filtreConso').value||'').trim();
+  const qs=new URLSearchParams();
+  if(dept) qs.set('dept',dept);
+  if(naf2) qs.set('naf2',naf2);
+  if(tr){ const [a,b]=tr.split('-'); if(a) qs.set('conso_min',a); if(b) qs.set('conso_max',b); }
+  return qs;
+}
+async function chargerCompteur(){
+  const box=document.getElementById('compteurBody');
+  const qs=filtreQS(); qs.set('taux', currentTaux());
+  try{
+    const j=await (await fetch('/api/industriel/potentiel-total?'+qs)).json();
+    if(!j.success){ box.innerHTML=`<div class="col-12 text-danger">${j.error||'Erreur'}</div>`; return; }
+    const cell=(val,lib,color)=>`<div class="col-md col-6"><div style="font-size:1.9rem;font-weight:800;color:${color||'#e2e8f0'};line-height:1.1">${val}</div><div class="muted">${lib}</div></div>`;
+    const puiss = j.gwc_total>=1 ? `${j.gwc_total.toLocaleString('fr-FR',{maximumFractionDigits:2})} GWc` : `${fmt(j.mwc_total)} MWc`;
+    box.innerHTML =
+      cell(fmt(j.nb), 'sites industriels')
+    + cell(`${j.conso_twh.toLocaleString('fr-FR',{maximumFractionDigits:2})} TWh`, 'conso annuelle', '#fbbf24')
+    + cell(puiss, `potentiel PV (couvrir ${j.taux}%)`, '#22c55e')
+    + cell(`${j.production_gwh.toLocaleString('fr-FR',{maximumFractionDigits:0})} GWh`, 'production/an', '#38bdf8')
+    + cell(`${fmt(j.surface_ha)} ha`, 'surface estimée');
+  }catch(e){ box.innerHTML=`<div class="col-12 text-danger">${e}</div>`; }
+}
 function pageList(dir){
   const next=_offset+dir*_size;
   if(next<0 || next>=_total) return;
@@ -166,6 +201,7 @@ async function chargerVignettes(){
 }
 initNaf();
 chargerVignettes();
+chargerCompteur();
 </script>
 </body>
 </html>

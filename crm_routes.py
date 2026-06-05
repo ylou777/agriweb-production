@@ -3606,6 +3606,63 @@ def register_crm_routes(app):
             print(f"❌ [INDUSTRIEL LIST] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/industriel/potentiel-total', methods=['GET'])
+    def industriel_potentiel_total():
+        """Compteur global : agrège le potentiel d'installation sur TOUTE la base
+        filtrée (pas seulement la page). Puissance = SUM(taux% × conso / productible),
+        le productible étant calculé par latitude (≈ PVGIS) directement en SQL.
+        Params: taux (def. 40), + mêmes filtres que la liste (dept/naf2/conso_min/max)."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table()
+            try:
+                taux = max(1.0, min(float(request.args.get('taux') or 40), 100.0))
+            except Exception:
+                taux = 40.0
+            dept = (request.args.get('dept') or '').strip()
+            naf2 = (request.args.get('naf2') or '').strip()
+            conso_min = request.args.get('conso_min')
+            conso_max = request.args.get('conso_max')
+            clause, params = "", []
+            if not is_admin:
+                clause += " AND user_id = %s"; params.append(str(user_id))
+            if dept:
+                clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
+            if naf2:
+                clause += " AND naf2 = %s"; params.append(naf2)
+            if conso_min:
+                clause += " AND conso_mwh >= %s"; params.append(float(conso_min))
+            if conso_max:
+                clause += " AND conso_mwh < %s"; params.append(float(conso_max))
+            # productible(lat) = clamp(1350 - (lat-43)*70, 950, 1400) ; 1150 si non géocodé
+            row = execute_query(
+                f"""SELECT COUNT(*) AS n,
+                       COUNT(lat) AS geocodes,
+                       COALESCE(SUM(conso_mwh), 0) AS conso_mwh,
+                       COALESCE(SUM(
+                           (%s/100.0) * conso_mwh * 1000.0 /
+                           CASE WHEN lat IS NULL THEN 1150.0
+                                ELSE GREATEST(950.0, LEAST(1400.0, 1350.0 - (lat - 43.0) * 70.0))
+                           END
+                       ), 0) AS kwc_total
+                   FROM industrial_prospects
+                   WHERE conso_mwh IS NOT NULL{clause}""",
+                tuple([taux] + params), fetch_one=True) or {}
+            kwc = float(row.get('kwc_total') or 0)
+            conso_mwh = float(row.get('conso_mwh') or 0)
+            return jsonify({'success': True, 'taux': taux,
+                            'nb': row.get('n', 0), 'geocodes': row.get('geocodes', 0),
+                            'conso_mwh': round(conso_mwh), 'conso_twh': round(conso_mwh / 1_000_000, 2),
+                            'kwc_total': round(kwc), 'mwc_total': round(kwc / 1000, 1),
+                            'gwc_total': round(kwc / 1_000_000, 2),
+                            'production_gwh': round(taux / 100.0 * conso_mwh / 1000.0, 1),
+                            'surface_ha': round(kwc * 6.5 / 10000.0, 1)})
+        except Exception as e:
+            print(f"❌ [POTENTIEL TOTAL] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/stats', methods=['GET'])
     def industriel_stats():
         """Compteurs pour suivre l'avancement : total + par département."""
