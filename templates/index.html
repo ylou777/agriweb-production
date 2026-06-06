@@ -554,44 +554,30 @@
     // Gestion du zoom automatique depuis les paramètres d'URL
     {% if zoom_lat and zoom_lon %}
     document.addEventListener('DOMContentLoaded', function() {
-        // Vérifier si on a déjà fait la recherche automatique (éviter la boucle)
-        const autoSearchDone = sessionStorage.getItem('autoSearchDone');
-        if (autoSearchDone === 'true') {
-            console.log('🔄 Recherche automatique déjà effectuée, annulation');
+        // Garde-fou indexé sur les coordonnées : un nouveau point relance la recherche,
+        // un simple rechargement du même point ne reboucle pas.
+        const autoKey = '{{ zoom_lat }},{{ zoom_lon }}';
+        if (sessionStorage.getItem('autoSearchKey') === autoKey) {
+            console.log('🔄 Recherche auto déjà effectuée pour ce point');
             return;
         }
-        
-        console.log('🎯 Zoom automatique demandé:', {{ zoom_lat }}, {{ zoom_lon }}, '{{ zoom_address }}');
-        
-        // Marquer que la recherche auto a été faite
-        sessionStorage.setItem('autoSearchDone', 'true');
-        
-        // Attendre que la carte soit chargée avant de faire la recherche
+        sessionStorage.setItem('autoSearchKey', autoKey);
+
+        console.log('🎯 Zoom automatique (coordonnées précises):', autoKey);
+
+        // Attendre que la carte soit prête, puis lancer la recherche par COORDONNÉES
+        // via le moteur unifié (handleUnifiedSearch détecte "lat, lon"). On utilise
+        // le point géocodé exact — pas un re-géocodage du libellé, qui pourrait
+        // tomber ailleurs (nom d'entreprise, adresse sans numéro…).
         setTimeout(function() {
-            // Déclencher une recherche par coordonnées
-            const searchForm = document.querySelector('#address-search-form');
-            const latInput = document.querySelector('#lat');
-            const lonInput = document.querySelector('#lon');
-            const addressInput = document.querySelector('#address');
-            
-            if (latInput && lonInput) {
-                latInput.value = {{ zoom_lat }};
-                lonInput.value = {{ zoom_lon }};
-                {% if zoom_address %}
-                if (addressInput) {
-                    addressInput.value = '{{ zoom_address }}';
-                }
-                {% endif %}
-                
-                // Déclencher la recherche
-                if (searchForm) {
-                    console.log('🔍 Déclenchement recherche automatique');
-                    searchForm.dispatchEvent(new Event('submit'));
-                } else {
-                    console.warn('Formulaire de recherche non trouvé');
-                }
+            const input = document.getElementById('search_input');
+            const form = document.getElementById('unifiedSearchForm');
+            if (input && form) {
+                input.value = '{{ zoom_lat }}, {{ zoom_lon }}';
+                console.log('🔍 Recherche auto par coordonnées:', input.value);
+                form.dispatchEvent(new Event('submit', {cancelable:true}));
             } else {
-                console.warn('Champs lat/lon non trouvés');
+                console.warn('search_input / unifiedSearchForm introuvable');
             }
         }, 2000);
     });
