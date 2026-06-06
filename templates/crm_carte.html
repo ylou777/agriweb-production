@@ -86,9 +86,20 @@ function couleur(c){ return c>=30000?'#ef4444':c>=10000?'#f59e0b':c>=3000?'#fbbf
 function rayon(c){ return c>=30000?13:c>=10000?11:c>=3000?9:c>=1000?7:5; }
 
 const map=L.map('map',{preferCanvas:true}).setView([46.6,2.5],6);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-  attribution:'© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19
-}).addTo(map);
+// Fonds de carte
+const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+  attribution:'Imagerie © Esri, Maxar, Earthstar Geographics', maxZoom:19});
+const sombre=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19});
+// Surcouche noms de lieux (langue locale = français) — au-dessus du satellite
+const lieux=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{
+  attribution:'© Esri', maxZoom:19, opacity:0.9});
+satellite.addTo(map); lieux.addTo(map);
+L.control.layers(
+  {'🛰️ Satellite':satellite, '🌑 Carte sombre':sombre},
+  {'Noms de lieux (FR)':lieux},
+  {position:'topright', collapsed:true}
+).addTo(map);
 let cluster=L.markerClusterGroup({chunkedLoading:true, spiderfyOnMaxZoom:false, maxClusterRadius:50});
 let heat=L.heatLayer([], {radius:18, blur:22, minOpacity:0.25, maxZoom:11,
   gradient:{0.0:'#1e3a8a',0.3:'#0ea5e9',0.5:'#22c55e',0.7:'#fbbf24',0.85:'#f59e0b',1.0:'#ef4444'}});
