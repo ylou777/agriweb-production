@@ -29,6 +29,7 @@
 <nav class="navbar px-3 mb-3" style="background:#161b29;border-bottom:1px solid rgba(255,255,255,.08);">
   <span class="navbar-brand"><i class="bi bi-database-fill"></i> Gisement industriel <small class="muted">— vue admin, vignettes</small></span>
   <div class="d-flex gap-2">
+    <button type="button" id="demoBtn" class="btn btn-sm btn-outline-light" onclick="toggleDemo()" title="Mode démo public : masque les noms d'entreprises"><i class="bi bi-incognito"></i> Démo</button>
     <a href="/crm/carte" class="btn btn-sm btn-warning"><i class="bi bi-map"></i> Carte nationale</a>
     <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-table"></i> Console (table)</a>
     <a href="/crm" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> CRM principal</a>
@@ -82,6 +83,9 @@
 const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
 let _offset=0, _size=250, _total=0;
 function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
+function isDemo(){ return localStorage.getItem('helia_demo')==='1'; }
+function applyDemoBtn(){ const b=document.getElementById('demoBtn'); if(b) b.className='btn btn-sm '+(isDemo()?'btn-light text-dark':'btn-outline-light'); }
+function toggleDemo(){ localStorage.setItem('helia_demo', isDemo()?'0':'1'); applyDemoBtn(); renderGrid(); }
 function reset0(){ _offset=0; chargerVignettes(); chargerCompteur(); }
 let _tauxTimer=null;
 function onTaux(){ renderGrid(); clearTimeout(_tauxTimer); _tauxTimer=setTimeout(chargerCompteur, 350); }
@@ -123,10 +127,11 @@ function initNaf(){
   sel.innerHTML=h;
 }
 function vignette(p){
+  const demo=isDemo();
   const dept=(p.code_commune||'').substring(0,2);
   const geo = (p.lat!=null && p.lon!=null);
-  const adr = encodeURIComponent(((p.adresse||'')+', '+(p.commune||'')).replace(/^,\s*/,'').trim());
-  const label = encodeURIComponent((p.operateur_nom||p.commune||'').trim());
+  const adr = encodeURIComponent(demo ? `Site industriel (${dept})` : ((p.adresse||'')+', '+(p.commune||'')).replace(/^,\s*/,'').trim());
+  const label = encodeURIComponent(demo ? `Site industriel (${dept})` : (p.operateur_nom||p.commune||'').trim());
   const carte = geo
     ? `<a class="osm" href="/app?lat=${p.lat}&lon=${p.lon}&address=${label}" target="_blank"><i class="bi bi-search geo-ok"></i> Analyser dans HeliaPV</a>`
     : `<a class="osm" href="/app?address=${adr}" target="_blank"><i class="bi bi-search geo-no"></i> Rechercher l'adresse</a>`;
@@ -150,17 +155,25 @@ function vignette(p){
   } else {
     auto=`<div class="muted mt-2"><i class="bi bi-lightning"></i> Conso Enedis non renseignée</div>`;
   }
-  const op = p.operateur_nom
-    ? `<div class="op-nom">${p.operateur_nom}</div>`+
-      (p.operateur_siren?`<div class="muted">SIREN ${p.operateur_siren}${p.operateur_effectif?` · effectif ${p.operateur_effectif}`:''} <a class="osm" href="/crm?proprietaire=${p.operateur_siren}" target="_blank">propriétés</a></div>`:'')
-    : `<div class="op-nom" style="color:#8b93a7">Opérateur non identifié</div>`;
+  let op;
+  if(demo){
+    op = `<div class="op-nom">Site industriel</div><div class="muted">${dept?`Département ${dept}`:''}</div>`;
+  } else {
+    op = p.operateur_nom
+      ? `<div class="op-nom">${p.operateur_nom}</div>`+
+        (p.operateur_siren?`<div class="muted">SIREN ${p.operateur_siren}${p.operateur_effectif?` · effectif ${p.operateur_effectif}`:''} <a class="osm" href="/crm?proprietaire=${p.operateur_siren}" target="_blank">propriétés</a></div>`:'')
+      : `<div class="op-nom" style="color:#8b93a7">Opérateur non identifié</div>`;
+  }
+  const loc = demo
+    ? `<div class="muted mt-1"><i class="bi bi-geo"></i> Département ${dept||'?'}</div>`
+    : `<div class="muted mt-1"><i class="bi bi-geo"></i> ${p.adresse||'adresse ?'}, ${p.commune||''} ${dept?`(${dept})`:''}</div>`;
   return `<div class="col-md-6 col-xl-4"><div class="vignette">
     <div class="d-flex justify-content-between align-items-start mb-1">
       <span class="badge badge-ind">🏭 INDUSTRIEL</span>
       <span class="badge badge-naf" title="NAF ${p.naf2||'?'}">${p.naf2?(NAF_LABELS[p.naf2]||('NAF'+p.naf2)):'secteur ?'}</span>
     </div>
     ${op}
-    <div class="muted mt-1"><i class="bi bi-geo"></i> ${p.adresse||'adresse ?'}, ${p.commune||''} ${dept?`(${dept})`:''}</div>
+    ${loc}
     ${auto}
     <div class="mt-2" style="font-size:.85rem">${carte}</div>
   </div></div>`;
@@ -201,6 +214,7 @@ async function chargerVignettes(){
   }catch(e){ grid.innerHTML=`<div class="col-12 text-danger">${e}</div>`; }
 }
 initNaf();
+applyDemoBtn();
 chargerVignettes();
 chargerCompteur();
 </script>

@@ -51,6 +51,7 @@
       <button type="button" id="modePoints" class="btn btn-outline-warning" onclick="setMode('points')"><i class="bi bi-pin-map"></i> Points</button>
     </div>
     <button type="button" id="rejouer" class="btn btn-sm btn-outline-light" onclick="animer()" title="Rejouer l'animation"><i class="bi bi-play-circle"></i></button>
+    <button type="button" id="demoBtn" class="btn btn-sm btn-outline-light" onclick="toggleDemo()" title="Mode démo public : masque les noms d'entreprises"><i class="bi bi-incognito"></i> Démo</button>
     <div class="ms-auto d-flex gap-2">
       <a href="/crm/gisement" class="btn btn-sm btn-outline-light"><i class="bi bi-grid-3x3-gap"></i> Vignettes</a>
       <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-table"></i> Console</a>
@@ -113,18 +114,25 @@ function filtreQS(){
   if(tr){ const [a,b]=tr.split('-'); if(a) qs.set('conso_min',a); if(b) qs.set('conso_max',b); }
   return qs;
 }
+function isDemo(){ return localStorage.getItem('helia_demo')==='1'; }
+function applyDemoBtn(){ const b=document.getElementById('demoBtn'); if(b) b.className='btn btn-sm '+(isDemo()?'btn-light text-dark':'btn-outline-light'); }
+function toggleDemo(){ localStorage.setItem('helia_demo', isDemo()?'0':'1'); applyDemoBtn(); map.closePopup(); }
 function popupHtml(p){
   // p = [lat, lon, conso, naf2, operateur, commune, dept, id]
   const taux=currentTaux(), prod=productibleAt(p[0]);
   const kwc=(taux/100)*p[2]*1000/prod;
   const puiss = kwc>=1000 ? `${(kwc/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} MWc` : `${Math.round(kwc).toLocaleString('fr-FR')} kWc`;
   const naf = p[3]?(NAF_LABELS[p[3]]||('NAF'+p[3])):'secteur ?';
+  const demo=isDemo();
+  const nom = demo ? 'Site industriel' : (p[4]||'Opérateur non identifié');
+  const loc = demo ? `Dépt ${p[6]||'—'} · ${naf}` : `${p[5]||''} (${p[6]||''}) · ${naf}`;
+  const addr = demo ? `Site industriel (${p[6]||''})` : (p[4]||p[5]||'');
   return `<div style="min-width:200px">
-    <div style="font-weight:700;color:#fbbf24">${p[4]||'Opérateur non identifié'}</div>
-    <div class="muted">${p[5]||''} (${p[6]||''}) · ${naf}</div>
+    <div style="font-weight:700;color:#fbbf24">${nom}</div>
+    <div class="muted">${loc}</div>
     <div class="mt-1">⚡ Conso <b>${fmt(p[2])} MWh/an</b></div>
     <div>☀️ Potentiel (${taux}%) : <b style="color:#22c55e">${puiss}</b></div>
-    <a href="/app?lat=${p[0]}&lon=${p[1]}&address=${encodeURIComponent(p[4]||p[5]||'')}" target="_blank" style="color:#7dd3fc">🔍 Analyser dans HeliaPV</a>
+    <a href="/app?lat=${p[0]}&lon=${p[1]}&address=${encodeURIComponent(addr)}" target="_blank" style="color:#7dd3fc">🔍 Analyser dans HeliaPV</a>
   </div>`;
 }
 function buildLayers(){
@@ -199,6 +207,7 @@ async function chargerCompteur(){
   }catch(e){ box.innerHTML=`<span class="text-danger">${e}</span>`; }
 }
 initNaf();
+applyDemoBtn();
 recharger();
 </script>
 </body>
