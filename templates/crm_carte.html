@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carte nationale — gisement industriel</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<style>
+  html,body { height:100%; margin:0; background:#0f1420; color:#e2e8f0; font-family:'Poppins',Arial,sans-serif; }
+  .topbar { background:#161b29; border-bottom:1px solid rgba(255,255,255,.08); }
+  .brand { color:#fbbf24; font-weight:700; }
+  .form-control, .form-select { background:#0f1420; border-color:rgba(255,255,255,.15); color:#e2e8f0; }
+  .form-control:focus, .form-select:focus { background:#0f1420; color:#e2e8f0; border-color:#fbbf24; box-shadow:none; }
+  .muted { color:#8b93a7; font-size:.8rem; }
+  #map { width:100%; height:calc(100vh - 112px); background:#0b0f1a; }
+  .stat { font-weight:800; }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#1a2030; color:#e2e8f0; }
+  .leaflet-popup-content { margin:10px 12px; font-size:.85rem; }
+  .dot { border-radius:50%; box-shadow:0 0 6px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.5); }
+  .legend { position:absolute; bottom:14px; right:14px; z-index:500; background:rgba(22,27,41,.92); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; font-size:.78rem; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<div class="topbar px-3 py-2">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <span class="brand me-2"><i class="bi bi-map-fill"></i> Carte du gisement industriel</span>
+    <input id="filtreDept" class="form-control form-control-sm" style="width:90px" placeholder="Dépt" title="Département" onchange="recharger()">
+    <select id="filtreNaf" class="form-select form-select-sm" style="width:190px" title="Secteur" onchange="recharger()"></select>
+    <select id="filtreConso" class="form-select form-select-sm" style="width:165px" title="Tranche de conso" onchange="recharger()">
+      <option value="">Toutes consos</option>
+      <option value="1000-3000">1 000 – 3 000 MWh</option>
+      <option value="3000-10000">3 000 – 10 000 MWh</option>
+      <option value="10000-30000">10 000 – 30 000 MWh</option>
+      <option value="30000-">30 000+ MWh</option>
+    </select>
+    <div class="d-flex align-items-center gap-1" title="Part de conso couverte par le PV">
+      <span class="muted"><i class="bi bi-sliders"></i> Couvrir</span>
+      <input id="tauxCible" type="number" min="5" max="100" step="5" value="40" class="form-control form-control-sm" style="width:66px" oninput="onTaux()">
+      <span class="muted">%</span>
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <a href="/crm/gisement" class="btn btn-sm btn-outline-light"><i class="bi bi-grid-3x3-gap"></i> Vignettes</a>
+      <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-table"></i> Console</a>
+    </div>
+  </div>
+  <div class="d-flex gap-4 flex-wrap mt-2" id="compteur">
+    <span class="muted">Chargement du potentiel…</span>
+  </div>
+</div>
+
+<div style="position:relative;">
+  <div id="map"></div>
+  <div class="legend">
+    <div class="mb-1 muted">Conso annuelle (MWh)</div>
+    <div><i style="background:#38bdf8"></i>&lt; 1 000</div>
+    <div><i style="background:#22c55e"></i>1 000 – 3 000</div>
+    <div><i style="background:#fbbf24"></i>3 000 – 10 000</div>
+    <div><i style="background:#f59e0b"></i>10 000 – 30 000</div>
+    <div><i style="background:#ef4444"></i>30 000+</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
+function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
+function currentTaux(){ const v=parseFloat(document.getElementById('tauxCible').value); return (isFinite(v)&&v>0)?Math.min(100,v):40; }
+function productibleAt(lat){ if(lat==null) return 1150; return Math.max(950, Math.min(1400, 1350-(lat-43)*70)); }
+function couleur(c){ return c>=30000?'#ef4444':c>=10000?'#f59e0b':c>=3000?'#fbbf24':c>=1000?'#22c55e':'#38bdf8'; }
+function rayon(c){ return c>=30000?13:c>=10000?11:c>=3000?9:c>=1000?7:5; }
+
+const map=L.map('map',{preferCanvas:true}).setView([46.6,2.5],6);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19
+}).addTo(map);
+let cluster=L.markerClusterGroup({chunkedLoading:true, spiderfyOnMaxZoom:false, maxClusterRadius:50});
+map.addLayer(cluster);
+
+function initNaf(){
+  const s=document.getElementById('filtreNaf');
+  let h='<option value="">Tous secteurs</option>';
+  Object.entries(NAF_LABELS).forEach(([c,l])=>h+=`<option value="${c}">NAF${c} · ${l}</option>`);
+  s.innerHTML=h;
+}
+function filtreQS(){
+  const dept=(document.getElementById('filtreDept').value||'').trim();
+  const naf2=(document.getElementById('filtreNaf').value||'').trim();
+  const tr=(document.getElementById('filtreConso').value||'').trim();
+  const qs=new URLSearchParams();
+  if(dept) qs.set('dept',dept);
+  if(naf2) qs.set('naf2',naf2);
+  if(tr){ const [a,b]=tr.split('-'); if(a) qs.set('conso_min',a); if(b) qs.set('conso_max',b); }
+  return qs;
+}
+function popupHtml(p){
+  // p = [lat, lon, conso, naf2, operateur, commune, dept, id]
+  const taux=currentTaux(), prod=productibleAt(p[0]);
+  const kwc=(taux/100)*p[2]*1000/prod;
+  const puiss = kwc>=1000 ? `${(kwc/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} MWc` : `${Math.round(kwc).toLocaleString('fr-FR')} kWc`;
+  const naf = p[3]?(NAF_LABELS[p[3]]||('NAF'+p[3])):'secteur ?';
+  return `<div style="min-width:200px">
+    <div style="font-weight:700;color:#fbbf24">${p[4]||'Opérateur non identifié'}</div>
+    <div class="muted">${p[5]||''} (${p[6]||''}) · ${naf}</div>
+    <div class="mt-1">⚡ Conso <b>${fmt(p[2])} MWh/an</b></div>
+    <div>☀️ Potentiel (${taux}%) : <b style="color:#22c55e">${puiss}</b></div>
+    <a href="/app?lat=${p[0]}&lon=${p[1]}&address=${encodeURIComponent(p[4]||p[5]||'')}" target="_blank" style="color:#7dd3fc">🔍 Analyser dans HeliaPV</a>
+  </div>`;
+}
+async function recharger(){
+  const qs=filtreQS();
+  cluster.clearLayers();
+  document.getElementById('compteur').innerHTML='<span class="muted">Chargement de la carte…</span>';
+  try{
+    const j=await (await fetch('/api/industriel/carte-data?'+qs)).json();
+    const pts=j.points||[];
+    const markers=pts.map(p=>{
+      const r=rayon(p[2]), col=couleur(p[2]);
+      const ic=L.divIcon({className:'', html:`<div class="dot" style="width:${r}px;height:${r}px;background:${col}"></div>`, iconSize:[r,r]});
+      const m=L.marker([p[0],p[1]],{icon:ic});
+      m.bindPopup(()=>popupHtml(p));
+      return m;
+    });
+    cluster.addLayers(markers);
+    chargerCompteur();
+  }catch(e){ document.getElementById('compteur').innerHTML=`<span class="text-danger">${e}</span>`; }
+}
+let _tauxTimer=null;
+function onTaux(){ clearTimeout(_tauxTimer); _tauxTimer=setTimeout(chargerCompteur, 300); }
+async function chargerCompteur(){
+  const box=document.getElementById('compteur');
+  const qs=filtreQS(); qs.set('taux', currentTaux());
+  try{
+    const j=await (await fetch('/api/industriel/potentiel-total?'+qs)).json();
+    if(!j.success){ box.innerHTML=`<span class="text-danger">${j.error||''}</span>`; return; }
+    const puiss=j.gwc_total>=1?`${j.gwc_total.toLocaleString('fr-FR',{maximumFractionDigits:2})} GWc`:`${fmt(j.mwc_total)} MWc`;
+    box.innerHTML=
+      `<span><span class="stat" style="color:#e2e8f0">${fmt(j.nb)}</span> <span class="muted">sites</span></span>`
+     +`<span><span class="stat" style="color:#fbbf24">${j.conso_twh.toLocaleString('fr-FR',{maximumFractionDigits:2})} TWh</span> <span class="muted">conso/an</span></span>`
+     +`<span><span class="stat" style="color:#22c55e">${puiss}</span> <span class="muted">potentiel PV (${j.taux}%)</span></span>`
+     +`<span><span class="stat" style="color:#38bdf8">${j.production_gwh.toLocaleString('fr-FR',{maximumFractionDigits:0})} GWh</span> <span class="muted">production/an</span></span>`
+     +`<span class="muted align-self-center">${fmt(j.geocodes)} géocodés affichés</span>`;
+  }catch(e){ box.innerHTML=`<span class="text-danger">${e}</span>`; }
+}
+initNaf();
+recharger();
+</script>
+</body>
+</html>

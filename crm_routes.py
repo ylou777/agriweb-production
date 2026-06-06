@@ -2584,6 +2584,16 @@ def register_crm_routes(app):
             return redirect('/crm/industriel')
         return render_template('crm_gisement.html')
 
+    @app.route('/crm/carte')
+    def crm_carte_page():
+        """Carte nationale interactive du gisement industriel (admin)."""
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return redirect('/auth/login?next=/crm/carte')
+        if not is_admin:
+            return redirect('/crm/industriel')
+        return render_template('crm_carte.html')
+
     @app.route('/api/industriel/scan-inject', methods=['POST'])
     def industriel_scan_inject():
         """Lance un scan industriel et INJECTE les résultats dans le CRM dédié."""
@@ -3661,6 +3671,45 @@ def register_crm_routes(app):
                             'surface_ha': round(kwc * 6.5 / 10000.0, 1)})
         except Exception as e:
             print(f"❌ [POTENTIEL TOTAL] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/carte-data', methods=['GET'])
+    def industriel_carte_data():
+        """Points géocodés du gisement pour la carte nationale (payload compact).
+        Chaque point = [lat, lon, conso_mwh, naf2, operateur, commune, dept, id]."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            _ensure_industrial_table()
+            dept = (request.args.get('dept') or '').strip()
+            naf2 = (request.args.get('naf2') or '').strip()
+            conso_min = request.args.get('conso_min')
+            conso_max = request.args.get('conso_max')
+            clause, params = "", []
+            if not is_admin:
+                clause += " AND user_id = %s"; params.append(str(user_id))
+            if dept:
+                clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
+            if naf2:
+                clause += " AND naf2 = %s"; params.append(naf2)
+            if conso_min:
+                clause += " AND conso_mwh >= %s"; params.append(float(conso_min))
+            if conso_max:
+                clause += " AND conso_mwh < %s"; params.append(float(conso_max))
+            rows = execute_query(
+                f"SELECT id, lat, lon, conso_mwh, naf2, operateur_nom, commune, code_commune "
+                f"FROM industrial_prospects "
+                f"WHERE lat IS NOT NULL AND lon IS NOT NULL AND conso_mwh IS NOT NULL{clause} "
+                f"ORDER BY conso_mwh DESC LIMIT 30000",
+                tuple(params) if params else None, fetch_all=True) or []
+            pts = [[round(r['lat'], 5), round(r['lon'], 5), round(r.get('conso_mwh') or 0),
+                    r.get('naf2') or '', (r.get('operateur_nom') or '')[:60],
+                    r.get('commune') or '', (r.get('code_commune') or '')[:2], r['id']]
+                   for r in rows]
+            return jsonify({'success': True, 'count': len(pts), 'points': pts})
+        except Exception as e:
+            print(f"❌ [CARTE DATA] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/industriel/stats', methods=['GET'])
