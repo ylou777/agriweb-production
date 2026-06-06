@@ -21,6 +21,9 @@
   .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#1a2030; color:#e2e8f0; }
   .leaflet-popup-content { margin:10px 12px; font-size:.85rem; }
   .dot { border-radius:50%; box-shadow:0 0 6px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.5); }
+  .dot.pulse { animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(239,68,68,.7)} 70%{box-shadow:0 0 0 14px rgba(239,68,68,0)} 100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} }
+  .leaflet-container { background:#0b0f1a; }
   .legend { position:absolute; bottom:14px; right:14px; z-index:500; background:rgba(22,27,41,.92); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; font-size:.78rem; }
   .legend i { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; vertical-align:middle; }
 </style>
@@ -43,6 +46,11 @@
       <input id="tauxCible" type="number" min="5" max="100" step="5" value="40" class="form-control form-control-sm" style="width:66px" oninput="onTaux()">
       <span class="muted">%</span>
     </div>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" id="modeHeat" class="btn btn-warning" onclick="setMode('heat')"><i class="bi bi-fire"></i> Chaleur</button>
+      <button type="button" id="modePoints" class="btn btn-outline-warning" onclick="setMode('points')"><i class="bi bi-pin-map"></i> Points</button>
+    </div>
+    <button type="button" id="rejouer" class="btn btn-sm btn-outline-light" onclick="animer()" title="Rejouer l'animation"><i class="bi bi-play-circle"></i></button>
     <div class="ms-auto d-flex gap-2">
       <a href="/crm/gisement" class="btn btn-sm btn-outline-light"><i class="bi bi-grid-3x3-gap"></i> Vignettes</a>
       <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-table"></i> Console</a>
@@ -67,6 +75,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script>
 const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
 function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
@@ -80,7 +89,13 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
   attribution:'© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19
 }).addTo(map);
 let cluster=L.markerClusterGroup({chunkedLoading:true, spiderfyOnMaxZoom:false, maxClusterRadius:50});
-map.addLayer(cluster);
+let heat=L.heatLayer([], {radius:18, blur:22, minOpacity:0.25, maxZoom:11,
+  gradient:{0.0:'#1e3a8a',0.3:'#0ea5e9',0.5:'#22c55e',0.7:'#fbbf24',0.85:'#f59e0b',1.0:'#ef4444'}});
+let MODE='heat';      // 'heat' | 'points'
+let _pts=[];          // points bruts du dernier fetch
+let _markers=[];      // marqueurs construits (mode points)
+let _heatData=[];     // [lat, lon, poids] pondéré par conso
+function poidsHeat(c){ return Math.max(0.15, Math.min(1, Math.sqrt((c||0)/8000))); }
 
 function initNaf(){
   const s=document.getElementById('filtreNaf');
@@ -112,21 +127,57 @@ function popupHtml(p){
     <a href="/app?lat=${p[0]}&lon=${p[1]}&address=${encodeURIComponent(p[4]||p[5]||'')}" target="_blank" style="color:#7dd3fc">🔍 Analyser dans HeliaPV</a>
   </div>`;
 }
+function buildLayers(){
+  // Marqueurs (mode points) — pulsation sur les très gros sites
+  _markers=_pts.map(p=>{
+    const r=rayon(p[2]), col=couleur(p[2]), pulse=p[2]>=30000?' pulse':'';
+    const ic=L.divIcon({className:'', html:`<div class="dot${pulse}" style="width:${r}px;height:${r}px;background:${col}"></div>`, iconSize:[r,r]});
+    const m=L.marker([p[0],p[1]],{icon:ic});
+    m.bindPopup(()=>popupHtml(p));
+    return m;
+  });
+  _heatData=_pts.map(p=>[p[0], p[1], poidsHeat(p[2])]);
+}
+function clearLayers(){
+  cluster.clearLayers(); if(map.hasLayer(cluster)) map.removeLayer(cluster);
+  heat.setLatLngs([]); if(map.hasLayer(heat)) map.removeLayer(heat);
+}
+function setMode(m){
+  MODE=m;
+  document.getElementById('modeHeat').className = 'btn '+(m==='heat'?'btn-warning':'btn-outline-warning');
+  document.getElementById('modePoints').className = 'btn '+(m==='points'?'btn-warning':'btn-outline-warning');
+  animer();
+}
+let _animTimer=null;
+function animer(){
+  // Animation d'apparition : la France s'allume progressivement (~1,8 s)
+  clearTimeout(_animTimer); clearLayers();
+  const N=MODE==='heat'?_heatData.length:_markers.length;
+  if(!N){ return; }
+  const target = MODE==='heat'?heat:cluster;
+  map.addLayer(target);
+  const STEPS=36, per=Math.ceil(N/STEPS); let i=0;
+  function step(){
+    const end=Math.min(N, i+per);
+    if(MODE==='heat'){
+      heat.setLatLngs(_heatData.slice(0, end));
+    }else{
+      cluster.addLayers(_markers.slice(i, end));
+    }
+    i=end;
+    if(i<N) _animTimer=setTimeout(step, 45);
+  }
+  step();
+}
 async function recharger(){
   const qs=filtreQS();
-  cluster.clearLayers();
+  clearLayers();
   document.getElementById('compteur').innerHTML='<span class="muted">Chargement de la carte…</span>';
   try{
     const j=await (await fetch('/api/industriel/carte-data?'+qs)).json();
-    const pts=j.points||[];
-    const markers=pts.map(p=>{
-      const r=rayon(p[2]), col=couleur(p[2]);
-      const ic=L.divIcon({className:'', html:`<div class="dot" style="width:${r}px;height:${r}px;background:${col}"></div>`, iconSize:[r,r]});
-      const m=L.marker([p[0],p[1]],{icon:ic});
-      m.bindPopup(()=>popupHtml(p));
-      return m;
-    });
-    cluster.addLayers(markers);
+    _pts=j.points||[];
+    buildLayers();
+    animer();
     chargerCompteur();
   }catch(e){ document.getElementById('compteur').innerHTML=`<span class="text-danger">${e}</span>`; }
 }
