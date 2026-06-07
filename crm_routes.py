@@ -7698,6 +7698,146 @@ out geom tags;"""
 
     # ============================================================================
     # PROPOSITION COMMERCIALE PROFESSIONNELLE
+    def _emprise_batiment_ign(lat, lon):
+        """Emprise au sol (m²) du bâtiment au point, via IGN BD TOPO (gratuit, WFS).
+        None si indisponible. Sert de plafond toiture pour la pré-étude."""
+        if lat is None or lon is None:
+            return None
+        try:
+            import requests as _rq
+            from shapely.geometry import shape as _shape, Point as _Point
+            from shapely.ops import transform as _sht
+            from pyproj import Transformer as _Tr
+            _T = _Tr.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+            d = 0.0016
+            p = {"SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
+                 "typeNames": "BDTOPO_V3:batiment", "outputFormat": "application/json", "count": "80",
+                 "bbox": f"{lon-d},{lat-d},{lon+d},{lat+d},urn:ogc:def:crs:OGC:1.3:CRS84"}
+            feats = _rq.get("https://data.geopf.fr/wfs/ows", params=p, timeout=15).json().get('features', [])
+            if not feats:
+                return None
+            def _area(g): return _sht(lambda x, y, z=None: _T.transform(x, y), g).area
+            pt = _Point(lon, lat)
+            cont = [_shape(f['geometry']) for f in feats if _shape(f['geometry']).contains(pt)]
+            if cont:
+                return round(_area(cont[0]))
+            biggest = max((_shape(f['geometry']) for f in feats), key=_area)
+            return round(_area(biggest))
+        except Exception as e:
+            print(f"⚠️ [IGN BD TOPO] emprise: {e}")
+            return None
+
+    def _pre_etude_sizing(prospect, taux_cible=40.0, prix_wc=0.55):
+        """Dimensionnement de la pré-étude (gratuit) : puissance = min(couverture conso,
+        plafond toiture IGN). Retourne le détail + les KPIs autoconso."""
+        try:
+            dj = json.loads(prospect.get('data_json') or '{}')
+            if isinstance(dj, list):
+                dj = {}
+        except Exception:
+            dj = {}
+        em = dj.get('enedis_match') or {}
+        diag0 = dj.get('diagnostic_autoconso') or {}
+        conso_mwh = em.get('consommation_mwh')
+        if conso_mwh is None and diag0.get('consommation_annuelle_kwh'):
+            conso_mwh = diag0['consommation_annuelle_kwh'] / 1000.0
+        conso_mwh = float(conso_mwh or 0)
+        secteur = em.get('secteur') or 'INDUSTRIE'
+        lat = prospect.get('latitude'); lon = prospect.get('longitude')
+        try:
+            from autoconsommation import _productible_from_lat, diagnostic_autoconso_rapide
+        except Exception:
+            _productible_from_lat = lambda l: 1150.0; diagnostic_autoconso_rapide = None
+        productible = _productible_from_lat(lat)
+        conso_kwh = conso_mwh * 1000.0
+        kwc_conso = (taux_cible / 100.0) * conso_kwh / productible if conso_kwh > 0 else 0
+        # Plafond toiture (IGN BD TOPO) : ~0,1 kWc/m² d'emprise
+        surface = _emprise_batiment_ign(lat, lon)
+        plafond = round(surface * 0.10) if surface else None
+        kwc = kwc_conso
+        if plafond:
+            kwc = min(kwc, plafond)
+        kwc = max(9.0, round(kwc))
+        # KPIs à cette puissance (production PVGIS par latitude, taux autoconso, économie)
+        diag = {}
+        if diagnostic_autoconso_rapide and conso_mwh > 0:
+            try:
+                diag = diagnostic_autoconso_rapide(conso_mwh, secteur, lat=lat, kwc=kwc) or {}
+            except Exception:
+                diag = {}
+        return {'kwc': kwc, 'kwc_conso': round(kwc_conso), 'plafond_toiture_kwc': plafond,
+                'surface_toiture_m2': surface, 'productible': round(productible),
+                'conso_mwh': round(conso_mwh), 'secteur': secteur, 'diag': diag,
+                'borne_par': 'toiture' if (plafond and plafond < kwc_conso) else 'consommation'}
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/pre-etude', methods=['POST', 'GET'])
+    def generer_pre_etude(prospect_id):
+        """Génère une PRÉ-ÉTUDE indicative (gratuite) : dimensionnement auto
+        (conso + plafond toiture IGN), prix 0,55 €/Wc, proposition pro marquée indicative."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            row = execute_query("SELECT * FROM agriweb_prospects WHERE id = %s", (prospect_id,), fetch_one=True)
+            if not row:
+                return jsonify({'success': False, 'error': 'Prospect introuvable'}), 404
+            prospect = dict(row)
+            if not is_admin and str(prospect.get('user_id')) != str(user_id):
+                return jsonify({'success': False, 'error': 'Accès refusé'}), 403
+
+            sz = _pre_etude_sizing(prospect)
+            if sz['conso_mwh'] <= 0:
+                return jsonify({'success': False, 'error': 'Consommation inconnue pour ce prospect'}), 400
+            diag = sz['diag']
+            kwc = sz['kwc']
+            prod_kwh = diag.get('production_annuelle_kwh') or round(kwc * sz['productible'])
+            taux_pct = diag.get('taux_autoconsommation')
+            taux_frac = (taux_pct / 100.0) if taux_pct else 0.7
+            conso_kwh = sz['conso_mwh'] * 1000.0
+
+            from proposition_professionnelle import PropositionProfessionnelle
+            try:
+                from autoconsommation import get_tarif_revente_s21
+                tarif_revente = get_tarif_revente_s21(kwc)
+            except Exception:
+                tarif_revente = 0.0536
+
+            calpinage = {'totaux': {'puissanceTotale': kwc, 'nbModules': int(kwc / 0.55),
+                                    'puissanceModule': 550}, 'zones': [],
+                         'type_raccordement': 'autoconsommation'}
+            parametres = {
+                'type_projet': 'autoconsommation',
+                'puissance_kwc': kwc,
+                'prix_kwc': 550.0,
+                'consommation_annuelle_kwh': conso_kwh,
+                'tarif_achat_kwh': 0.20,
+                'tarif_revente_kwh': tarif_revente,
+                'taux_autoconso': taux_pct or 70.0,
+                'indicative': True,
+                'autoconso_data': {'kpis': {
+                    'production_annuelle_kwh': prod_kwh,
+                    'taux_autoconsommation': taux_pct or 70.0,
+                    'consommation_annuelle_kwh': conso_kwh,
+                    'autoconso_kwh': round(prod_kwh * taux_frac),
+                    'surplus_kwh': round(prod_kwh * (1 - taux_frac)),
+                }},
+            }
+            pdf = PropositionProfessionnelle(prospect, calpinage, parametres).generer_pdf()
+            commune = (prospect.get('commune') or 'site').replace(' ', '_')
+            fname = f"Pre-etude_{commune}_{kwc:.0f}kWc_{datetime.now().strftime('%Y%m%d')}.pdf"
+            try:
+                pdf.seek(0); save_to_dataroom(prospect_id, pdf.read(), fname, 'pre_etude', source='auto-pre-etude')
+                pdf.seek(0)
+            except Exception as _e:
+                print(f"⚠️ [PRE-ETUDE] dataroom: {_e}")
+            print(f"✅ [PRE-ETUDE] prospect {prospect_id}: {kwc:.0f} kWc (borné par {sz['borne_par']}), "
+                  f"toiture {sz['surface_toiture_m2']} m²")
+            return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=fname)
+        except Exception as e:
+            print(f"❌ [PRE-ETUDE] {e}")
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/crm/prospects/<int:prospect_id>/proposition-complete', methods=['POST'])
     def generer_proposition_complete(prospect_id):
         """

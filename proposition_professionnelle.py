@@ -57,6 +57,7 @@ class PropositionProfessionnelle:
         self.prospect = prospect or {}
         self.calpinage = calpinage or {}
         self.parametres = parametres or {}
+        self.indicative = bool((parametres or {}).get('indicative'))  # pré-étude indicative
         self.width, self.height = A4
         self.page_number = 0
         self.date_now = datetime.now()
@@ -699,6 +700,16 @@ class PropositionProfessionnelle:
         c.setFillColor(self.COLOR_SECONDARY)
         c.setFont("Helvetica", 11)
         c.drawCentredString(w / 2, h - 7.2 * cm, type_label)
+
+        # ── Bandeau PRÉ-ÉTUDE INDICATIVE (si applicable) ──────────────────────────
+        if self.indicative:
+            from reportlab.lib.colors import HexColor
+            by = h - 8.5 * cm
+            c.setFillColor(HexColor("#E8820E"))
+            c.roundRect(w * 0.18, by - 0.55 * cm, w * 0.64, 0.95 * cm, 5, fill=1, stroke=0)
+            c.setFillColor(self.COLOR_WHITE)
+            c.setFont("Helvetica-Bold", 10.5)
+            c.drawCentredString(w / 2, by - 0.12 * cm, "PRÉ-ÉTUDE INDICATIVE — sous réserve d'une étude détaillée")
 
         # \u2500\u2500 Carte blanche projet (partie basse) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         card_x = 1.5 * cm
