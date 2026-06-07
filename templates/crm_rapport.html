@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rapport gisement — par département & profil</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background:#0f1420; color:#e2e8f0; font-family:'Poppins',Arial,sans-serif; }
+  .navbar-brand { color:#fbbf24; font-weight:700; }
+  .card { background:#1a2030; border:1px solid rgba(255,255,255,.08); }
+  .form-control, .form-select { background:#0f1420; border-color:rgba(255,255,255,.15); color:#e2e8f0; }
+  .muted { color:#8b93a7; font-size:.8rem; }
+  table { color:#e2e8f0; }
+  .table > :not(caption) > * > * { background:transparent; color:#e2e8f0; border-color:rgba(255,255,255,.07); }
+  .dept-row { cursor:pointer; }
+  .dept-row:hover { background:rgba(255,255,255,.04); }
+  .conso { color:#fbbf24; font-weight:700; }
+  .pot { color:#22c55e; font-weight:700; }
+  .secteurs { background:rgba(255,255,255,.02); }
+  .badge-naf { background:rgba(56,189,248,.15); color:#7dd3fc; }
+  .stat { font-size:1.9rem; font-weight:800; line-height:1.1; }
+</style>
+</head>
+<body>
+<nav class="navbar px-3 mb-3" style="background:#161b29;border-bottom:1px solid rgba(255,255,255,.08);">
+  <span class="navbar-brand"><i class="bi bi-file-earmark-bar-graph"></i> Rapport gisement <small class="muted">— par département & profil de consommateur</small></span>
+  <div class="d-flex gap-2">
+    <a href="/crm/carte" class="btn btn-sm btn-outline-light"><i class="bi bi-map"></i> Carte</a>
+    <a href="/crm/gisement" class="btn btn-sm btn-outline-light"><i class="bi bi-grid-3x3-gap"></i> Vignettes</a>
+    <a href="/crm/industriel" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> Console</a>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="card mb-3"><div class="card-body">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="d-flex align-items-center gap-1">
+        <span class="muted"><i class="bi bi-sliders"></i> Couvrir</span>
+        <input id="taux" type="number" min="5" max="100" step="5" value="40" class="form-control form-control-sm" style="width:72px" oninput="onTaux()" title="Taux de couverture visé">
+        <span class="muted">% de la conso</span>
+      </div>
+      <a id="btnCsv" href="/api/industriel/rapport.csv?taux=40" class="btn btn-sm btn-success"><i class="bi bi-filetype-csv"></i> Télécharger (CSV/Excel)</a>
+      <button class="btn btn-sm btn-outline-light" onclick="charger()"><i class="bi bi-arrow-clockwise"></i></button>
+      <div class="ms-auto muted">Cliquez un département pour voir le détail par profil</div>
+    </div>
+    <div class="row text-center g-2 mt-2" id="synth"><div class="col-12 muted">Calcul du rapport…</div></div>
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr class="muted">
+          <th style="width:30px"></th><th>Département</th><th class="text-end">Sites</th>
+          <th class="text-end">Conso/an</th><th class="text-end">Potentiel PV</th><th>Top profils</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="muted">Chargement…</td></tr></tbody>
+      </table>
+    </div>
+  </div></div>
+</div>
+
+<script>
+function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
+function currentTaux(){ const v=parseFloat(document.getElementById('taux').value); return (isFinite(v)&&v>0)?Math.min(100,v):40; }
+function puiss(kwc){ return kwc>=1000 ? (kwc/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+' MWc' : Math.round(kwc).toLocaleString('fr-FR')+' kWc'; }
+let _data=null, _tauxTimer=null;
+function onTaux(){ document.getElementById('btnCsv').href='/api/industriel/rapport.csv?taux='+currentTaux(); clearTimeout(_tauxTimer); _tauxTimer=setTimeout(charger, 350); }
+
+async function charger(){
+  const rows=document.getElementById('rows');
+  rows.innerHTML='<tr><td colspan="6" class="muted">Calcul…</td></tr>';
+  try{
+    const j=await (await fetch('/api/industriel/rapport?taux='+currentTaux())).json();
+    if(!j.success){ rows.innerHTML=`<tr><td colspan="6" class="text-danger">${j.error||'Erreur'}</td></tr>`; return; }
+    _data=j;
+    const N=j.national;
+    document.getElementById('synth').innerHTML =
+      cell(fmt(N.nb),'sites industriels')
+    + cell(N.nb_departements,'départements')
+    + cell(N.conso_twh.toLocaleString('fr-FR',{maximumFractionDigits:2})+' TWh','conso annuelle','#fbbf24')
+    + cell(N.gwc.toLocaleString('fr-FR',{maximumFractionDigits:2})+' GWc',`potentiel PV (${j.taux}%)`,'#22c55e');
+    rows.innerHTML = j.departements.map(rowDept).join('');
+  }catch(e){ rows.innerHTML=`<tr><td colspan="6" class="text-danger">${e}</td></tr>`; }
+}
+function cell(val,lib,color){ return `<div class="col-md-3 col-6"><div class="stat" style="color:${color||'#e2e8f0'}">${val}</div><div class="muted">${lib}</div></div>`; }
+function rowDept(d){
+  const top = d.secteurs.slice(0,3).map(s=>`<span class="badge badge-naf me-1">${s.label} (${s.nb})</span>`).join('');
+  const det = d.secteurs.map(s=>`<tr>
+      <td></td>
+      <td><span class="badge badge-naf">${s.label}</span> <span class="muted">NAF${s.naf2}</span></td>
+      <td class="text-end">${fmt(s.nb)}</td>
+      <td class="text-end conso">${fmt(s.conso_mwh)} MWh</td>
+      <td class="text-end pot">${puiss(s.kwc)}</td>
+      <td></td></tr>`).join('');
+  return `<tr class="dept-row" onclick="toggle('${d.dept}')">
+      <td><i class="bi bi-chevron-right" id="chev-${d.dept}"></i></td>
+      <td><b>${d.dept}</b> · ${d.nom}</td>
+      <td class="text-end">${fmt(d.nb)}</td>
+      <td class="text-end conso">${d.conso_twh>=0.01?d.conso_twh.toLocaleString('fr-FR',{maximumFractionDigits:2})+' TWh':fmt(d.conso_mwh)+' MWh'}</td>
+      <td class="text-end pot">${d.gwc>=0.1?d.gwc.toLocaleString('fr-FR',{maximumFractionDigits:2})+' GWc':puiss(d.kwc)}</td>
+      <td>${top}</td>
+    </tr>
+    <tr class="secteurs" id="det-${d.dept}" style="display:none"><td colspan="6"><div class="table-responsive">
+      <table class="table table-sm mb-0"><tbody>${det}</tbody></table>
+    </div></td></tr>`;
+}
+function toggle(dept){
+  const det=document.getElementById('det-'+dept), chev=document.getElementById('chev-'+dept);
+  const open = det.style.display==='none';
+  det.style.display = open?'':'none';
+  chev.className = open?'bi bi-chevron-down':'bi bi-chevron-right';
+}
+charger();
+</script>
+</body>
+</html>

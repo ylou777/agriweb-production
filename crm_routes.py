@@ -44,6 +44,35 @@ REGION_NOMS = {
     '84': 'Auvergne-Rhône-Alpes', '93': "Provence-Alpes-Côte d'Azur", '94': 'Corse',
 }
 
+DEPT_NOMS = {
+    '01':'Ain','02':'Aisne','03':'Allier','04':'Alpes-de-Haute-Provence','05':'Hautes-Alpes',
+    '06':'Alpes-Maritimes','07':'Ardèche','08':'Ardennes','09':'Ariège','10':'Aube','11':'Aude',
+    '12':'Aveyron','13':'Bouches-du-Rhône','14':'Calvados','15':'Cantal','16':'Charente',
+    '17':'Charente-Maritime','18':'Cher','19':'Corrèze','2A':'Corse-du-Sud','2B':'Haute-Corse',
+    '21':"Côte-d'Or",'22':"Côtes-d'Armor",'23':'Creuse','24':'Dordogne','25':'Doubs','26':'Drôme',
+    '27':'Eure','28':'Eure-et-Loir','29':'Finistère','30':'Gard','31':'Haute-Garonne','32':'Gers',
+    '33':'Gironde','34':'Hérault','35':'Ille-et-Vilaine','36':'Indre','37':'Indre-et-Loire',
+    '38':'Isère','39':'Jura','40':'Landes','41':'Loir-et-Cher','42':'Loire','43':'Haute-Loire',
+    '44':'Loire-Atlantique','45':'Loiret','46':'Lot','47':'Lot-et-Garonne','48':'Lozère',
+    '49':'Maine-et-Loire','50':'Manche','51':'Marne','52':'Haute-Marne','53':'Mayenne',
+    '54':'Meurthe-et-Moselle','55':'Meuse','56':'Morbihan','57':'Moselle','58':'Nièvre','59':'Nord',
+    '60':'Oise','61':'Orne','62':'Pas-de-Calais','63':'Puy-de-Dôme','64':'Pyrénées-Atlantiques',
+    '65':'Hautes-Pyrénées','66':'Pyrénées-Orientales','67':'Bas-Rhin','68':'Haut-Rhin','69':'Rhône',
+    '70':'Haute-Saône','71':'Saône-et-Loire','72':'Sarthe','73':'Savoie','74':'Haute-Savoie',
+    '75':'Paris','76':'Seine-Maritime','77':'Seine-et-Marne','78':'Yvelines','79':'Deux-Sèvres',
+    '80':'Somme','81':'Tarn','82':'Tarn-et-Garonne','83':'Var','84':'Vaucluse','85':'Vendée',
+    '86':'Vienne','87':'Haute-Vienne','88':'Vosges','89':'Yonne','90':'Territoire de Belfort',
+    '91':'Essonne','92':'Hauts-de-Seine','93':'Seine-Saint-Denis','94':'Val-de-Marne','95':"Val-d'Oise",
+}
+NAF_LABELS = {
+    '08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement',
+    '15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie',
+    '21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie',
+    '25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile',
+    '30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie',
+    '36':'Eau','38':'Déchets',
+}
+
 # Offre SaaS prospection industrielle (abonnement mensuel). Montants en centimes.
 INDUSTRIEL_PLANS = {
     'solo': {'amount': 14900, 'territory': 'dept', 'label': 'Solo',
@@ -2594,6 +2623,16 @@ def register_crm_routes(app):
             return redirect('/crm/industriel')
         return render_template('crm_carte.html')
 
+    @app.route('/crm/rapport')
+    def crm_rapport_page():
+        """Rapport complet du gisement par département × profil de consommateur (admin)."""
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return redirect('/auth/login?next=/crm/rapport')
+        if not is_admin:
+            return redirect('/crm/industriel')
+        return render_template('crm_rapport.html')
+
     @app.route('/api/industriel/scan-inject', methods=['POST'])
     def industriel_scan_inject():
         """Lance un scan industriel et INJECTE les résultats dans le CRM dédié."""
@@ -3781,6 +3820,97 @@ def register_crm_routes(app):
         except Exception as e:
             print(f"❌ [CARTE DATA] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    _PRODUCTIBLE_SQL = ("CASE WHEN lat IS NULL THEN 1150.0 "
+                        "ELSE GREATEST(950.0, LEAST(1400.0, 1350.0 - (lat - 43.0) * 70.0)) END")
+
+    def _rapport_rows(taux):
+        """Agrégation gisement par département × secteur (profil de consommateur).
+        Retourne la liste de lignes (dept, naf2, n, conso_mwh, kwc)."""
+        _ensure_industrial_table()
+        return execute_query(
+            f"""SELECT LEFT(code_commune,2) AS dept, COALESCE(NULLIF(naf2,''),'??') AS naf2,
+                   COUNT(*) AS n,
+                   COALESCE(SUM(conso_mwh),0) AS conso_mwh,
+                   COALESCE(SUM((%s/100.0)*conso_mwh*1000.0/{_PRODUCTIBLE_SQL}),0) AS kwc,
+                   COUNT(lat) AS geocodes
+               FROM industrial_prospects
+               WHERE conso_mwh IS NOT NULL AND code_commune IS NOT NULL
+               GROUP BY LEFT(code_commune,2), COALESCE(NULLIF(naf2,''),'??')
+               ORDER BY dept, conso_mwh DESC""",
+            (float(taux),), fetch_all=True) or []
+
+    @app.route('/api/industriel/rapport', methods=['GET'])
+    def industriel_rapport():
+        """Rapport complet par département et par profil de consommateur (secteur NAF).
+        Param taux (def. 40). Structure imbriquée : national → départements → secteurs."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Admin requis'}), 403
+            try:
+                taux = max(1.0, min(float(request.args.get('taux') or 40), 100.0))
+            except Exception:
+                taux = 40.0
+            rows = _rapport_rows(taux)
+            depts = {}
+            nat = {'nb': 0, 'conso_mwh': 0.0, 'kwc': 0.0}
+            for r in rows:
+                d = r['dept']
+                conso = float(r.get('conso_mwh') or 0); kwc = float(r.get('kwc') or 0); n = r.get('n') or 0
+                dd = depts.setdefault(d, {'dept': d, 'nom': DEPT_NOMS.get(d, d),
+                                          'nb': 0, 'conso_mwh': 0.0, 'kwc': 0.0, 'secteurs': []})
+                dd['secteurs'].append({'naf2': r['naf2'], 'label': NAF_LABELS.get(r['naf2'], 'Autre/non classé'),
+                                       'nb': n, 'conso_mwh': round(conso),
+                                       'kwc': round(kwc), 'mwc': round(kwc / 1000, 2)})
+                dd['nb'] += n; dd['conso_mwh'] += conso; dd['kwc'] += kwc
+                nat['nb'] += n; nat['conso_mwh'] += conso; nat['kwc'] += kwc
+            dept_list = []
+            for d in sorted(depts.values(), key=lambda x: x['conso_mwh'], reverse=True):
+                d['conso_mwh'] = round(d['conso_mwh']); d['conso_twh'] = round(d['conso_mwh'] / 1_000_000, 3)
+                d['mwc'] = round(d['kwc'] / 1000, 1); d['gwc'] = round(d['kwc'] / 1_000_000, 3)
+                d['kwc'] = round(d['kwc'])
+                dept_list.append(d)
+            return jsonify({'success': True, 'taux': taux,
+                            'national': {'nb': nat['nb'], 'conso_twh': round(nat['conso_mwh'] / 1_000_000, 2),
+                                         'gwc': round(nat['kwc'] / 1_000_000, 2),
+                                         'nb_departements': len(dept_list)},
+                            'departements': dept_list})
+        except Exception as e:
+            print(f"❌ [RAPPORT] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/industriel/rapport.csv', methods=['GET'])
+    def industriel_rapport_csv():
+        """Export CSV du rapport (1 ligne par département × secteur). Excel-friendly."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return ("Admin requis", 403)
+            try:
+                taux = max(1.0, min(float(request.args.get('taux') or 40), 100.0))
+            except Exception:
+                taux = 40.0
+            rows = _rapport_rows(taux)
+            import csv, io as _io
+            buf = _io.StringIO()
+            buf.write('﻿')  # BOM pour Excel (accents)
+            w = csv.writer(buf, delimiter=';')
+            w.writerow(['Departement', 'Nom departement', 'Secteur (NAF2)', 'Profil consommateur',
+                        'Nb sites', 'Conso totale (MWh/an)', 'Conso moyenne (MWh/an)',
+                        f'Potentiel PV (kWc, couvrir {int(taux)}%)'])
+            for r in rows:
+                n = r.get('n') or 0
+                conso = round(float(r.get('conso_mwh') or 0))
+                w.writerow([r['dept'], DEPT_NOMS.get(r['dept'], r['dept']), r['naf2'],
+                            NAF_LABELS.get(r['naf2'], 'Autre/non classé'), n, conso,
+                            round(conso / n) if n else 0, round(float(r.get('kwc') or 0))])
+            from flask import Response
+            return Response(buf.getvalue(), mimetype='text/csv; charset=utf-8',
+                            headers={'Content-Disposition': f'attachment; filename=rapport_gisement_taux{int(taux)}.csv'})
+        except Exception as e:
+            print(f"❌ [RAPPORT CSV] {e}")
+            return (str(e), 500)
 
     @app.route('/api/industriel/stats', methods=['GET'])
     def industriel_stats():
