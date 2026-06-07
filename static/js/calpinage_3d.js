@@ -1000,7 +1000,9 @@ class Calpinage3DViewer {
                         // module → superstructure → module EXCLU (pas posé dessus).
                         const planeAbs = terrainH + Math.max(wallH, mnh);
                         const _copcY = this._sampleCopcHeight?.(worldX, worldZ);
-                        if (_copcY !== null && _copcY !== undefined && (_copcY - planeAbs) > 0.5) {
+                        const _seuilObst = (opts.obstacleThreshold > 0 && isFinite(opts.obstacleThreshold))
+                                           ? opts.obstacleThreshold : 0.15;  // m (défaut 15 cm)
+                        if (_copcY !== null && _copcY !== undefined && (_copcY - planeAbs) > _seuilObst) {
                             try {
                                 const _g = this._localToGeo(worldX, worldZ);
                                 this._excludedModuleGeoPos.push({ lat: _g.lat, lng: _g.lng,
