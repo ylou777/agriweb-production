@@ -2742,6 +2742,38 @@ def register_crm_routes(app):
             return redirect('/crm/industriel')
         return render_template('crm_carte.html')
 
+    @app.route('/demo-prospection')
+    def demo_prospection_page():
+        """Page de démo publique (RGPD-safe) : prospects réels + potentiel, contacts masqués."""
+        # (société, commune, dept, conso_mwh, domaine) — contacts masqués pour le public
+        data = [
+            ("FARMOR", "Châteaulin", "29", 19811, "farmor.fr"),
+            ("APTAR STELMI", "Granville", "50", 19763, "aptar.com"),
+            ("SANOFI WINTHROP INDUSTRIE", "Val-de-Reuil", "27", 19746, "sanofi.com"),
+            ("FRONERI FRANCE", "Plouédern", "29", 19682, "froneri.com"),
+            ("OLGA", "Châteaubourg", "35", 19619, "avec-olga.com"),
+            ("HEIDELBERG MATERIALS", "Maubeuge", "59", 19615, "heidelbergmaterials.com"),
+            ("MELTBLO FRANCE", "Brognard", "25", 799, "meltblofrance.com"),
+            ("BAUMIT", "Châteaurenard", "13", 798, "baumit.com"),
+            ("EURO PLV", "Saint-Victurnien", "87", 798, "europlv.com"),
+        ]
+        def _tarif(c):
+            return 0.20 if c < 500 else 0.18 if c < 2000 else 0.16 if c < 20000 else 0.13 if c < 70000 else 0.11 if c < 150000 else 0.095
+        def _sp(n): return f"{n:,.0f}".replace(",", " ")
+        prod = 1200.0
+        rows = []
+        tot_conso = tot_kwc = tot_eco = 0.0
+        for soc, com, dep, conso, dom in data:
+            kwc = round(0.40 * conso * 1000 / prod)
+            eco = 0.40 * conso * 1000 * _tarif(conso)
+            tot_conso += conso; tot_kwc += kwc; tot_eco += eco
+            rows.append({'societe': soc, 'commune': com, 'dept': dep, 'conso': _sp(conso),
+                         'pot': (f"{kwc/1000:.1f} MWc" if kwc >= 1000 else f"{kwc} kWc"),
+                         'eco': _sp(eco), 'email': f"•••@{dom}"})
+        return render_template('demo_prospection.html', rows=rows, nb=len(rows),
+                               conso_gwh=f"{tot_conso/1000:.1f}", pot_mwc=f"{tot_kwc/1000:.1f}",
+                               eco_total=_sp(tot_eco))
+
     @app.route('/crm/rapport')
     def crm_rapport_page():
         """Rapport complet du gisement par département × profil de consommateur (admin)."""
