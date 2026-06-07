@@ -83,6 +83,23 @@
 const NAF_LABELS={'08':'Carrières/extraction','10':'Agroalimentaire','11':'Boissons','13':'Textile','14':'Habillement','15':'Cuir/chaussure','16':'Bois','17':'Papier/carton','18':'Imprimerie','19':'Raffinage','20':'Chimie','21':'Pharmacie','22':'Plastique/caoutchouc','23':'Verre/ciment/minéraux','24':'Métallurgie','25':'Produits métalliques','26':'Électronique','27':'Équip. électriques','28':'Machines','29':'Automobile','30':'Autres transports','31':'Meubles','32':'Autres manuf.','33':'Réparation machines','35':'Énergie','36':'Eau','38':'Déchets'};
 let _offset=0, _size=250, _total=0;
 function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0}); }
+async function ajouterCRM(id, btn){
+  const card = btn.closest('.vignette');
+  const box = card ? card.querySelector('.crm-res') : null;
+  btn.disabled = true; const lbl = btn.textContent; btn.textContent = '⏳ Ajout…';
+  try{
+    const j = await (await fetch('/api/industriel/ajouter-au-crm', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})})).json();
+    if(j.success){
+      btn.textContent = j.created ? '✅ Ajouté au CRM' : '✓ Déjà dans le CRM';
+      if(box) box.innerHTML = `<a class="osm" href="/crm/prospect/${j.prospect_id}/calpinage" target="_blank">🔍 Analyser (calepinage)</a> · `
+                            + `<a class="osm" href="/crm" target="_blank">Voir la fiche</a>`;
+    } else {
+      btn.disabled = false; btn.textContent = lbl;
+      if(box) box.innerHTML = `<span class="text-danger">${j.message || j.error || 'Erreur'}</span>`;
+    }
+  }catch(e){ btn.disabled = false; btn.textContent = lbl; if(box) box.innerHTML = `<span class="text-danger">${e}</span>`; }
+}
 function isDemo(){ return localStorage.getItem('helia_demo')==='1'; }
 function applyDemoBtn(){ const b=document.getElementById('demoBtn'); if(b) b.className='btn btn-sm '+(isDemo()?'btn-light text-dark':'btn-outline-light'); }
 function toggleDemo(){ localStorage.setItem('helia_demo', isDemo()?'0':'1'); applyDemoBtn(); renderGrid(); }
@@ -175,7 +192,13 @@ function vignette(p){
     ${op}
     ${loc}
     ${auto}
-    <div class="mt-2" style="font-size:.85rem">${carte}</div>
+    <div class="mt-2" style="font-size:.85rem">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <button type="button" onclick="ajouterCRM(${p.id}, this)" class="btn btn-sm btn-success" style="font-weight:700">➕ Ajouter à mon CRM</button>
+        ${carte}
+      </div>
+      <div class="crm-res mt-1"></div>
+    </div>
   </div></div>`;
 }
 // Taux de couverture visé (paramétrable) + productible local (≈ PVGIS par latitude)
