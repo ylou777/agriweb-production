@@ -7788,19 +7788,39 @@ out geom tags;"""
             sz = _pre_etude_sizing(prospect)
             if sz['conso_mwh'] <= 0:
                 return jsonify({'success': False, 'error': 'Consommation inconnue pour ce prospect'}), 400
-            diag = sz['diag']
             kwc = sz['kwc']
-            prod_kwh = diag.get('production_annuelle_kwh') or round(kwc * sz['productible'])
-            taux_pct = diag.get('taux_autoconsommation')
-            taux_frac = (taux_pct / 100.0) if taux_pct else 0.7
             conso_kwh = sz['conso_mwh'] * 1000.0
 
             from proposition_professionnelle import PropositionProfessionnelle
-            try:
-                from autoconsommation import get_tarif_revente_s21
-                tarif_revente = get_tarif_revente_s21(kwc)
-            except Exception:
-                tarif_revente = 0.0536
+            from autoconsommation import (compute_autoconsommation, compute_economics,
+                _synthetic_pv_8760_wh, _secteur_to_profile, PROFILE_LABELS, TARIFF_LABELS,
+                get_tarif_revente_s21)
+            from datetime import datetime as _dt
+
+            # ── Vraie simulation autoconso : 8760h PV synthétique × profil type Enedis ──
+            tarif_revente = get_tarif_revente_s21(kwc)
+            profil_type = _secteur_to_profile(sz['secteur'])
+            prod_8760 = _synthetic_pv_8760_wh(kwc, sz['productible'])
+            result = compute_autoconsommation(prod_8760, conso_kwh, profil_type)
+            economics = compute_economics(
+                kpis=result['kpis'], tarif_achat_kwh=0.20, prix_revente_kwh=tarif_revente,
+                duree_contrat_ans=25, tariff_type='BASE',
+                hourly_production_wh=prod_8760,
+                hourly_consumption_wh=result.get('hourly_consumption_wh'),
+                hourly_autoconso_wh=result.get('hourly_autoconso_wh'),
+                hourly_surplus_wh=result.get('hourly_surplus_wh'))
+            autoconso_data = {
+                'kpis': result['kpis'],
+                'economics': {k: v for k, v in economics.items() if k != 'prix_8760'},
+                'monthly': result['monthly'],
+                'daily_profiles': result['daily_profiles'],
+                'profil_type': profil_type,
+                'profil_label': PROFILE_LABELS.get(profil_type, profil_type),
+                'data_source': 'profil_type',
+                'tariff_type': 'BASE',
+                'tariff_label': TARIFF_LABELS.get('BASE', 'Base'),
+                'date_calcul': _dt.now().isoformat(),
+            }
 
             calpinage = {'totaux': {'puissanceTotale': kwc, 'nbModules': int(kwc / 0.55),
                                     'puissanceModule': 550}, 'zones': [],
@@ -7812,15 +7832,9 @@ out geom tags;"""
                 'consommation_annuelle_kwh': conso_kwh,
                 'tarif_achat_kwh': 0.20,
                 'tarif_revente_kwh': tarif_revente,
-                'taux_autoconso': taux_pct or 70.0,
+                'taux_autoconso': result['kpis'].get('taux_autoconsommation', 70.0),
                 'indicative': True,
-                'autoconso_data': {'kpis': {
-                    'production_annuelle_kwh': prod_kwh,
-                    'taux_autoconsommation': taux_pct or 70.0,
-                    'consommation_annuelle_kwh': conso_kwh,
-                    'autoconso_kwh': round(prod_kwh * taux_frac),
-                    'surplus_kwh': round(prod_kwh * (1 - taux_frac)),
-                }},
+                'autoconso_data': autoconso_data,
             }
             pdf = PropositionProfessionnelle(prospect, calpinage, parametres).generer_pdf()
             commune = (prospect.get('commune') or 'site').replace(' ', '_')
