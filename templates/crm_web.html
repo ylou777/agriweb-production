@@ -1777,11 +1777,16 @@
             let carteUrl = null;
             let autoconsoDiag = null;   // diagnostic autoconsommation (Enedis)
             let enedisMatch = null;     // info de la conso Enedis rattachée
+            let contactInfo = null;     // contact décideur (data_json.contact)
             if (prospect.data_json) {
                 try {
                     const data = typeof prospect.data_json === 'string'
                         ? JSON.parse(prospect.data_json)
                         : prospect.data_json;
+
+                    if (data && data.contact && (data.contact.email || data.contact.telephone)) {
+                        contactInfo = data.contact;
+                    }
 
                     // Diagnostic autoconsommation (injecté ou enrichi via Enedis)
                     if (data.diagnostic_autoconso && data.diagnostic_autoconso.eligible) {
@@ -1942,14 +1947,14 @@
                             </div>
                             ` : ''}
 
-                            ${data.contact && (data.contact.email || data.contact.telephone) ? `
+                            ${contactInfo ? `
                             <div class="detail-row" style="background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:7px 10px;margin-top:6px">
                                 <i class="bi bi-person-badge-fill text-success"></i>
                                 <span class="detail-label">Décideur:</span>
-                                <strong>${data.contact.decideur || '—'}</strong>
-                                ${data.contact.email ? ` · <a href="mailto:${data.contact.email}" onclick="event.stopPropagation()"><i class="bi bi-envelope"></i> ${data.contact.email}</a>` : ''}
-                                ${data.contact.telephone ? ` · <i class="bi bi-telephone"></i> ${data.contact.telephone}` : ''}
-                                ${data.contact.qualite ? ` <span class="badge bg-success">${data.contact.qualite}</span>` : ''}
+                                <strong>${contactInfo.decideur || '—'}</strong>
+                                ${contactInfo.email ? ` · <a href="mailto:${contactInfo.email}" onclick="event.stopPropagation()"><i class="bi bi-envelope"></i> ${contactInfo.email}</a>` : ''}
+                                ${contactInfo.telephone ? ` · <i class="bi bi-telephone"></i> ${contactInfo.telephone}` : ''}
+                                ${contactInfo.qualite ? ` <span class="badge bg-success">${contactInfo.qualite}</span>` : ''}
                             </div>
                             ` : ''}
 
