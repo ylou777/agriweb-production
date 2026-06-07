@@ -1980,7 +1980,7 @@ class PropositionProfessionnelle:
     # =========================================================================
 
     def _fetch_static_map_image(self, lat, lon, zoom=16, width=600, height=380):
-        """Assemble une carte depuis les tuiles OSM (tile.openstreetmap.org).
+        """Assemble une vue satellite depuis les tuiles Esri World Imagery.
         Retourne un ImageReader ReportLab ou None si indisponible."""
         try:
             from PIL import Image as PILImage, ImageDraw
@@ -2026,9 +2026,10 @@ class PropositionProfessionnelle:
                     ty = ty0 + iy
                     if ty < 0 or ty >= n_tiles:
                         continue
-                    url = f"https://tile.openstreetmap.org/{zoom}/{tx}/{ty}.png"
+                    # Imagerie satellite Esri World Imagery (ordre {z}/{y}/{x})
+                    url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{ty}/{tx}"
                     try:
-                        r = sess.get(url, timeout=6)
+                        r = sess.get(url, timeout=8)
                         if r.status_code == 200:
                             tile_img = PILImage.open(io.BytesIO(r.content)).convert('RGB')
                             canvas.paste(tile_img, (ix * TILE, iy * TILE))
@@ -2193,7 +2194,7 @@ class PropositionProfessionnelle:
         # Légende carte
         c.setFont("Helvetica-Oblique", 7)
         c.setFillColor(colors.HexColor('#888888'))
-        c.drawCentredString(map_x + map_w / 2, y - map_h - 0.3 * cm, "Vue d'ensemble — OpenStreetMap © contributeurs")
+        c.drawCentredString(map_x + map_w / 2, y - map_h - 0.3 * cm, "Vue d'ensemble — Imagerie satellite © Esri")
 
         y -= 8.3 * cm
 
@@ -2229,7 +2230,7 @@ class PropositionProfessionnelle:
         c.setFont("Helvetica-Oblique", 7)
         c.setFillColor(colors.HexColor('#888888'))
         c.drawCentredString(1.5 * cm + map2_w / 2, y - map2_h - 0.3 * cm,
-                            "Vue rapprochée — OpenStreetMap © contributeurs — zoom parcelle")
+                            "Vue rapprochée — Imagerie satellite © Esri — zoom parcelle")
 
         self._draw_page_footer(c)
 
