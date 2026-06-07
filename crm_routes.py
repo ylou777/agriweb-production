@@ -7727,6 +7727,33 @@ out geom tags;"""
             print(f"⚠️ [IGN BD TOPO] emprise: {e}")
             return None
 
+    def _parcelle_au_point_ign(lat, lon):
+        """Parcelle cadastrale contenant le point, via IGN apicarto (gratuit).
+        Retourne {section, numero, contenance, code_insee} ou {}."""
+        if lat is None or lon is None:
+            return {}
+        try:
+            import requests as _rq
+            from shapely.geometry import shape as _shape, Point as _Point
+            buf = 120 / 111000.0
+            bbox = {"type": "Polygon", "coordinates": [[[lon-buf, lat-buf], [lon+buf, lat-buf],
+                    [lon+buf, lat+buf], [lon-buf, lat+buf], [lon-buf, lat-buf]]]}
+            r = _rq.get("https://apicarto.ign.fr/api/cadastre/parcelle",
+                        params={"geom": json.dumps(bbox), "_limit": 50, "source_ign": "PCI"}, timeout=12)
+            feats = r.json().get('features', [])
+            pt = _Point(lon, lat)
+            for f in feats:
+                try:
+                    if _shape(f['geometry']).contains(pt):
+                        p = f.get('properties', {})
+                        return {'section': p.get('section', ''), 'numero': p.get('numero', ''),
+                                'contenance': p.get('contenance', ''), 'code_insee': p.get('code_insee', '')}
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"⚠️ [PARCELLE IGN] {e}")
+        return {}
+
     def _pre_etude_sizing(prospect, taux_cible=40.0, prix_wc=0.55):
         """Dimensionnement de la pré-étude (gratuit) : puissance = min(couverture conso,
         plafond toiture IGN). Retourne le détail + les KPIs autoconso."""
@@ -7821,6 +7848,30 @@ out geom tags;"""
                 'tariff_label': TARIFF_LABELS.get('BASE', 'Base'),
                 'date_calcul': _dt.now().isoformat(),
             }
+
+            # ── Plan de situation : alias + rapport (coords, adresse, cadastre IGN) ──
+            lat0 = prospect.get('latitude'); lon0 = prospect.get('longitude')
+            prospect['lat'] = lat0; prospect['lon'] = lon0
+            prospect['adresse_complete'] = prospect.get('adresse') or ''
+            parc = _parcelle_au_point_ign(lat0, lon0)
+            try:
+                _dj = json.loads(prospect.get('data_json') or '{}')
+                if not isinstance(_dj, dict):
+                    _dj = {}
+            except Exception:
+                _dj = {}
+            _dj['rapport'] = {
+                'lat': lat0, 'lon': lon0,
+                'commune_name': prospect.get('commune') or '',
+                'code_postal': prospect.get('code_postal') or '',
+                'adresse': prospect.get('adresse') or '',
+                'api_details': {'cadastre': {'details': {
+                    'section': parc.get('section', ''), 'parcelle_numero': parc.get('numero', ''),
+                    'contenance_m2': parc.get('contenance', ''),
+                    'code_insee': parc.get('code_insee') or (prospect.get('code_commune') or ''),
+                }}},
+            }
+            prospect['data_json'] = _dj
 
             calpinage = {'totaux': {'puissanceTotale': kwc, 'nbModules': int(kwc / 0.55),
                                     'puissanceModule': 550}, 'zones': [],
