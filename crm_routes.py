@@ -3187,6 +3187,76 @@ def register_crm_routes(app):
             print(f"❌ [PRECHARGER] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    def _ajouter_site_au_crm(r, target_id):
+        """Copie UN site du gisement (ligne industrial_prospects) dans le CRM d'un
+        utilisateur, en vignette complète. Idempotent. Retourne (prospect_id, created)."""
+        _ensure_prospect_proprio_columns()
+        commune = r.get('commune') or ''
+        adresse = r.get('adresse') or ''
+        dept = (r.get('code_commune') or '')[:2]
+        existing = execute_query(
+            "SELECT id, latitude FROM agriweb_prospects WHERE user_id = %s AND type = 'industriel' "
+            "AND LOWER(COALESCE(commune,'')) = %s AND LOWER(COALESCE(adresse,'')) = %s LIMIT 1",
+            (str(target_id), commune.strip().lower(), adresse.strip().lower()), fetch_one=True)
+        if existing:
+            if existing.get('latitude') is None and r.get('lat') is not None:
+                try:
+                    execute_query("UPDATE agriweb_prospects SET latitude=%s, longitude=%s WHERE id=%s",
+                                  (r.get('lat'), r.get('lon'), existing['id']))
+                except Exception:
+                    pass
+            return existing['id'], False
+        try:
+            dj = json.loads(r.get('data_json') or '{}')
+        except Exception:
+            dj = {}
+        dj['source'] = 'industriel'
+        dj['enedis_match'] = {'consommation_mwh': r.get('conso_mwh'),
+                              'secteur': r.get('secteur'), 'annee': dj.get('annee')}
+        res = execute_query('''
+            INSERT INTO agriweb_prospects
+                (type, commune, departement, adresse, latitude, longitude,
+                 nom_prospect, proprietaire_siren, proprietaire_denomination, siret,
+                 statut, priorite, data_json, user_id)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        ''', (
+            'industriel', commune, dept, adresse, r.get('lat'), r.get('lon'),
+            r.get('operateur_nom'), r.get('operateur_siren'), r.get('operateur_nom'),
+            r.get('operateur_siren'), 'nouveau', 'haute',
+            json.dumps(dj, ensure_ascii=False), str(target_id),
+        ), fetch_one=True)
+        return (res.get('id') if res else None), True
+
+    @app.route('/api/industriel/ajouter-au-crm', methods=['POST'])
+    def industriel_ajouter_au_crm():
+        """Importe UN site du gisement dans le CRM de l'utilisateur courant
+        (clic « Ajouter » depuis la carte/les vignettes). Body: {id}."""
+        try:
+            caller_id, is_admin = get_current_crm_user()
+            if caller_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            data = request.get_json(silent=True) or {}
+            pid = data.get('id')
+            if not pid:
+                return jsonify({'success': False, 'error': 'id requis'}), 400
+            _ensure_industrial_table()
+            r = execute_query("SELECT * FROM industrial_prospects WHERE id = %s", (int(pid),), fetch_one=True)
+            if not r:
+                return jsonify({'success': False, 'error': 'Site introuvable'}), 404
+            # Gating territorial pour les non-admins (défense en profondeur)
+            if not is_admin:
+                dept = (r.get('code_commune') or '')[:2]
+                ent = _user_entitled_depts(caller_id)
+                if ent != '*' and dept not in ent:
+                    return jsonify({'success': False, 'error': 'territoire_non_couvert',
+                                    'message': f"Le département {dept} n'est pas couvert par votre abonnement."}), 403
+            prospect_id, created = _ajouter_site_au_crm(r, caller_id)
+            return jsonify({'success': True, 'prospect_id': prospect_id, 'created': created,
+                            'commune': r.get('commune'), 'operateur': r.get('operateur_nom')})
+        except Exception as e:
+            print(f"❌ [AJOUTER CRM] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/industriel/checkout', methods=['POST'])
     def industriel_checkout():
         """Crée une session Stripe Checkout en mode ABONNEMENT pour un territoire.

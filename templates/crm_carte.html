@@ -147,13 +147,30 @@ function popupHtml(p){
   const nom = demo ? 'Site industriel' : (p[4]||'Opérateur non identifié');
   const loc = demo ? `Dépt ${p[6]||'—'} · ${naf}` : `${p[5]||''} (${p[6]||''}) · ${naf}`;
   const addr = demo ? `Site industriel (${p[6]||''})` : (p[4]||p[5]||'');
-  return `<div style="min-width:200px">
+  return `<div style="min-width:210px">
     <div style="font-weight:700;color:#fbbf24">${nom}</div>
     <div class="muted">${loc}</div>
     <div class="mt-1">⚡ Conso <b>${fmt(p[2])} MWh/an</b></div>
     <div>☀️ Potentiel (${taux}%) : <b style="color:#22c55e">${puiss}</b></div>
-    <a href="/app?lat=${p[0]}&lon=${p[1]}&address=${encodeURIComponent(addr)}" target="_blank" style="color:#7dd3fc">🔍 Analyser dans HeliaPV</a>
+    <button onclick="ajouterCRM(${p[7]}, this)" style="margin-top:7px;background:#22c55e;border:none;color:#06210f;font-weight:700;border-radius:6px;padding:5px 10px;cursor:pointer">➕ Ajouter à mon CRM</button>
+    <div class="crm-res" style="margin-top:5px;font-size:.85rem"></div>
   </div>`;
+}
+async function ajouterCRM(id, btn){
+  const box = btn.parentElement.querySelector('.crm-res');
+  btn.disabled = true; const lbl = btn.textContent; btn.textContent = '⏳ Ajout…';
+  try{
+    const j = await (await fetch('/api/industriel/ajouter-au-crm', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})})).json();
+    if(j.success){
+      btn.textContent = j.created ? '✅ Ajouté au CRM' : '✓ Déjà dans le CRM';
+      box.innerHTML = `<a href="/crm/prospect/${j.prospect_id}/calpinage" target="_blank" style="color:#7dd3fc">🔍 Analyser (calepinage)</a> · `
+                    + `<a href="/crm" target="_blank" style="color:#7dd3fc">Voir la fiche</a>`;
+    } else {
+      btn.disabled = false; btn.textContent = lbl;
+      box.innerHTML = `<span style="color:#f87171">${j.message || j.error || 'Erreur'}</span>`;
+    }
+  }catch(e){ btn.disabled = false; btn.textContent = lbl; box.innerHTML = `<span style="color:#f87171">${e}</span>`; }
 }
 function buildLayers(){
   // Marqueurs (mode points) — pulsation sur les très gros sites
