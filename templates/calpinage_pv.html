@@ -10250,23 +10250,19 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         bCoords = ring.map(c => [c[0], c[1]]);
                         console.log(`🅿️ Parking sans zone — masque polygone parking (${ring.length} sommets, r=${radius_m}m)`);
                     } else {
+                        // ── Pas de zone dessinée ───────────────────────────────────────────────
+                        // On N'IMPOSE PAS de masque circulaire : centré sur le point géocodé
+                        // (souvent sur la voie pour un site industriel sans n° de rue), il coupe
+                        // le bâtiment et paraît décalé. En envoyant building_coords VIDE, le
+                        // backend amorce le flood-fill sur le centre du bâtiment détecté par
+                        // Google Solar (buildingInsights.center) → bâtiment entier, bien aligné.
+                        // Rayon large pour que la tuile couvre le bâtiment même si le point est
+                        // sur un bord.
                         heatLat = prospectLat;
                         heatLon = prospectLon;
-                        radius_m = 80;
-                        // Pas de zone dessinée → polygone circulaire ~60m autour du prospect
-                        // (évite d'afficher tous les bâtiments du quartier)
-                        const mPerDegLat = 111320;
-                        const mPerDegLon = 111320 * Math.cos(heatLat * Math.PI / 180);
-                        const circR_m = 60;
-                        const N_PTS = 12;
-                        bCoords = Array.from({length: N_PTS}, (_, i) => {
-                            const a = (2 * Math.PI * i) / N_PTS;
-                            return [
-                                heatLon + (circR_m * Math.sin(a)) / mPerDegLon,
-                                heatLat + (circR_m * Math.cos(a)) / mPerDegLat
-                            ];
-                        });
-                        console.log(`⚠️ Aucune zone dessinée — masque circulaire 60m autour du prospect. Dessinez une zone sur le bâtiment pour un masque précis.`);
+                        radius_m = 130;
+                        bCoords = [];
+                        console.log('⚠️ Aucune zone dessinée — masque = bâtiment détecté par Google Solar. Dessinez une zone pour cibler une toiture précise.');
                     }
                 }
                 console.log(`🌡️ Solar query: (${heatLat?.toFixed(6)}, ${heatLon?.toFixed(6)}) r=${radius_m}m mode=${viewer3D?.isActive?'3D':'2D'}`);
