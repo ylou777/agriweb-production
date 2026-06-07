@@ -3429,18 +3429,27 @@ def register_crm_routes(app):
             pid = data.get('id')
             if not pid:
                 return jsonify({'success': False, 'error': 'id requis'}), 400
+            # Cible : un admin peut ajouter dans le CRM d'un autre user (par email)
+            target_id = caller_id
+            target_email = (data.get('email') or '').strip()
+            if target_email:
+                if not is_admin:
+                    return jsonify({'success': False, 'error': 'Admin requis pour cibler un autre utilisateur'}), 403
+                target_id = _resolve_user_id_by_email(target_email)
+                if target_id is None:
+                    return jsonify({'success': False, 'error': f'Utilisateur {target_email} introuvable'}), 404
             _ensure_industrial_table()
             r = execute_query("SELECT * FROM industrial_prospects WHERE id = %s", (int(pid),), fetch_one=True)
             if not r:
                 return jsonify({'success': False, 'error': 'Site introuvable'}), 404
-            # Gating territorial pour les non-admins (défense en profondeur)
+            # Gating territorial pour les non-admins ajoutant dans leur propre CRM
             if not is_admin:
                 dept = (r.get('code_commune') or '')[:2]
                 ent = _user_entitled_depts(caller_id)
                 if ent != '*' and dept not in ent:
                     return jsonify({'success': False, 'error': 'territoire_non_couvert',
                                     'message': f"Le département {dept} n'est pas couvert par votre abonnement."}), 403
-            prospect_id, created = _ajouter_site_au_crm(r, caller_id)
+            prospect_id, created = _ajouter_site_au_crm(r, target_id)
             return jsonify({'success': True, 'prospect_id': prospect_id, 'created': created,
                             'commune': r.get('commune'), 'operateur': r.get('operateur_nom')})
         except Exception as e:
