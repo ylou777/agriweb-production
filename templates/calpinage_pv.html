@@ -3136,16 +3136,17 @@
             });
             
             // Contrôle de couches pour basculer entre les fonds
-            // ESRI est le fond par défaut : aligné WGS84 → cadastre correct
-            // Esri par défaut — CORS valide → html2canvas fonctionne sans taint
             const baseMaps = {
+                "🛰️ Satellite Google (aligné irradiation)": tileLayerGoogle,
                 "🛰️ Satellite Esri (cadastre aligné)": tileLayerSatellite,
-                "🛰️ Satellite Google (heatmap Solar)": tileLayerGoogle,
                 "🗺️ Carte OSM (capture)": tileLayerOSM
             };
-            
-            // ESRI par défaut — CORS OK → capture screenshot sans SecurityError
-            tileLayerSatellite.addTo(map);
+
+            // GOOGLE par défaut : même imagerie que la heatmap Google Solar → ce qu'on
+            // dessine correspond exactement à la réalité ET à l'irradiation (plus de
+            // décalage au clic « Irradiation »). La capture html2canvas bascule
+            // temporairement vers Esri (CORS) puis restaure Google (cf. finally capture).
+            tileLayerGoogle.addTo(map);
             
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
@@ -9567,6 +9568,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     if (tileLayerOSM) map.removeLayer(tileLayerOSM);
                     tileLayerGoogle.addTo(map);
                     console.log('🛰️ [Heatmap ON] → Tuiles Google (alignées Google Solar)');
+                } else {
+                    // Google est déjà le fond (fond par défaut) → y rester au toggle-off
+                    _tileBeforeHeatmap = 'google';
                 }
             } else {
                 if (map.hasLayer(tileLayerGoogle) && _tileBeforeHeatmap !== 'google') {
