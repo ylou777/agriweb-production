@@ -10535,10 +10535,27 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (e.message && (e.message.includes('aucune qualité') || e.message.includes('NO_COVERAGE'))) {
                     const _nt = document.createElement('div');
                     _nt.className = 'alert alert-warning';
-                    _nt.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:420px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-                    _nt.innerHTML = `⚠️ Irradiation Google Solar non disponible pour cette zone. Le ratio PVGIS affiché dans le panneau est utilisé pour les calculs.`;
+                    _nt.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:440px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                    _nt.innerHTML = `⏳ Heatmap d'irradiation pixel indisponible ici — récupération de la capacité toiture Google…`;
                     document.body.appendChild(_nt);
-                    setTimeout(() => { _nt.style.opacity='0'; _nt.style.transition='opacity 0.5s'; setTimeout(()=>_nt.remove(),500); }, 6000);
+                    // ── Fallback Building Insights : capacité toiture + ensoleillement ──
+                    try {
+                        const bi = await (await fetch(`/api/solar/building-insights?lat=${heatLat}&lon=${heatLon}`)).json();
+                        if (bi && bi.success && bi.maxPanelsCount) {
+                            const kwc = Math.round(bi.maxPanelsCount * 0.40);  // ~400 Wc/panneau (défaut Google)
+                            window._googleRoofCapacityKwc = kwc;
+                            _nt.className = 'alert alert-info';
+                            _nt.innerHTML = `🛰️ <b>Google Solar — capacité toiture</b> : ~${(kwc/1000).toFixed(2)} MWc`
+                                + ` <small>(${bi.maxPanelsCount} panneaux · ${bi.nbSegments} pans · ${Math.round(bi.maxAreaM2||0)} m²)</small>`
+                                + `<br>☀️ Ensoleillement : <b>${Math.round(bi.annualSunshineHours||0)} h/an</b>.`
+                                + `<br><small>Heatmap pixel indisponible sur ce secteur — productible PVGIS utilisé pour les calculs.</small>`;
+                        } else {
+                            _nt.innerHTML = `⚠️ Irradiation Google Solar non disponible pour cette zone. Le ratio PVGIS est utilisé pour les calculs.`;
+                        }
+                    } catch(_e2) {
+                        _nt.innerHTML = `⚠️ Irradiation Google Solar non disponible pour cette zone. Le ratio PVGIS est utilisé pour les calculs.`;
+                    }
+                    setTimeout(() => { _nt.style.opacity='0'; _nt.style.transition='opacity 0.5s'; setTimeout(()=>_nt.remove(),500); }, 11000);
                 } else {
                     alert(`❌ Carte d'irradiation indisponible : ${e.message}`);
                 }
