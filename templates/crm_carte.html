@@ -46,7 +46,8 @@
   .kpi{background:var(--c-bg);border:1px solid var(--c-border);border-radius:10px;padding:11px;text-align:center}
   .kpi .v{font-size:1.5rem;font-weight:800;line-height:1.05}
   .kpi .l{font-size:.7rem;color:var(--c-text-3);margin-top:2px}
-  #map{flex:1;background:#0b0f1a}
+  .mapwrap{position:relative;flex:1;min-width:0}
+  #map{position:absolute;inset:0;background:#0b0f1a}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--c-surface);color:var(--c-text);border:1px solid var(--c-border)}
   .leaflet-popup-content{margin:11px 13px;font-size:.85rem}
   .legend{position:absolute;bottom:16px;right:16px;z-index:500;background:rgba(26,29,39,.94);border:1px solid var(--c-border);
@@ -121,7 +122,7 @@
     </aside>
 
     <!-- ── Carte ── -->
-    <div style="position:relative;flex:1">
+    <div class="mapwrap">
       <div id="map"></div>
       <div class="modeswitch">
         <div class="btn-group btn-group-sm">
@@ -272,6 +273,9 @@ async function charger(){
 }
 initSecteurs();
 charger();
+// Leaflet calcule mal sa taille dans un flex au 1er rendu → forcer un recalcul
+setTimeout(()=>map.invalidateSize(), 250);
+window.addEventListener('resize', ()=>map.invalidateSize());
 </script>
 </body>
 </html>
