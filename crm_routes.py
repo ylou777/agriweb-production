@@ -7727,6 +7727,18 @@ out geom tags;"""
             print(f"⚠️ [IGN BD TOPO] emprise: {e}")
             return None
 
+    def _tarif_achat_industriel(conso_mwh):
+        """Prix d'achat élec HTVA (€/kWh) selon la taille du consommateur — base SDES/
+        Eurostat France 2024 (moyenne entreprise 164,6 €/MWh, dégressif avec le volume).
+        Sert de coût évité réaliste pour l'autoconso industrielle."""
+        c = float(conso_mwh or 0)
+        if c < 500:        return 0.20    # PME (< 0,5 GWh)
+        if c < 2000:       return 0.18    # 0,5–2 GWh
+        if c < 20000:      return 0.16    # 2–20 GWh (≈ moyenne nationale)
+        if c < 70000:      return 0.13    # 20–70 GWh
+        if c < 150000:     return 0.11    # 70–150 GWh
+        return 0.095                       # ≥ 150 GWh (électro-intensif, accise réduite)
+
     def _parcelle_au_point_ign(lat, lon):
         """Parcelle cadastrale contenant le point, via IGN apicarto (gratuit).
         Retourne {section, numero, contenance, code_insee} ou {}."""
@@ -7826,11 +7838,12 @@ out geom tags;"""
 
             # ── Vraie simulation autoconso : 8760h PV synthétique × profil type Enedis ──
             tarif_revente = get_tarif_revente_s21(kwc)
+            tarif_achat = _tarif_achat_industriel(sz['conso_mwh'])   # HTVA dégressif (SDES 2024)
             profil_type = _secteur_to_profile(sz['secteur'])
             prod_8760 = _synthetic_pv_8760_wh(kwc, sz['productible'])
             result = compute_autoconsommation(prod_8760, conso_kwh, profil_type)
             economics = compute_economics(
-                kpis=result['kpis'], tarif_achat_kwh=0.20, prix_revente_kwh=tarif_revente,
+                kpis=result['kpis'], tarif_achat_kwh=tarif_achat, prix_revente_kwh=tarif_revente,
                 duree_contrat_ans=25, tariff_type='BASE',
                 hourly_production_wh=prod_8760,
                 hourly_consumption_wh=result.get('hourly_consumption_wh'),
@@ -7881,7 +7894,7 @@ out geom tags;"""
                 'puissance_kwc': kwc,
                 'prix_kwc': 550.0,
                 'consommation_annuelle_kwh': conso_kwh,
-                'tarif_achat_kwh': 0.20,
+                'tarif_achat_kwh': tarif_achat,
                 'tarif_revente_kwh': tarif_revente,
                 'taux_autoconso': result['kpis'].get('taux_autoconsommation', 70.0),
                 'indicative': True,

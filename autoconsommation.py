@@ -1109,7 +1109,7 @@ def _secteur_to_profile(secteur: str) -> str:
     if 'AGRI' in s or s == 'AGR':
         return 'AGR' if 'AGR' in _PROFILE_CACHE or True else 'PRO1'
     if 'INDUS' in s:
-        return 'PRO2'
+        return 'ENT'   # Entreprise/Industrie – process continu (baseload)
     if 'RESID' in s or s.startswith('RES'):
         return 'RES1'
     # TERTIAIRE / PRO / inconnu -> tertiaire diurne (ideal autoconso)
