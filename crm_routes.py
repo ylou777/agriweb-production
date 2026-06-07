@@ -7948,6 +7948,43 @@ out geom tags;"""
             import traceback; traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/crm/prospects/<int:prospect_id>/contact', methods=['POST'])
+    def set_prospect_contact(prospect_id):
+        """Attache un contact décideur (dirigeant, e-mail, téléphone) à une fiche.
+        Stocké dans data_json.contact (affiché dans la vignette) + colonnes dirigeant_*."""
+        try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            row = execute_query("SELECT user_id, data_json FROM agriweb_prospects WHERE id = %s",
+                                (prospect_id,), fetch_one=True)
+            if not row:
+                return jsonify({'success': False, 'error': 'Introuvable'}), 404
+            if not is_admin and str(row.get('user_id')) != str(user_id):
+                return jsonify({'success': False, 'error': 'Accès refusé'}), 403
+            d = request.get_json(silent=True) or {}
+            contact = {'decideur': (d.get('decideur') or '').strip(),
+                       'email': (d.get('email') or '').strip(),
+                       'telephone': (d.get('telephone') or '').strip(),
+                       'qualite': (d.get('qualite') or '').strip(),
+                       'source': (d.get('source') or 'manuel').strip()}
+            try:
+                dj = json.loads(row.get('data_json') or '{}')
+                if not isinstance(dj, dict):
+                    dj = {}
+            except Exception:
+                dj = {}
+            dj['contact'] = contact
+            execute_query(
+                "UPDATE agriweb_prospects SET data_json=%s, dirigeant_nom=%s, dirigeant_email=%s, "
+                "dirigeant_tel=%s WHERE id=%s",
+                (json.dumps(dj, ensure_ascii=False), contact['decideur'], contact['email'],
+                 contact['telephone'], prospect_id))
+            return jsonify({'success': True, 'contact': contact})
+        except Exception as e:
+            print(f"❌ [CONTACT] {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/crm/prospects/<int:prospect_id>/proposition-complete', methods=['POST'])
     def generer_proposition_complete(prospect_id):
         """
