@@ -1992,6 +1992,9 @@
                             <button class="btn btn-secondary action-btn" onclick="generateProposal(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-file-earmark-text"></i> Proposition
                             </button>
+                            <button class="btn btn-warning action-btn" onclick="genererPreEtude(${prospect.id}, this); event.stopPropagation();" title="Pré-étude indicative automatique (dimensionnement conso + toiture, gratuite)">
+                                <i class="bi bi-magic"></i> Pré-étude auto
+                            </button>
                             <button class="btn btn-success action-btn" onclick="openOrCreateProjectForProspect(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-folder-plus"></i> Fiche Projet
                             </button>
@@ -3483,6 +3486,30 @@ Cordialement,`
         }
 
         // === FONCTIONS PROPOSITION ===
+        async function genererPreEtude(id, btn) {
+            const lbl = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Génération…'; }
+            try {
+                const r = await fetch(`/api/crm/prospects/${id}/pre-etude`, { method: 'POST' });
+                if (!r.ok) {
+                    let msg = 'Erreur'; try { msg = (await r.json()).error || msg; } catch(e) {}
+                    showError ? showError('Pré-étude : ' + msg) : alert('Pré-étude : ' + msg);
+                } else {
+                    const blob = await r.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `Pre-etude_${id}.pdf`;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    URL.revokeObjectURL(url);
+                    if (window.showSuccess) showSuccess('Pré-étude indicative générée (et ajoutée à la dataroom)');
+                }
+            } catch(e) {
+                (window.showError || alert)('Pré-étude : ' + e);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = lbl; }
+            }
+        }
+
         function generateProposal(id) {
             currentProspect = allProspects.find(p => p.id === id);
             if (!currentProspect) return;
