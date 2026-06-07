@@ -171,7 +171,11 @@ function vignette(p){
     ? `<div class="op-nom">${p.operateur_nom}</div>`+
       (p.operateur_siren?`<div class="muted">SIREN ${p.operateur_siren}${p.operateur_effectif?` · effectif ${p.operateur_effectif}`:''} <a class="osm" href="/crm?proprietaire=${p.operateur_siren}" target="_blank">propriétés</a></div>`:'')
     : `<div class="op-nom" style="color:#8b93a7">Opérateur non identifié</div>`;
-  const loc = `<div class="muted mt-1"><i class="bi bi-geo"></i> ${p.adresse||'adresse ?'}, ${p.commune||''} ${dept?`(${dept})`:''}</div>`;
+  const prec = p.geo_precision||'';
+  const locBadge = (prec==='rue'||prec==='approx')
+    ? ` <span class="badge" style="background:rgba(245,158,11,.18);color:#f59e0b" title="Localisation ${prec==='rue'?'au niveau de la rue':'au centre de la commune'} — à affiner"><i class="bi bi-exclamation-triangle"></i> approx</span>`
+    : '';
+  const loc = `<div class="muted mt-1"><i class="bi bi-geo"></i> ${p.adresse||'adresse ?'}, ${p.commune||''} ${dept?`(${dept})`:''}${locBadge}</div>`;
   return `<div class="col-md-6 col-xl-4"><div class="vignette">
     <div class="d-flex justify-content-between align-items-start mb-1">
       <span class="badge badge-ind">🏭 INDUSTRIEL</span>

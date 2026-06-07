@@ -95,6 +95,13 @@
       <span id="geoStatus" class="muted"></span>
     </div>
     <div class="muted mt-1" style="font-size:.75rem;">Ajoute lat/lon à chaque site (carte + calepinage 3D + pré-chargement instantané). Autonome, re-lançable.</div>
+    <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+      <button type="button" class="btn btn-sm btn-warning" onclick="lancerGeocodage2()">
+        <i class="bi bi-bullseye"></i> Re-géocoder en haute précision (SIRENE)
+      </button>
+      <span id="geo2Status" class="muted"></span>
+    </div>
+    <div class="muted mt-1" style="font-size:.75rem;">Repositionne chaque site sur l'<b>établissement INSEE</b> (parcelle) via le SIREN, sinon adresse précise (bâtiment). Marque les localisations approximatives. Autonome, ~quelques heures.</div>
   </div></div>
 
   <!-- Commercialisation : attribuer un territoire à un client + pré-charger -->
@@ -391,6 +398,28 @@ async function pollGeocodage(){
     if(job.status==='running') setTimeout(pollGeocodage, 8000);
   }catch(e){}
 }
+async function lancerGeocodage2(){
+  const el=document.getElementById('geo2Status');
+  if(!confirm('Re-géocoder TOUT le gisement en haute précision (SIRENE) ? Cela écrase les coordonnées actuelles par de meilleures. Autonome, ~quelques heures.')) return;
+  el.textContent='Lancement…';
+  try{
+    const j=await (await fetch('/api/industriel/geocode2/start',{method:'POST'})).json();
+    el.textContent = j.success ? `Re-géocodage lancé (${fmt(j.a_traiter||0)} à traiter)…` : (j.error||'Erreur');
+  }catch(e){ el.textContent=String(e); }
+  pollGeocodage2();
+}
+async function pollGeocodage2(){
+  try{
+    const j=await (await fetch('/api/industriel/geocode2/status')).json();
+    const job=j.job;
+    const el=document.getElementById('geo2Status');
+    if(!job){ el.textContent=''; return; }
+    const pr=job.precision||{};
+    const det = `exact ${fmt(pr.exact||0)} · rue ${fmt(pr.rue||0)} · approx ${fmt(pr.approx||0)}`;
+    el.innerHTML = `${fmt(job.restants)} restants · <span style="color:#22c55e">${det}</span>` + (job.status==='running'?' · en cours…':' · terminé');
+    if(job.status==='running') setTimeout(pollGeocodage2, 8000);
+  }catch(e){}
+}
 
 /* ---- Commercialisation : attribution de territoire ---- */
 const REGIONS={'11':'Île-de-France','24':'Centre-Val de Loire','27':'Bourgogne-Franche-Comté','28':'Normandie','32':'Hauts-de-France','44':'Grand Est','52':'Pays de la Loire','53':'Bretagne','75':'Nouvelle-Aquitaine','76':'Occitanie','84':'Auvergne-Rhône-Alpes','93':"Provence-Alpes-Côte d'Azur",'94':'Corse'};
@@ -494,6 +523,7 @@ chargerListe();
 chargerStats();
 chargerDroits();
 pollGeocodage();
+pollGeocodage2();
 if(IS_ADMIN){ document.getElementById('overviewCard').style.display=''; chargerOverview(); setInterval(chargerOverview, 15000); }
 _statTimer = setInterval(chargerStats, 10000);  // suivi auto toutes les 10 s
 </script>
