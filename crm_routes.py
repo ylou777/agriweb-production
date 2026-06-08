@@ -7850,6 +7850,129 @@ out geom tags;"""
                 'conso_mwh': round(conso_mwh), 'secteur': secteur, 'diag': diag,
                 'borne_par': 'toiture' if (plafond and plafond < kwc_conso) else 'consommation'}
 
+    # ──────────────────────────────────────────────────────────────────────
+    # PAGE PUBLIQUE "PRÉ-ÉTUDE" — lead magnet tracké (mailing de masse → clics)
+    # ──────────────────────────────────────────────────────────────────────
+    def _etude_serializer():
+        from itsdangerous import URLSafeSerializer
+        secret = getattr(app, 'secret_key', None) or os.environ.get('SECRET_KEY') or 'heliapv-etude-2026'
+        return URLSafeSerializer(secret, salt='etude-publique')
+
+    def _etude_token(prospect_id):
+        return _etude_serializer().dumps(int(prospect_id))
+
+    def _etude_resolve(token):
+        try:
+            return int(_etude_serializer().loads(token))
+        except Exception:
+            return None
+
+    try:
+        execute_query("""CREATE TABLE IF NOT EXISTS etude_events (
+            id SERIAL PRIMARY KEY,
+            prospect_id INTEGER,
+            event VARCHAR(32),
+            seconds INTEGER,
+            meta TEXT,
+            user_agent TEXT,
+            referer TEXT,
+            ip VARCHAR(64),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+    except Exception as _e_tbl:
+        print(f"⚠️ etude_events init: {_e_tbl}")
+
+    def _etude_log(prospect_id, event, seconds=None, meta=None):
+        try:
+            ua  = (request.headers.get('User-Agent') or '')[:500]
+            ref = (request.headers.get('Referer') or '')[:500]
+            ip  = (request.headers.get('X-Forwarded-For') or request.remote_addr or '')[:64]
+            execute_query(
+                "INSERT INTO etude_events (prospect_id, event, seconds, meta, user_agent, referer, ip) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (prospect_id, event, seconds, (json.dumps(meta) if meta else None), ua, ref, ip))
+        except Exception as e:
+            print(f"⚠️ etude_log: {e}")
+
+    def _etude_teaser(prospect):
+        """Chiffres 'teaser' crédibles pour la page publique (détail derrière le CTA)."""
+        sz = _pre_etude_sizing(prospect)
+        diag = sz.get('diag') or {}
+        prod_kwh = diag.get('production_annuelle_kwh') or round((sz.get('kwc') or 0) * (sz.get('productible') or 0))
+        eco = diag.get('economie_an_eur')
+        return {
+            'kwc':             sz.get('kwc'),
+            'surface_m2':      sz.get('surface_toiture_m2'),
+            'conso_mwh':       sz.get('conso_mwh'),
+            'production_mwh':  round(prod_kwh / 1000.0, 1) if prod_kwh else None,
+            'economie_an_eur': round(eco) if eco else None,
+            'economie_25ans':  round(eco * 25) if eco else None,
+            'taux_autoconso':  diag.get('taux_autoconsommation'),
+            'co2_t':           round(prod_kwh * 0.06 / 1000.0, 1) if prod_kwh else None,  # ~60 gCO2/kWh élec FR
+            'secteur':         sz.get('secteur'),
+        }
+
+    def _etude_nom_ville(prospect):
+        nom = (prospect.get('nom') or '').strip()
+        if not nom:
+            try:
+                _dj = json.loads(prospect.get('data_json') or '{}')
+                if isinstance(_dj, dict):
+                    nom = (_dj.get('operateur', {}).get('nom') if isinstance(_dj.get('operateur'), dict) else None) \
+                          or _dj.get('denomination') or ''
+            except Exception:
+                pass
+        nom = (nom or prospect.get('adresse') or 'votre entreprise').strip()
+        ville = (prospect.get('commune') or '').strip()
+        return nom, ville
+
+    @app.route('/etude/<token>', methods=['GET'])
+    def etude_publique(token):
+        pid = _etude_resolve(token)
+        row = execute_query("SELECT * FROM agriweb_prospects WHERE id = %s", (pid,), fetch_one=True) if pid else None
+        if not row:
+            return render_template('etude_publique.html', invalide=True), 404
+        prospect = dict(row)
+        try:
+            teaser = _etude_teaser(prospect)
+        except Exception as e:
+            print(f"⚠️ etude teaser: {e}")
+            teaser = {'kwc': None}
+        nom, ville = _etude_nom_ville(prospect)
+        _etude_log(pid, 'view')
+        return render_template('etude_publique.html', invalide=False, token=token,
+                               teaser=teaser, nom=nom, ville=ville,
+                               lat=prospect.get('latitude'), lon=prospect.get('longitude'))
+
+    @app.route('/etude/<token>/track', methods=['POST'])
+    def etude_track(token):
+        pid = _etude_resolve(token)
+        if pid is None:
+            return jsonify({'ok': False}), 404
+        body = request.get_json(silent=True) or {}
+        event = str(body.get('event') or 'heartbeat')[:32]
+        seconds = body.get('seconds')
+        try:
+            seconds = int(seconds) if seconds is not None else None
+        except Exception:
+            seconds = None
+        meta = body.get('meta') if isinstance(body.get('meta'), dict) else None
+        _etude_log(pid, event, seconds, meta)
+        return jsonify({'ok': True})
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/etude-url', methods=['GET'])
+    def etude_url(prospect_id):
+        user_id, is_admin = get_current_crm_user()
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+        row = execute_query("SELECT user_id FROM agriweb_prospects WHERE id = %s", (prospect_id,), fetch_one=True)
+        if not row:
+            return jsonify({'success': False, 'error': 'Prospect introuvable'}), 404
+        if not is_admin and str(dict(row).get('user_id')) != str(user_id):
+            return jsonify({'success': False, 'error': 'Accès refusé'}), 403
+        base = request.host_url.rstrip('/')
+        return jsonify({'success': True, 'url': f"{base}/etude/{_etude_token(prospect_id)}"})
+
     @app.route('/api/crm/prospects/<int:prospect_id>/pre-etude', methods=['POST', 'GET'])
     def generer_pre_etude(prospect_id):
         """Génère une PRÉ-ÉTUDE indicative (gratuite) : dimensionnement auto
