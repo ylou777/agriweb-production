@@ -4308,6 +4308,37 @@ def api_lidar_3d_data():
                             "lon": round(bldg_cx_lon, 7),
                         }
                         print(f"\u2705 RANSAC: {len(roof_planes)} plan(s) d\u00e9tect\u00e9(s)")
+
+                        # -- Masque d'obstacles (saillies LiDAR : cheminees, HVAC, lucarnes) --
+                        # Reutilise _filter_roof_obstacles (mediane locale 5x5 + MAD) puis
+                        # agrege les points-obstacle en cellules 0.5 m. Memes coords locales
+                        # que polygon_2d -> le frontend peut exclure les modules dessus.
+                        try:
+                            import numpy as _np
+                            _obs_sigma = float(request.args.get('obstacle_sigma', 1.8))
+                            _ovalid = _filter_roof_obstacles(rx_f, ry_f, rz_f, sigma=_obs_sigma)
+                            _oxa = _np.asarray(rx_f, dtype=float)[~_ovalid]
+                            _oya = _np.asarray(ry_f, dtype=float)[~_ovalid]
+                            _oza = _np.asarray(rz_f, dtype=float)[~_ovalid]
+                            _ocs = 0.5  # taille cellule (m)
+                            _ocells = {}
+                            for _i in range(len(_oxa)):
+                                _cx = round(float(_oxa[_i]) / _ocs) * _ocs
+                                _cy = round(float(_oya[_i]) / _ocs) * _ocs
+                                _k = (_cx, _cy)
+                                if _k not in _ocells or _oza[_i] > _ocells[_k]:
+                                    _ocells[_k] = float(_oza[_i])
+                            _obstacles = [[round(_k[0], 2), round(_k[1], 2), round(_v, 2)]
+                                          for _k, _v in _ocells.items()]
+                            result["building_hd"]["obstacles"] = {
+                                "cells": _obstacles,
+                                "cell_size": _ocs,
+                                "sigma": _obs_sigma,
+                            }
+                            print(f"\U0001f9f1 Obstacles: {len(_obstacles)} cellule(s) "
+                                  f"saillante(s) (sigma={_obs_sigma}, {int((~_ovalid).sum())} pts)")
+                        except Exception as _e_obs:
+                            print(f"\u26a0 Masque obstacles error: {_e_obs}")
                     else:
                         print(f"\u26a0 RANSAC: points insuffisants ({len(rx)})")
                 except Exception as e_ransac:
