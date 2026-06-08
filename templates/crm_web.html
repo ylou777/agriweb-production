@@ -536,12 +536,12 @@
                 <div class="stat-label">Toitures</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value c-orange" id="stat-friches">0</div>
-                <div class="stat-label">Friches</div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-value" style="color:#fbbf24" id="stat-industriels">0</div>
                 <div class="stat-label">Industriels</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value c-orange" id="stat-mairies">0</div>
+                <div class="stat-label">Mairies</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value c-purple" id="stat-enrichis">0</div>
@@ -1469,11 +1469,12 @@
             const el = document.getElementById('stat-total');
             if (!el) return; // Stats masquées pour non-admin
             el.textContent = stats.total || 0;
-            document.getElementById('stat-parkings').textContent = stats.parkings || 0;
-            document.getElementById('stat-toitures').textContent = stats.toitures || 0;
-            document.getElementById('stat-friches').textContent = stats.friches || 0;
-            const indEl = document.getElementById('stat-industriels');
-            if (indEl) indEl.textContent = stats.industriels || 0;
+            const setTxt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v || 0; };
+            setTxt('stat-parkings',   stats.parkings);
+            setTxt('stat-toitures',   stats.toitures);
+            setTxt('stat-friches',    stats.friches);     // carte retirée → no-op si absente
+            setTxt('stat-industriels', stats.industriels);
+            setTxt('stat-mairies',     stats.mairies);
 
             // Enrichis : compte serveur (robuste à la pagination) avec repli client
             const enrichis = (typeof stats.enrichis === 'number')

@@ -400,6 +400,7 @@ def register_crm_routes(app):
                     COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
                     COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg,
                     COUNT(CASE WHEN type = 'industriel' THEN 1 END) as industriels,
+                    COUNT(CASE WHEN type = 'mairie' THEN 1 END) as mairies,
                     COUNT(proprietaire_siren) as enrichis
                 FROM agriweb_prospects
                 WHERE 1=1{filter_clause}
@@ -408,7 +409,7 @@ def register_crm_routes(app):
             if not stats:
                 return jsonify({
                     'success': True,
-                    'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0, 'industriels': 0, 'enrichis': 0}
+                    'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0, 'industriels': 0, 'mairies': 0, 'enrichis': 0}
                 })
             
             return jsonify({'success': True, 'stats': stats})
@@ -1017,20 +1018,23 @@ def register_crm_routes(app):
 
             # Calculer les stats
             stats = execute_query(f'''
-                SELECT 
+                SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
                     COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
                     COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
-                    COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+                    COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg,
+                    COUNT(CASE WHEN type = 'industriel' THEN 1 END) as industriels,
+                    COUNT(CASE WHEN type = 'mairie' THEN 1 END) as mairies,
+                    COUNT(proprietaire_siren) as enrichis
                 FROM agriweb_prospects
                 WHERE 1=1{filter_clause}
             ''', filter_params if filter_params else None, fetch_one=True)
-            
+
             return jsonify({
                 'success': True,
                 'prospects': prospects if prospects else [],
-                'stats': stats if stats else {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+                'stats': stats if stats else {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0, 'industriels': 0, 'mairies': 0, 'enrichis': 0}
             })
             
         except Exception as e:
