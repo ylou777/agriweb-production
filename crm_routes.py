@@ -339,6 +339,15 @@ def clean_numeric_value(val):
     
     return None
 
+def _count_mairies_campagne():
+    """Nombre de mairies de la campagne email (table recipients, pipeline distinct
+    des projets CRM). Compte les communes uniques. 0 si la table n'existe pas."""
+    try:
+        r = execute_query("SELECT COUNT(DISTINCT code_insee) AS n FROM recipients", fetch_one=True)
+        return int((dict(r) if r else {}).get('n') or 0)
+    except Exception:
+        return 0
+
 # ============================================================================
 # ROUTES PAGES - INTERFACE CRM
 # ============================================================================
@@ -411,7 +420,9 @@ def register_crm_routes(app):
                     'success': True,
                     'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0, 'industriels': 0, 'mairies': 0, 'enrichis': 0}
                 })
-            
+
+            stats = dict(stats)
+            stats['mairies'] = _count_mairies_campagne()  # campagne email (pipeline distinct)
             return jsonify({'success': True, 'stats': stats})
             
         except Exception as e:
@@ -1031,10 +1042,14 @@ def register_crm_routes(app):
                 WHERE 1=1{filter_clause}
             ''', filter_params if filter_params else None, fetch_one=True)
 
+            # Mairies = campagne email (table recipients, pipeline distinct des projets CRM)
+            stats = dict(stats) if stats else {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0, 'industriels': 0, 'mairies': 0, 'enrichis': 0}
+            stats['mairies'] = _count_mairies_campagne()
+
             return jsonify({
                 'success': True,
                 'prospects': prospects if prospects else [],
-                'stats': stats if stats else {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0, 'industriels': 0, 'mairies': 0, 'enrichis': 0}
+                'stats': stats
             })
             
         except Exception as e:
