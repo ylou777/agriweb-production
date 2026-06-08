@@ -567,6 +567,67 @@ class Calpinage3DViewer {
      * @param {Array<number>} [panelIndices] - Indices des pans à remplir (null = tous)
      * @returns {Array<Object>} Zones générées [{panelName, orientation, inclinaison, modules: [{lat, lng, corners}]}]
      */
+    /**
+     * Construit l'index des obstacles LiDAR (cheminees, HVAC, lucarnes) depuis
+     * building_hd.obstacles (calcule cote serveur par _filter_roof_obstacles :
+     * mediane locale 5x5 + MAD, en espace LiDAR pur → pas de biais de referentiel).
+     *
+     * Les cellules sont en coords locales (Est, Nord en m depuis building_center),
+     * MEME repere que polygon_2d et que (sPx, sPy) utilises pour la pose.
+     *
+     * Filtrage anti-bruit : on cluster les cellules (8-voisins) et on ne garde que
+     * les clusters >= MIN_CELLS (~0.75 m²) → un point LiDAR isole (bruit capteur,
+     * bord d'ombre) n'exclut PAS de module. Resultat dans this._obsCellSet.
+     */
+    _buildObstacleIndex() {
+        this._obsCellSet = null;
+        this._obsCellSize = 0.5;
+        this._obsKeptCells = 0;
+        const obs = this.lidarData?.building_hd?.obstacles;
+        const cells = obs?.cells;
+        if (!Array.isArray(cells) || cells.length === 0) return;
+        const cs = obs.cell_size || 0.5;
+        this._obsCellSize = cs;
+        const key = (gx, gy) => gx + ',' + gy;
+        const gcell = c => [Math.round(c[0] / cs), Math.round(c[1] / cs)];
+        const idx = new Map();
+        cells.forEach((c, i) => { const [gx, gy] = gcell(c); idx.set(key(gx, gy), i); });
+        const parent = cells.map((_, i) => i);
+        const find = a => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+        const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+        idx.forEach((i, k) => {
+            const [gx, gy] = k.split(',').map(Number);
+            for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const j = idx.get(key(gx + dx, gy + dy));
+                if (j !== undefined && j !== i) union(i, j);
+            }
+        });
+        const sizes = new Map();
+        cells.forEach((_, i) => { const r = find(i); sizes.set(r, (sizes.get(r) || 0) + 1); });
+        const MIN_CELLS = 3;
+        const set = new Set();
+        cells.forEach((c, i) => {
+            if (sizes.get(find(i)) >= MIN_CELLS) { const [gx, gy] = gcell(c); set.add(key(gx, gy)); }
+        });
+        // Garde-fou : si une part absurde du toit est flaggee, on n'exclut rien
+        // (detection suspecte → on prefere ne pas casser la pose, cf. regression precedente).
+        if (set.size > 6000) {
+            console.warn(`⚠️ [Obstacles] ${set.size} cellules retenues — trop, exclusion desactivee (securite)`);
+            return;
+        }
+        this._obsCellSet = set;
+        this._obsKeptCells = set.size;
+        if (set.size) console.log(`🧱 [Obstacles] ${set.size} cellule(s) d'exclusion (clusters>=${MIN_CELLS}, ${cells.length} brutes)`);
+    }
+
+    /** True si le point local (sPx=Est, sPy=Nord, m depuis building_center) est sur un obstacle. */
+    _isOnObstacle(sPx, sPy) {
+        if (!this._obsCellSet) return false;
+        const cs = this._obsCellSize;
+        return this._obsCellSet.has(Math.round(sPx / cs) + ',' + Math.round(sPy / cs));
+    }
+
     autoFillRoofPanels(moduleW, moduleH, espacement, disposition, panelIndices, obstacleRects, options) {
         if (!this.roofPanelsInfo || !this.roofPanelsInfo.panels.length) {
             console.warn('⚠️ Pas de roofPanelsInfo pour le remplissage auto');
@@ -607,7 +668,11 @@ class Calpinage3DViewer {
         })();
         
         const generatedZones = [];
-        
+
+        // Index des obstacles LiDAR (cheminees/HVAC/lucarnes) pour exclusion auto
+        this._buildObstacleIndex();
+        let _excludedLidar = 0;
+
         // Supprimer anciens modules 3D
         this.modules3D.forEach(m => {
             this.scene.remove(m);
@@ -971,6 +1036,14 @@ class Calpinage3DViewer {
                         if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
 
+                    // === Exclusion obstacles LiDAR auto (cheminees / HVAC / lucarnes) ===
+                    // Centre du module en coords locales (Est, Nord) = repere polygon_2d.
+                    if (this._obsCellSet) {
+                        const _osx = worldX - _bldgOffX;
+                        const _osy = -(worldZ - _bldgOffZ);
+                        if (this._isOnObstacle(_osx, _osy)) { _excludedLidar++; continue; }
+                    }
+
                     // === Vérification anti-superposition inter-panneaux ===
                     const _key = _occKey(worldX, worldZ);
                     if (_occGrid.has(_key)) continue; // Cellule déjà occupée par un autre pan → skip
@@ -1080,6 +1153,12 @@ class Calpinage3DViewer {
         });
         
         console.log(`✅ Remplissage auto toiture: ${totalModules} modules sur ${generatedZones.length} pan(s)`);
+        if (_excludedLidar > 0) {
+            console.log(`🧱 ${_excludedLidar} module(s) exclu(s) sur obstacles LiDAR (cheminees/HVAC/lucarnes)`);
+            if (typeof this.onModulesExcluded === 'function') {
+                try { this.onModulesExcluded(_excludedLidar); } catch (e) {}
+            }
+        }
         return generatedZones;
     }
     
