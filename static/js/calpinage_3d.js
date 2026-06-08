@@ -6599,94 +6599,18 @@ class Calpinage3DViewer {
             .filter(p => p.mnh_a !== undefined && p.polygon_2d?.length >= 3)
             .map(p => ({ panel: p, poly2d: p.polygon_2d.map(pt => ({ x: pt[0], y: pt[1] })) }));
 
-        // ── Pré-scan obstacles : modules dont la hauteur COPC > plan RANSAC + 25 cm ────────────
-        // Stratégie :
-        //  1. Modules qui «touchent» un obstacle → calculer leur empreinte 2D réelle (corners)
-        //  2. Fusionner les empreintes proches en obstacles uniques (bboxes)
-        //  3. Dilater chaque bbox de 50 cm → zone d'exclusion
-        //  4. Exclure tout module dont UN COIN touche une zone d'exclusion (RANSAC + OBB)
-        //  5. Mémoriser les exclus pour les propager en 2D via onModulesExcluded
-        const _obstBBoxes  = []; // [{xMin,xMax,zMin,zMax}] — zones d'exclusion finales
+        // ── Exclusion obstacles : masque LiDAR serveur (building_hd.obstacles) ───────────────
+        // Detection cote serveur (_filter_roof_obstacles : mediane locale 5x5 + MAD, espace
+        // LiDAR pur) → cellules dans le repere polygon_2d. On cluster (>=3 cellules) pour
+        // ignorer le bruit isole. Remplace l'ancien pre-scan COPC-vs-RANSAC (biaise de
+        // referentiel, devenu un no-op self-referentiel). Memes coords que (sPx,sPy).
+        this._buildObstacleIndex();
         this._excludedModuleGeoPos = []; // réinitialiser pour ce cycle
-        const _tHGlobal    = this.roofPanelsInfo?.buildingTerrainH ?? 0;
-        if (this.lidarData?.building_hd?.copc_grid?.grid) {
-            const _rawBBoxes = [];
-            zones.forEach(zone => {
-                if (!zone.modulesPositions?.length) return;
-                const _mp  = this.roofPanelsInfo?.panels ? this._matchZoneToPanel(zone) : null;
-                const _isR = _mp?.mnh_a !== undefined && _mp?.mnh_b !== undefined;
-                if (!_isR) return;
-                zone.modulesPositions.forEach(modPos => {
-                    if (!modPos.lat || !modPos.lng) return;
-                    const ml    = this._geoToLocal(modPos.lat, modPos.lng);
-                    const copcY = this._sampleCopcHeight(ml.x, ml.z);
-                    if (copcY === null) return;
-                    const px  = ml.x - _bOXadd, py = -(ml.z - _bOZadd);
-                    // Matching par module : choisir le pan avec le mnh le plus haut
-                    // (évite les faux positifs obstacle quand un pan voisin extrapolé plus bas)
-                    let _scanPanel = _mp;
-                    let _scanPanelMnh = _mp
-                        ? (_mp.mnh_a * px + _mp.mnh_b * py + _mp.mnh_c)
-                        : -Infinity;
-                    for (const _rpe of _ransacPanelsList) {
-                        if (this._pointInPolygon2D(px, py, _rpe.poly2d)) {
-                            const _cMnh = _rpe.panel.mnh_a * px + _rpe.panel.mnh_b * py + _rpe.panel.mnh_c;
-                            if (_cMnh > _scanPanelMnh) {
-                                _scanPanel = _rpe.panel;
-                                _scanPanelMnh = _cMnh;
-                            }
-                        }
-                    }
-                    const mnh = _scanPanel.mnh_a * px + _scanPanel.mnh_b * py + _scanPanel.mnh_c;
-                    // Seuil obstacle : hauteur COPC > hauteur mesh toit au même point + 5 cm
-                    // copcY = _sampleCopcHeight() = terrainH + max(bh, z_rel - baseline + bh)
-                    // → même repère que le mesh toit → comparaison directe
-                    const _roofAtPoint = this._sampleCopcHeight(ml.x, ml.z) ?? (_tHGlobal + Math.max(_bWHadd, mnh));
-                    if (copcY <= _roofAtPoint + 0.05) return;
-                    // Empreinte réelle du module depuis ses coins géo
-                    let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
-                    if (modPos.corners?.length >= 4) {
-                        modPos.corners.forEach(corner => {
-                            const cl = this._geoToLocal(corner.lat, corner.lng);
-                            if (cl.x < xMin) xMin = cl.x; if (cl.x > xMax) xMax = cl.x;
-                            if (cl.z < zMin) zMin = cl.z; if (cl.z > zMax) zMax = cl.z;
-                        });
-                    } else {
-                        xMin = ml.x - 1.0; xMax = ml.x + 1.0;
-                        zMin = ml.z - 0.75; zMax = ml.z + 0.75;
-                    }
-                    _rawBBoxes.push({ xMin, xMax, zMin, zMax });
-                });
-            });
-            if (_rawBBoxes.length) {
-                // Fusionner les bboxes qui se touchent ou se chevauchent en obstacles uniques
-                const _MERGE_GAP = 0.10;
-                const _merged    = [];
-                _rawBBoxes.forEach(bb => {
-                    let found = false;
-                    for (const m of _merged) {
-                        if (bb.xMin <= m.xMax + _MERGE_GAP && bb.xMax >= m.xMin - _MERGE_GAP &&
-                            bb.zMin <= m.zMax + _MERGE_GAP && bb.zMax >= m.zMin - _MERGE_GAP) {
-                            m.xMin = Math.min(m.xMin, bb.xMin); m.xMax = Math.max(m.xMax, bb.xMax);
-                            m.zMin = Math.min(m.zMin, bb.zMin); m.zMax = Math.max(m.zMax, bb.zMax);
-                            found = true; break;
-                        }
-                    }
-                    if (!found) _merged.push({ ...bb });
-                });
-                // Dilater le périmètre de chaque obstacle de 50 cm
-                const _BUFFER = 0.50;
-                _merged.forEach(m => _obstBBoxes.push({
-                    xMin: m.xMin - _BUFFER, xMax: m.xMax + _BUFFER,
-                    zMin: m.zMin - _BUFFER, zMax: m.zMax + _BUFFER,
-                }));
-                console.log(`🔍 [Obstacles] ${_obstBBoxes.length} obstacle(s) détecté(s) — ${_rawBBoxes.length} module(s) touchent un obstacle`);
-            }
-        }
-        // Retourne true si AU MOINS UN coin d'un module est dans une zone d'exclusion
+        // Retourne true si AU MOINS UN coin du module tombe sur une cellule-obstacle.
+        // Conversion coin (x,z monde-local) → (Est,Nord depuis building_center) = repere cellules.
         const _cornerInObstacle = (c0, c1, c2, c3) =>
-            _obstBBoxes.length > 0 && [c0, c1, c2, c3].some(c =>
-                _obstBBoxes.some(b => c.x >= b.xMin && c.x <= b.xMax && c.z >= b.zMin && c.z <= b.zMax)
+            !!this._obsCellSet && [c0, c1, c2, c3].some(c =>
+                this._isOnObstacle(c.x - _bOXadd, -(c.z - _bOZadd))
             );
 
         let totalModules = 0;
