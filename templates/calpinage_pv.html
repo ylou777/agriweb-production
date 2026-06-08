@@ -10109,6 +10109,38 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             // ── Utiliser le cache BDD si disponible (0 token Google Solar consommé) ──────────
             // En mode MAJIC multi-site : le cache mono-tuile ne couvre pas tous les bâtiments → ignorer
             const _isMajicMode = window._majicLoadedFeats?.length > 0 && !(viewer3D?.isActive) && (!zones || !zones.length);
+            // ── Validation du cache : doit correspondre au bâtiment travaillé ──────────────
+            // Le cache persiste un bbox. S'il a été calculé sur un autre bâtiment (géocodage
+            // tombé à côté → annexe voisine), son centre est loin des zones dessinées → on
+            // l'ignore et on recalcule sur le bon bâtiment. Corrige le décalage heatmap/bâti.
+            if (_cachedIrradiationData && _cachedIrradiationData.bbox &&
+                typeof zones !== 'undefined' && zones.length > 0) {
+                try {
+                    let mnLa = Infinity, mxLa = -Infinity, mnLo = Infinity, mxLo = -Infinity;
+                    zones.forEach(z => {
+                        const b = z.layer?.getBounds?.(); if (!b) return;
+                        mnLa = Math.min(mnLa, b.getSouth()); mxLa = Math.max(mxLa, b.getNorth());
+                        mnLo = Math.min(mnLo, b.getWest());  mxLo = Math.max(mxLo, b.getEast());
+                    });
+                    if (isFinite(mnLa)) {
+                        const zLa = (mnLa + mxLa) / 2, zLo = (mnLo + mxLo) / 2;
+                        const cb  = _cachedIrradiationData.bbox;
+                        // Le centroïde des zones doit tomber DANS le bbox du cache (+ marge 20m)
+                        // → robuste aux grands bâtiments (zones dessinées sur une extrémité).
+                        const mLa = 20 / 111320;
+                        const mLo = 20 / (111320 * Math.cos(zLa * Math.PI / 180));
+                        const inside = (zLa >= cb.south - mLa && zLa <= cb.north + mLa &&
+                                        zLo >= cb.west  - mLo && zLo <= cb.east  + mLo);
+                        if (!inside) {
+                            const cLa = (cb.north + cb.south) / 2, cLo = (cb.east + cb.west) / 2;
+                            const dM  = Math.hypot((cLa - zLa) * 111320,
+                                                   (cLo - zLo) * 111320 * Math.cos(zLa * Math.PI / 180));
+                            console.warn(`⚠️ Cache irradiation hors zones (~${dM.toFixed(0)}m) → ignoré, recalcul sur le bâtiment travaillé`);
+                            _cachedIrradiationData = null;
+                        }
+                    }
+                } catch (e) { console.warn('validation cache irradiation:', e); }
+            }
             if (_cachedIrradiationData && !_isMajicMode) {
                 _fluxActive = true;
                 await _restoreIrradiationFromCache(_cachedIrradiationData);
