@@ -605,23 +605,38 @@ class Calpinage3DViewer {
         });
         const sizes = new Map();
         cells.forEach((_, i) => { const r = find(i); sizes.set(r, (sizes.get(r) || 0) + 1); });
-        const MIN_CELLS = 3;
-        const set = new Set();
+        // Cluster mini : >=2 cellules (~0.5 m²) → capte les petits events/cheminees,
+        // mais rejette le point LiDAR isole (bruit capteur, bord d'ombre).
+        const MIN_CELLS = 2;
+        const core = new Set();
         cells.forEach((c, i) => {
-            if (sizes.get(find(i)) >= MIN_CELLS) { const [gx, gy] = gcell(c); set.add(key(gx, gy)); }
+            if (sizes.get(find(i)) >= MIN_CELLS) { const [gx, gy] = gcell(c); core.add(key(gx, gy)); }
         });
+        // Buffer : dilatation morphologique des obstacles de DILATE cellules (~0.5 m de
+        // degagement) → exclut aussi les modules ADJACENTS, pas seulement centres dessus
+        // (on ne veut pas coller un module contre une cheminee).
+        const DILATE = 1;
+        const set = new Set(core);
+        if (DILATE > 0) {
+            core.forEach(k => {
+                const [gx, gy] = k.split(',').map(Number);
+                for (let dx = -DILATE; dx <= DILATE; dx++)
+                    for (let dy = -DILATE; dy <= DILATE; dy++)
+                        set.add(key(gx + dx, gy + dy));
+            });
+        }
         // Garde-fou : si une part absurde du toit est flaggee, on n'exclut rien
         // (detection suspecte → on prefere ne pas casser la pose, cf. regression precedente).
-        if (set.size > 6000) {
+        if (set.size > 12000) {
             console.warn(`⚠️ [Obstacles] ${set.size} cellules retenues — trop, exclusion desactivee (securite)`);
             return;
         }
         this._obsCellSet = set;
         this._obsKeptCells = set.size;
-        if (set.size) console.log(`🧱 [Obstacles] ${set.size} cellule(s) d'exclusion (clusters>=${MIN_CELLS}, ${cells.length} brutes)`);
+        if (set.size) console.log(`🧱 [Obstacles] ${set.size} cellule(s) d'exclusion (clusters>=${MIN_CELLS}, buffer ${DILATE} cel, ${core.size} coeur / ${cells.length} brutes)`);
     }
 
-    /** True si le point local (sPx=Est, sPy=Nord, m depuis building_center) est sur un obstacle. */
+    /** True si le point local (sPx=Est, sPy=Nord, m depuis building_center) est sur un obstacle (buffer inclus). */
     _isOnObstacle(sPx, sPy) {
         if (!this._obsCellSet) return false;
         const cs = this._obsCellSize;
