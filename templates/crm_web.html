@@ -540,6 +540,10 @@
                 <div class="stat-label">Friches</div>
             </div>
             <div class="stat-card">
+                <div class="stat-value" style="color:#fbbf24" id="stat-industriels">0</div>
+                <div class="stat-label">Industriels</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-value c-purple" id="stat-enrichis">0</div>
                 <div class="stat-label">Enrichis</div>
             </div>
@@ -1461,18 +1465,22 @@
         }
 
         function updateStats(stats) {
-            if (!stats) stats = {total: 0, parkings: 0, toitures: 0, friches: 0};
+            if (!stats) stats = {total: 0, parkings: 0, toitures: 0, friches: 0, industriels: 0, enrichis: 0};
             const el = document.getElementById('stat-total');
             if (!el) return; // Stats masquées pour non-admin
             el.textContent = stats.total || 0;
             document.getElementById('stat-parkings').textContent = stats.parkings || 0;
             document.getElementById('stat-toitures').textContent = stats.toitures || 0;
             document.getElementById('stat-friches').textContent = stats.friches || 0;
-            
-            // Calculer les enrichis
-            const enrichis = allProspects.filter(p => p.proprietaire_siren && p.proprietaire_siren !== null).length;
+            const indEl = document.getElementById('stat-industriels');
+            if (indEl) indEl.textContent = stats.industriels || 0;
+
+            // Enrichis : compte serveur (robuste à la pagination) avec repli client
+            const enrichis = (typeof stats.enrichis === 'number')
+                ? stats.enrichis
+                : allProspects.filter(p => p.proprietaire_siren && p.proprietaire_siren !== null).length;
             document.getElementById('stat-enrichis').textContent = enrichis;
-            
+
             // Calculer le taux
             const total = stats.total || 0;
             const tauxEnrichissement = total > 0 ? Math.round((enrichis / total) * 100) : 0;
