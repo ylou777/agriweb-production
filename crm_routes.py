@@ -343,7 +343,7 @@ def _count_mairies_campagne():
     """Nombre de mairies de la campagne email (table recipients, pipeline distinct
     des projets CRM). Total des destinataires analysés. 0 si la table n'existe pas."""
     try:
-        r = execute_query("SELECT COUNT(*) AS n FROM recipients", fetch_one=True)
+        r = execute_query("SELECT COUNT(DISTINCT nom_commune) AS n FROM recipients", fetch_one=True)
         return int((dict(r) if r else {}).get('n') or 0)
     except Exception:
         return 0
