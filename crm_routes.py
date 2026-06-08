@@ -435,6 +435,38 @@ def register_crm_routes(app):
                 'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
             })
 
+    @app.route('/api/crm/mairies-diagnostic', methods=['GET'])
+    def mairies_diagnostic():
+        """Diagnostic LECTURE SEULE des doublons de la campagne mairies (table recipients)."""
+        user_id, is_admin = get_current_crm_user()
+        if not is_admin:
+            return jsonify({'success': False, 'error': 'Admin requis'}), 403
+        out = {}
+        try:
+            g = execute_query(
+                "SELECT COUNT(*) AS lignes, COUNT(DISTINCT nom_commune) AS communes, "
+                "COUNT(DISTINCT code_insee) AS insee, COUNT(DISTINCT email) AS emails FROM recipients",
+                fetch_one=True)
+            out['global'] = dict(g) if g else {}
+            camps = execute_query(
+                "SELECT c.id, c.name, c.total AS total_declare, c.status, "
+                "COUNT(r.id) AS lignes, COUNT(DISTINCT r.nom_commune) AS communes "
+                "FROM campaigns c LEFT JOIN recipients r ON r.campaign_id = c.id "
+                "GROUP BY c.id, c.name, c.total, c.status ORDER BY lignes DESC", fetch_all=True)
+            out['campagnes'] = [dict(c) for c in (camps or [])]
+            dist = execute_query(
+                "SELECT cnt AS occurrences, COUNT(*) AS nb_communes FROM "
+                "(SELECT nom_commune, COUNT(*) AS cnt FROM recipients GROUP BY nom_commune) t "
+                "GROUP BY cnt ORDER BY cnt DESC LIMIT 25", fetch_all=True)
+            out['distribution_doublons'] = [dict(d) for d in (dist or [])]
+            top = execute_query(
+                "SELECT nom_commune, COUNT(*) AS cnt, COUNT(DISTINCT campaign_id) AS campagnes "
+                "FROM recipients GROUP BY nom_commune ORDER BY cnt DESC LIMIT 12", fetch_all=True)
+            out['top_doublons'] = [dict(t) for t in (top or [])]
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': True, 'diagnostic': out})
+
     @app.route('/api/crm/dashboard/stats')
     def get_dashboard_stats():
         """Récupère toutes les statistiques pour le dashboard CRM KPI"""
