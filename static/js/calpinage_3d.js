@@ -993,24 +993,13 @@ class Calpinage3DViewer {
                         // Composante Y de l'offset perpendiculaire (0.06m le long de la normale)
                         const normLen = Math.sqrt(panel.mnh_a*panel.mnh_a + panel.mnh_b*panel.mnh_b + 1);
                         const offsetY = 0.06 * normLen;
-                        // ── Pose COPLANAIRE sur le plan du versant + exclusion des obstacles ──
-                        // Le plan RANSAC/Solar (mnh) = surface plane du pan. On y pose les modules
-                        // au lieu de les DRAPER sur le relief COPC (qui suit cheminées, édicules,
-                        // sauts de niveau). Si la surface réelle dépasse nettement le plan sous le
-                        // module → superstructure → module EXCLU (pas posé dessus).
-                        const planeAbs = terrainH + Math.max(wallH, mnh);
+                        // Priorité : _sampleCopcHeight → même hauteur que le mesh toit COPC
+                        //            (_buildRoofFromGrid : terrainH + max(bh, z_rel - z_baseline + bh))
+                        // Fallback  : max(wallH, mnh_ransac) — sans grille COPC
                         const _copcY = this._sampleCopcHeight?.(worldX, worldZ);
-                        const _seuilObst = (opts.obstacleThreshold > 0 && isFinite(opts.obstacleThreshold))
-                                           ? opts.obstacleThreshold : 0.15;  // m (défaut 15 cm)
-                        if (_copcY !== null && _copcY !== undefined && (_copcY - planeAbs) > _seuilObst) {
-                            try {
-                                const _g = this._localToGeo(worldX, worldZ);
-                                this._excludedModuleGeoPos.push({ lat: _g.lat, lng: _g.lng,
-                                    zoneNumero: (panel.numero || panel.name) });
-                            } catch (e) {}
-                            continue;  // obstacle / superstructure → module supprimé
-                        }
-                        const modY = planeAbs + offsetY;  // coplanaire au versant (pas de drapage)
+                        const modY = (_copcY !== null && _copcY !== undefined)
+                            ? _copcY + offsetY
+                            : terrainH + Math.max(wallH, mnh) + offsetY;
                         // panel3d.position est en espace LOCAL du panGroup → soustraire le pivot monde
                         panel3d.position.set(worldX - _pivotX, modY - _pivotY, worldZ - _pivotZ);
                         // Orienter le module : long axe (X) perpendiculaire au versant (axe faîtage),
