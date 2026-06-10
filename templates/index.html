@@ -479,6 +479,10 @@
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
+        <!-- Résultats de recherche : conteneur où main.js/updateInfoPanel écrit.
+             Restauré après le nettoyage UI f378de0 qui l'avait retiré et cassait
+             l'affichage des recherches (commune/département). -->
+        <div id="info-panel" class="px-2 pb-3"></div>
       </div>
     </div>
     <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
