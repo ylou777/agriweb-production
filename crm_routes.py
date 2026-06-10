@@ -8416,10 +8416,59 @@ out geom tags;"""
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/crm/admin/find-user', methods=['GET'])
+    def admin_find_user():
+        """LECTURE SEULE : retrouve des comptes par nom/email/société + nb de prospects."""
+        _uid, is_admin = get_current_crm_user()
+        if not is_admin:
+            return jsonify({'success': False, 'error': 'Admin requis'}), 403
+        q = (request.args.get('q') or '').strip().lower()
+        if len(q) < 2:
+            return jsonify({'success': False, 'error': 'q (>=2 car.) requis'}), 400
+        try:
+            from auth_database import get_auth_db
+            conn = get_auth_db(); cur = conn.cursor()
+            like = f'%{q}%'
+            cur.execute("SELECT id, email, name, company FROM users "
+                        "WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(COALESCE(company,'')) LIKE ? "
+                        "ORDER BY id LIMIT 20", (like, like, like))
+            rows = cur.fetchall(); conn.close()
+            users = []
+            for r in rows:
+                uid = r[0]
+                c = execute_query("SELECT COUNT(*) AS n FROM agriweb_prospects WHERE user_id = %s",
+                                  (str(uid),), fetch_one=True) or {}
+                users.append({'id': uid, 'email': r[1], 'name': r[2], 'company': r[3],
+                              'nb_prospects': int((dict(c)).get('n') or 0)})
+            return jsonify({'success': True, 'users': users})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/crm/admin/vider-prospects', methods=['POST'])
+    def admin_vider_prospects():
+        """Supprime TOUS les prospects d'UN compte (cible par email). Admin only."""
+        _uid, is_admin = get_current_crm_user()
+        if not is_admin:
+            return jsonify({'success': False, 'error': 'Admin requis'}), 403
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip()
+        if not email:
+            return jsonify({'success': False, 'error': 'email requis'}), 400
+        target_id = _resolve_user_id_by_email(email)
+        if target_id is None:
+            return jsonify({'success': False, 'error': f'Utilisateur {email} introuvable'}), 404
+        try:
+            res = execute_query('DELETE FROM agriweb_prospects WHERE user_id = %s RETURNING id',
+                                (str(target_id),), fetch_all=True)
+            count = len(res) if res else 0
+            return jsonify({'success': True, 'email': email, 'target_user_id': target_id, 'deleted': count})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # ============================================================================
     # ROUTES PARAMÉTRAGE SYSTÈME
     # ============================================================================
-    
+
     @app.route('/api/crm/parametrage')
     def page_parametrage():
         """Page de paramétrage système"""
