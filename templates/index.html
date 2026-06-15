@@ -480,10 +480,24 @@
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
-        <!-- Résultats de recherche : conteneur où main.js/updateInfoPanel écrit.
-             Restauré après le nettoyage UI f378de0 qui l'avait retiré et cassait
-             l'affichage des recherches (commune/département). -->
-        <div id="info-panel" class="px-2 pb-3"></div>
+        <!-- Détails des couches : conteneur où main.js/updateInfoPanel écrit les
+             résultats. Restauré après le nettoyage UI f378de0 (sinon la recherche
+             plantait), mais REPLIÉ par défaut comme à l'origine -> n'encombre plus
+             la sidebar et ne masque plus les boutons "Rapport direct". -->
+        <div class="accordion" id="infoAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#infoCollapse" aria-expanded="false" aria-controls="infoCollapse">
+                <i class="bi bi-layers me-2"></i> Détails des couches
+              </button>
+            </h2>
+            <div id="infoCollapse" class="accordion-collapse collapse" data-bs-parent="#infoAccordion">
+              <div class="accordion-body">
+                <div id="info-panel"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
