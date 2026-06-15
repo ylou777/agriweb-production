@@ -2653,18 +2653,33 @@ def register_crm_routes(app):
         SIR = "https://recherche-entreprises.api.gouv.fr/search"
 
         def _sirene_etab(siren, cc):
-            """(lat, lon, ok) depuis l'établissement SIREN dans la commune cc."""
+            """(lat, lon, ok) depuis l'établissement SIREN SITUÉ DANS la commune cc.
+            Ne renvoie JAMAIS le siège s'il est hors de cc (evite de placer l'usine
+            du Sud au siege parisien). Si aucun etablissement n'est dans cc -> None
+            -> on laisse le repli BAN geocoder l'adresse reelle."""
+            cc = (cc or '').strip()
             for i in range(3):
                 try:
-                    r = _rq.get(SIR, params={'q': siren, 'code_commune': cc or '',
+                    r = _rq.get(SIR, params={'q': siren, 'code_commune': cc,
                                              'page': 1, 'per_page': 1}, timeout=15)
                     if r.status_code == 200:
                         res = (r.json().get('results') or [])
                         if not res:
                             return None, None, True
                         ent = res[0]
-                        ets = ent.get('matching_etablissements') or []
-                        et = ets[0] if ets else (ent.get('siege') or {})
+                        cands = list(ent.get('matching_etablissements') or [])
+                        sg = ent.get('siege') or {}
+                        if sg:
+                            cands.append(sg)
+                        # Ne garder qu'un etablissement DANS la commune cible
+                        et = None
+                        if cc:
+                            for c in cands:
+                                if str(c.get('code_commune') or '').strip() == cc:
+                                    et = c; break
+                        if et is None:
+                            # aucun etablissement dans cette commune -> repli BAN (adresse)
+                            return None, None, True
                         la, lo = et.get('latitude'), et.get('longitude')
                         if la is not None and lo is not None:
                             try:
@@ -2700,6 +2715,29 @@ def register_crm_routes(app):
                 _t.sleep(0.6 * (i + 1))
             return None, None, None, False
 
+        def _commune_centroid(cc):
+            """(lat, lon, ok) centroïde de la commune INSEE — repli ultime (approx).
+            Garantit que le site reste dans SA commune, jamais au siege parisien."""
+            cc = (cc or '').strip()
+            if not cc:
+                return None, None, True
+            for i in range(2):
+                try:
+                    r = _rq.get(f"https://geo.api.gouv.fr/communes/{cc}",
+                                params={'fields': 'centre'}, timeout=15)
+                    if r.status_code == 200:
+                        c = ((r.json() or {}).get('centre') or {}).get('coordinates')
+                        if c and len(c) == 2:
+                            return float(c[1]), float(c[0]), True   # (lat, lon)
+                        return None, None, True
+                    if r.status_code in (429, 503):
+                        _t.sleep(1.0 * (i + 1)); continue
+                    return None, None, True
+                except Exception:
+                    pass
+                _t.sleep(0.5 * (i + 1))
+            return None, None, False
+
         try:
             while True:
                 job = execute_query("SELECT status FROM scan_jobs WHERE id=%s", (job_id,), fetch_one=True)
@@ -2730,6 +2768,13 @@ def register_crm_routes(app):
                                 ok = False
                             elif la is not None:
                                 lat, lon, source, prec = la, lo, 'ban', bprec
+                    if lat is None and ok:
+                        # Repli ultime : centroïde commune (jamais le siege hors commune)
+                        la, lo, cok = _commune_centroid(p.get('code_commune'))
+                        if not cok:
+                            ok = False
+                        elif la is not None:
+                            lat, lon, source, prec = la, lo, 'commune', 'approx'
                     if not ok:
                         _t.sleep(1.5); continue  # throttle → réessayable au prochain run
                     execute_query(
