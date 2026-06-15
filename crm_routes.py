@@ -2782,7 +2782,7 @@ def register_crm_routes(app):
         if user_id is None:
             return redirect('/auth/login?next=/crm/gisement')
         # Accessible aux clients : les donnees sont gatees a leurs departements payes.
-        return render_template('crm_gisement.html')
+        return render_template('crm_gisement.html', is_admin=is_admin)
 
     @app.route('/crm/carte')
     def crm_carte_page():
@@ -2791,7 +2791,7 @@ def register_crm_routes(app):
         if user_id is None:
             return redirect('/auth/login?next=/crm/carte')
         # Accessible aux clients : carte-data est gatee a leurs departements payes.
-        return render_template('crm_carte.html')
+        return render_template('crm_carte.html', is_admin=is_admin)
 
     @app.route('/demo-prospection')
     def demo_prospection_page():

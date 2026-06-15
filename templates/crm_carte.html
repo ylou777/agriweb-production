@@ -96,7 +96,7 @@
     </div>
     <div class="nav">
       <a href="/crm/gisement" class="navlink"><i class="bi bi-grid-3x3-gap"></i> Vignettes</a>
-      <a href="/crm/industriel" class="navlink"><i class="bi bi-table"></i> Console</a>
+      {% if is_admin %}<a href="/crm/industriel" class="navlink"><i class="bi bi-table"></i> Console</a>{% endif %}
       <a href="/crm" class="navlink"><i class="bi bi-arrow-left"></i> CRM</a>
     </div>
   </div>
