@@ -45,7 +45,8 @@
     </div>
   </div></div>
 
-  <!-- Lanceur de scan -->
+  {% if is_admin %}
+  <!-- Lanceur de scan (ADMIN uniquement : protege le gisement industriel) -->
   <div class="card mb-3"><div class="card-body">
     <h6 class="mb-3" style="color:#fbbf24;"><i class="bi bi-radar"></i> Scanner un territoire</h6>
     <div class="row g-2 align-items-end">
@@ -155,6 +156,7 @@
     </div>
     <div id="droitsList" class="mt-2" style="font-size:.85rem"></div>
   </div></div>
+  {% endif %}
 
   <!-- Suivi d'avancement -->
   <div class="card mb-3"><div class="card-body py-2">
