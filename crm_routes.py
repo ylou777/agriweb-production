@@ -2829,13 +2829,10 @@ def register_crm_routes(app):
 
     @app.route('/crm/rapport')
     def crm_rapport_page():
-        """Rapport complet du gisement par département × profil de consommateur (admin)."""
-        user_id, is_admin = get_current_crm_user()
-        if user_id is None:
-            return redirect('/auth/login?next=/crm/rapport')
-        if not is_admin:
-            return redirect('/crm/industriel')
-        return render_template('crm_rapport.html')
+        """Page RETIREE : exposait un export CSV du gisement (donnee proprietaire).
+        Redirige vers la carte. Pour reactiver : restaurer le render_template et
+        re-activer l'export industriel_rapport_csv()."""
+        return redirect('/crm/carte')
 
     @app.route('/api/industriel/scan-inject', methods=['POST'])
     def industriel_scan_inject():
@@ -4171,7 +4168,9 @@ def register_crm_routes(app):
 
     @app.route('/api/industriel/rapport.csv', methods=['GET'])
     def industriel_rapport_csv():
-        """Export CSV du rapport (1 ligne par département × secteur). Excel-friendly."""
+        """DESACTIVE : l'export CSV du gisement (donnee proprietaire) a ete retire
+        pour empecher tout partage. Reactivable en supprimant le return ci-dessous."""
+        return ("Export du gisement desactive", 410)
         try:
             user_id, is_admin = get_current_crm_user()
             if not is_admin:
