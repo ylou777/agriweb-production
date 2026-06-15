@@ -8464,6 +8464,56 @@ out geom tags;"""
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/crm/admin/recreate-user', methods=['POST'])
+    def admin_recreate_user():
+        """(Re)cree un compte UTILISATEUR NORMAL (non-admin) : supprime l'existant
+        puis cree un compte actif, email verifie, essai 30 j, avec un mot de passe
+        connu. Admin only. Body: {email, password, name?}."""
+        _uid, is_admin = get_current_crm_user()
+        if not is_admin:
+            return jsonify({'success': False, 'error': 'Admin requis'}), 403
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        name = (data.get('name') or (email.split('@')[0] if email else '')).strip()
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'email et password requis'}), 400
+        try:
+            from auth_system_improved import AuthSystem
+            from auth_database import get_auth_db
+            from datetime import datetime as _dt, timedelta as _td
+            ph, salt = AuthSystem().hash_password(password)
+            conn = get_auth_db(); cur = conn.cursor()
+            # Supprimer l'existant (sessions puis user) pour une recreation propre
+            cur.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,))
+            old = cur.fetchone()
+            recreated = False
+            if old:
+                oid = old[0]
+                for _q in ("DELETE FROM user_sessions WHERE user_id = ?",):
+                    try: cur.execute(_q, (oid,))
+                    except Exception:
+                        try: cur.execute(_q, (str(oid),))
+                        except Exception: pass
+                cur.execute("DELETE FROM users WHERE email = ?", (email,))
+                recreated = True
+            ts = _dt.now(); te = ts + _td(days=30)
+            cur.execute('''INSERT INTO users
+                (email, name, company, password_hash, salt, is_email_verified,
+                 trial_start_date, trial_end_date, subscription_status, is_active, is_admin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (email, name or 'Utilisateur', '', ph, salt, True, ts, te, 'trial', True, False))
+            conn.commit()
+            cur.execute("SELECT id FROM users WHERE email = ?", (email,))
+            newid = cur.fetchone()[0]
+            conn.close()
+            return jsonify({'success': True, 'email': email, 'user_id': newid,
+                            'recreated': recreated, 'is_admin': False,
+                            'subscription': 'trial', 'trial_end': te.strftime('%Y-%m-%d')})
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # ============================================================================
     # ROUTES PARAMÉTRAGE SYSTÈME
     # ============================================================================
