@@ -2781,8 +2781,7 @@ def register_crm_routes(app):
         user_id, is_admin = get_current_crm_user()
         if user_id is None:
             return redirect('/auth/login?next=/crm/gisement')
-        if not is_admin:
-            return redirect('/crm/industriel')
+        # Accessible aux clients : les donnees sont gatees a leurs departements payes.
         return render_template('crm_gisement.html')
 
     @app.route('/crm/carte')
@@ -2791,8 +2790,7 @@ def register_crm_routes(app):
         user_id, is_admin = get_current_crm_user()
         if user_id is None:
             return redirect('/auth/login?next=/crm/carte')
-        if not is_admin:
-            return redirect('/crm/industriel')
+        # Accessible aux clients : carte-data est gatee a leurs departements payes.
         return render_template('crm_carte.html')
 
     @app.route('/demo-prospection')
@@ -3187,6 +3185,22 @@ def register_crm_routes(app):
                 return '*'
             depts.update(exp)
         return depts
+
+    def _industriel_gating_clause(uid, is_admin):
+        """Restreint le gisement (industrial_prospects) aux DROITS du user.
+        Admin -> aucune restriction. Non-admin -> uniquement ses departements
+        payes (LEFT(code_commune,2)), ou RIEN s'il n'a aucun droit territorial.
+        Retourne (clause_sql, params) a concatener a la requete."""
+        if is_admin:
+            return "", []
+        ent = _user_entitled_depts(uid)
+        if ent == '*':
+            return "", []
+        depts = sorted(ent)
+        if not depts:
+            return " AND 1=0", []   # aucun droit -> aucun site
+        ph = ",".join(["%s"] * len(depts))
+        return (f" AND LEFT(code_commune, 2) IN ({ph})", list(depts))
 
     @app.route('/api/industriel/territoire/grant', methods=['POST'])
     def territoire_grant():
@@ -3987,8 +4001,8 @@ def register_crm_routes(app):
             limit = min(int(request.args.get('limit') or 200), 500)
             offset = max(int(request.args.get('offset') or 0), 0)
             clause, params = "", []
-            if not is_admin:
-                clause += " AND user_id = %s"; params.append(str(user_id))
+            _gc, _gp = _industriel_gating_clause(user_id, is_admin)
+            clause += _gc; params.extend(_gp)
             if dept:
                 clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
             if naf2:
@@ -4030,8 +4044,8 @@ def register_crm_routes(app):
             conso_min = request.args.get('conso_min')
             conso_max = request.args.get('conso_max')
             clause, params = "", []
-            if not is_admin:
-                clause += " AND user_id = %s"; params.append(str(user_id))
+            _gc, _gp = _industriel_gating_clause(user_id, is_admin)
+            clause += _gc; params.extend(_gp)
             if dept:
                 clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
             if naf2:
@@ -4081,8 +4095,8 @@ def register_crm_routes(app):
             conso_min = request.args.get('conso_min')
             conso_max = request.args.get('conso_max')
             clause, params = "", []
-            if not is_admin:
-                clause += " AND user_id = %s"; params.append(str(user_id))
+            _gc, _gp = _industriel_gating_clause(user_id, is_admin)
+            clause += _gc; params.extend(_gp)
             if dept:
                 clause += " AND LEFT(code_commune, 2) = %s"; params.append(dept)
             if naf2:
