@@ -8427,10 +8427,19 @@ def get_all_gpu_data(geom):
         "generateur-sup-l",
         "generateur-sup-p"
     ]
-    results = {}
-    for ep in endpoints:
-        data = fetch_gpu_data(ep, geom)
-        results[ep] = data
+    # Les 17 endpoints GPU sont des I/O indépendantes : on les lance en
+    # parallèle au lieu de boucler en séquentiel (sinon jusqu'à 17 x timeout
+    # IGN = des dizaines de secondes par recherche commune). Sortie identique.
+    from concurrent.futures import ThreadPoolExecutor
+    results = {ep: None for ep in endpoints}
+    with ThreadPoolExecutor(max_workers=min(8, len(endpoints))) as _gpu_ex:
+        _futs = {_gpu_ex.submit(fetch_gpu_data, ep, geom): ep for ep in endpoints}
+        for _fut in _futs:
+            ep = _futs[_fut]
+            try:
+                results[ep] = _fut.result()
+            except Exception:
+                results[ep] = None
     return results
 
 # Fonction supprimée - conservé seulement main() à la fin du fichier
