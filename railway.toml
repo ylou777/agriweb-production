@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 4 --threads 8 --timeout 600 --graceful-timeout 600 --keep-alive 5"
+startCommand = "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 600 --graceful-timeout 300 --keep-alive 5 --max-requests 300 --max-requests-jitter 60"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
