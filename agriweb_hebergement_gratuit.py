@@ -13123,10 +13123,18 @@ def search_by_commune():
     else:
         log_data_collection("FRICHES", "❌ Récupération friches désactivée")
     
-    # Données toujours récupérées pour les calculs de distance - NOUVELLE MÉTHODE POLYGONE
-    log_data_collection("SOLAIRE", "Récupération du potentiel solaire")
-    solaire_data = get_solaire_info_by_polygon(contour)
-    log_data_collection("SOLAIRE", f"✅ {len(solaire_data)} données solaires récupérées")
+    # Potentiel solaire WFS : INUTILE quand on cherche des toitures (filter_toitures),
+    # car solaire_data est alors remplacé par toitures_data dans la carte (build_map,
+    # ~l.14247) ET dans la réponse (~l.14333). On évite donc 1 appel WFS + la boucle
+    # de géocodage inverse séquentielle ci-dessous (1 appel HTTP par feature) qui ne
+    # sert à rien dans ce cas — gros gain sur la recherche de toitures.
+    if filter_toitures:
+        solaire_data = []
+        log_data_collection("SOLAIRE", "❌ Potentiel solaire ignoré (recherche toitures)")
+    else:
+        log_data_collection("SOLAIRE", "Récupération du potentiel solaire")
+        solaire_data = get_solaire_info_by_polygon(contour)
+        log_data_collection("SOLAIRE", f"✅ {len(solaire_data)} données solaires récupérées")
     
     # 🏠 ENRICHISSEMENT ADRESSES pour solaire_data (toitures) - OPTIMISÉ PRODUCTION
     if solaire_data:
