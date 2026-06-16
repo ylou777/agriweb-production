@@ -9753,7 +9753,7 @@ def get_batiments_data(geom):
             lon, lat = geom["coordinates"]
             # Requête Overpass pour les bâtiments dans un rayon de 500m
             overpass_query = f"""
-            [out:json];
+            [out:json][timeout:25];
             (
               way["building"](around:500,{lat},{lon});
               relation["building"](around:500,{lat},{lon});
@@ -9796,7 +9796,7 @@ def get_batiments_data(geom):
                     raise ValueError("Polygone trop complexe")
                 
                 overpass_query = f"""
-                [out:json];
+                [out:json][timeout:25];
                 (
                   way["building"](poly:"{poly_string}");
                   relation["building"](poly:"{poly_string}");
@@ -9815,7 +9815,7 @@ def get_batiments_data(geom):
                     print(f"🔍 [BATIMENTS] Utilisation bbox: {minx:.4f},{miny:.4f},{maxx:.4f},{maxy:.4f}")
                     
                     overpass_query = f"""
-                    [out:json];
+                    [out:json][timeout:25];
                     (
                       way["building"]({miny},{minx},{maxy},{maxx});
                       relation["building"]({miny},{minx},{maxy},{maxx});
@@ -9832,15 +9832,19 @@ def get_batiments_data(geom):
             "https://overpass.kumi.systems/api/interpreter",
         ]
         
-        # Retry avec délai exponentiel pour gérer les erreurs 429 et 502
-        max_retries = 3
+        # Retry avec délai exponentiel pour gérer les erreurs 429 et 502.
+        # timeout BORNÉ (client + serveur via [timeout:25]) : sans ça la requête
+        # pendait jusqu'au défaut Overpass de ~180s quand l'API publique est
+        # chargée (cause des ~190s sur /search_by_commune, même petite commune).
+        # On échoue vite et on bascule sur le miroir suivant (kumi, souvent rapide).
+        max_retries = 2
         retry_delay = 3
-        
+
         for mirror_idx, overpass_url in enumerate(overpass_mirrors):
             success = False
             for attempt in range(max_retries):
                 try:
-                    response = requests.post(overpass_url, data=overpass_query, timeout=None)
+                    response = requests.post(overpass_url, data=overpass_query, timeout=30)
                     
                     if response.status_code == 200:
                         osm_data = response.json()
