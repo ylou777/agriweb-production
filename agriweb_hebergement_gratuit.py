@@ -8382,6 +8382,13 @@ def get_communes_for_dept(dept):
         print(f"[get_communes_for_dept] Erreur : {e}")
         return []
     
+# Timeout court pour les API IGN apicarto (cadastre + GPU urbanisme).
+# Ces appels timeout régulièrement sur les grosses communes (et échouent de
+# toute façon) ; à 10s x N endpoints séquentiels, ils faisaient exploser la
+# durée de /search_by_commune -> timeout passerelle -> 502. 4s suffit largement
+# quand l'API répond ; sinon on abandonne vite. Réglable via env.
+IGN_APICARTO_TIMEOUT = int(os.getenv("IGN_APICARTO_TIMEOUT", "4"))
+
 def fetch_gpu_data(endpoint, geom, partition=None, categorie=None, limit=1000):
     base_url = "https://apicarto.ign.fr/api/gpu"
     url = f"{base_url}/{endpoint}"
@@ -8391,7 +8398,7 @@ def fetch_gpu_data(endpoint, geom, partition=None, categorie=None, limit=1000):
     if categorie:
         params["categorie"] = categorie
     try:
-        resp = requests.get(url, params=params, timeout=10)
+        resp = requests.get(url, params=params, timeout=IGN_APICARTO_TIMEOUT)
         if resp.status_code == 200:
             return resp.json()
         else:
@@ -8435,7 +8442,7 @@ def get_api_cadastre_data(point_geojson):
         "source_ign": "PCI"
     }
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=IGN_APICARTO_TIMEOUT)
         if response.ok:
             return response.json()
         return None
