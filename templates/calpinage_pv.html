@@ -1128,6 +1128,7 @@
                                 <button id="toolPolygon" class="vtb-btn" title="Dessiner un polygone">⬡ <span class="vtb-label">Polygone</span></button>
                                 <button id="toolCircle" class="vtb-btn" title="Dessiner un cercle">○ <span class="vtb-label">Cercle</span></button>
                                 <button id="toolMarker" class="vtb-btn" title="Placer un repère">📍 <span class="vtb-label">Repère</span></button>
+                                <button id="toolIrradiationZone" class="vtb-btn" title="Tracer un polygone (clic-à-clic, double-clic pour fermer) pour afficher l'irradiation Google Solar sur cette zone">🌡️ <span class="vtb-label">Zone irradiation</span></button>
                             </div>
                             <!-- Équipements électriques -->
                             <div class="vtb-section">
@@ -3248,6 +3249,19 @@
                     });
                     obstaclesLayer.addLayer(layer);
                     ajouterObstacle(layer, 'circle');
+                } else if (layerType === 'polygon' && currentTool === 'irradiationZone') {
+                    // ── Stylo « Zone irradiation » : le polygone tracé définit la zone Google Solar ──
+                    const ring = layer.getLatLngs()[0].map(p => [p.lng, p.lat]);
+                    if (window._irradZoneLayer) { try { map.removeLayer(window._irradZoneLayer); } catch(e){} }
+                    layer.setStyle({ color: '#ffd400', weight: 2, fillColor: '#ffd400', fillOpacity: 0.08, dashArray: '5,4' });
+                    map.addLayer(layer);
+                    window._irradZoneLayer = layer;
+                    window._irradZonePoly  = ring;
+                    _cachedIrradiationData = null;     // forcer le recalcul sur la zone tracée
+                    setActiveTool('rectangle');        // revenir à l'outil par défaut
+                    // (Re)charger la heatmap centrée sur le polygone tracé
+                    if (typeof _fluxActive !== 'undefined' && _fluxActive) { toggleFluxHeatmap(); }  // éteindre l'ancienne
+                    toggleFluxHeatmap();                                                              // charger sur la zone
                 } else {
                     // Pour les autres formes (lignes, polygones, cercles, marqueurs)
                     measureItems.addLayer(layer);
@@ -3911,7 +3925,18 @@
                 });
                 activeDrawHandler.enable();
             });
-            
+
+            // Bouton Stylo « Zone irradiation » (polygone clic-à-clic dédié à l'irradiation)
+            const _btnIrrZone = document.getElementById('toolIrradiationZone');
+            if (_btnIrrZone) _btnIrrZone.addEventListener('click', function() {
+                setActiveTool('irradiationZone');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                activeDrawHandler = new L.Draw.Polygon(map, {
+                    shapeOptions: { color: '#ffd400', weight: 2, fillColor: '#ffd400', fillOpacity: 0.08, dashArray: '5,4' }
+                });
+                activeDrawHandler.enable();
+            });
+
             // Bouton Cercle
             document.getElementById('toolCircle').addEventListener('click', function() {
                 setActiveTool('circle');
@@ -10108,7 +10133,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }
             // ── Utiliser le cache BDD si disponible (0 token Google Solar consommé) ──────────
             // En mode MAJIC multi-site : le cache mono-tuile ne couvre pas tous les bâtiments → ignorer
-            const _isMajicMode = window._majicLoadedFeats?.length > 0 && !(viewer3D?.isActive) && (!zones || !zones.length);
+            const _isMajicMode = window._majicLoadedFeats?.length > 0 && !(viewer3D?.isActive) && (!zones || !zones.length) && !(window._irradZonePoly?.length >= 3);
             // ── Validation du cache : doit correspondre au bâtiment travaillé ──────────────
             // Le cache persiste un bbox. S'il a été calculé sur un autre bâtiment (géocodage
             // tombé à côté → annexe voisine), son centre est loin des zones dessinées → on
@@ -10162,7 +10187,19 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 // En vue 2D : on calcule le bbox des zones dessinées.
                 let heatLat, heatLon, radius_m = 50, bCoords = [];
 
-                if (viewer3D?.isActive && viewer3D?.centerLat) {
+                if (!(viewer3D?.isActive) && window._irradZonePoly && window._irradZonePoly.length >= 3) {
+                    // ── STYLO « Zone irradiation » : polygone tracé par l'utilisateur (prioritaire) ──
+                    const _rp = window._irradZonePoly;
+                    const _la = _rp.map(c => c[1]), _lo = _rp.map(c => c[0]);
+                    heatLat = _la.reduce((a, b) => a + b, 0) / _la.length;
+                    heatLon = _lo.reduce((a, b) => a + b, 0) / _lo.length;
+                    const _ml = 111320, _mo = 111320 * Math.cos(heatLat * Math.PI / 180);
+                    let _mx = 0;
+                    _rp.forEach(c => { _mx = Math.max(_mx, Math.hypot((c[0] - heatLon) * _mo, (c[1] - heatLat) * _ml)); });
+                    radius_m = Math.max(35, Math.min(Math.ceil(_mx) + 20, 100));  // cap 100m (limite Google Solar)
+                    bCoords  = _rp.map(c => [c[0], c[1]]);
+                    console.log(`🖊️ [Irradiation] zone tracée → centre (${heatLat.toFixed(6)},${heatLon.toFixed(6)}) r=${radius_m}m`);
+                } else if (viewer3D?.isActive && viewer3D?.centerLat) {
                     // ── MODE 3D : centroïde du polygone bâtiment ──────────────────────────────
                     bCoords  = viewer3D.pvBuildingCoords || [];
                     if (bCoords.length >= 3) {
