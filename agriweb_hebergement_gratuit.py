@@ -2949,6 +2949,11 @@ def api_solar_flux_heatmap():
         bcoords  = body.get('building_coords', [])
         lat = float(lat); lon = float(lon)
         if not radius_m: radius_m = 50
+        # Google Solar dataLayers:get rejette radiusMeters > 100m (-> 400 sur
+        # toutes les qualités -> NO_COVERAGE -> bandeau "irradiation indisponible"
+        # à tort). On plafonne ici pour protéger tous les appelants (le front
+        # envoyait jusqu'à 130-350m selon le cas).
+        radius_m = min(radius_m, 100)
         if lat is None or lon is None:
             return jsonify({"error": "lat et lon requis"}), 400
 
