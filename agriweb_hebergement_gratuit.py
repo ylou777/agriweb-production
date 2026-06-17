@@ -11511,7 +11511,7 @@ def build_map(
                     street_view_link = ""
                     pages_jaunes_link = ""
                     
-                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
+                    if name in ["Parkings", "Friches", "Potentiel Solaire", "Toitures"]:
                         try:
                             from shapely.geometry import shape
                             geom_shape = shape(geom)
@@ -11568,7 +11568,7 @@ def build_map(
                         # print(f"🏛️ [DEBUG {name}] Feature avec {len(cadastre_refs)} références cadastrales")  # Optimisé pour production multi-user
                     
                     # Traitement uniforme et complet pour toutes les couches avec adresses et liens
-                    if name in ["Potentiel Solaire", "Parkings", "Friches"]:
+                    if name in ["Potentiel Solaire", "Parkings", "Friches", "Toitures"]:
                         # 📍 ADRESSE (priorité 1) - Essayer plusieurs clés possibles
                         adresse = props.get("adresse") or props.get("addr:full") or props.get("addr:street")
                         if adresse and adresse not in ["Adresse non trouvée", "Erreur géocodage", "", "N/A"]:
@@ -11592,7 +11592,7 @@ def build_map(
                             tooltip_lines.append(f"<b>📮 Code postal:</b> {code_postal}")
                         
                         # 📐 SURFACE (priorité 2)
-                        surface = props.get("area") or props.get("surface") or props.get("surface_m2")
+                        surface = props.get("area") or props.get("surface") or props.get("surface_m2") or props.get("surface_toiture_m2")
                         if surface:
                             type_label = "toiture" if name in ["Potentiel Solaire", "Toitures"] else ("parking" if name == "Parkings" else "terrain")
                             emoji = "🏠" if name in ["Potentiel Solaire", "Toitures"] else ("🅿️" if name == "Parkings" else "🌾")
@@ -11612,8 +11612,8 @@ def build_map(
                                 tooltip_lines.append(f"  ... et {len(refs_cadastrales)-5} autres")
                         
                         # ⚡ DISTANCES AUX POSTES (priorité 4)
-                        dist_bt = props.get("distance_poste_bt") or props.get("min_poste_distance_m")
-                        dist_hta = props.get("distance_poste_hta")
+                        dist_bt = props.get("distance_poste_bt") or props.get("min_poste_distance_m") or props.get("min_distance_bt_m")
+                        dist_hta = props.get("distance_poste_hta") or props.get("min_distance_hta_m")
                         if dist_bt is not None:
                             tooltip_lines.append(f"<b>⚡ Distance poste BT:</b> {dist_bt:.0f}m" if isinstance(dist_bt, (int, float)) else f"<b>⚡ Distance poste BT:</b> {dist_bt}")
                         if dist_hta is not None:
@@ -11622,10 +11622,16 @@ def build_map(
                         # 📊 AUTRES PROPRIÉTÉS IMPORTANTES
                         excluded_keys = {
                             "adresse", "addr:full", "addr:street", "addr:city", "addr:municipality", "addr:postcode",
-                            "adresse_distance", "addr_distance", "adresse_score", "addr_score", 
+                            "adresse_distance", "addr_distance", "adresse_score", "addr_score",
                             "ville", "code_postal", "code_commune", "area", "surface", "surface_m2",
-                            "parcelles_cadastrales", "nb_parcelles_cadastrales", 
-                            "distance_poste_bt", "distance_poste_hta", "min_poste_distance_m"
+                            "parcelles_cadastrales", "nb_parcelles_cadastrales",
+                            "distance_poste_bt", "distance_poste_hta", "min_poste_distance_m",
+                            # Toitures : surface/distances déjà affichées proprement plus haut
+                            "surface_toiture_m2", "min_distance_bt_m", "min_distance_hta_m",
+                            # Liens rendus en boutons cliquables (pas en texte brut)
+                            "lien_streetview", "lien_annuaire", "lien_geoportail", "lien_entreprise",
+                            # Champs internes / hérités d'Overpass, devenus inutiles
+                            "source", "search_method", "building", "osm_id", "cleabs", "commune"
                         }
                         
                         for k, v in props.items():
