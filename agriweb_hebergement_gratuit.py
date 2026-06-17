@@ -9745,10 +9745,79 @@ def get_batiments_data(geom):
     except Exception:
         cache_key = None
 
-    # Méthode 1: OpenStreetMap Overpass API (source principale pour les bâtiments)
+    # ── Source PRIMAIRE : IGN BD TOPO (data.geopf.fr WFS) ──────────────────────
+    # Overpass public (overpass-api.de / kumi.systems) est régulièrement saturé
+    # ou HS (504 / hang), ce qui laissait /search_by_commune SANS AUCUNE toiture.
+    # L'IGN BD TOPO est fiable (infra IGN) et rapide (~1.2s / 5000 bât.). On le
+    # tente en premier ; Overpass reste en fallback ci-dessous.
+    if geom.get("type") in ("Polygon", "MultiPolygon"):
+        try:
+            from shapely.geometry import shape as _shape_ign
+            _b = _shape_ign(geom).bounds  # (minx, miny, maxx, maxy) = (lonmin, latmin, lonmax, latmax)
+            _bbox_wfs = f"{_b[1]},{_b[0]},{_b[3]},{_b[2]}"  # WFS 2.0 / EPSG:4326 = lat,lon
+
+            def _strip_z(coords):
+                # Retire la 3e dimension (altitude) des coords IGN, récursivement.
+                if isinstance(coords, (list, tuple)):
+                    if coords and isinstance(coords[0], (int, float)):
+                        return [coords[0], coords[1]]
+                    return [_strip_z(c) for c in coords]
+                return coords
+
+            ign_features = []
+            page_size = 5000
+            max_batiments = 60000  # plafond pour borner les métropoles
+            start_index = 0
+            matched = None
+            while len(ign_features) < max_batiments:
+                _url = (
+                    "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0"
+                    "&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:batiment"
+                    "&SRSNAME=EPSG:4326&OUTPUTFORMAT=application/json"
+                    f"&COUNT={page_size}&STARTINDEX={start_index}&BBOX={_bbox_wfs}"
+                )
+                _r = requests.get(_url, timeout=30)
+                if _r.status_code != 200:
+                    print(f"⚠️ [BATIMENTS-IGN] HTTP {_r.status_code} (startIndex={start_index})")
+                    break
+                _data = _r.json()
+                _page = _data.get("features", [])
+                if matched is None:
+                    matched = _data.get("numberMatched")
+                for _f in _page:
+                    _g = _f.get("geometry")
+                    if not _g:
+                        continue
+                    _props = _f.get("properties", {}) or {}
+                    ign_features.append({
+                        "type": "Feature",
+                        "geometry": {"type": _g.get("type"), "coordinates": _strip_z(_g.get("coordinates"))},
+                        "properties": {
+                            "source": "IGN BDTOPO",
+                            "building": _props.get("nature") or _props.get("usage_1") or "yes",
+                            "cleabs": _props.get("cleabs"),
+                        },
+                    })
+                got = len(_page)
+                start_index += got
+                if got < page_size:
+                    break
+                if matched is not None and start_index >= matched:
+                    break
+            if ign_features:
+                result = {"type": "FeatureCollection", "features": ign_features}
+                print(f"✅ [BATIMENTS-IGN] {len(ign_features)} bâtiments via IGN BD TOPO (matched={matched})")
+                if cache_key:
+                    _batiments_cache[cache_key] = {"data": result, "timestamp": time.time()}
+                return result
+            print("⚠️ [BATIMENTS-IGN] 0 bâtiment IGN, fallback Overpass")
+        except Exception as _e_ign:
+            print(f"⚠️ [BATIMENTS-IGN] Échec IGN ({_e_ign}), fallback Overpass")
+
+    # Méthode 1 (FALLBACK): OpenStreetMap Overpass API
     try:
         from shapely.geometry import shape
-        
+
         if geom.get("type") == "Point":
             lon, lat = geom["coordinates"]
             # Requête Overpass pour les bâtiments dans un rayon de 500m
