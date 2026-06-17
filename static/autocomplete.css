@@ -146,3 +146,29 @@ input:focus + .autocomplete-suggestions {
 .autocomplete-item strong {
     flex: 1;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Lisibilité garantie sur le thème sombre de l'app.
+   Le thème sombre écrasait le fond blanc -> texte gris illisible sur noir.
+   On force un panneau blanc à texte foncé (!important pour battre le thème).
+   ─────────────────────────────────────────────────────────────────────────── */
+.autocomplete-suggestions {
+    background: #ffffff !important;
+    border-color: #ddd !important;
+}
+.autocomplete-item {
+    color: #1a1a1a !important;
+}
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background-color: #f0f7ff !important;
+}
+.autocomplete-item strong {
+    color: #0a58ca !important;
+}
+.autocomplete-context {
+    color: #555 !important;
+}
+.autocomplete-no-results {
+    color: #777 !important;
+}
