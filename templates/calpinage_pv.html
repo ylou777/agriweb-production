@@ -1119,6 +1119,7 @@
                                 <button id="toolEdit" class="vtb-btn" title="Modifier les zones PV">✏️ <span class="vtb-label">Modifier</span></button>
                                 <button id="toolDelete" class="vtb-btn" title="Supprimer des zones PV">🗑️ <span class="vtb-label">Supprimer</span></button>
                                 <button id="toolEditModules" class="vtb-btn" onclick="toggleModuleEditMode()" title="Mode édition modules ▸ clic sur module = supprimer ▸ clic sur zone = ajouter">🖱️ <span class="vtb-label">Modifier modules</span></button>
+                                <button id="toolImplantAuto" class="vtb-btn" onclick="_implanterAutoGoogleSolar()" title="Créer automatiquement une zone PV par pan de toiture détecté par Google Solar (charge l'irradiation d'abord)">⚡ <span class="vtb-label">Implanter auto</span></button>
                             </div>
                             <!-- Dessin libre -->
                             <div class="vtb-section">
@@ -4706,6 +4707,41 @@
             }
         }
         
+        // ── Implantation automatique des zones PV depuis les pans Google Solar ───────
+        // 1 zone PV par pan de toiture (emprise + azimut + inclinaison Google) ; le moteur
+        // de calepinage remplit ensuite chaque zone avec les modules/marges de l'utilisateur.
+        // Réutilise createZoneFromRoof (= chemin LiDAR éprouvé).
+        function _implanterAutoGoogleSolar() {
+            const segs = window._fluxRoofSegments || [];
+            if (!segs.length) {
+                alert("Charge d'abord l'irradiation Google Solar (bouton 🌡️ Irradiation, ou le stylo Zone irradiation) pour récupérer les pans de toiture, puis relance l'implantation auto.");
+                return;
+            }
+            // Pans exploitables : emprise géo + dimensions + surface significative
+            const usable = segs.filter(s => s.seg_sw && s.seg_ne && s.seg_l_m > 0 && s.seg_w_m > 0 && (s.area_m2 || 0) >= 10);
+            if (!usable.length) { alert("Aucun pan de toiture exploitable dans les données Google Solar."); return; }
+            if (zones.length > 0 && !confirm(`${zones.length} zone(s) déjà présente(s).\nAjouter ${usable.length} zones depuis Google Solar ?`)) return;
+
+            let created = 0;
+            usable.forEach(s => {
+                try {
+                    const roof = {
+                        center:     { lat: (s.seg_sw.lat + s.seg_ne.lat) / 2, lon: (s.seg_sw.lon + s.seg_ne.lon) / 2 },
+                        length_m:   s.seg_l_m,                                  // extension N-S
+                        width_m:    s.seg_w_m,                                  // extension E-O
+                        azimut_deg: (s.azimuth_deg != null ? s.azimuth_deg : 180),
+                        slope_deg:  (s.pitch_deg   != null ? s.pitch_deg   : 10),
+                        confidence: 'google'
+                    };
+                    createZoneFromRoof({ center: roof.center }, roof);
+                    created++;
+                } catch (e) { console.warn('[ImplantAuto] pan ignoré:', e); }
+            });
+            if (typeof calculerTotaux === 'function') calculerTotaux();
+            console.log(`⚡ [ImplantAuto] ${created} zones créées depuis Google Solar (${usable.length} pans exploitables)`);
+            alert(`✅ ${created} zones PV créées depuis Google Solar.\nAjuste-les si besoin (orientation, marges, modules).`);
+        }
+
         function createZoneFromRoof(building, roof) {
             const centerLat = roof.center ? roof.center.lat : building.center.lat;
             const centerLon = roof.center ? roof.center.lon : building.center.lon;
