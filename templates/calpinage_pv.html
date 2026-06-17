@@ -3256,12 +3256,9 @@
                     layer.setStyle({ color: '#ffd400', weight: 2, fillColor: '#ffd400', fillOpacity: 0.08, dashArray: '5,4' });
                     map.addLayer(layer);
                     window._irradZoneLayer = layer;
-                    window._irradZonePoly  = ring;
                     _cachedIrradiationData = null;     // forcer le recalcul sur la zone tracée
                     setActiveTool('rectangle');        // revenir à l'outil par défaut
-                    // (Re)charger la heatmap centrée sur le polygone tracé
-                    if (typeof _fluxActive !== 'undefined' && _fluxActive) { toggleFluxHeatmap(); }  // éteindre l'ancienne
-                    toggleFluxHeatmap();                                                              // charger sur la zone
+                    _loadIrradiationZone(ring);        // ≤100m → 1 tuile ; >100m → mosaïque (grands bâtiments)
                 } else {
                     // Pour les autres formes (lignes, polygones, cercles, marqueurs)
                     measureItems.addLayer(layer);
@@ -4230,6 +4227,82 @@
             }
         });
         
+        // ── Stylo « Zone irradiation » : charge la heatmap Google Solar sur le polygone tracé.
+        //    ≤100m de rayon  → 1 tuile (pipeline complet : légende + canvas + 3D).
+        //    >100m (limite dure Google Solar dataLayers) → MOSAÏQUE de tuiles ≤90m couvrant
+        //    tout le polygone, pour NE PAS couper les grands bâtiments industriels.
+        async function _loadIrradiationZone(ring) {
+            if (!ring || ring.length < 3) return;
+            const lats = ring.map(c => c[1]), lons = ring.map(c => c[0]);
+            const cLat = lats.reduce((a, b) => a + b, 0) / lats.length;
+            const cLon = lons.reduce((a, b) => a + b, 0) / lons.length;
+            const mLat = 111320, mLon = 111320 * Math.cos(cLat * Math.PI / 180);
+            let maxR = 0;
+            ring.forEach(c => { maxR = Math.max(maxR, Math.hypot((c[0] - cLon) * mLon, (c[1] - cLat) * mLat)); });
+
+            // Nettoyer une éventuelle mosaïque précédente
+            if (window._irradTileOverlays) window._irradTileOverlays.forEach(o => { try { map.removeLayer(o); } catch(e){} });
+            window._irradTileOverlays = [];
+
+            if (maxR + 20 <= 100) {
+                // Petit/moyen bâtiment : 1 tuile via le pipeline complet (légende, canvas, 3D)
+                window._irradZonePoly = ring;
+                _cachedIrradiationData = null;
+                if (typeof _fluxActive !== 'undefined' && _fluxActive) toggleFluxHeatmap();  // éteindre
+                toggleFluxHeatmap();                                                          // recharger
+                return;
+            }
+
+            // Grand bâtiment (> ~200m de large) → mosaïque de tuiles ≤90m
+            window._irradZonePoly = null;
+            if (typeof _flux2DOverlay !== 'undefined' && _flux2DOverlay && map.hasLayer(_flux2DOverlay)) {
+                map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
+            }
+            const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+            const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+            const stepM = 150, R = 90, MAX_TILES = 16;
+            const stepLat = stepM / mLat, stepLon = stepM / mLon;
+            const centers = [];
+            for (let la = minLat + stepLat / 2; la < maxLat + stepLat; la += stepLat) {
+                for (let lo = minLon + stepLon / 2; lo < maxLon + stepLon; lo += stepLon) {
+                    if (centers.length < MAX_TILES) centers.push([la, lo]);
+                }
+            }
+            console.log(`🖊️ [Irradiation] grand bâtiment (rayon ${Math.round(maxR)}m) → mosaïque ${centers.length} tuiles ≤${R}m`);
+            _switchTileForHeatmap(true);
+            _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
+
+            // Pool de concurrence 3 (évite de saturer les 2 workers gunicorn)
+            let i = 0, ok = 0;
+            async function _tileWorker() {
+                while (i < centers.length) {
+                    const [la, lo] = centers[i++];
+                    try {
+                        const resp = await fetch('/api/solar/flux-heatmap', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lat: la, lon: lo, radius_m: R, building_coords: [] }),
+                            signal: AbortSignal.timeout(60000)
+                        });
+                        if (!resp.ok) continue;
+                        const data = await resp.json();
+                        if (!data.image_base64 || !data.bbox) continue;
+                        const b = data.bbox;
+                        const ov = L.imageOverlay(`data:image/png;base64,${data.image_base64}`,
+                            [[b.south, b.west], [b.north, b.east]],
+                            { opacity: 0.85, interactive: false, zIndex: 201 }).addTo(map);
+                        window._irradTileOverlays.push(ov);
+                        ok++;
+                    } catch (e) { /* tuile sans couverture Google Solar → ignorée */ }
+                }
+            }
+            await Promise.all([_tileWorker(), _tileWorker(), _tileWorker()]);
+            _fluxActive = ok > 0;
+            if (typeof _syncFluxBtns === 'function') _syncFluxBtns(ok > 0, false);
+            try { map.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [20, 20] }); } catch(e){}
+            if (ok === 0) alert("Irradiation Google Solar indisponible sur cette zone (aucune couverture).");
+            else console.log(`🖊️ [Irradiation] mosaïque affichée : ${ok}/${centers.length} tuiles`);
+        }
+
         function setActiveTool(tool) {
             const previousTool = currentTool;
             currentTool = tool;
@@ -10080,6 +10153,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 window._fluxBuildingCenter = null;
                 window._fluxDsmStats       = null;
                 if (legend) legend.style.display = 'none';
+                if (window._irradTileOverlays && typeof map !== 'undefined' && map) {
+                    window._irradTileOverlays.forEach(o => { try { map.removeLayer(o); } catch(e){} });
+                    window._irradTileOverlays = [];
+                }
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
                 }
