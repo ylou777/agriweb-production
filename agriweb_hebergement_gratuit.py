@@ -13134,7 +13134,6 @@ def search_by_commune():
     
     # Utilisation des nouvelles fonctions qui exploitent le polygone complet de la commune
     log_data_collection("DÉBUT", "Collecte des données géographiques")
-    _tprev = time.perf_counter()  # [TIMING] instrumentation temporaire
 
     rpg_raw = []
     if filter_rpg:
@@ -13181,7 +13180,6 @@ def search_by_commune():
     log_data_collection("ZAER", "Récupération des zones ZAER")
     zaer_data = get_zaer_info_by_polygon(contour)
     log_data_collection("ZAER", f"✅ {len(zaer_data)} zones ZAER trouvées")
-    print(f"[TIMING] rpg/postes/lignesHTA/eleveurs/plu/zaer: {time.perf_counter()-_tprev:.1f}s", flush=True); _tprev = time.perf_counter()
     
     # Récupération conditionnelle des données avec filtrage - NOUVELLE MÉTHODE POLYGONE
     parkings_data = []
@@ -13276,7 +13274,6 @@ def search_by_commune():
         log_data_collection("ENEDIS", f"⚠️ Erreur récupération Enedis: {e}")
         enedis_data = []
 
-    print(f"[TIMING] parkings/friches/enedis: {time.perf_counter()-_tprev:.1f}s", flush=True); _tprev = time.perf_counter()
     point = {"type": "Point", "coordinates": [lon, lat]}
     
     # Fonction d'optimisation pour éviter les erreurs 414 "Request-URI Too Large"
@@ -13315,7 +13312,6 @@ def search_by_commune():
     api_cadastre   = get_api_cadastre_data(contour_optimise)  # Utilise le polygone optimisé
     api_nature     = get_all_api_nature_data(contour_optimise)  # Utilise le polygone optimisé
     api_urbanisme  = get_all_gpu_data(contour_optimise)  # Utilise le polygone optimisé
-    print(f"[TIMING] cadastre/nature/gpu: {time.perf_counter()-_tprev:.1f}s", flush=True); _tprev = time.perf_counter()
     
     # Enrichissement des données si l'option zones est activée
     if filter_zones and api_urbanisme.get("success"):
@@ -14195,7 +14191,6 @@ def search_by_commune():
                     continue
 
             print(f"✅ [TOITURES] {len(toitures_data)} toitures filtrées trouvées (méthode polygone)")
-            print(f"[TIMING] overpass+filtrage toitures: {time.perf_counter()-_tprev:.1f}s", flush=True); _tprev = time.perf_counter()
             
             # Enrichissement cadastral OPTIMISÉ avec limite intelligente
             if toitures_data:
@@ -14399,7 +14394,6 @@ def search_by_commune():
             eleveur["properties"]["_layer"] = "eleveurs"
         eleveurs_with_layer.append(eleveur)
     
-    print(f"[TIMING] enrichissement toitures + build_map: {time.perf_counter()-_tprev:.1f}s", flush=True); _tprev = time.perf_counter()
     # 7) Réponse JSON avec données filtrées
     # print(f"🔧 [DEBUG_RPG_PARCELLES] Création response_data avec filter_rpg={filter_rpg}, final_rpg count={len(final_rpg) if final_rpg else 0}")
     response_data = {
