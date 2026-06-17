@@ -9753,7 +9753,7 @@ def get_batiments_data(geom):
             lon, lat = geom["coordinates"]
             # Requête Overpass pour les bâtiments dans un rayon de 500m
             overpass_query = f"""
-            [out:json][timeout:25];
+            [out:json][timeout:60];
             (
               way["building"](around:500,{lat},{lon});
               relation["building"](around:500,{lat},{lon});
@@ -9796,7 +9796,7 @@ def get_batiments_data(geom):
                     raise ValueError("Polygone trop complexe")
                 
                 overpass_query = f"""
-                [out:json][timeout:25];
+                [out:json][timeout:60];
                 (
                   way["building"](poly:"{poly_string}");
                   relation["building"](poly:"{poly_string}");
@@ -9815,7 +9815,7 @@ def get_batiments_data(geom):
                     print(f"🔍 [BATIMENTS] Utilisation bbox: {minx:.4f},{miny:.4f},{maxx:.4f},{maxy:.4f}")
                     
                     overpass_query = f"""
-                    [out:json][timeout:25];
+                    [out:json][timeout:60];
                     (
                       way["building"]({miny},{minx},{maxy},{maxx});
                       relation["building"]({miny},{minx},{maxy},{maxx});
@@ -9844,7 +9844,7 @@ def get_batiments_data(geom):
             success = False
             for attempt in range(max_retries):
                 try:
-                    response = requests.post(overpass_url, data=overpass_query, timeout=30)
+                    response = requests.post(overpass_url, data=overpass_query, timeout=65)
                     
                     if response.status_code == 200:
                         osm_data = response.json()
@@ -9898,14 +9898,10 @@ def get_batiments_data(geom):
                         print(f"⚠️ [BATIMENTS] Miroir {mirror_idx}: Overpass API status {response.status_code}")
                         break
                 except requests.exceptions.Timeout:
-                    if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2 ** attempt)
-                        print(f"⚠️ [BATIMENTS] Timeout miroir {mirror_idx}, retry dans {wait_time}s...")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        print(f"⚠️ [BATIMENTS] Timeout miroir {mirror_idx} après {max_retries} tentatives")
-                        break
+                    # Réessayer le MÊME miroir lent ne sert à rien : on bascule
+                    # directement sur le miroir suivant (souvent plus rapide).
+                    print(f"⚠️ [BATIMENTS] Timeout miroir {mirror_idx} (>65s), bascule sur le miroir suivant")
+                    break
                 except Exception as e:
                     print(f"⚠️ [BATIMENTS] Erreur miroir {mirror_idx}: {e}")
                     break
