@@ -21,7 +21,10 @@ Note: l'API supporte des paramètres `where`, `limit`, `offset`.
 Ici on implémente un usage direct via l'export GeoJSON simplifié.
 """
 
-BASE_URL = "https://data.enedis.fr/api/explore/v2.1/catalog/datasets"
+# NB: Enedis a migré son portail Open Data de data.enedis.fr -> opendata.enedis.fr
+# (juin 2026). L'ancienne base /api/explore renvoie désormais 404 (HTML SPA),
+# ce qui faisait disparaître les calques HTA aériens/souterrains. Cf. ENEDIS_HTA.md
+BASE_URL = "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets"
 DATASET_AERIEN = "reseau-hta"
 DATASET_SOUTERRAIN = "reseau-souterrain-hta"
 

@@ -5550,7 +5550,7 @@ def register_crm_routes(app):
         # ── 2. Fallback Open Data (sans token) – consommation annuelle entreprise ──
         try:
             od_url = (
-                'https://data.enedis.fr/api/explore/v2.1/catalog/datasets'
+                'https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets'
                 '/consommation-annuelle-reseaux-distribution/records'
             )
             # Ce dataset n'a pas de PDL individuel ; on essaie le dataset entreprises par adresse

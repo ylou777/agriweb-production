@@ -388,6 +388,65 @@ def fetch_georisques_risks(lat, lon):
     
     # print(f"🔍 [GEORISQUES] === TOTAL: {total_risks} risques trouvés ===")  # Optimisé pour performance
     return risques
+
+
+# ──────────────────────────────────────────────────────────────
+# PPRI (zonage inondation) — source de géométrie
+# ──────────────────────────────────────────────────────────────
+# ⚠️ Mi-2026, GeoRisques a SUPPRIMÉ l'endpoint REST /api/v1/zonage/pprn
+# (404 "no Route matched"). L'API ne renvoie plus que des métadonnées GASPAR
+# sans géométrie. On récupère désormais le périmètre des PPR inondation via le
+# service WFS MapServer de GeoRisques, qui renvoie des polygones GeoJSON.
+GEORISQUES_WFS_URL = "https://www.georisques.gouv.fr/services"
+PPRI_WFS_TYPENAME = "ms:PPRN_PERIMETRE_INOND"
+
+def fetch_ppri_wfs(minx, miny, maxx, maxy, limit=300):
+    """Périmètres de PPR inondation (PPRI) intersectant la bbox (lon/lat, EPSG:4326).
+
+    Retourne une FeatureCollection GeoJSON (polygones). Remplace l'ancien
+    /api/v1/zonage/pprn devenu 404. NB: le WFS MapServer n'accepte que
+    OUTPUTFORMAT=geojson (pas application/json) et, en WFS 2.0 + EPSG:4326,
+    attend la bbox dans l'ordre des axes lat,lon (miny,minx,maxy,maxx).
+    """
+    try:
+        params = {
+            "SERVICE": "WFS", "REQUEST": "GetFeature", "VERSION": "2.0.0",
+            "TYPENAMES": PPRI_WFS_TYPENAME, "SRSNAME": "EPSG:4326",
+            "OUTPUTFORMAT": "geojson", "COUNT": limit,
+            "BBOX": f"{miny},{minx},{maxy},{maxx},EPSG:4326",
+        }
+        resp = requests.get(GEORISQUES_WFS_URL, params=params, timeout=20)
+        if resp.status_code == 200 and "json" in resp.headers.get("content-type", ""):
+            data = resp.json()
+            for f in data.get("features", []):
+                f.setdefault("properties", {})["source"] = "georisques_wfs"
+            return data
+        print(f"[PPRI] WFS GeoRisques HTTP {resp.status_code}: {resp.text[:150]}")
+    except Exception as e:
+        print(f"[PPRI] Exception WFS GeoRisques: {e}")
+    return {"type": "FeatureCollection", "features": []}
+
+def fetch_ppri_point(lat, lon, rayon_km=1.0, limit=300):
+    """Variante point: construit une bbox approx. (rayon en km) autour du point."""
+    import math
+    dlat = rayon_km / 111.0
+    dlon = rayon_km / (111.0 * max(0.1, math.cos(math.radians(lat))))
+    return fetch_ppri_wfs(lon - dlon, lat - dlat, lon + dlon, lat + dlat, limit=limit)
+
+def _ppri_safe_predicate(geojson_geom, ref_geom, predicate="intersects"):
+    """Teste un prédicat spatial en tolérant les géométries WFS invalides.
+
+    Les polygones GeoRisques sont parfois auto-sécants (TopologyException) ;
+    on les répare via buffer(0) et on renvoie False en cas d'échec.
+    """
+    try:
+        g = shape(geojson_geom)
+        if not g.is_valid:
+            g = g.buffer(0)
+        return getattr(g, predicate)(ref_geom)
+    except Exception:
+        return False
+
 import logging
 logging.basicConfig(filename='error.log', level=logging.ERROR, format='%(asctime)s %(levelname)s %(message)s')
 # --- Utility: always return a list of features from any WFS or API result ---
@@ -14093,16 +14152,18 @@ def search_by_commune():
     plu_info = filtered_zones if filtered_zones else plu_info_temp
 
     # 6) Carte interactive
-    # PPRI récupération via la nouvelle fonction GeoRisques unifiée
-    def fetch_ppri_georisques(lat, lon, rayon_km=1.0):
-        # Utilise maintenant la nouvelle fonction unifiée
-        # print(f"[PPRI] Utilisation des données GeoRisques unifiées")  # Optimisé pour performance
-        return {"type": "FeatureCollection", "features": []}
-
-    # On ne garde que les polygones qui contiennent le point exact
-    raw_ppri = fetch_ppri_georisques(lat, lon, rayon_km=1.0)
-    pt = Point(lon, lat)
-    filtered_features = [f for f in raw_ppri.get("features", []) if f.get("geometry") and shape(f["geometry"]).contains(pt)]
+    # PPRI : périmètres de PPR inondation via le WFS GeoRisques, sur l'emprise
+    # de la commune (l'ancien /api/v1/zonage/pprn est mort -> cf. fetch_ppri_wfs).
+    raw_ppri = fetch_ppri_wfs(minx, miny, maxx, maxy)
+    # On garde les périmètres qui intersectent réellement le contour de la commune
+    if commune_poly is not None:
+        _ref_poly = commune_poly if commune_poly.is_valid else commune_poly.buffer(0)
+        filtered_features = [
+            f for f in raw_ppri.get("features", [])
+            if f.get("geometry") and _ppri_safe_predicate(f["geometry"], _ref_poly, "intersects")
+        ]
+    else:
+        filtered_features = raw_ppri.get("features", [])
     ppri_data = {"type": "FeatureCollection", "features": filtered_features}
     
     # Initialisation parcelles_data pour la carte (pas utilisé avec la nouvelle logique optimisée)
@@ -15505,28 +15566,11 @@ def rapport_map_point():
     def collect_context_data():
         # PPRI GeoRisques (toujours injecté pour le template)
         try:
-            def fetch_ppri_georisques(lat, lon, rayon_km=1.0):
-                url = "https://www.georisques.gouv.fr/api/v1/zonage/pprn"
-                params = {
-                    "lat": lat,
-                    "lon": lon,
-                    "rayon": int(rayon_km * 1000),
-                    "format": "geojson"
-                }
-                try:
-                    resp = requests.get(url, params=params, timeout=10)
-                    if resp.status_code == 200:
-                        return resp.json()
-                    else:
-                        print(f"[PPRI] Erreur GeoRisques: {resp.status_code} {resp.text}")
-                except Exception as e:
-                    print(f"[PPRI] Exception GeoRisques: {e}")
-                return {"type": "FeatureCollection", "features": []}
-
             from shapely.geometry import shape, Point
-            raw_ppri = fetch_ppri_georisques(lat_float, lon_float, rayon_km=1.0)
+            # PPRI via WFS GeoRisques (l'ancien /api/v1/zonage/pprn est mort)
+            raw_ppri = fetch_ppri_point(lat_float, lon_float, rayon_km=1.0)
             pt = Point(lon_float, lat_float)
-            filtered_features = [f for f in raw_ppri.get("features", []) if f.get("geometry") and shape(f["geometry"]).contains(pt)]
+            filtered_features = [f for f in raw_ppri.get("features", []) if f.get("geometry") and _ppri_safe_predicate(f["geometry"], pt, "contains")]
             ppri_data = {"type": "FeatureCollection", "features": filtered_features}
             report_data["ppri"] = ppri_data
             log_step("CONTEXT", f"PPRI (GeoRisques): {len(filtered_features)} zone(s) trouvée(s)", "SUCCESS")
@@ -16189,30 +16233,12 @@ def rapport_map_point():
         try:
             parcelles_fc = {"type": "FeatureCollection", "features": report_data.get("rpg", [])}
             
-            # Ajout récupération PPRI via l'API officielle GeoRisques
-            def fetch_ppri_georisques(lat, lon, rayon_km=1.0):
-                url = "https://www.georisques.gouv.fr/api/v1/zonage/pprn"
-                params = {
-                    "lat": lat,
-                    "lon": lon,
-                    "rayon": int(rayon_km * 1000),
-                    "format": "geojson"
-                }
-                try:
-                    resp = requests.get(url, params=params, timeout=10)
-                    if resp.status_code == 200:
-                        return resp.json()
-                    else:
-                        print(f"[PPRI] Erreur GeoRisques: {resp.status_code} {resp.text}")
-                except Exception as e:
-                    print(f"[PPRI] Exception GeoRisques: {e}")
-                return {"type": "FeatureCollection", "features": []}
-
+            # PPRI via WFS GeoRisques (l'ancien /api/v1/zonage/pprn est mort)
             # On ne garde que les polygones qui contiennent le point exact
             from shapely.geometry import shape, Point
-            raw_ppri = fetch_ppri_georisques(lat_float, lon_float, rayon_km=1.0)
+            raw_ppri = fetch_ppri_point(lat_float, lon_float, rayon_km=1.0)
             pt = Point(lon_float, lat_float)
-            filtered_features = [f for f in raw_ppri.get("features", []) if f.get("geometry") and shape(f["geometry"]).contains(pt)]
+            filtered_features = [f for f in raw_ppri.get("features", []) if f.get("geometry") and _ppri_safe_predicate(f["geometry"], pt, "contains")]
             ppri_data = {"type": "FeatureCollection", "features": filtered_features}
             map_obj = build_map(
                 lat_float, lon_float, address,
@@ -16476,14 +16502,13 @@ def rapport_map_point():
 
                                 # PPRI étendu
                                 try:
-                                    _rp = requests.get('https://www.georisques.gouv.fr/api/v1/zonage/pprn',
-                                        params={'lat':_tlat,'lon':_tlon,'rayon':int(_rkm*1000),'format':'geojson'}, timeout=15)
-                                    if _rp.status_code == 200:
-                                        from shapely.geometry import box as _sbox, shape as _sshape
-                                        _bb = _sbox(_bbox[2],_bbox[0],_bbox[3],_bbox[1])
-                                        report_data['ppri'] = {'type':'FeatureCollection','features':[
-                                            f for f in _rp.json().get('features',[])
-                                            if f.get('geometry') and _sshape(f['geometry']).intersects(_bb)]}
+                                    # PPRI via WFS GeoRisques (ancien /api/v1/zonage/pprn = 404)
+                                    _rp_data = fetch_ppri_point(_tlat, _tlon, rayon_km=_rkm)
+                                    from shapely.geometry import box as _sbox
+                                    _bb = _sbox(_bbox[2],_bbox[0],_bbox[3],_bbox[1])
+                                    report_data['ppri'] = {'type':'FeatureCollection','features':[
+                                        f for f in _rp_data.get('features',[])
+                                        if f.get('geometry') and _ppri_safe_predicate(f['geometry'], _bb, 'intersects')]}
                                 except Exception: pass
 
                                 report_data['is_majic_analysis'] = True

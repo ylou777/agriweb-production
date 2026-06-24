@@ -39,7 +39,8 @@ curl "http://localhost:5000/api/hta-lignes?bbox=1.80,46.10,1.95,46.25&include_so
 
 ## Implémentation
 Module: `enedis_integration.py`
-- Export GeoJSON: `https://data.enedis.fr/api/explore/v2.1/catalog/datasets/{dataset}/exports/geojson`
+- Export GeoJSON: `https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/{dataset}/exports/geojson`
+  (⚠️ juin 2026 : migration `data.enedis.fr` → `opendata.enedis.fr` ; l'ancienne base répond 404 en HTML)
 - Datasets: `reseau-hta` (aérien), `reseau-souterrain-hta` (souterrain)
 - Filtrage: `where=code_departement="23"` ou `intersects(geo_shape, geom'POLYGON((...)) )`
 - Cache mémoire TTL 300s (clé incluant dataset, département ou bbox, limite)
