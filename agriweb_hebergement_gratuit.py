@@ -8034,7 +8034,7 @@ CAPACITES_RESEAU_LAYER = "gpu:CapacitesDAccueil"   # Capacités d'accueil (HTA)
 PARKINGS_LAYER = "gpu:parkings_sup500m2"
 FRICHES_LAYER = "gpu:friches-standard"
 POTENTIEL_SOLAIRE_LAYER = "gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93"
-ZAER_LAYER = "gpu:ZAER_ARRETE_SHP_FRA"
+ZAER_LAYER = "gpu:ZAER_ARRETE_SHP_FRA"  # legacy: ZAER via WFS national désormais (cf. fetch_zaer_wfs)
 PARCELLES_GRAPHIQUES_LAYER = "gpu:PARCELLES_GRAPHIQUES"  # RPG
 SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène (~50 m)
 GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/rest/layers"  # Pour lister les couches
@@ -9105,9 +9105,40 @@ def get_potentiel_solaire_info(lat, lon, radius=1.0):
     bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
     return fetch_wfs_data(POTENTIEL_SOLAIRE_LAYER, bbox)
 
+# ──────────────────────────────────────────────────────────────
+# ZAER (Zones d'Accélération des ENR) — source nationale Géoplateforme
+# ──────────────────────────────────────────────────────────────
+# L'ancienne couche interne gpu:ZAER_ARRETE_SHP_FRA (import shapefile sur le
+# GeoServer auto-hébergé ngrok/Railway) disparaît aux redéploiements du
+# GeoServer. On bascule sur le WFS public data.geopf.fr, stable et sans auth,
+# qui expose les mêmes attributs (nom, filiere, dep, ...).
+GEOPLATEFORME_WFS_URL = "https://data.geopf.fr/wfs/ows"
+ZAER_WFS_TYPENAME = "zaer:zaer"
+
+def fetch_zaer_wfs(bbox, count=1000):
+    """Zones ZAER intersectant la bbox via le WFS national Géoplateforme.
+
+    bbox au format app "minx,miny,maxx,maxy,EPSG:4326" (lon/lat) — ordre validé
+    empiriquement sur data.geopf.fr. Retourne une liste de features GeoJSON
+    (MultiPolygon), ou [] en cas d'erreur.
+    """
+    params = {
+        "SERVICE": "WFS", "REQUEST": "GetFeature", "VERSION": "2.0.0",
+        "TYPENAMES": ZAER_WFS_TYPENAME, "SRSNAME": "EPSG:4326",
+        "OUTPUTFORMAT": "application/json", "COUNT": count, "BBOX": bbox,
+    }
+    try:
+        resp = requests.get(GEOPLATEFORME_WFS_URL, params=params, timeout=20)
+        if resp.status_code == 200 and "json" in resp.headers.get("content-type", ""):
+            return resp.json().get("features", [])
+        print(f"[ZAER] WFS Géoplateforme HTTP {resp.status_code}: {resp.text[:150]}")
+    except Exception as e:
+        print(f"[ZAER] Exception WFS Géoplateforme: {e}")
+    return []
+
 def get_zaer_info(lat, lon, radius=0.03):
     bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
-    return fetch_wfs_data(ZAER_LAYER, bbox)
+    return fetch_zaer_wfs(bbox)
 
 def get_friches_specialisees(lat, lon, radius=0.05):
     """
@@ -9235,8 +9266,32 @@ def get_solaire_info_by_polygon(commune_geom):
     return get_data_by_commune_polygon(commune_geom, None, POTENTIEL_SOLAIRE_LAYER)
 
 def get_zaer_info_by_polygon(commune_geom):
-    """Récupère les données ZAER en utilisant le polygone exact de la commune"""
-    return get_data_by_commune_polygon(commune_geom, None, ZAER_LAYER)
+    """Récupère les ZAER dans le polygone exact de la commune (WFS national)."""
+    try:
+        from shapely.geometry import shape
+        commune_poly = shape(commune_geom) if isinstance(commune_geom, dict) else commune_geom
+        minx, miny, maxx, maxy = commune_poly.bounds
+        bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+        features = fetch_zaer_wfs(bbox)
+        if not commune_poly.is_valid:
+            commune_poly = commune_poly.buffer(0)
+        filtered = []
+        for f in features:
+            g = f.get("geometry")
+            if not g:
+                continue
+            try:
+                gs = shape(g)
+                if not gs.is_valid:
+                    gs = gs.buffer(0)
+                if gs.intersects(commune_poly):
+                    filtered.append(f)
+            except Exception:
+                continue
+        return filtered
+    except Exception as e:
+        print(f"[ZAER] Erreur get_zaer_info_by_polygon: {e}")
+        return []
 
 def get_plu_info_by_polygon(commune_geom):
     """Récupère les données PLU en utilisant le polygone exact de la commune"""
