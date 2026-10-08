@@ -84,6 +84,20 @@
   .mbtn:hover:not(.on){color:var(--text)}
   .dot{border-radius:50%;border:1px solid rgba(255,255,255,.55);box-shadow:0 0 5px rgba(0,0,0,.5)}
   .muted{color:var(--text-3)}
+{% if cibles_chaleur %}
+  /* ── Mode « Cibles chaleur News Solar » ── */
+  .mbtn.heat.on{background:#f97316;color:#2a1200}
+  .ch-pop{min-width:270px;max-width:340px;font-size:.82rem;line-height:1.38}
+  .ch-pop .t{font-weight:700;color:#fdba74;font-size:.92rem}
+  .ch-pop .g{display:grid;grid-template-columns:auto 1fr;gap:1px 10px;margin-top:6px}
+  .ch-pop .g span:nth-child(odd){color:var(--text-3)}
+  .ch-pop .h{margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-weight:600;color:var(--text-2)}
+  .ch-pop .warn{color:#f59e0b} .ch-pop .bad{color:#f87171} .ch-pop .ok{color:#4ade80}
+  .ch-pop .note{margin-top:5px;font-size:.72rem;color:var(--text-3)}
+  .ch-score{display:inline-block;padding:1px 7px;border-radius:6px;font-weight:800;color:#111}
+  .ps-sq{width:10px;height:10px;border:1.5px solid #fff;transform:rotate(45deg);box-shadow:0 0 4px rgba(0,0,0,.6)}
+  .legend .sq{display:inline-block;width:9px;height:9px;transform:rotate(45deg);margin-right:8px;border:1px solid #fff;vertical-align:middle}
+{% endif %}
 </style>
 </head>
 <body>
@@ -102,17 +116,65 @@
   </div>
 
   <!-- Bandeau résultats -->
-  <div class="results">
+  <div class="results" id="resGisement">
     <div class="kpi"><div class="v" id="kSites" style="color:var(--text)">…</div><div class="l"><i class="bi bi-buildings"></i> sites trouvés</div></div>
     <div class="kpi"><div class="v" id="kConso" style="color:var(--gold)">…</div><div class="l"><i class="bi bi-lightning-charge-fill"></i> consommation / an</div></div>
     <div class="kpi"><div class="v" id="kPot" style="color:var(--green)">…</div><div class="l"><i class="bi bi-sun-fill"></i> potentiel PV</div></div>
     <div class="kpi"><div class="v" id="kProd" style="color:var(--blue)">…</div><div class="l"><i class="bi bi-graph-up"></i> production / an</div></div>
     <div class="info" id="loadInfo">Chargement…</div>
   </div>
+{% if cibles_chaleur %}
+  <div class="results" id="resChaleur" style="display:none">
+    <div class="kpi"><div class="v" id="chkSites" style="color:var(--text)">…</div><div class="l"><i class="bi bi-fire"></i> cibles chaleur</div></div>
+    <div class="kpi"><div class="v" id="chkGaz" style="color:#fdba74">…</div><div class="l"><i class="bi bi-droplet-half"></i> gaz mesuré / an</div></div>
+    <div class="kpi"><div class="v" id="chkP" style="color:#f97316">…</div><div class="l"><i class="bi bi-thermometer-high"></i> puissance thermique moy.</div></div>
+    <div class="kpi"><div class="v" id="chkS60" style="color:var(--green)">…</div><div class="l"><i class="bi bi-star-fill"></i> score ≥ 60</div></div>
+    <div class="kpi"><div class="v" id="chkDps" style="color:#a78bfa">…</div><div class="l"><i class="bi bi-lightning"></i> poste source (médiane)</div></div>
+    <div class="info" id="chInfo">Cibles News Solar</div>
+  </div>
+{% endif %}
 
   <div class="work">
     <!-- Panneau de filtres -->
     <aside class="sidebar">
+{% if cibles_chaleur %}
+      <div id="sbChaleur" style="display:none">
+        <div class="sec">
+          <div class="sec-h"><i class="bi bi-fire"></i> Cibles chaleur News Solar</div>
+          <div class="muted" style="font-size:.76rem;margin-bottom:10px">Sites hôtes d'une centrale de chaleur solaire 150-400 °C avec stockage. Données internes News Solar (non visibles des autres comptes).</div>
+          <div class="fld"><span class="lab">Établissement / commune</span><input id="chQ" class="inp" placeholder="ex : Royal Canin, Béziers…" oninput="chDeb()"></div>
+          <div class="fld"><span class="lab">Score minimal : <b id="chSminV">0</b> / 100</span><input id="chSmin" type="range" min="0" max="100" step="5" value="0" style="width:100%;accent-color:#f97316" oninput="document.getElementById('chSminV').textContent=this.value;chDeb()"></div>
+          <div class="row2">
+            <div class="fld"><span class="lab">Zone</span><select id="chZone" class="inp" onchange="chApply()"><option value="">Toutes</option><option value="Occitanie">Occitanie</option><option value="France">Hors Occitanie</option></select></div>
+            <div class="fld"><span class="lab">Département</span><select id="chDept" class="inp" onchange="chApply()"><option value="">Tous</option></select></div>
+          </div>
+          <div class="fld"><span class="lab">Profil</span><select id="chProfil" class="inp" onchange="chApply()"><option value="">Tous les profils</option></select></div>
+        </div>
+        <div class="sec">
+          <div class="sec-h"><i class="bi bi-thermometer-high"></i> Puissance thermique moyenne (kW)</div>
+          <div class="row2">
+            <div class="fld"><span class="lab">Minimum</span><input id="chPmin" type="number" min="0" step="100" class="inp" placeholder="0" oninput="chDeb()"></div>
+            <div class="fld"><span class="lab">Maximum</span><input id="chPmax" type="number" min="0" step="100" class="inp" placeholder="∞" oninput="chDeb()"></div>
+          </div>
+          <label class="chk"><input type="checkbox" id="chCoeur" onchange="chApply()"> Cœur de cible (0,25 – 5 MW moyen)</label>
+          <label class="chk"><input type="checkbox" id="chGaz" onchange="chApply()"> Gaz mesuré uniquement</label>
+        </div>
+        <div class="sec">
+          <div class="sec-h"><i class="bi bi-patch-check"></i> Indices</div>
+          <label class="chk"><input type="checkbox" id="chEts" onchange="chApply()"> Assujetti ETS (SEQE)</label>
+          <label class="chk"><input type="checkbox" id="chIcpe" onchange="chApply()"> ICPE combustion (2910 / 3110)</label>
+          <label class="chk"><input type="checkbox" id="chExpl" onchange="chApply()"> Exploitant identifié</label>
+        </div>
+        <div class="sec">
+          <div class="sec-h"><i class="bi bi-lightning-charge"></i> Réseau électrique</div>
+          <label class="chk"><input type="checkbox" id="chPostes" onchange="chRender()"> Afficher les postes sources des sites filtrés</label>
+          <label class="chk"><input type="checkbox" id="chNoSat" onchange="chApply()"> Exclure les postes à transformation saturée</label>
+          <div class="muted" style="font-size:.72rem;margin-top:6px">Capareseau = capacité d'accueil en <b>injection</b> du réseau public (S3REnR) : indicateur de contexte, pas la puissance du poste de livraison privé du site.</div>
+        </div>
+        <button class="btn-reset" onclick="chReset()"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser</button>
+      </div>
+{% endif %}
+      <div id="sbGisement">
       <div class="sec">
         <div class="sec-h"><i class="bi bi-search"></i> Recherche</div>
         <div class="fld">
@@ -149,6 +211,7 @@
       </div>
 
       <button class="btn-reset" onclick="resetFiltres()"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser les filtres</button>
+      </div>
     </aside>
 
     <!-- Carte -->
@@ -157,8 +220,24 @@
       <div class="modeswitch">
         <button id="mNuage" class="mbtn on" onclick="setMode('nuage')"><i class="bi bi-cloud-fill"></i> Nuage</button>
         <button id="mPoints" class="mbtn" onclick="setMode('points')"><i class="bi bi-pin-map-fill"></i> Points</button>
+        {% if cibles_chaleur %}<button id="mChaleur" class="mbtn heat" onclick="setMode('chaleur')"><i class="bi bi-fire"></i> Cibles chaleur</button>{% endif %}
       </div>
-      <div class="legend">
+{% if cibles_chaleur %}
+      <div class="legend" id="legChaleur" style="display:none">
+        <div class="t">Score News Solar (0-100)</div>
+        <div><i style="background:#dc2626"></i>90 – 100</div>
+        <div><i style="background:#f97316"></i>80 – 89</div>
+        <div><i style="background:#fbbf24"></i>70 – 79</div>
+        <div><i style="background:#a3e635"></i>60 – 69</div>
+        <div><i style="background:#38bdf8"></i>40 – 59</div>
+        <div><i style="background:#94a3b8"></i>&lt; 40</div>
+        <div class="muted" style="margin-top:5px">Taille ∝ puissance thermique moy.<br>(petit cercle = gaz non mesuré)</div>
+        <div style="margin-top:6px"><span class="sq" style="background:#a78bfa"></span>Poste source</div>
+        <div><span class="sq" style="background:#f59e0b"></span>Réservation S3REnR épuisée</div>
+        <div><span class="sq" style="background:#ef4444"></span>Transformation saturée</div>
+      </div>
+{% endif %}
+      <div class="legend" id="legGisement">
         <div class="t">Consommation (MWh/an)</div>
         <div><i style="background:#38bdf8"></i>&lt; 1 000</div>
         <div><i style="background:#22c55e"></i>1 000 – 3 000</div>
@@ -258,7 +337,7 @@ function render(){
       m.bindPopup(()=>popupHtml(p)); return m;
     });
     nuageLayer=L.layerGroup(layers); nuageLayer.addTo(map);
-  } else {
+  } else if(MODE==='points'){
     const markers=FILTERED.map(p=>{
       const r=rayon(p[2])+2;
       const ic=L.divIcon({className:'',html:`<div class="dot" style="width:${r}px;height:${r}px;background:${couleur(p[2])}"></div>`,iconSize:[r,r]});
@@ -271,6 +350,7 @@ function setMode(m){
   MODE=m;
   document.getElementById('mNuage').className='mbtn '+(m==='nuage'?'on':'');
   document.getElementById('mPoints').className='mbtn '+(m==='points'?'on':'');
+  if(typeof chToggle==='function') chToggle(m==='chaleur');
   render();
 }
 function compteur(){
@@ -302,5 +382,182 @@ charger();
 setTimeout(()=>map.invalidateSize(), 250);
 window.addEventListener('resize', ()=>map.invalidateSize());
 </script>
+{% if cibles_chaleur %}
+<script>
+/* ═══ Mode « Cibles chaleur News Solar » (rendu uniquement pour les comptes autorisés) ═══ */
+const CH={sites:[], postes:{}, filtered:[], loaded:false, loading:false, fitted:false,
+          layer:L.layerGroup(), psLayer:L.layerGroup(), renderer:L.canvas({padding:.5})};
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function n1(x,d){ return (x==null)?'—':Number(x).toLocaleString('fr-FR',{maximumFractionDigits:d==null?1:d}); }
+function chCouleur(s){ return s>=90?'#dc2626':s>=80?'#f97316':s>=70?'#fbbf24':s>=60?'#a3e635':s>=40?'#38bdf8':'#94a3b8'; }
+function chRayon(p){ const kw=p.puissance_gaz_moy_kw; if(!kw) return 4; return Math.max(5, Math.min(22, 4+3.2*Math.sqrt(kw/250))); }
+function chPosteCouleur(ps){ return !ps?'#a78bfa': ps.transfo_sature?'#ef4444': ps.reservation_epuisee?'#f59e0b':'#a78bfa'; }
+
+function chToggle(on){
+  document.getElementById('mChaleur').className='mbtn heat '+(on?'on':'');
+  ['resChaleur','sbChaleur','legChaleur'].forEach(id=>document.getElementById(id).style.display=on?'':'none');
+  ['resGisement','sbGisement','legGisement'].forEach(id=>document.getElementById(id).style.display=on?'none':'');
+  if(on){ if(!CH.loaded) chLoad(); else chRender(); }
+  else { map.removeLayer(CH.layer); map.removeLayer(CH.psLayer); }
+  setTimeout(()=>map.invalidateSize(),50);
+}
+
+async function chLoad(){
+  if(CH.loading) return; CH.loading=true;
+  document.getElementById('chInfo').textContent='Chargement des cibles…';
+  try{
+    const r=await fetch('/api/industriel/cibles-chaleur',{credentials:'same-origin'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const gj=await r.json();
+    for(const f of gj.features||[]){
+      const p=f.properties||{}; const c=f.geometry.coordinates;
+      if(p.kind==='poste_source'){ CH.postes[p.code]={...p, lat:c[1], lon:c[0]}; }
+      else if(p.kind==='site'){ CH.sites.push({...p, id:f.id, lat:c[1], lon:c[0]}); }
+    }
+    CH.loaded=true;
+    const depts={}, profils={};
+    CH.sites.forEach(s=>{ depts[s.departement]=(depts[s.departement]||0)+1; if(s.profil) profils[s.profil]=(profils[s.profil]||0)+1; });
+    document.getElementById('chDept').innerHTML='<option value="">Tous</option>'+Object.keys(depts).sort().map(d=>`<option value="${esc(d)}">${esc(d)} (${depts[d]})</option>`).join('');
+    document.getElementById('chProfil').innerHTML='<option value="">Tous les profils</option>'+Object.entries(profils).sort((a,b)=>b[1]-a[1]).map(([p,n])=>`<option value="${esc(p)}">${esc(p)} (${n})</option>`).join('');
+    const md=gj.metadata||{};
+    document.getElementById('chInfo').innerHTML=`<i class="bi bi-check-circle-fill" style="color:var(--green)"></i>&nbsp; ${fmt(CH.sites.length)} sites · ${fmt(Object.keys(CH.postes).length)} postes sources${md.genere_le?' · '+esc(md.genere_le):''}`;
+    chApply();
+  }catch(e){ document.getElementById('chInfo').innerHTML=`<span style="color:#f87171">${esc(e.message||e)}</span>`; }
+  CH.loading=false;
+}
+
+function chApply(){
+  if(!CH.loaded) return;
+  const v=id=>document.getElementById(id);
+  const q=(v('chQ').value||'').trim().toLowerCase();
+  const smin=parseFloat(v('chSmin').value)||0, zone=v('chZone').value, dept=v('chDept').value, prof=v('chProfil').value;
+  const pmin=parseFloat(v('chPmin').value)||0, pmax=parseFloat(v('chPmax').value)||Infinity;
+  const coeur=v('chCoeur').checked, gaz=v('chGaz').checked, ets=v('chEts').checked, icpe=v('chIcpe').checked,
+        expl=v('chExpl').checked, nosat=v('chNoSat').checked;
+  CH.filtered=CH.sites.filter(s=>{
+    if((s.score||0)<smin) return false;
+    if(zone && s.zone!==zone) return false;
+    if(dept && s.departement!==dept) return false;
+    if(prof && s.profil!==prof) return false;
+    const kw=s.puissance_gaz_moy_kw||0;
+    if((pmin||pmax<Infinity) && (kw<pmin || kw>pmax)) return false;
+    if(coeur && !(kw>=250 && kw<=5000)) return false;
+    if(gaz && !s.gaz_mwh_an) return false;
+    if(ets && !s.ets) return false;
+    if(icpe && !s.icpe_combustion) return false;
+    if(expl && s.exploitant_a_confirmer) return false;
+    if(nosat){ const ps=CH.postes[s.ps_code]; if(ps && ps.transfo_sature) return false; }
+    if(q && !((s.raison_sociale||'')+' '+(s.enseigne||'')+' '+(s.commune||'')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  chRender(); chKpi();
+}
+let _cht=null; function chDeb(){ clearTimeout(_cht); _cht=setTimeout(chApply,250); }
+
+function chRender(){
+  if(MODE!=='chaleur' || !CH.loaded) return;
+  CH.layer.clearLayers(); CH.psLayer.clearLayers();
+  // gros cercles d'abord, petits au-dessus (cliquables)
+  const arr=[...CH.filtered].sort((a,b)=>(b.puissance_gaz_moy_kw||0)-(a.puissance_gaz_moy_kw||0));
+  for(const s of arr){
+    const m=L.circleMarker([s.lat,s.lon],{renderer:CH.renderer,radius:chRayon(s),color:'rgba(255,255,255,.7)',weight:.8,
+      fillColor:chCouleur(s.score||0),fillOpacity:s.puissance_gaz_moy_kw?.8:.55});
+    m.bindPopup(()=>chPopup(s),{maxWidth:360}); m.bindTooltip(esc(s.raison_sociale||'Exploitant à identifier')+' · '+(s.score||0),{direction:'top'});
+    CH.layer.addLayer(m);
+  }
+  CH.layer.addTo(map);
+  if(document.getElementById('chPostes').checked){
+    const codes=new Set(CH.filtered.map(s=>s.ps_code));
+    for(const c of codes){ const ps=CH.postes[c]; if(!ps) continue;
+      const ic=L.divIcon({className:'',html:`<div class="ps-sq" style="background:${chPosteCouleur(ps)}"></div>`,iconSize:[12,12]});
+      CH.psLayer.addLayer(L.marker([ps.lat,ps.lon],{icon:ic,zIndexOffset:500}).bindPopup(()=>chPostePopup(ps),{maxWidth:340}));
+    }
+    CH.psLayer.addTo(map);
+  } else map.removeLayer(CH.psLayer);
+  if(!CH.fitted){ CH.fitted=true; map.fitBounds([[42.3,-0.4],[45.1,4.9]]); }
+}
+
+function chKpi(){
+  let gaz=0,p=0,s60=0; const d=[];
+  for(const s of CH.filtered){ gaz+=s.gaz_mwh_an||0; p+=s.puissance_gaz_moy_kw||0; if((s.score||0)>=60) s60++; if(s.ps_distance_km!=null) d.push(s.ps_distance_km); }
+  d.sort((a,b)=>a-b);
+  const med=d.length?(d.length%2?d[(d.length-1)/2]:(d[d.length/2-1]+d[d.length/2])/2):null;
+  document.getElementById('chkSites').textContent=fmt(CH.filtered.length);
+  document.getElementById('chkGaz').textContent=n1(gaz/1000,0)+' GWh';
+  document.getElementById('chkP').textContent=n1(p/1000,0)+' MW';
+  document.getElementById('chkS60').textContent=fmt(s60);
+  document.getElementById('chkDps').textContent=med==null?'—':n1(med,1)+' km';
+}
+
+function chPosteBloc(ps, dist){
+  if(!ps) return '<div class="muted">Poste source non rattaché</div>';
+  const etat = ps.transfo_sature ? '<span class="bad">transformation saturée</span>'
+             : ps.reservation_epuisee ? '<span class="warn">réservation S3REnR épuisée</span>' : '<span class="ok">capacité disponible</span>';
+  return `<div class="g">
+    <span>Poste</span><span><b>${esc(ps.nom)}</b> (${esc(ps.code)})${dist!=null?' · '+n1(dist,1)+' km':''}</span>
+    <span>Tensions</span><span>${n1(ps.tension_amont_kv,0)} / ${n1(ps.tension_aval_kv,0)} kV</span>
+    <span>Taux d'affect.</span><span>${ps.taux_affectation_pct!=null?n1(ps.taux_affectation_pct,0)+' %':'—'}</span>
+    <span>Réservé S3REnR</span><span>${n1(ps.capa_reservee_s3renr_mw)} MW, reste ${n1(ps.capa_reservee_restant_a_affecter_mw)} MW</span>
+    <span>Transfo. restante</span><span>${n1(ps.capa_transfo_restante_injection_mw)} MW (injection)</span>
+    <span>EnR raccordées</span><span>${n1(ps.puissance_enr_raccordee_mw)} MW</span>
+    <span>État</span><span>${etat}</span></div>`;
+}
+function chPostePopup(ps){
+  const n=CH.filtered.filter(s=>s.ps_code===ps.code).length;
+  return `<div class="ch-pop"><div class="t"><i class="bi bi-lightning-charge-fill"></i> Poste source ${esc(ps.nom)}</div>
+    <div class="muted">${esc(ps.s3renr||'')} · ${n} site(s) filtré(s) rattaché(s)</div>${chPosteBloc(ps,null)}
+    ${ps.quote_part?`<div class="note">Quote-part S3REnR : ${esc(ps.quote_part)}</div>`:''}
+    <div class="note">Capareseau : capacité d'accueil en injection du réseau public, indicateur de contexte.</div></div>`;
+}
+function chPopup(s){
+  const ps=CH.postes[s.ps_code];
+  const kw=s.puissance_gaz_moy_kw;
+  const icpe=[s.icpe_combustion?'combustion':'', s.icpe_rubriques_chaleur||'', s.icpe_regime||''].filter(Boolean).join(' · ');
+  return `<div class="ch-pop">
+    <div class="t">${esc(s.raison_sociale||'Exploitant à identifier')}${s.enseigne?' <span class="muted">('+esc(s.enseigne)+')</span>':''}</div>
+    <div class="muted">${esc(s.commune||'')} (${esc(s.departement||'')}) · ${esc(s.adresse||'')}</div>
+    <div style="margin-top:5px"><span class="ch-score" style="background:${chCouleur(s.score||0)}">${s.score||0}/100</span>
+      ${s.rang_occitanie?`<span class="muted"> · rang Occitanie ${s.rang_occitanie}</span>`:''}${s.rang_france?`<span class="muted"> · rang France ${s.rang_france}</span>`:''}</div>
+    <div class="g">
+      <span>Profil</span><span>${esc(s.profil||'—')} (${esc(s.niveau_thermique||'?')}, ${esc(s.continuite||'?')})</span>
+      <span>NAF</span><span>${esc(s.naf||'—')} ${esc(s.libelle_naf_profil||'')}</span>
+      <span>Température</span><span>${esc(s.temperature_typique||'—')}</span>
+      <span>Gaz</span><span>${s.gaz_mwh_an?'<b>'+n1(s.gaz_mwh_an/1000,1)+' GWh/an</b>':'non mesuré'}</span>
+      <span>P. thermique</span><span>${kw?'<b>'+(kw>=1000?n1(kw/1000,1)+' MW':n1(kw,0)+' kW')+'</b> moy.':'—'}</span>
+      <span>Électricité</span><span>${s.elec_mwh_an?n1(s.elec_mwh_an/1000,1)+' GWh/an':'—'}</span>
+      <span>ETS</span><span>${s.ets?'<b>oui</b>'+(s.ets_co2_t?' · '+n1(s.ets_co2_t,0)+' tCO₂':''):'non'}${s.irep_co2_t?' · IREP '+n1(s.irep_co2_t,0)+' t':''}</span>
+      <span>ICPE</span><span>${esc(icpe||(s.icpe?'oui':'—'))}${s.seveso?' · '+esc(s.seveso):''}</span>
+      <span>Effectif</span><span>${esc(s.effectif_etablissement||'—')}${s.categorie_entreprise?' · '+esc(s.categorie_entreprise):''}</span>
+      <span>Taille</span><span>${esc(s.adequation_taille||'—')}</span>
+    </div>
+    ${s.remarques?`<div class="note warn">${esc(s.remarques)}</div>`:''}
+    ${s.exploitant_a_confirmer?'<div class="note warn">Exploitant à confirmer</div>':''}
+    <div class="h"><i class="bi bi-lightning-charge"></i> Poste source le plus proche (Capareseau)</div>${chPosteBloc(ps,s.ps_distance_km)}
+    <div class="g"><span>Poste RTE</span><span>${esc(s.rte_nom||'—')} ${esc(s.rte_tension||'')}${s.rte_distance_km!=null?' · '+n1(s.rte_distance_km,1)+' km':''}</span></div>
+    <div class="note">Capacités en injection du réseau public : pas la puissance du poste de livraison du site.</div>
+    <button onclick="chAjouterCRM('${esc(s.id)}',this)" style="margin-top:8px;background:#22c55e;border:none;color:#06210f;font-weight:700;border-radius:6px;padding:5px 10px;cursor:pointer">➕ Ajouter à mon CRM</button>
+    <div class="crm-res" style="margin-top:5px;font-size:.85rem"></div></div>`;
+}
+async function chAjouterCRM(id,btn){
+  const box=btn.parentElement.querySelector('.crm-res');
+  btn.disabled=true; const lbl=btn.textContent; btn.textContent='⏳ Ajout…';
+  try{
+    const j=await (await fetch('/api/industriel/cibles-chaleur/ajouter-au-crm',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})).json();
+    if(j.success){
+      btn.textContent=j.created?'✅ Ajouté au CRM':'✓ Déjà dans le CRM';
+      box.innerHTML=`<a href="/crm/prospect/${encodeURIComponent(j.prospect_id)}/calpinage" target="_blank" style="color:#7dd3fc">🔍 Analyser</a> · <a href="/crm" target="_blank" style="color:#7dd3fc">Fiche</a>`;
+    } else { btn.disabled=false; btn.textContent=lbl; box.innerHTML=`<span style="color:#f87171">${esc(j.message||j.error||'Erreur')}</span>`; }
+  }catch(e){ btn.disabled=false; btn.textContent=lbl; box.innerHTML=`<span style="color:#f87171">${esc(e)}</span>`; }
+}
+function chReset(){
+  ['chQ','chPmin','chPmax'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('chSmin').value='0'; document.getElementById('chSminV').textContent='0';
+  ['chZone','chDept','chProfil'].forEach(id=>document.getElementById(id).value='');
+  ['chCoeur','chGaz','chEts','chIcpe','chExpl','chNoSat','chPostes'].forEach(id=>document.getElementById(id).checked=false);
+  chApply(); map.fitBounds([[42.3,-0.4],[45.1,4.9]]);
+}
+if(location.hash==='#chaleur') setMode('chaleur');
+</script>
+{% endif %}
 </body>
 </html>

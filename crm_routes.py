@@ -2836,7 +2836,14 @@ def register_crm_routes(app):
         if user_id is None:
             return redirect('/auth/login?next=/crm/carte')
         # Accessible aux clients : carte-data est gatee a leurs departements payes.
-        return render_template('crm_carte.html', is_admin=is_admin)
+        # Mode « Cibles chaleur » : propre à News Solar, rendu uniquement pour les
+        # comptes autorisés (cf. cibles_chaleur.py) — jamais pour un autre locataire.
+        try:
+            from cibles_chaleur import cibles_chaleur_visible
+            cibles_chaleur = cibles_chaleur_visible()
+        except Exception:
+            cibles_chaleur = False
+        return render_template('crm_carte.html', is_admin=is_admin, cibles_chaleur=cibles_chaleur)
 
     @app.route('/demo-prospection')
     def demo_prospection_page():
@@ -3564,6 +3571,13 @@ def register_crm_routes(app):
         except Exception as e:
             print(f"❌ [AJOUTER CRM] {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Mode « Cibles chaleur News Solar » (accès restreint, cf. cibles_chaleur.py)
+    try:
+        from cibles_chaleur import register_cibles_chaleur_routes
+        register_cibles_chaleur_routes(app, _ajouter_site_au_crm)
+    except Exception as e:
+        print(f"⚠️ [CIBLES CHALEUR] routes non enregistrées : {e}")
 
     @app.route('/api/industriel/checkout', methods=['POST'])
     def industriel_checkout():
